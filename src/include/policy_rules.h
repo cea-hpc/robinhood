@@ -307,25 +307,6 @@ policy_match_t entry_matches(const entry_id_t *p_entry_id, const attr_set_t *p_e
                              bool_node_t *p_node, const time_modifier_t *p_pol_mod,
                              const struct sm_instance *smi);
 
-/**
- * Compare 2 boolean expressions
- * @return 1 if expression structure changed.
- * @return 0 if they have the same structure,
- * @return  -1 on error.
- */
-int compare_boolexpr(const bool_node_t *expr1, const bool_node_t *expr2);
-
-
-/**
- * Update the numerical values of a boolean expression.
- * /!\ compare_boolexpr() must have returned 0 (else, unguarantied behavior).
- * @param tgt Boolean expression to be updated
- * @param src Boolean expression to take values from.
- * @return true if expression values have been changed
- * @return false if nothing has been changed
- */
-bool update_boolexpr(const bool_node_t *tgt, const bool_node_t *src);
-
 /* read an action params block from config */
 int read_action_params(config_item_t param_block, action_params_t *params,
                        uint64_t *mask, char *msg_out);

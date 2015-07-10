@@ -23,6 +23,7 @@
 #include "rbh_misc.h"
 #include "analyze.h"
 #include "status_manager.h"
+#include "rbh_logs.h"
 
 /**
  *  convert the syntaxic code for comparator to the configuration equivalent code
@@ -1035,5 +1036,211 @@ int BoolExpr2str( bool_node_t * p_bool_node, char *out_str, size_t str_size )
 
     return -EINVAL;
 }
+
+/**
+ * Compare 2 boolean expressions
+ * @return TRUE if expression structure changed.
+ * @return FALSE if they have the same structure,
+ * @return  -1 on error.
+ */
+int compare_boolexpr(const bool_node_t * expr1, const bool_node_t * expr2)
+{
+    if (expr1->node_type != expr2->node_type)
+        return 1;
+
+    switch (expr1->node_type)
+    {
+    case NODE_UNARY_EXPR:
+        if (expr1->content_u.bool_expr.bool_op != expr2->content_u.bool_expr.bool_op)
+            return true;
+
+        return compare_boolexpr(expr1->content_u.bool_expr.expr1,
+                                 expr2->content_u.bool_expr.expr1);
+
+    case NODE_BINARY_EXPR:
+        if (expr1->content_u.bool_expr.bool_op != expr2->content_u.bool_expr.bool_op)
+            return true;
+
+        return (compare_boolexpr
+                 (expr1->content_u.bool_expr.expr1, expr2->content_u.bool_expr.expr1)
+                 || compare_boolexpr(expr1->content_u.bool_expr.expr2,
+                                      expr2->content_u.bool_expr.expr2));
+
+    case NODE_CONDITION:
+        /* compare criteria */
+        if (expr1->content_u.condition->crit != expr2->content_u.condition->crit)
+            return true;
+
+        /* compare operator, except for custom cmd and xattr */
+        if ((expr1->content_u.condition->crit != CRITERIA_XATTR)
+             && (expr1->content_u.condition->op != expr2->content_u.condition->op))
+            return true;
+
+        /* same structure */
+        return false;
+    }
+
+    /* should not happen */
+    RBH_BUG("Unexpected node_type in boolean expression");
+    return -1;
+}                               /* compare_boolexpr */
+
+
+#define RELOAD_TAG "ReloadExpr"
+
+/**
+ * Update the numerical values of a boolean expression.
+ * /!\ compare_boolexpr() must have returned 0 (else, unguarantied behavior).
+ * @param tgt Boolean expression to be updated
+ * @param src Boolean expression to take values from.
+ * @return TRUE if expression values have been changed
+ * @return FALSE if nothing has been changed
+ */
+bool update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
+{
+    compare_triplet_t *p_triplet1;
+    compare_triplet_t *p_triplet2;
+    char           tmp_buff1[256];
+    char           tmp_buff2[256];
+    bool           rc;
+
+    switch (tgt->node_type)
+    {
+    case NODE_UNARY_EXPR:
+        return update_boolexpr(tgt->content_u.bool_expr.expr1, src->content_u.bool_expr.expr1);
+
+    case NODE_BINARY_EXPR:
+        rc = update_boolexpr(tgt->content_u.bool_expr.expr1, src->content_u.bool_expr.expr1);
+        if (update_boolexpr(tgt->content_u.bool_expr.expr2, src->content_u.bool_expr.expr2))
+            rc = true;
+        return rc;
+
+    case NODE_CONDITION:
+
+        p_triplet1 = tgt->content_u.condition;
+        p_triplet2 = src->content_u.condition;
+
+        switch (p_triplet1->crit)
+        {
+        case CRITERIA_SIZE:
+            if (p_triplet1->val.size != p_triplet2->val.size)
+            {
+                FormatFileSize(tmp_buff1, 256, p_triplet1->val.size);
+                FormatFileSize(tmp_buff2, 256, p_triplet2->val.size);
+
+                DisplayLog(LVL_EVENT, RELOAD_TAG,
+                            "Criteria value updated: (%s %s %s) -> (%s %s %s)",
+                            criteria2str(CRITERIA_SIZE), op2str(p_triplet1->op), tmp_buff1,
+                            criteria2str(CRITERIA_SIZE), op2str(p_triplet2->op), tmp_buff2);
+                p_triplet1->val.size = p_triplet2->val.size;
+                return true;
+            }
+            else
+                return false;
+
+            /* integer conditions */
+        case CRITERIA_DEPTH:
+#ifdef _LUSTRE
+        case CRITERIA_OST:
+#endif
+
+#ifdef ATTR_INDEX_dircount
+        case CRITERIA_DIRCOUNT:
+#endif
+            if (p_triplet1->val.integer != p_triplet2->val.integer)
+            {
+                DisplayLog(LVL_EVENT, RELOAD_TAG,
+                            "Criteria value updated: (%s %s %d) -> (%s %s %d)",
+                            criteria2str(p_triplet1->crit), op2str(p_triplet1->op),
+                            p_triplet1->val.integer, criteria2str(p_triplet2->crit),
+                            op2str(p_triplet2->op), p_triplet2->val.integer);
+                p_triplet1->val.integer = p_triplet2->val.integer;
+                return true;
+            }
+            else
+                return false;
+
+            /* duration conditions */
+        case CRITERIA_LAST_ACCESS:
+        case CRITERIA_LAST_MOD:
+#ifdef ATTR_INDEX_last_archive
+        case CRITERIA_LAST_ARCHIVE:
+#endif
+#ifdef ATTR_INDEX_last_restore
+        case CRITERIA_LAST_RESTORE:
+#endif
+#ifdef ATTR_INDEX_creation_time
+        case CRITERIA_CREATION:
+#endif
+            if (p_triplet1->val.duration != p_triplet2->val.duration)
+            {
+                FormatDurationFloat(tmp_buff1, 256, p_triplet1->val.duration);
+                FormatDurationFloat(tmp_buff2, 256, p_triplet2->val.duration);
+                DisplayLog(LVL_EVENT, RELOAD_TAG,
+                            "Criteria value updated: (%s %s %s) -> (%s %s %s)",
+                            criteria2str(p_triplet1->crit), op2str(p_triplet1->op), tmp_buff1,
+                            criteria2str(p_triplet2->crit), op2str(p_triplet2->op), tmp_buff2);
+                p_triplet1->val.duration = p_triplet2->val.duration;
+                return true;
+            }
+            else
+                return false;
+
+#ifdef ATTR_INDEX_type
+        case CRITERIA_TYPE:
+            if (p_triplet1->val.type != p_triplet2->val.type)
+            {
+                DisplayLog(LVL_EVENT, RELOAD_TAG,
+                            "Criteria value updated: (%s %s %s) -> (%s %s %s)",
+                            criteria2str(p_triplet1->crit), op2str(p_triplet1->op),
+                            type2str(p_triplet1->val.type), criteria2str(p_triplet2->crit),
+                            op2str(p_triplet2->op), type2str(p_triplet2->val.type));
+                p_triplet1->val.type = p_triplet2->val.type;
+                return true;
+            }
+            else
+                return false;
+#endif
+
+            /* unmodifiable conditions */
+        case CRITERIA_TREE:
+        case CRITERIA_PATH:
+        case CRITERIA_FILENAME:
+        case CRITERIA_OWNER:
+        case CRITERIA_GROUP:
+#ifdef _LUSTRE
+        case CRITERIA_POOL:
+#endif
+            if (strcmp(p_triplet1->val.str, p_triplet2->val.str))
+            {
+                DisplayLog(LVL_MAJOR, RELOAD_TAG,
+                            "Condition changed on attribute '%s' but this cannot be modified dynamically",
+                            criteria2str(p_triplet1->crit));
+            }
+            return false;
+
+        case CRITERIA_XATTR:
+            if (strcmp(p_triplet1->val.str, p_triplet2->val.str)
+                 || strcmp(p_triplet1->xattr_name, p_triplet2->xattr_name))
+            {
+                DisplayLog(LVL_MAJOR, RELOAD_TAG,
+                            "xattr condition changed, but it cannot be modified dynamically");
+            }
+            return false;
+
+        default:
+            DisplayLog(LVL_CRIT, RELOAD_TAG,
+                        "Unsupported attribute: %s", criteria2str(p_triplet1->crit));
+        }
+
+        break;
+    }
+
+    /* should not happen */
+    RBH_BUG("Unexpected node_type in boolean expression");
+    return -1;
+}                               /* update_boolexpr */
+
+
 
 

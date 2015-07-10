@@ -218,4 +218,24 @@ int FreeBoolExpr(bool_node_t * p_expr, bool free_top_node);
  */
 int BoolExpr2str(bool_node_t *p_bool_node, char *out_str, size_t str_size);
 
+/**
+ * Compare 2 boolean expressions
+ * @return 1 if expression structure changed.
+ * @return 0 if they have the same structure,
+ * @return  -1 on error.
+ */
+int compare_boolexpr(const bool_node_t *expr1, const bool_node_t *expr2);
+
+
+/**
+ * Update the numerical values of a boolean expression.
+ * /!\ compare_boolexpr() must have returned 0 (else, unguarantied behavior).
+ * @param tgt Boolean expression to be updated
+ * @param src Boolean expression to take values from.
+ * @return true if expression values have been changed
+ * @return false if nothing has been changed
+ */
+bool update_boolexpr(const bool_node_t *tgt, const bool_node_t *src);
+
+
 #endif
