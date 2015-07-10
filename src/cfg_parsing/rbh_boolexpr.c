@@ -135,66 +135,62 @@ static int process_any_level_condition( char * regexpr, char *err_msg )
 
 /** criteria parsing */
 static struct criteria_descr_t {
-    compare_criteria_t crit;
     const char *name;
     uint64_t    attr_mask;
     cfg_param_type type;
     int   parsing_flags;
 } const criteria_descr[] = {
-    {CRITERIA_TREE, "tree", ATTR_MASK_fullpath, PT_STRING,
-        PFLG_ALLOW_ANY_DEPTH | PFLG_NOT_EMPTY},
-    {CRITERIA_PATH, "path", ATTR_MASK_fullpath, PT_STRING,
-        PFLG_ALLOW_ANY_DEPTH | PFLG_NOT_EMPTY},
-    {CRITERIA_FILENAME, "name", ATTR_MASK_name, PT_STRING,
-        PFLG_NOT_EMPTY | PFLG_NO_SLASH},
-    {CRITERIA_TYPE, "type", ATTR_MASK_type, PT_TYPE, 0},
-    {CRITERIA_OWNER, "owner", ATTR_MASK_owner, PT_STRING, PFLG_NOT_EMPTY},
-    {CRITERIA_GROUP, "group", ATTR_MASK_gr_name, PT_STRING, PFLG_NOT_EMPTY},
-    {CRITERIA_SIZE, "size", ATTR_MASK_size, PT_SIZE,
-        PFLG_POSITIVE | PFLG_COMPARABLE},
-    {CRITERIA_DEPTH, "depth", ATTR_MASK_depth, PT_INT,
-        PFLG_POSITIVE | PFLG_COMPARABLE},
-    {CRITERIA_DIRCOUNT, "dircount", ATTR_MASK_dircount, PT_INT,
-        PFLG_POSITIVE | PFLG_COMPARABLE},
-    {CRITERIA_LAST_ACCESS, "last_access", ATTR_MASK_last_access, PT_DURATION,
-        PFLG_POSITIVE | PFLG_COMPARABLE},
-    {CRITERIA_LAST_MOD, "last_mod", ATTR_MASK_last_mod, PT_DURATION,
-        PFLG_POSITIVE | PFLG_COMPARABLE},
-#ifdef ATTR_INDEX_last_restore
-    {CRITERIA_LAST_RESTORE, "last_restore", ATTR_MASK_last_restore, PT_DURATION,
-        PFLG_POSITIVE | PFLG_COMPARABLE},
-#endif
-#ifdef ATTR_INDEX_last_archive
-    {CRITERIA_LAST_ARCHIVE, "last_archive", ATTR_MASK_last_archive, PT_DURATION,
-        PFLG_POSITIVE | PFLG_COMPARABLE},
-#endif
+    [CRITERIA_TREE] =  {"tree", ATTR_MASK_fullpath, PT_STRING,
+                        PFLG_ALLOW_ANY_DEPTH | PFLG_NOT_EMPTY},
+    [CRITERIA_PATH] =  {"path", ATTR_MASK_fullpath, PT_STRING,
+                        PFLG_ALLOW_ANY_DEPTH | PFLG_NOT_EMPTY},
+    [CRITERIA_FILENAME] = {"name", ATTR_MASK_name, PT_STRING,
+                        PFLG_NOT_EMPTY | PFLG_NO_SLASH},
+    [CRITERIA_TYPE] =  {"type", ATTR_MASK_type, PT_TYPE, 0},
+    [CRITERIA_OWNER] = {"owner", ATTR_MASK_owner, PT_STRING, PFLG_NOT_EMPTY},
+    [CRITERIA_GROUP] = {"group", ATTR_MASK_gr_name, PT_STRING, PFLG_NOT_EMPTY},
+    [CRITERIA_SIZE] =  {"size", ATTR_MASK_size, PT_SIZE,
+                        PFLG_POSITIVE | PFLG_COMPARABLE},
+    [CRITERIA_DEPTH] = {"depth", ATTR_MASK_depth, PT_INT,
+                        PFLG_POSITIVE | PFLG_COMPARABLE},
+    [CRITERIA_DIRCOUNT] = {"dircount", ATTR_MASK_dircount, PT_INT,
+                        PFLG_POSITIVE | PFLG_COMPARABLE},
+    [CRITERIA_LAST_ACCESS] = {"last_access", ATTR_MASK_last_access, PT_DURATION,
+                        PFLG_POSITIVE | PFLG_COMPARABLE},
+    [CRITERIA_LAST_MOD] = {"last_mod", ATTR_MASK_last_mod, PT_DURATION,
+                        PFLG_POSITIVE | PFLG_COMPARABLE},
 #ifdef ATTR_INDEX_creation_time
-    {CRITERIA_CREATION ,"creation", ATTR_MASK_creation_time, PT_DURATION,
-        PFLG_POSITIVE | PFLG_COMPARABLE},
+    [CRITERIA_CREATION] = {"creation", ATTR_MASK_creation_time, PT_DURATION,
+                        PFLG_POSITIVE | PFLG_COMPARABLE},
 #endif
 #ifdef ATTR_INDEX_rm_time
-    {CRITERIA_RMTIME ,"rm_time", ATTR_MASK_rm_time, PT_DURATION,
-        PFLG_POSITIVE | PFLG_COMPARABLE | PFLG_STATUS}, /* needs a 'remove' status manager */
+    /* needs a 'remove' status manager */
+    [CRITERIA_RMTIME] = {"rm_time", ATTR_MASK_rm_time, PT_DURATION,
+                         PFLG_POSITIVE | PFLG_COMPARABLE | PFLG_STATUS},
 #endif
 #ifdef _LUSTRE
-    {CRITERIA_POOL, "ost_pool", ATTR_MASK_stripe_info, PT_STRING, 0},
-    {CRITERIA_OST, "ost_index", ATTR_MASK_stripe_items, PT_INT, PFLG_POSITIVE},
+    [CRITERIA_POOL] = {"ost_pool", ATTR_MASK_stripe_info, PT_STRING, 0},
+    [CRITERIA_OST] =  {"ost_index", ATTR_MASK_stripe_items, PT_INT, PFLG_POSITIVE},
 #endif
     /* status mask is context dependant */
-    {CRITERIA_STATUS, "status", 0, PT_STRING, PFLG_STATUS | PFLG_NO_WILDCARDS},
-    /* /!\ str2criteria relies on the fact that CRITERIA_XATTR is the last criteria */
-    {CRITERIA_XATTR, XATTR_PREFIX, XATTR_NEED, PT_STRING, PFLG_XATTR},
+    [CRITERIA_STATUS] = {"status", 0, PT_STRING, PFLG_STATUS | PFLG_NO_WILDCARDS},
+    /* /!\ str2criteria relies on the fact that CRITERIA_XATTR is after
+     * the last standard criteria */
+    [CRITERIA_XATTR] = {XATTR_PREFIX, XATTR_NEED, PT_STRING, PFLG_XATTR},
+
+    /* CRITERIA_SM_INFO: type and flags are attribute specific. */
 };
 
 const char *criteria2str(compare_criteria_t crit)
 {
-    if (crit > MAX_CRITERIA)
+    if (crit > CRITERIA_XATTR)
         return "?";
 
    return criteria_descr[crit].name;
 }
 
-compare_criteria_t str2criteria(const char *str)
+compare_criteria_t str2criteria(const char *str, const struct sm_instance *smi,
+                                const sm_info_def_t **def, int *idx)
 {
     int i;
 
@@ -203,19 +199,24 @@ compare_criteria_t str2criteria(const char *str)
         return CRITERIA_XATTR;
 
     for (i = 0; i < CRITERIA_XATTR; i++)
-        if (!strcasecmp(str,criteria_descr[i].name))
+        if (!strcasecmp(str, criteria_descr[i].name))
             return i;
+
+    i = sm_attr_get(smi, NULL, str, NULL, def);
+    if (i >= 0)
+    {
+        *idx = i;
+        return CRITERIA_SM_INFO;
+    }
 
     return NO_CRITERIA;
 }
 
-int str2lru_attr(const char *str)
+int str2lru_attr(const char *str, const struct sm_instance *smi)
 {
-#ifdef ATTR_INDEX_last_archive
-        if (!strcasecmp(str, criteria2str(CRITERIA_LAST_ARCHIVE)))
-            return ATTR_INDEX_last_archive;
-        else
-#endif
+        int       idx;
+        const sm_info_def_t *def;
+
         if (!strcasecmp(str, criteria2str(CRITERIA_LAST_ACCESS)))
             return ATTR_INDEX_last_access;
         else if (!strcasecmp(str, criteria2str(CRITERIA_LAST_MOD)))
@@ -230,8 +231,14 @@ int str2lru_attr(const char *str)
 #endif
         else if (!strcasecmp(str, "none"))
             return LRU_ATTR_NONE;
-        else
+
+        idx = sm_attr_get(smi, NULL, str, NULL, &def);
+        if (idx < 0)
             return LRU_ATTR_INVAL;
+        else if (def->crit_type != PT_DURATION)
+            return LRU_ATTR_INVAL;
+
+        return idx;
 }
 
 #define CHECK_INT_VALUE(_v, _flg) do {\
@@ -279,6 +286,11 @@ static int criteria2condition(const type_key_value *key_value,
     else
         *p_attr_mask |= attr_mask;
 
+    if (crit == CRITERIA_SM_INFO)
+    {
+        rh_strncpy(p_triplet->attr_name, key_value->varname, sizeof(p_triplet->attr_name));
+    }
+
     p_triplet->crit = crit;
     p_triplet->op = syntax2conf_comparator(key_value->op_type);
 
@@ -320,7 +332,7 @@ static int criteria2condition(const type_key_value *key_value,
             {
                 char *p_xattr = strchr(key_value->varname, '.');
                 p_xattr ++;
-                rh_strncpy(p_triplet->xattr_name, p_xattr, sizeof(p_triplet->xattr_name));
+                rh_strncpy(p_triplet->attr_name, p_xattr, sizeof(p_triplet->attr_name));
             }
             /* PFLG_STATUS flag means the attibute is only allowed in a policy scope.
              * this is the case of 'status', but also 'rm_time'... */
@@ -432,8 +444,10 @@ static int interpret_condition(type_key_value *key_value, compare_triplet_t *p_t
                                const sm_instance_t *smi)
 {
     const struct criteria_descr_t *pcrit;
+    const sm_info_def_t *def;
+    int       idx;
     /* check the name for the condition */
-    compare_criteria_t crit = str2criteria(key_value->varname);
+    compare_criteria_t crit = str2criteria(key_value->varname, smi, &def, &idx);
 
     if (crit == NO_CRITERIA)
     {
@@ -447,9 +461,19 @@ static int interpret_condition(type_key_value *key_value, compare_triplet_t *p_t
     /* lighten the following line of code */
     pcrit = &criteria_descr[crit];
 
-    return criteria2condition(key_value, p_triplet, p_attr_mask, err_msg,
-                              crit, pcrit->type, pcrit->attr_mask,
-                              pcrit->parsing_flags, smi);
+    if (crit == CRITERIA_SM_INFO)
+    {
+        cfg_param_type t = def->crit_type;
+        int pflags = (t == PT_DURATION || t == PT_SIZE || t == PT_INT
+            || t == PT_INT64 || t == PT_FLOAT) ? PFLG_COMPARABLE : 0;
+
+        return criteria2condition(key_value, p_triplet, p_attr_mask, err_msg,
+                                  crit, t, 1LL << idx, pflags, smi);
+    }
+    else
+        return criteria2condition(key_value, p_triplet, p_attr_mask, err_msg,
+                                  crit, pcrit->type, pcrit->attr_mask,
+                                  pcrit->parsing_flags, smi);
 }
 
 
@@ -976,7 +1000,7 @@ static int print_condition( const compare_triplet_t * p_triplet, char *out_str, 
 
     case CRITERIA_XATTR:
         return snprintf( out_str, str_size, XATTR_PREFIX".%s %s %s",
-                         p_triplet->xattr_name, op2str( p_triplet->op ),
+                         p_triplet->attr_name, op2str( p_triplet->op ),
                          p_triplet->val.str );
     default:
         return -EINVAL;
@@ -1221,7 +1245,7 @@ bool update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
 
         case CRITERIA_XATTR:
             if (strcmp(p_triplet1->val.str, p_triplet2->val.str)
-                 || strcmp(p_triplet1->xattr_name, p_triplet2->xattr_name))
+                 || strcmp(p_triplet1->attr_name, p_triplet2->attr_name))
             {
                 DisplayLog(LVL_MAJOR, RELOAD_TAG,
                             "xattr condition changed, but it cannot be modified dynamically");

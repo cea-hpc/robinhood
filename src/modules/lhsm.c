@@ -119,14 +119,14 @@ static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
         /* for HSM_REMOVE, try to get it from previous attrs */
         if (action == HUA_REMOVE)
         {
-            db_type_t type;
             unsigned int *tmp;
+            const sm_info_def_t *def;
 
-            rc = sm_attr_get(NULL, attrs, "lhsm.archive_id", (void **)&tmp, &type);
+            rc = sm_attr_get(NULL, attrs, "lhsm.archive_id", (void **)&tmp, &def);
             if (rc == 0)
             {
                 /* sanity check of returned type */
-                if (type != DB_UINT)
+                if (def->db_type != DB_UINT)
                     DisplayLog(LVL_CRIT, LHSM_TAG, "Unexpected type for 'lhsm.archive_id'");
                 else
                     archive_id = *tmp;
@@ -270,11 +270,11 @@ enum lhsm_info_e
  * last_restore: unix epoch
  */
 static sm_info_def_t lhsm_info[] = {
-    [ATTR_ARCHIVE_ID] = { ARCHIVE_PARAM, "archid", DB_UINT, 0 },
-    [ATTR_NO_RELEASE] = { "no_release", "norels", DB_BOOL, 0 },
-    [ATTR_NO_ARCHIVE] = { "no_archive", "noarch", DB_BOOL, 0 },
-    [ATTR_LAST_ARCHIVE] = { "last_archive", "lstarc", DB_UINT, 0 },
-    [ATTR_LAST_RESTORE] = { "last_restore", "lstrst", DB_UINT, 0 },
+    [ATTR_ARCHIVE_ID] = { ARCHIVE_PARAM, "archid", DB_UINT, 0, {.val_uint = 0}, PT_INT },
+    [ATTR_NO_RELEASE] = { "no_release", "norels", DB_BOOL, 0, {.val_bool = false}, PT_BOOL },
+    [ATTR_NO_ARCHIVE] = { "no_archive", "noarch", DB_BOOL, 0, {.val_bool = false}, PT_BOOL },
+    [ATTR_LAST_ARCHIVE] = { "last_archive", "lstarc", DB_UINT, 0, {.val_uint = 0}, PT_DURATION },
+    [ATTR_LAST_RESTORE] = { "last_restore", "lstrst", DB_UINT, 0, {.val_uint = 0}, PT_DURATION },
 };
 
 /** get Lustre status and convert it to an internal scalar status */

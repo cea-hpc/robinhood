@@ -1706,13 +1706,20 @@ int main(int argc, char **argv)
             else
                policy_run_mask |= (1LL << i);
         }
-        if (!(options.flags & RUNFLG_ONCE))
+        if (!(options.flags & RUNFLG_ONCE) && (policy_run_mask != 0))
             running_mask |= MODULE_MASK_POLICY_RUN;
     }
 
     if (!(options.flags & RUNFLG_ONCE))
     {
         char tmpstr[1024];
+
+        if (!running_mask)
+        {
+            DisplayLog(LVL_MAJOR, MAIN_TAG, "Nothing started.");
+            exit(1);
+        }
+
         running_mask2str(running_mask, policy_run_mask, tmpstr);
         DisplayLog(LVL_MAJOR, MAIN_TAG, "Daemon started (running modules: %s)", tmpstr);
         FlushLogs();

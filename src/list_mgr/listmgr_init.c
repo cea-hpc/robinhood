@@ -47,7 +47,7 @@ static void append_status_def(const sm_instance_t *smi, GString *str, bool is_fi
 
 static void append_field(GString *str, bool is_first, db_type_t type,
                          unsigned int size, const char *name,
-                         db_type_u *default_value)
+                         const db_type_u *default_value)
 {
     switch (type)
     {
@@ -64,7 +64,7 @@ static void append_field(GString *str, bool is_first, db_type_t type,
             else
                 rh_strncpy(strtype, "TEXT", sizeof(strtype));
 
-            if (default_value)
+            if (default_value && default_value->val_str != NULL)
                 g_string_append_printf(str, "%s %s %s DEFAULT '%s'",is_first ? "" : ",",
                     name, strtype, default_value->val_str);
             else
@@ -147,7 +147,8 @@ static void append_field_def(int i, GString *str, bool is_first, db_type_u *defa
 
         append_field(str, is_first, sm_attr_info[idx].def->db_type,
                      sm_attr_info[idx].def->db_type_size,
-                     sm_attr_info[idx].db_attr_name, NULL);
+                     sm_attr_info[idx].db_attr_name,
+                     &sm_attr_info[idx].def->db_default);
         return;
     }
 

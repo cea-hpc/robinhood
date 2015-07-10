@@ -348,6 +348,15 @@ static int policy_action(policy_info_t *policy,
  */
 static inline int get_sort_attr(policy_info_t *p, const attr_set_t *p_attrs)
 {
+    if (is_sm_info(p->config->lru_sort_attr))
+    {
+        int idx = p->config->lru_sort_attr - (ATTR_COUNT + sm_inst_count);
+        if ((p_attrs->attr_mask & (1LL << p->config->lru_sort_attr)) == 0)
+            return -1;
+
+        return *((unsigned int *)p_attrs->attr_values.sm_info[idx]);
+    }
+
     switch(p->config->lru_sort_attr)
     {
         case LRU_ATTR_NONE:
@@ -361,14 +370,6 @@ static inline int get_sort_attr(policy_info_t *p, const attr_set_t *p_attrs)
         case ATTR_INDEX_last_access:
             return (ATTR_MASK_TEST(p_attrs, last_access)?
                     ATTR(p_attrs, last_access) : -1);
-#if 0 /** FIXME how to implement it with policy-specific attributes? */
-        case ATTR_INDEX_last_archive:
-            return (ATTR_MASK_TEST(p_attrs, last_archive)?
-                    ATTR(p_attrs, last_archive) : -1);
-        case ATTR_INDEX_last_restore:
-            return (ATTR_MASK_TEST(p_attrs, last_restore)?
-                    ATTR(p_attrs, last_restore) : -1);
-#endif
         case ATTR_INDEX_rm_time:
             return (ATTR_MASK_TEST(p_attrs, rm_time)?
                     ATTR(p_attrs, rm_time) : -1);
@@ -386,6 +387,9 @@ static inline void set_max_time_attrs(policy_info_t *p, attr_set_t *p_attrs,
         case ATTR_INDEX_last_mod:
             ATTR_MASK_SET(p_attrs, last_mod);
             ATTR(p_attrs, last_mod) = value;
+            /* cr_time always <=  last_mod */
+            ATTR_MASK_SET(p_attrs, creation_time);
+            ATTR(p_attrs, creation_time) = value;
             break;
 
         case ATTR_INDEX_last_access:
@@ -394,27 +398,38 @@ static inline void set_max_time_attrs(policy_info_t *p, attr_set_t *p_attrs,
             /* in robinhood, lastmod <= last_access as last_access=MAX(atime,mtime) */
             ATTR_MASK_SET(p_attrs, last_mod);
             ATTR(p_attrs, last_mod) = value;
-            break;
-#if 0 /** FIXME how to implement it with policy-specific attributes? */
-        case ATTR_INDEX_last_archive:
-            ATTR_MASK_SET(p_attrs, last_archive);
-            ATTR(p_attrs, last_archive) = value;
+            /* cr_time always <= last_mod */
+            ATTR_MASK_SET(p_attrs, creation_time);
+            ATTR(p_attrs, creation_time) = value;
             break;
 
-        case ATTR_INDEX_last_restore:
-            ATTR_MASK_SET(p_attrs, last_restore);
-            ATTR(p_attrs, last_restore) = value;
+        case ATTR_INDEX_creation_time:
+            ATTR_MASK_SET(p_attrs, creation_time);
+            ATTR(p_attrs, creation_time) = value;
             break;
-#endif
 
         default:
+            if (is_sm_info(p->config->lru_sort_attr))
+            {
+                int *dup = malloc(sizeof(int));
+
+                if (!dup)
+                    return;
+                *dup = (int)value;
+
+                /* Don't know the effect of this attribute
+                 * on other attributes.
+                 * So, just set its value and return. */
+                if (set_sm_info(p->descr->status_mgr, p_attrs,
+                                p->config->lru_sort_attr - smi_info_index(p->descr->status_mgr, 0),
+                                dup))
+                    free(dup);
+                return;
+            }
+
             /* unsupported */
             RBH_BUG("Unsupported LRU sort attribute");
     }
-
-    /* always set create time criteria (always <= any time attribute) */
-    ATTR_MASK_SET(p_attrs, creation_time);
-    ATTR(p_attrs, creation_time) = value;
 
 #if 0 /* FIXME RBHv3: guess other times, depending on status scope? */
     /* If entry is dirty (migration):
@@ -426,13 +441,6 @@ static inline void set_max_time_attrs(policy_info_t *p, attr_set_t *p_attrs,
 
     /* what about other times??? */
     if entry is dirty: last_archive < last_mod < last_access
-
-    /* last_mod <= last_access: set last_mod if sort_time is last_access */
-    /* unless if entry is released, */
-    last_archive
-    last_access
-    last_mod
-    last_restore
 #endif
 }
 
@@ -473,6 +481,7 @@ static bool heuristic_end_of_list(policy_info_t *policy, time_t last_time)
 {
     entry_id_t     void_id;
     attr_set_t     void_attr = {0};
+    bool           rb = false;
 
     /* list all files if policies are ignored */
     if (ignore_policies(policy))
@@ -505,10 +514,16 @@ static bool heuristic_end_of_list(policy_info_t *policy, time_t last_time)
                    "Optimization: entries with %s later than %lu cannot match "
                    "any policy condition. Stop retrieving DB entries.",
                    sort_attr_name(policy), last_time);
-        return true;
+        rb = true;
     }
     else
-        return false;
+    {
+        rb = false;
+    }
+
+    ListMgr_FreeAttrs(&void_attr);
+
+    return rb;
 }
 
 /**

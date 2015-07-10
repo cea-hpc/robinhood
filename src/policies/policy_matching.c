@@ -166,6 +166,17 @@ static inline int int_compare(int int1, compare_direction_t comp, int int2)
 
 #define BOOL2POLICY(_rc_) ((_rc_)?POLICY_MATCH:POLICY_NO_MATCH)
 
+static inline int negate_match(int rc)
+{
+        if (rc == POLICY_MATCH)
+            return POLICY_NO_MATCH;
+        else if (rc == POLICY_NO_MATCH)
+            return POLICY_MATCH;
+        else
+            return rc;
+}
+
+
 #define CHECK_ATTR(_pset_, _attr_, _no_trace) do {                                    \
                                            if (!ATTR_MASK_TEST(_pset_, _attr_))       \
                                            {                                            \
@@ -221,6 +232,152 @@ static compare_direction_t oppose_compare(compare_direction_t comp)
     }
 }
 
+static inline time_t time_modify(time_t orig, const time_modifier_t *p_pol_mod)
+{
+    time_t newtime;
+    if (!p_pol_mod) /* no modifier */
+        return orig;
+
+    /* if orig is already under time_min, keep it */
+    if (orig <= p_pol_mod->time_min)
+        return orig;
+
+    newtime = orig * p_pol_mod->time_factor;
+    if (newtime < p_pol_mod->time_min)
+        newtime =  p_pol_mod->time_min;
+
+    DisplayLog(LVL_FULL, POLICY_TAG, "Policy modifier enabled: time condition changed: %u -> %u",
+                (unsigned int)orig, (unsigned int)newtime);
+    return newtime;
+}
+
+
+/**
+ * compare a value according to the attr type described in sm_info_def_t.
+ * @return a POLICY_* value
+ */
+static int compare_generic(const sm_info_def_t *def,
+                           const compare_triplet_t *p_triplet,
+                           void *val,
+                           const time_modifier_t *p_pol_mod)
+{
+    int rc;
+
+    if (val == NULL)
+        return POLICY_MISSING_ATTR;
+
+    switch (def->db_type)
+    {
+        case DB_TEXT:
+            if (def->crit_type != PT_STRING)
+            {
+                DisplayLog(LVL_MAJOR, POLICY_TAG, "Criteria type of '%s' is incompatible with DB type TEXT",
+                           def->user_name);
+                return POLICY_ERR;
+            }
+            assert(p_triplet->val.str != NULL);
+            /* compare crit_value->str and (char *)val */
+            rc = TestRegexp(p_triplet->val.str, (char *)val);
+
+            if (p_triplet->op == COMP_EQUAL || p_triplet->op == COMP_LIKE)
+                return BOOL2POLICY(rc);
+            else
+                return BOOL2POLICY(!rc);
+
+        case DB_INT:
+        case DB_UINT:
+            if (def->crit_type == PT_DURATION)
+            {
+                /* XXX "dur_attr == 0" has a special meaning:
+                   it matches if time has not been set */
+                if (*((int *)val) == 0)
+                {
+                    if ((p_triplet->op == COMP_EQUAL)
+                        && (p_triplet->val.duration == 0))
+                        return POLICY_MATCH;
+                    else /* last_archive > X do not match */
+                        return POLICY_NO_MATCH;
+                }
+
+                /* compare with time enlapsed since date.
+                 * take time modifiers into account */
+                rc = int_compare(time(NULL) - *((int *)val), p_triplet->op,
+                                 time_modify(p_triplet->val.duration, p_pol_mod));
+            }
+            else if (def->crit_type == PT_INT)
+            {
+                rc = int_compare(*((int *)val), p_triplet->op, p_triplet->val.integer);
+            }
+            else
+            {
+                DisplayLog(LVL_MAJOR, POLICY_TAG, "Criteria type of '%s' is incompatible with DB type INT/UINT",
+                           def->user_name);
+                return POLICY_ERR;
+            }
+            return BOOL2POLICY(rc);
+
+        case DB_BIGINT:
+        case DB_BIGUINT:
+
+            if (def->crit_type != PT_INT64)
+            {
+                DisplayLog(LVL_MAJOR, POLICY_TAG, "Criteria type of '%s' is incompatible with DB type BIGINT/BIGUINT",
+                           def->user_name);
+                return POLICY_ERR;
+            }
+
+            rc = size_compare(*((ull_t *)val), p_triplet->op, p_triplet->val.size);
+            return BOOL2POLICY(rc);
+
+        case DB_ENUM_FTYPE:
+        {
+            const char *typedb;
+
+            if (def->crit_type != PT_TYPE)
+            {
+                DisplayLog(LVL_MAJOR, POLICY_TAG, "Criteria type of '%s' is incompatible with DB type ENUM_FTYPE",
+                           def->user_name);
+                return POLICY_ERR;
+            }
+            typedb = type2db(p_triplet->val.type);
+            if (typedb == NULL)
+                return POLICY_ERR;
+            else
+                rc = !strcmp((char *)val, typedb);
+
+            if (p_triplet->op == COMP_EQUAL)
+                return BOOL2POLICY(rc);
+            else
+                return BOOL2POLICY(!rc);
+        }
+        case DB_BOOL:
+            DisplayLog(LVL_MAJOR, POLICY_TAG, "Criteria type non supported: DB_BOOL");
+            return POLICY_ERR;
+
+        case DB_SHORT:
+        case DB_USHORT:
+            DisplayLog(LVL_MAJOR, POLICY_TAG, "Criteria type non supported: SHORT");
+            return POLICY_ERR;
+
+
+        case DB_ID:
+            DisplayLog(LVL_MAJOR, POLICY_TAG, "Criteria type non supported: ID");
+            return POLICY_ERR;
+
+        case DB_STRIPE_INFO:
+        case DB_STRIPE_ITEMS:
+            DisplayLog(LVL_MAJOR, POLICY_TAG, "Criteria type non supported: STRIPE_INFO/STRIPE_ITEMS");
+            return POLICY_ERR;
+
+        default:
+            DisplayLog(LVL_MAJOR, POLICY_TAG, "Unexpected criteria type in %s()",
+                       __func__);
+            return POLICY_ERR;
+    }
+
+    /** XXX how are stored: PT_BOOL? PT_FLOAT? */
+}
+
 /**
  * Convert criteria to ListMgr data
  * \param p_comp        IN: the condition to be converted
@@ -241,6 +398,8 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
 
     *p_must_release = false;
 
+    /*@FIXME this function, could make more generic processing using the
+     * definitions of criteria_descr_t in rbh_boolexpr.c */
     switch(p_comp->crit)
     {
     case CRITERIA_TREE:
@@ -446,28 +605,11 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
         return -1;
     }
 
+/** TODO support SM_INFO */
+
     return 0;
 }
 
-
-static inline time_t time_modify(time_t orig, const time_modifier_t *p_pol_mod)
-{
-    time_t newtime;
-    if (!p_pol_mod) /* no modifier */
-        return orig;
-
-    /* if orig is already under time_min, keep it */
-    if (orig <= p_pol_mod->time_min)
-        return orig;
-
-    newtime = orig * p_pol_mod->time_factor;
-    if (newtime < p_pol_mod->time_min)
-        newtime =  p_pol_mod->time_min;
-
-    DisplayLog(LVL_FULL, POLICY_TAG, "Policy modifier enabled: time condition changed: %u -> %u",
-                (unsigned int)orig, (unsigned int)newtime);
-    return newtime;
-}
 
 /** @TODO factorize eval_condition */
 static policy_match_t eval_condition(const entry_id_t *p_entry_id,
@@ -759,6 +901,27 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
         }
         break;
 
+    case CRITERIA_SM_INFO:
+        {
+            void *val;
+            const sm_info_def_t *def;
+
+            rc = sm_attr_get(smi, p_entry_attr, p_triplet->attr_name, &val, &def);
+            if (rc < 0)
+            {
+               if (!no_warning)
+                   DisplayLog(LVL_MAJOR, POLICY_TAG,
+                              "Missing attribute '%s' for evaluating boolean expression on "DFID,
+                              p_triplet->attr_name, PFID(p_entry_id));
+                return POLICY_MISSING_ATTR;
+            }
+
+            rc = compare_generic(def, p_triplet, val, p_pol_mod);
+            DisplayLog(LVL_FULL, POLICY_TAG, "Matching '%s': rc=%d",
+                       p_triplet->attr_name, rc);
+            return rc;
+        }
+
     case CRITERIA_XATTR:
     {
         const char * entry_path;
@@ -791,7 +954,7 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
 #endif
 
         /* retrieve xattr value */
-        rc = lgetxattr(entry_path, p_triplet->xattr_name, value, 1024);
+        rc = lgetxattr(entry_path, p_triplet->attr_name, value, 1024);
         if (rc < 0)
         {
             if (errno == ENOATTR || errno == ENODATA || errno == ENOENT)
@@ -800,13 +963,14 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
             else if  (errno == ENOTSUP)
             {
                 DisplayLog(LVL_CRIT, POLICY_TAG, "Error: condition on extended attribute "
-                           "whereas this feature is not supported by the filesystem");
+                           "whereas this feature is not supported by the filesystem, or xattr name '%s' is invalid)",
+                           p_triplet->attr_name);
                 return POLICY_ERR;
             }
             else
             {
                 DisplayLog(LVL_CRIT, POLICY_TAG, "Error getting xattr '%s' on '%s' : %s",
-                           p_triplet->xattr_name, entry_path, strerror(errno));
+                           p_triplet->attr_name, entry_path, strerror(errno));
                 return POLICY_ERR;
             }
         }
@@ -817,7 +981,8 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
                 value[rc] = '\0';
         }
 
-        DisplayLog(LVL_FULL, POLICY_TAG, "<xattr>.%s = \"%s\" (%s)", p_triplet->xattr_name, value, entry_path);
+        DisplayLog(LVL_FULL, POLICY_TAG, "<xattr>.%s = \"%s\" (%s)",
+                   p_triplet->attr_name, value, entry_path);
 
         /* compare attribute value */
 
@@ -864,14 +1029,7 @@ static policy_match_t _entry_matches(const entry_id_t *p_entry_id, const attr_se
                             p_node->content_u.bool_expr.expr1, p_pol_mod,
                             smi, no_warning);
 
-        if (rc == POLICY_MATCH)
-            return POLICY_NO_MATCH;
-        else if (rc == POLICY_NO_MATCH)
-            return POLICY_MATCH;
-        else
-            return rc;
-
-        break;
+        return negate_match(rc);
 
     case NODE_BINARY_EXPR:
         /* always test the first expression */

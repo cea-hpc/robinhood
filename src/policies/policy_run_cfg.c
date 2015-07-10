@@ -517,6 +517,7 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
                                 } while (0)
 
 static int polrun_read_config(config_file_t config, const char *policy_name,
+                              const struct sm_instance *smi,
                               policy_run_config_t *conf, char *msg_out)
 {
     int            rc;
@@ -593,7 +594,7 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
         return rc;
     else if (rc != ENOENT) {
         /* is it a time attribute? */
-        rc = str2lru_attr(tmp);
+        rc = str2lru_attr(tmp, smi);
         if (rc == LRU_ATTR_INVAL)
         {
             strcpy(msg_out, "time attribute expected for 'lru_sort_attr': "
@@ -709,6 +710,7 @@ static int policy_run_cfg_read(config_file_t config, void *module_config, char *
     for (i = 0; i < allconf->count; i++)
     {
         rc = polrun_read_config(config, policies.policy_list[i].name,
+                                policies.policy_list[i].status_mgr,
                                 &allconf->configs[i], msg_out);
         if (rc)
             return rc;

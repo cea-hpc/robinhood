@@ -140,9 +140,19 @@ sm_instance_t *smi_by_name(const char *smi_name)
     return NULL;
 }
 
+static const sm_info_def_t status_def = {
+    .user_name = "status",
+    .db_name   = "status",
+    .db_type   = DB_TEXT, /* not used? */
+    .db_type_size = 0,
+    .crit_type = PT_STRING,
+};
+
+
 /** helper for sm_attr_get. Assume smi is set. */
 static int get_smi_attr(const sm_instance_t *smi, const attr_set_t *p_attrs,
-                        const char *attr_name, void **val, db_type_t *type)
+                        const char *attr_name, void **val,
+                        const sm_info_def_t **ppdef)
 {
     int i;
 
@@ -150,6 +160,13 @@ static int get_smi_attr(const sm_instance_t *smi, const attr_set_t *p_attrs,
 
     if (!strcasecmp(attr_name, "status"))
     {
+        *ppdef = &status_def;
+
+        if (val == NULL)
+            /* caller doesn't care about the value, it just want to know if
+             * the attribute exists (+ the status index)*/
+            return smi_status_index(smi);
+
         /* XXX NULL or empty string? */
         if (!ATTR_MASK_STATUS_TEST(p_attrs, smi->smi_index))
             return -ENOENT;
@@ -157,7 +174,6 @@ static int get_smi_attr(const sm_instance_t *smi, const attr_set_t *p_attrs,
             return -ENOENT;
 
         *val = (char *)STATUS_ATTR(p_attrs, smi->smi_index);
-        *type = DB_TEXT;
         return *val ? 0 : -ENOENT;
     }
 
@@ -166,13 +182,19 @@ static int get_smi_attr(const sm_instance_t *smi, const attr_set_t *p_attrs,
     {
         if (!strcasecmp(attr_name, smi->sm->info_types[i].user_name))
         {
+            *ppdef = &smi->sm->info_types[i];
+
+            if (val == NULL)
+                /* caller doesn't care about the value, it just want to know if
+                 * the attribute exists (and the smi info index) */
+                return smi_info_index(smi, i);
+
             if (!ATTR_MASK_INFO_TEST(p_attrs, smi, i))
                 return -ENOENT;
             if (p_attrs->attr_values.sm_info == NULL)
                 return -ENOENT;
 
             *val = SMI_INFO(p_attrs, smi, i);
-            *type = smi->sm->info_types[i].db_type;
             return *val ? 0 : -ENOENT;
         }
     }
@@ -181,7 +203,7 @@ static int get_smi_attr(const sm_instance_t *smi, const attr_set_t *p_attrs,
 
 /* -EINVAL: invalid argument, -ENOENT: missing attribute value */
 int sm_attr_get(const sm_instance_t *smi, const attr_set_t *p_attrs,
-                const char *name, void **val, db_type_t *type)
+                const char *name, void **val, const sm_info_def_t **ppdef)
 {
     const char *dot = strchr(name, '.');
 
@@ -206,18 +228,17 @@ int sm_attr_get(const sm_instance_t *smi, const attr_set_t *p_attrs,
         }
         free(smi_name);
 
-        return get_smi_attr(smi2, p_attrs, dot+1, val, type);
+        return get_smi_attr(smi2, p_attrs, dot+1, val, ppdef);
     }
     else
     {
-        int rc = get_smi_attr(smi, p_attrs, name, val, type);
+        int rc = get_smi_attr(smi, p_attrs, name, val, ppdef);
 
         /* If no smi is explicitely specified, it was just
          * a try to match. So, change EINVAL to ENOENT. */
         return (rc == -EINVAL) ? -ENOENT : rc;
     }
 }
-
 
 /* contents of status_manager:
 name, flags, status_enum, status_count, status_needs_attrs_cached,

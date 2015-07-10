@@ -324,8 +324,8 @@ enum backup_info_e
  * last_archive: unix epoch
  */
 static sm_info_def_t backup_info[] = {
-    [ATTR_BK_PATH] = { "backend_path", "bkpath", DB_TEXT, RBH_PATH_MAX-1 },
-    [ATTR_LAST_ARCH] = { "last_archive", "lstarc", DB_UINT, 0 }
+    [ATTR_BK_PATH] = { "backend_path", "bkpath", DB_TEXT, RBH_PATH_MAX-1, {.val_str = NULL}, PT_STRING},
+    [ATTR_LAST_ARCH] = { "last_archive", "lstarc", DB_UINT, 0, {.val_uint = 0}, PT_DURATION }
 };
 
 

@@ -458,6 +458,63 @@ int check_status_args(const char *status_name, const char *status_value,
     return 0;
 }
 
+static const char *print_sm_attr(char *out, size_t out_sz, const void *pvalue,
+                                 cfg_param_type type, bool csv)
+{
+    switch(type)
+    {
+        case PT_STRING:
+            return (char *)pvalue;
+
+        case PT_BOOL:
+        {
+            const bool *b = pvalue;
+            return bool2str(*b);
+        }
+        case PT_DURATION:
+        {
+            struct tm stm;
+            /* dates managed as 32bits */
+            time_t tt = *((unsigned int *)pvalue);
+            if (tt == 0)
+                return "0";
+            strftime(out, out_sz, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
+        }
+        case PT_SIZE:
+        {
+            const uint64_t *s = pvalue;
+            if (csv)
+                snprintf(out, out_sz, "%"PRIu64, *s);
+            else
+                FormatFileSize(out, out_sz, *s);
+            return out;
+        }
+        case PT_INT:
+        {
+            const int32_t *i = pvalue;
+            snprintf(out, out_sz, "%d", *i);
+            return out;
+        }
+        case PT_INT64:
+        {
+            const int64_t *l = pvalue;
+            snprintf(out, out_sz, "%"PRId64, *l);
+            return out;
+        }
+        case PT_FLOAT:
+        {
+            /* no such type in DB */
+            const float *f = pvalue;
+            snprintf(out, out_sz, "%.2f", *f);
+            return out;
+        }
+        default:
+            return "unknown/unhandled type";
+    }
+}
+
+
 /** print an attribute from attrs structure */
 const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
                      int attr_index, int csv, name_func name_resolver,
@@ -477,11 +534,9 @@ const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
     else if (is_sm_info(attr_index))
     {
         unsigned int idx = attr_index - (ATTR_COUNT + sm_inst_count);
-        ListMgr_PrintAttr(out, out_sz,
-                          sm_attr_info[idx].def->db_type,
-                          attrs->attr_values.sm_info[idx],
-                          "");
-        return out;
+
+        return print_sm_attr(out, out_sz, attrs->attr_values.sm_info[idx],
+                             sm_attr_info[idx].def->crit_type, csv);
     }
 
     switch(attr_index)

@@ -52,12 +52,6 @@ typedef enum {
     CRITERIA_DIRCOUNT,
     CRITERIA_LAST_ACCESS,
     CRITERIA_LAST_MOD,
-#ifdef ATTR_INDEX_last_restore
-    CRITERIA_LAST_RESTORE,
-#endif
-#ifdef ATTR_INDEX_last_archive
-    CRITERIA_LAST_ARCHIVE,
-#endif
 #ifdef ATTR_INDEX_creation_time
     CRITERIA_CREATION,
 #endif
@@ -69,30 +63,38 @@ typedef enum {
     CRITERIA_OST,
 #endif
     CRITERIA_STATUS,
-    /* /!\ str2criteria relies on the fact that CRITERIA_XATTR is the last criteria */
+    /* /!\ str2criteria relies on the fact that CRITERIA_XATTR is the first
+     * non-standard criteria */
     CRITERIA_XATTR,
+    CRITERIA_SM_INFO,
 } compare_criteria_t;
 
 #define NO_CRITERIA ((compare_criteria_t)-1)
 
 #define XATTR_PREFIX    "xattr"
 
-/* /!\ str2criteria relies on the fact that CRITERIA_XATTR is the last criteria */
-#define MAX_CRITERIA CRITERIA_XATTR
+/* /!\ str2criteria relies on the fact that CRITERIA_XATTR is the first
+     * non-standard criteria */
+#define MAX_CRITERIA CRITERIA_SM_INFO
 
 const char *criteria2str(compare_criteria_t crit);
-compare_criteria_t str2criteria(const char *str);
+
+struct sm_instance;
+struct sm_info_def;
+compare_criteria_t str2criteria(const char *str, const struct sm_instance *smi,
+                                const struct sm_info_def **ppdef, int *idx);
 
 #define LRU_ATTR_NONE  (-1)
 #define LRU_ATTR_INVAL (-2)
 
-#define ALLOWED_LRU_ATTRS_STR "none, creation, last_access, last_mod, last_archive, rm_time"
+#define ALLOWED_LRU_ATTRS_STR "none, creation, last_access, last_mod, rm_time, or status manager specific."
+
 /**
  * Return the attribute index for the given lru_sort_attr string.
  * @retval LRU_ATTR_NONE (-1) 'lru_sort_attr = none' (no sorting)
  * @retval LRU_ATTR_INVAL (-2) invalid lru_sort_attr.
  */
-int str2lru_attr(const char *str);
+int str2lru_attr(const char *str, const struct sm_instance *smi);
 
 typedef enum {
     BOOL_ERR = 0,
@@ -164,8 +166,8 @@ typedef union
 typedef struct compare_triplet_t
 {
     int flags;
-    compare_criteria_t crit;
-    char               xattr_name[RBH_NAME_MAX]; /* for xattrs */
+    compare_criteria_t  crit;
+    char                attr_name[RBH_NAME_MAX]; /* for xattrs, or status manager specific attr */
     compare_direction_t op;
     compare_value_t val;
 } compare_triplet_t;

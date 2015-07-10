@@ -306,22 +306,6 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
     if (rc)
         return rc;
 
-    rc = GetStringParam(config_blk, block_name, "default_lru_sort_attr",
-                        PFLG_NO_WILDCARDS | PFLG_MANDATORY, tmpstr, sizeof(tmpstr), NULL, NULL,
-                        msg_out);
-    if (rc)
-        return rc;
-    /* is it a time attribute? */
-    rc = str2lru_attr(tmpstr);
-    if (rc == LRU_ATTR_INVAL)
-    {
-        strcpy(msg_out, "time attribute expected for 'default_lru_sort_attr': "
-               ALLOWED_LRU_ATTRS_STR"...");
-        return EINVAL;
-    }
-    else
-        policy->default_lru_sort_attr = rc;
-
     extra = NULL;
     extra_cnt = 0;
     rc = GetStringParam(config_blk, block_name, "status_manager",
@@ -394,6 +378,24 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
             return ENOENT;
         }
     }
+
+    /* smi must be set to call str2lru_attr */
+    rc = GetStringParam(config_blk, block_name, "default_lru_sort_attr",
+                        PFLG_NO_WILDCARDS | PFLG_MANDATORY, tmpstr, sizeof(tmpstr), NULL, NULL,
+                        msg_out);
+    if (rc)
+        return rc;
+    /* is it a time attribute? */
+    rc = str2lru_attr(tmpstr, policy->status_mgr);
+    if (rc == LRU_ATTR_INVAL)
+    {
+        strcpy(msg_out, "time attribute expected for 'default_lru_sort_attr': "
+               ALLOWED_LRU_ATTRS_STR"...");
+        return EINVAL;
+    }
+    else
+        policy->default_lru_sort_attr = rc;
+
 
     /* get scope parameter */
     unique = true;

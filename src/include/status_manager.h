@@ -22,6 +22,7 @@
 
 #include "list_mgr.h"
 #include "policy_rules.h"
+#include "rbh_cfg_helpers.h"
 
 struct sm_instance;
 
@@ -112,6 +113,8 @@ typedef struct sm_info_def {
     const char    *db_name; /**< short name for db storage */
     db_type_t      db_type;
     unsigned int   db_type_size;  /**< size for strings */
+    db_type_u      db_default; /**< default value */
+    cfg_param_type crit_type; /**< type for config criteria */
 } sm_info_def_t;
 
 /** Status manager definition */
@@ -355,6 +358,11 @@ static inline uint64_t all_sm_info_mask(void)
 #define GENERIC_INFO_OFFSET  (ATTR_COUNT + 1)
 #define GENERIC_INFO_BIT(_i) (1LL << (GENERIC_INFO_OFFSET + (_i)))
 
+static inline unsigned int smi_status_index(const sm_instance_t *smi)
+{
+    return ATTR_COUNT + smi->smi_index;
+}
+
 /** return the attribute index of a status manager specific info */
 static inline unsigned int smi_info_index(const sm_instance_t *smi, unsigned int attr_idx)
 {
@@ -497,6 +505,6 @@ sm_instance_t *smi_by_name(const char *smi_name);
  * @retval  -EINVAL if status manager or attr name is invalid.
  */
 int sm_attr_get(const sm_instance_t *smi, const attr_set_t *p_attrs,
-                const char *name, void **val, db_type_t *type);
+                const char *name, void **val, const sm_info_def_t **ppdef);
 
 #endif
