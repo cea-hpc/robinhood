@@ -35,20 +35,18 @@ int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
     char select[4096];
     char query[4096];
     int rc;
-    char           filter_str_main[2048];
-    char           filter_str_annex[2048];
-    char           filter_str_stripe_info[2048];
-    char           filter_str_stripe_items[2048];
+    char           filter_str_main[2048] = "";
+    char           filter_str_annex[2048] = "";
+    char           filter_str_name[2048] = "";
+    char           filter_str_stripe_info[2048] = "";
+    char           filter_str_stripe_items[2048] = "";
     int            filter_main = 0;
     int            filter_annex = 0;
+    int            filter_name = 0;
     int            filter_stripe_info = 0;
     int            filter_stripe_items = 0;
     char           fields[2048];
     char           tables[2048];
-    filter_str_main[0] = '\0';
-    filter_str_annex[0] = '\0';
-    filter_str_stripe_info[0] = '\0';
-    filter_str_stripe_items[0] = '\0';
 
     if ( !p_filter
          || ( ( p_filter->filter_type == FILTER_SIMPLE )
@@ -61,36 +59,51 @@ int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
     }
     else
     {
+        int filters = 0;
+
         /* need to build filters to populate the table */
 
         /* on which table is the filter? */
         filter_main = filter2str( p_mgr, filter_str_main, p_filter, T_MAIN,
                                   FALSE, TRUE );
+        filters += (filter_main > 0 ? 1 : 0);
 
         if ( annex_table )
             filter_annex = filter2str( p_mgr, filter_str_annex, p_filter,
-                                     T_ANNEX, ( filter_main > 0 ), TRUE );
+                                     T_ANNEX, filters > 0, TRUE );
         else
             filter_annex = 0;
+        filters += (filter_annex > 0 ? 1 : 0);
+
+        filter_name = filter2str(p_mgr, filter_str_name, p_filter, T_DNAMES,
+                                 filters > 0, TRUE);
+        filters += (filter_name > 0 ? 1 : 0);
 
         filter_stripe_info =
-            filter2str( p_mgr, filter_str_stripe_info, p_filter, T_STRIPE_INFO,
-                      ( filter_main > 0 ) || ( filter_annex > 0 ), TRUE );
+            filter2str(p_mgr, filter_str_stripe_info, p_filter, T_STRIPE_INFO,
+                       filters > 0, TRUE);
+        filters += (filter_stripe_info > 0 ? 1 : 0);
 
         filter_stripe_items =
             filter2str( p_mgr, filter_str_stripe_items, p_filter, T_STRIPE_ITEMS,
                       ( filter_main > 0 ) || ( filter_annex > 0 )
                       || ( filter_stripe_info > 0 ), TRUE );
+        filters += (filter_stripe_items > 0 ? 1 : 0);
 
-        if (filter_main && !( filter_annex || filter_stripe_items || filter_stripe_info ))
+        if (filter_main && (filters == 1))
         {
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " MAIN_TABLE " table" );
             sprintf(select, "SELECT id FROM " MAIN_TABLE " WHERE %s", filter_str_main);
         }
-        else if (filter_annex && !( filter_main || filter_stripe_items || filter_stripe_info ))
+        else if (filter_annex && (filters == 1))
         {
             DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " ANNEX_TABLE " table" );
             sprintf(select, "SELECT id FROM " ANNEX_TABLE " WHERE %s", filter_str_annex);
+        }
+        else if (filter_name && (filters == 1))
+        {
+            DisplayLog( LVL_FULL, LISTMGR_TAG, "Filter is only on " DNAMES_TABLE " table" );
+            sprintf(select, "SELECT DISTINCT(id) FROM " DNAMES_TABLE " WHERE %s", filter_str_name);
         }
         else if (filter_stripe_info && !(filter_main || filter_annex || filter_stripe_items ))
         {
@@ -107,13 +120,16 @@ int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
             char          *curr_fields = fields;
             char          *curr_tables = tables;
             char          *first_table = NULL;
+            bool           distinct = 0;
 
-            DisplayLog( LVL_FULL, LISTMGR_TAG,
+            DisplayLog(LVL_FULL, LISTMGR_TAG,
                         "Filter on several tables: "
                         MAIN_TABLE ":%d, " ANNEX_TABLE ":%d, "
+                        DNAMES_TABLE ":%d, "
                         STRIPE_INFO_TABLE ":%d, "
                         STRIPE_ITEMS_TABLE ":%d",
-                        filter_main, filter_annex, filter_stripe_info, filter_stripe_items );
+                        filter_main, filter_name, filter_annex,
+                        filter_stripe_info, filter_stripe_items);
 
             if (filter_main > 0)
             {
@@ -141,8 +157,30 @@ int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
                 curr_tables += sprintf(curr_tables, "%s", ANNEX_TABLE);
             }
 
+            if (filter_name > 0)
+            {
+                distinct = 1;
+                if (filter_name > 0)
+                    curr_fields += sprintf(curr_fields, "%s", filter_str_name);
+
+                if (first_table != NULL)
+                {
+                    *curr_tables = ',';
+                    curr_tables++;
+
+                    /* also add junction condition */
+                    curr_fields +=
+                        sprintf(curr_fields, " AND %s.id=%s.id", first_table, DNAMES_TABLE);
+                }
+                else
+                    first_table = DNAMES_TABLE;
+
+                curr_tables += sprintf( curr_tables, "%s", DNAMES_TABLE );
+            }
+
             if (filter_stripe_items > 0)
             {
+                distinct = 1;
                 curr_fields += sprintf(curr_fields, "%s", filter_str_stripe_items);
 
                 if (first_table != NULL)
@@ -190,8 +228,12 @@ int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
                 curr_tables += sprintf( curr_tables, "%s", STRIPE_INFO_TABLE );
             }
 
-            sprintf(select, "SELECT %s.id as id FROM %s WHERE %s",
-                    first_table, tables, fields);
+            if (distinct)
+                sprintf(select, "SELECT DISTINCT(%s.id) AS id FROM %s WHERE %s",
+                        first_table, tables, fields);
+            else
+                sprintf(select, "SELECT %s.id as id FROM %s WHERE %s",
+                        first_table, tables, fields);
         }
     }
 
