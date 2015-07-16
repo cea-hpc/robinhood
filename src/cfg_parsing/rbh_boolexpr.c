@@ -393,6 +393,16 @@ static int criteria2condition(const type_key_value *key_value,
             CHECK_INT_VALUE(p_triplet->val.integer, flags);
             break;
 
+        case PT_BOOL:
+            p_triplet->val.integer = str2bool(key_value->varvalue);
+            if (p_triplet->val.integer == -1)
+            {
+                sprintf(err_msg, "%s criteria: boolean expected (0, 1, true, false, yes, no, enabled, disabled): '%s'",
+                        key_value->varname, key_value->varvalue);
+                return EINVAL;
+            }
+            break;
+
         case PT_DURATION:
             p_triplet->val.duration = str2duration(key_value->varvalue);
             if (p_triplet->val.duration == -1)
@@ -415,7 +425,7 @@ static int criteria2condition(const type_key_value *key_value,
             break;
 
         default:
-            sprintf(err_msg, "Unsupported criteria type for %s",
+            sprintf(err_msg, "Unsupported criteria type for '%s'",
                     key_value->varname);
             return ENOTSUP;
     }

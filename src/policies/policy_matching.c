@@ -350,9 +350,23 @@ static int compare_generic(const sm_info_def_t *def,
             else
                 return BOOL2POLICY(!rc);
         }
+
         case DB_BOOL:
-            DisplayLog(LVL_MAJOR, POLICY_TAG, "Criteria type non supported: DB_BOOL");
-            return POLICY_ERR;
+            if (def->crit_type != PT_BOOL)
+            {
+                DisplayLog(LVL_MAJOR, POLICY_TAG, "Criteria type of '%s' is incompatible with DB type BOOL",
+                           def->user_name);
+                return POLICY_ERR;
+            }
+
+            /* Boolean are stored in 'integer' field by criteria2condition(). */
+            /* Compare a bool with an integer (0 or <>0) */
+            rc = ((*((bool *)val)) == !!p_triplet->val.integer);
+
+            if (p_triplet->op == COMP_EQUAL)
+                return BOOL2POLICY(rc);
+            else
+                return BOOL2POLICY(!rc);
 
         case DB_SHORT:
         case DB_USHORT:
@@ -375,7 +389,7 @@ static int compare_generic(const sm_info_def_t *def,
             return POLICY_ERR;
     }
 
-    /** XXX how are stored: PT_BOOL? PT_FLOAT? */
+    /** XXX how are stored: PT_FLOAT? */
 }
 
 /**
