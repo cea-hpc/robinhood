@@ -1120,6 +1120,9 @@ static policy_match_t _entry_matches(const entry_id_t *p_entry_id, const attr_se
         return eval_condition(p_entry_id, p_entry_attr, p_node->content_u.condition,
                               p_pol_mod, smi, no_warning);
         break;
+
+    case NODE_CONSTANT:
+        return BOOL2POLICY(p_node->content_u.constant);
     }
 
     return POLICY_ERR;

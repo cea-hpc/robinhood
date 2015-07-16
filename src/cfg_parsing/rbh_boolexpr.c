@@ -661,6 +661,16 @@ free_expr1:
     return rc;
 }
 
+int ConstantBoolExpr(bool constant, bool_node_t *p_bool_node)
+{
+    if (!p_bool_node)
+        return EINVAL;
+
+    p_bool_node->node_type = NODE_CONSTANT;
+    p_bool_node->content_u.constant = constant;
+    return  0;
+}
+
 
 /**
  * Build a policy boolean expression from the given block
@@ -732,6 +742,10 @@ int FreeBoolExpr(bool_node_t *p_expr, bool free_top_node)
 
     switch ( p_expr->node_type )
     {
+    case NODE_CONSTANT:
+        /* nothing to free */
+        break;
+
     case NODE_CONDITION:
         free( p_expr->content_u.condition );
         break;
@@ -1051,6 +1065,9 @@ int BoolExpr2str( bool_node_t * p_bool_node, char *out_str, size_t str_size )
 
     case NODE_CONDITION:
         return print_condition( p_bool_node->content_u.condition, out_str, str_size );
+
+    case NODE_CONSTANT:
+        return snprintf(out_str, str_size, "%s", bool2str(p_bool_node->content_u.constant));
     }
 
     return -EINVAL;
@@ -1097,6 +1114,10 @@ int compare_boolexpr(const bool_node_t * expr1, const bool_node_t * expr2)
 
         /* same structure */
         return false;
+
+    case NODE_CONSTANT:
+        /* same structure, just a value change */
+        return false;
     }
 
     /* should not happen */
@@ -1115,7 +1136,7 @@ int compare_boolexpr(const bool_node_t * expr1, const bool_node_t * expr2)
  * @return TRUE if expression values have been changed
  * @return FALSE if nothing has been changed
  */
-bool update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
+bool update_boolexpr(bool_node_t *tgt, const bool_node_t *src)
 {
     compare_triplet_t *p_triplet1;
     compare_triplet_t *p_triplet2;
@@ -1125,6 +1146,18 @@ bool update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
 
     switch (tgt->node_type)
     {
+    case NODE_CONSTANT:
+            if (tgt->content_u.constant != src->content_u.constant)
+            {
+                DisplayLog(LVL_EVENT, RELOAD_TAG,
+                           "Value updated: %s -> %s", bool2str(src->content_u.constant),
+                           bool2str(tgt->content_u.constant));
+                tgt->content_u.constant = src->content_u.constant;
+                return true;
+            }
+            else
+                return false;
+
     case NODE_UNARY_EXPR:
         return update_boolexpr(tgt->content_u.bool_expr.expr1, src->content_u.bool_expr.expr1);
 

@@ -346,6 +346,9 @@ static bool is_simple_expr(bool_node_t *boolexpr, int depth, bool_op_t op_ctx)
              */
             return true;
 
+        case NODE_CONSTANT:
+            return true;
+
         default:
             DisplayLog(LVL_CRIT, LISTMGR_TAG, "Invalid boolean expression in %s()",
                        __FUNCTION__);
@@ -525,6 +528,19 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
                                     boolexpr->content_u.bool_expr.bool_op);
             return rc;
         }
+
+        case NODE_CONSTANT:
+            if (boolexpr->content_u.constant)
+            {
+                return 0; /* 'and true' */
+            }
+            else
+            {
+                /* no sense, abort the query */
+                DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Building DB request which is always false?!");
+                return DB_INVALID_ARG;
+            }
+
         default:
             DisplayLog(LVL_CRIT, LISTMGR_TAG, "Invalid boolean expression %#x in %s()",
                         boolexpr->node_type, __FUNCTION__);
