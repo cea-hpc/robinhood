@@ -392,6 +392,100 @@ static int compare_generic(const sm_info_def_t *def,
     /** XXX how are stored: PT_FLOAT? */
 }
 
+/** Convert a comparator value to a DB filter value,
+ * according to the given sm_info definition.
+ * @param oppose_cmp
+ */
+static int set_filter_value_generic(const sm_info_def_t *def,
+                                    compare_direction_t op,
+                                    const compare_value_t *comp_val,
+                                    db_type_u  *f_val, bool *oppose_cmp)
+{
+
+    switch (def->db_type)
+    {
+        case DB_TEXT:
+            f_val->val_str = comp_val->str;
+            break;
+        case DB_INT: /* integer or date */
+            if (def->crit_type == PT_DURATION)
+            {
+                /* XXX "dur_attr == 0" has a special meaning:
+                       it matches if time has not been set */
+                if ((op == COMP_EQUAL) && (comp_val->duration == 0))
+                {
+                    f_val->val_int = 0;
+                }
+                else
+                {
+                    f_val->val_int = time(NULL) - comp_val->duration;
+
+                    /* enlapsed > X <=>  date < now - X */
+                    *oppose_cmp = true;
+                }
+            }
+            else
+            {
+                f_val->val_int = comp_val->integer;
+            }
+            break;
+        case DB_UINT:
+            if (def->crit_type == PT_DURATION)
+            {
+                /* XXX "dur_attr == 0" has a special meaning:
+                       it matches if time has not been set */
+                if ((op == COMP_EQUAL) && (comp_val->duration == 0))
+                {
+                    f_val->val_uint = 0;
+                }
+                else
+                {
+                    f_val->val_uint = time(NULL) - comp_val->duration;
+                    /* enlapsed > X <=>  date < now - X */
+                    *oppose_cmp = true;
+                }
+            }
+            else
+            {
+                f_val->val_uint = comp_val->integer;
+            }
+            break;
+        case DB_BIGINT:
+            f_val->val_bigint = comp_val->size;
+            break;
+        case DB_BIGUINT:
+            f_val->val_biguint = comp_val->size;
+            break;
+        case DB_ENUM_FTYPE:
+            f_val->val_str = type2db(comp_val->type);
+            break;
+        case DB_BOOL:
+            f_val->val_bool = comp_val->integer;
+            break;
+        case DB_SHORT:
+            f_val->val_short = comp_val->integer;
+            break;
+        case DB_USHORT:
+            f_val->val_ushort = comp_val->integer;
+            break;
+        case DB_ID:
+            DisplayLog(LVL_MAJOR, POLICY_TAG, "Criteria type non supported: ID");
+            return -1;
+
+        case DB_STRIPE_INFO:
+        case DB_STRIPE_ITEMS:
+            DisplayLog(LVL_MAJOR, POLICY_TAG, "Criteria type non supported: STRIPE_INFO/STRIPE_ITEMS");
+            return -1;
+
+        default:
+            DisplayLog(LVL_MAJOR, POLICY_TAG, "Unexpected criteria type in %s()",
+                       __func__);
+            return -1;
+    }
+    return 0;
+}
+
+
 /**
  * Convert criteria to ListMgr data
  * \param p_comp        IN: the condition to be converted
@@ -613,13 +707,39 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
         p_value->value.val_str = p_comp->val.str;
         break;
 
+    case CRITERIA_SM_INFO:
+        {
+            const sm_info_def_t *def = NULL;
+            int rc;
+            bool oppose = false;
+
+            rc = sm_attr_get(smi, NULL, p_comp->attr_name, NULL, &def);
+            if (rc < 0)
+            {
+                *p_attr_index = -1;
+                DisplayLog(LVL_CRIT, POLICY_TAG, "couldn't find criteria '%s' in context",
+                           p_comp->attr_name);
+                return -1;
+            }
+            DisplayLog(LVL_FULL, POLICY_TAG, "Attribute index of '%s' = %d", p_comp->attr_name, rc);
+            *p_attr_index = rc;
+            rc = set_filter_value_generic(def, p_comp->op, &p_comp->val, &p_value->value, &oppose);
+            if (rc)
+                return -1;
+
+            if (oppose)
+                *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op));
+            else
+                *p_compar = Policy2FilterComparator(p_comp->op);
+
+        }
+        break;
+
     case CRITERIA_XATTR:
     default:
         *p_attr_index = -1;
         return -1;
     }
-
-/** TODO support SM_INFO */
 
     return 0;
 }

@@ -235,11 +235,15 @@ int lmgr_simple_filter_add_or_replace( lmgr_filter_t * p_filter,
     {
         if ( p_filter->filter_simple.filter_index[i] == attr_index )
         {
+            int syntax_flags = p_filter->filter_simple.filter_flags[i]
+                               & (FILTER_FLAG_BEGIN | FILTER_FLAG_END
+                                  | FILTER_FLAG_OR);
 
             /* check if previous value must be released */
             lmgr_simple_filter_free_buffers(p_filter, i);
 
-            p_filter->filter_simple.filter_flags[i] = flag;
+            /* ensure parenthesing and 'OR' keywords are conserved */
+            p_filter->filter_simple.filter_flags[i] = flag | syntax_flags;
             p_filter->filter_simple.filter_compar[i] = comparator;
             p_filter->filter_simple.filter_value[i] = value;
 

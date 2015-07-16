@@ -501,6 +501,7 @@ sm_instance_t *smi_by_name(const char *smi_name);
 /** Search the given attribute name (status or policy specific info).
  * If there is no smi in the context, name must be of the form '<sm_instance_name>.<attr_name>'
  * else, it can be just <attr_name> (implicit sm_instance name).
+ * @return   if val is NULL, return the index of the given attribute. Else, return 0 on success.
  * @retval  -ENOENT if the requested attribute is not set in attributes structure.
  * @retval  -EINVAL if status manager or attr name is invalid.
  */
