@@ -2226,6 +2226,8 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     if (rc != -1 && (!pol->first_eligible || (rc < pol->first_eligible)))
         pol->first_eligible = rc;
 
+    int time_save = rc;
+
     /* build action parameters */
     rc = build_action_params(&params, &p_item->entry_id, &new_attr_set, pol,
                              rule, p_fileset);
@@ -2239,6 +2241,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     }
 
     /* save attributes before doing the action */
+    /* @FIXME this only save scalar value, not values in allocated structures etc. */
     attr_sav = new_attr_set;
 
     /* apply action to the entry! */
@@ -2274,17 +2277,14 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
         char           strfileset[FILESET_ID_LEN+128] = "";
         char           strstorage[24576]="";
         bool           is_stor = false;
-        time_t         t;
 
         /* Action was sucessful */
         /* display attribute values just before the action,
          * as we used them to match the policy.
          */
-        t = get_sort_attr(pol, &attr_sav);
-
         /* report messages */
-        if (t > 0)
-            FormatDurationFloat(strtime, 256, time( NULL ) - t);
+        if (time_save > 0)
+            FormatDurationFloat(strtime, 256, time( NULL ) - time_save);
         else
             strcpy(strtime, "<none>");
         FormatFileSize(strsize, 256, ATTR(&attr_sav, size));
@@ -2308,15 +2308,15 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
                    "%s success for '%s', matching rule '%s'%s, %s %s%s, size=%s%s%s",
                    tag(pol), ATTR(&p_item->entry_attr, fullpath),
                    rule->rule_id, strfileset, sort_attr_name(pol),
-                   strtime, ((t > 0) ? " ago" : ""),  strsize,
+                   strtime, ((time_save > 0) ? " ago" : ""),  strsize,
                    (is_stor ? " stored on " : ""), (is_stor ? strstorage : ""));
 
         DisplayReport("%s success for '%s', matching rule '%s'%s, %s %s%s | size=%"
-                      PRI_SZ ", %s=%" PRI_TT "%s%s",
+                      PRI_SZ ", %s=%u%s%s",
                       tag(pol), ATTR(&p_item->entry_attr, fullpath),
                       rule->rule_id, strfileset, sort_attr_name(pol),
-                      strtime, ((t > 0) ? " ago" : ""), ATTR(&attr_sav, size),
-                      sort_attr_name(pol), t, (is_stor ? ", stripes=" : ""),
+                      strtime, ((time_save > 0) ? " ago" : ""), ATTR(&attr_sav, size),
+                      sort_attr_name(pol), time_save, (is_stor ? ", stripes=" : ""),
                       (is_stor ? strstorage : ""));
 
         if (pol->descr->manage_deleted &&
