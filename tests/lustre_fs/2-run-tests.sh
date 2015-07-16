@@ -7361,7 +7361,8 @@ function check_disabled
        esac
 
        echo "1.1. Performing action $cmd (daemon mode)..."
-        $RH -f ./cfg/$config_file $cmd -l DEBUG -L rh_scan.log -p rh.pid &
+       # run with --scan, to keep the daemon alive (else, it would have nothing to do)
+       $RH -f ./cfg/$config_file --scan $cmd -l DEBUG -L rh_scan.log -p rh.pid &
 
        sleep 2
        echo "1.2. Checking that kill -HUP does not terminate the process..."
