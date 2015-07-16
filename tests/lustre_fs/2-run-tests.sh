@@ -340,6 +340,10 @@ function create_pools
   $do_mds lctl pool_add lustre.$POOL1 lustre-OST0000 || error "adding OST0000 to pool $POOL1"
   $do_mds lctl pool_new lustre.$POOL2 || error "creating pool $POOL2"
   $do_mds lctl pool_add lustre.$POOL2 lustre-OST0001 || error "adding OST0001 to pool $POOL2"
+
+  $do_mds $LFS pool_list lustre.$POOL1
+  $do_mds $LFS pool_list lustre.$POOL2
+
   POOL_CREATED=1
 }
 
@@ -804,6 +808,7 @@ function test_lru_policy
 	# start a migration files should notbe migrated this time
 
 	$RH -f ./cfg/$config_file --run=migration --target=all -l FULL -L rh_migr.log   || error ""
+    [ "$DEBUG" = "1" ] && grep "SELECT ENTRIES" rh_migr.log
 
     # Retrieve the names of migrated files.
     migr=`egrep -o "$ARCH_STR '[^']+'" rh_migr.log | sed "s/.*'\(.*\)'/\1/" | \
@@ -822,6 +827,7 @@ function test_lru_policy
 
 	echo "5-Applying migration policy again ($policy_str)..."
 	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log
+    [ "$DEBUG" = "1" ] && grep "SELECT ENTRIES" rh_migr.log
 
     # Retrieve the names of migrated files.
     #   "2015/02/18 15:54:31 [17821/5] migration | migration success for '/mnt/lustre/file.1', matching rule 'default', creation_time 41s ago, size=1.00 MB"
@@ -5961,32 +5967,17 @@ function test_pools
 	echo "1.3-checking robinhood log..."
 	grep "Missing attribute" rh_chglogs.log && error "missing attribute when matching classes"
 
-	# purge field index
-	if (( $is_lhsm != 0 )); then
-		pf=7
-	else
-		pf=5
-	fi
+	# fileclass field index
+    pf=5
 
-	# no_pool files must match default
 	for i in 1 2; do
-		(( $is_lhsm + $is_hsmlite != 0 )) &&  \
-			( [ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || error "bad migr class for no_pool.$i" )
-		 (( $is_hsmlite == 0 )) && \
-			([ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "[default]" ] || error "bad purg class for no_pool.$i")
+        ( [ "`grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '`" = "" ] || error "bad fileclass for no_pool.$i" )
 	done
 
 	for i in a b; do
-		# in_pool_1 files must match pool_1
-		(( $is_lhsm  + $is_hsmlite != 0 )) && \
-			 ( [ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || error "bad migr class for in_pool_1.$i" )
-		(( $is_hsmlite == 0 )) && \
-			([ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "pool_1" ] || error "bad purg class for in_pool_1.$i")
+	    ( [ "`grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f $pf  | tr -d ' '`" = "pool_1" ] || error "bad fileclass for in_pool_1.$i" )
 
-		# in_pool_2 files must match pool_2
-		(( $is_lhsm + $is_hsmlite != 0 )) && ( [ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || error "bad migr class for in_pool_2.$i" )
-		(( $is_hsmlite == 0 )) && \
-			([ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '` = "pool_2" ] || error "bad purg class for in_pool_2.$i")
+		( [ "`grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '`" = "pool_2" ] || error "bad fileclass for in_pool_2.$i" )
 	done
 
 	# rematch and recheck
@@ -5999,24 +5990,16 @@ function test_pools
 	$REPORT -f ./cfg/$config_file --dump-all -c  > report.out || error ""
 	cat report.out
 
-	# no_pool files must match default
 	for i in 1 2; do
-		(( $is_lhsm + $is_hsmlite != 0 )) && ( [ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f 6 | tr -d ' '` = "[default]" ] || error "bad migr class for no_pool.$i" )
-		(( $is_hsmlite == 0 )) && \
-			([ `grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "[default]" ] || error "bad purg class for no_pool.$i")
+        ( [ "`grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '`" = "" ] || error "bad fileclass for no_pool.$i" )
 	done
 
 	for i in a b; do
-		# in_pool_1 files must match pool_1
-		(( $is_lhsm + $is_hsmlite != 0 )) &&  ( [ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f 6  | tr -d ' '` = "pool_1" ] || error "bad migr class for in_pool_1.$i" )
-		(( $is_hsmlite == 0 )) && \
-			([ `grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f $pf | tr -d ' '` = "pool_1" ] || error "bad purg class for in_pool_1.$i")
+	    ( [ "`grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f $pf  | tr -d ' '`" = "pool_1" ] || error "bad fileclass for in_pool_1.$i" )
 
-		# in_pool_2 files must match pool_2
-		(( $is_lhsm + $is_hsmlite != 0 )) && ( [ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f 6 | tr -d ' '` = "pool_2" ] || error "bad migr class for in_pool_2.$i" )
-		(( $is_hsmlite == 0 )) && \
-			([ `grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '` = "pool_2" ] || error "bad purg class for in_pool_2.$i")
+		( [ "`grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '`" = "pool_2" ] || error "bad fileclass for in_pool_2.$i" )
 	done
+
 
 	echo "2.3-checking robinhood log..."
 	grep "Missing attribute" rh_chglogs.log && error "missing attribute when matching classes"
@@ -9758,17 +9741,17 @@ function TEST_OTHER_PARAMETERS_3
 
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
 
-	echo "sleep 30 seconds"
-	sleep 30
+	echo "sleep 31 seconds"
+	sleep 31
 
 	echo "HSM Remove"
-	$RH -f ./cfg/$config_file --hsm-remove -l DEBUG -L rh_purge.log &
+	$RH -f ./cfg/$config_file --run=hsm_remove -l DEBUG -L rh_purge.log &
 	pid=$!
 
 	echo "sleep 5 seconds"
 	sleep 5
 
-	nb_Remove=`grep "Remove request successful for entry" rh_purge.log | wc -l`
+	nb_Remove=`grep "$HSMRM_STR" rh_purge.log | wc -l`
 	if (( $nb_Remove != 4 )); then
         error "********** TEST FAILED (LOG): $nb_Remove remove detected, but 4 expected"
         ((nbError++))
@@ -9793,10 +9776,10 @@ function TEST_OTHER_PARAMETERS_3
         ((nbError++))
     fi
 
-	echo "sleep 60 seconds"
-	sleep 60
+	echo "sleep 61 seconds"
+	sleep 61
 
-	nb_Remove=`grep "Remove request successful for entry" rh_purge.log | wc -l`
+	nb_Remove=`grep "$HSMRM_STR" rh_purge.log | wc -l`
 	if (( $nb_Remove != 5 )); then
         error "********** TEST FAILED (LOG): $nb_Remove remove detected, but 5 expected"
         ((nbError++))
