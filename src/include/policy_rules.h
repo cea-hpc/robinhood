@@ -89,7 +89,8 @@ typedef int (*action_func_t)(const entry_id_t *id, attr_set_t *attrs,
 
 typedef enum
 {
-    ACTION_NONE, /* not defined */
+    ACTION_UNSET, /**< not set */
+    ACTION_NONE,  /**< explicit noop */
     ACTION_FUNCTION,
     ACTION_COMMAND
 } action_type_e;

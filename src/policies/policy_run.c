@@ -247,7 +247,7 @@ static int policy_action(policy_info_t *policy,
 
     /* Get the action from policy rule, if defined.
      * Else, get the default action for the policy. */
-    if (rule != NULL && rule->action.type != ACTION_NONE)
+    if (rule != NULL && rule->action.type != ACTION_UNSET)
         actionp = &rule->action;
     else
         /* defaults to default_action from */
@@ -324,6 +324,7 @@ static int policy_action(policy_info_t *policy,
 
                 break;
             }
+            case ACTION_UNSET:
             case ACTION_NONE:
                 rc = 0;
                 break;

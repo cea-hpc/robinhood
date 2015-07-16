@@ -1649,6 +1649,11 @@ static int wrap_file_copy(sm_instance_t *smi,
             DisplayLog(LVL_DEBUG, RBHEXT_TAG, "copy(%s->%s): noop", srcpath, tmp);
             rc = 0;
             break;
+
+        case ACTION_UNSET:
+            DisplayLog(LVL_EVENT, RBHEXT_TAG, "copy(%s->%s): no action specified", srcpath, tmp);
+            rc = 0;
+            break;
     }
 
     /* restore real entry attributes */
@@ -2244,6 +2249,12 @@ static recov_status_t recov_file(const entry_id_t *p_id,
             case ACTION_NONE:
                 /* NOOP */
                 DisplayLog(LVL_DEBUG, RBHEXT_TAG, "recovery(%s->%s): noop",
+                           backend_path, fspath);
+                rc = 0;
+                break;
+
+            case ACTION_UNSET:
+                DisplayLog(LVL_EVENT, RBHEXT_TAG, "recovery(%s->%s): no action specified",
                            backend_path, fspath);
                 rc = 0;
                 break;
