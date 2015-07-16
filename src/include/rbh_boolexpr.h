@@ -170,6 +170,7 @@ typedef struct compare_triplet_t
 
 /** Type of boolean expression: unary, binary or criteria */
 typedef enum {
+    NODE_CONSTANT, /* boolean constant (TRUE or FALSE) */
     NODE_CONDITION,
     NODE_UNARY_EXPR,
     NODE_BINARY_EXPR
@@ -182,6 +183,7 @@ typedef struct bool_node_t
     union
     {
         compare_triplet_t *condition;            /**< for final condition on any field */
+        bool               constant;             /**< true or false */
         struct
         {
             bool_op_t      bool_op;              /**< boolean operator */
@@ -206,6 +208,10 @@ int CreateBoolCond(bool_node_t * p_out_node, compare_direction_t compar,
 /** Append a boolean condition with bool op = AND */
 int AppendBoolCond(bool_node_t * p_in_out_node, compare_direction_t compar,
                    compare_criteria_t  crit, compare_value_t val);
+
+/** Return a constant boolean expression (true or false) */
+int ConstantBoolExpr(bool constant, bool_node_t *p_bool_node);
+
 /**
  * Free a boolean expression structure
  */
@@ -233,7 +239,7 @@ int compare_boolexpr(const bool_node_t *expr1, const bool_node_t *expr2);
  * @return true if expression values have been changed
  * @return false if nothing has been changed
  */
-bool update_boolexpr(const bool_node_t *tgt, const bool_node_t *src);
+bool update_boolexpr(bool_node_t *tgt, const bool_node_t *src);
 
 
 #endif
