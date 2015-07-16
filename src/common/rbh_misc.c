@@ -437,11 +437,6 @@ void PosixStat2EntryAttr(struct stat *p_inode, attr_set_t *p_attr_set,
         ATTR_MASK_SET( p_attr_set, blocks );
         ATTR( p_attr_set, blocks ) = p_inode->st_blocks;
 
-#ifdef ATTR_INDEX_blksize
-        ATTR_MASK_SET( p_attr_set, blksize );
-        ATTR( p_attr_set, blksize ) = p_inode->st_blksize;
-#endif
-
         /* times are also wrong when they come from the MDT device */
         ATTR_MASK_SET( p_attr_set, last_access );
         ATTR( p_attr_set, last_access ) =
@@ -451,7 +446,6 @@ void PosixStat2EntryAttr(struct stat *p_inode, attr_set_t *p_attr_set,
         ATTR( p_attr_set, last_mod ) = p_inode->st_mtime;
     }
 
-#ifdef ATTR_INDEX_creation_time
     if (ATTR_MASK_TEST(p_attr_set, creation_time))
     {
         /* creation time is always <= ctime */
@@ -463,25 +457,19 @@ void PosixStat2EntryAttr(struct stat *p_inode, attr_set_t *p_attr_set,
         ATTR_MASK_SET(p_attr_set, creation_time);
         ATTR(p_attr_set, creation_time) = p_inode->st_ctime;
     }
-#endif
 
-#ifdef ATTR_INDEX_type
     const char * type = mode2type(p_inode->st_mode);
     if (type != NULL)
     {
         ATTR_MASK_SET( p_attr_set, type );
         strcpy(ATTR( p_attr_set, type ), type);
     }
-#endif
 
-#ifdef ATTR_INDEX_nlink
     ATTR_MASK_SET( p_attr_set, nlink );
     ATTR( p_attr_set, nlink ) = p_inode->st_nlink;
-#endif
-#ifdef ATTR_INDEX_mode
+
     ATTR_MASK_SET( p_attr_set, mode );
     ATTR( p_attr_set, mode ) = p_inode->st_mode & 07777 ; /*  mode + sticky bits */
-#endif
 }
 
 #ifndef HAVE_GETMNTENT_R
@@ -1397,7 +1385,7 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
             snprintf( out_str + written, strsize - written, format,
                       PFID(&ATTR(p_attr_set, parent_id)) );
     }
-#ifdef ATTR_INDEX_type
+
     if ( mask & ATTR_MASK_type )
     {
         if (brief)
@@ -1408,7 +1396,7 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
             snprintf( out_str + written, strsize - written, format,
                       ATTR( p_attr_set, type ) );
     }
-#endif
+
     if (mask & ATTR_MASK_nlink)
     {
         if (brief)
@@ -1420,7 +1408,6 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
                       ATTR(p_attr_set, nlink));
     }
 
-#ifdef ATTR_INDEX_mode
     if ( mask & ATTR_MASK_mode )
     {
         if (brief)
@@ -1431,7 +1418,6 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
             snprintf( out_str + written, strsize - written, format,
                       ATTR( p_attr_set, mode ) );
     }
-#endif
 
     if ( mask & ATTR_MASK_owner )
     {
@@ -1486,7 +1472,7 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
             snprintf( out_str + written, strsize - written, format,
                       ATTR( p_attr_set, depth ) );
     }
-#ifdef ATTR_INDEX_dircount
+
     if ( mask & ATTR_MASK_dircount )
     {
         if (brief)
@@ -1497,7 +1483,7 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
             snprintf( out_str + written, strsize - written, format,
                       ATTR( p_attr_set, dircount ) );
     }
-#endif
+
     if ( mask & ATTR_MASK_last_access )
     {
         if (brief)
@@ -1525,7 +1511,7 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
             written += snprintf( out_str + written, strsize - written, "Last Mod: %s ago\n", tmpbuf );
         }
     }
-#ifdef ATTR_INDEX_creation_time
+
     if ( mask & ATTR_MASK_creation_time )
     {
         if (brief)
@@ -1539,7 +1525,6 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
             written += snprintf( out_str + written, strsize - written, "Creation: %s ago\n", tmpbuf );
         }
     }
-#endif
 
 #ifdef _LUSTRE
     if ( mask & ATTR_MASK_stripe_items)
@@ -1727,12 +1712,12 @@ int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t * p_attr_new,
         /* just change name */
     }
 
-#ifdef ATTR_INDEX_type
+
     if ( mask & ATTR_MASK_type )
     {
         /* can't change entry type without creating/removing it */
     }
-#endif
+
     if ( mask & (ATTR_MASK_owner | ATTR_MASK_gr_name))
     {
         uid_t u = -1;
@@ -1775,7 +1760,6 @@ int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t * p_attr_new,
         }
     }
 
-#ifdef ATTR_INDEX_mode
     /* always set mode after chown, as it can be changed by chown */
     if ( mask & ATTR_MASK_mode )
     {
@@ -1788,7 +1772,6 @@ int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t * p_attr_new,
         LOG_ATTR_CHANGE("chmod", "%s, %#o", dry_run, rc,
                         chattr_path,  ATTR(p_attr_new, mode));
     }
-#endif
 
     /* the following changes can't be applied (not supported) */
     /* stripe_items / stripe_info => restripe the file? */

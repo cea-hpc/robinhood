@@ -264,9 +264,8 @@ static void entry_proc_cfg_set_default(void *module_config)
     conf->max_pending_operations = 10000; /* for efficient batching of 1000 ops */
     conf->max_batch_size = 1000;
     conf->match_classes = true;
-#ifdef ATTR_INDEX_creation_time
+
     conf->detect_fake_mtime = false;
-#endif
 
     conf->alert_list = NULL;
     conf->alert_count = 0;
@@ -285,9 +284,7 @@ static void entry_proc_cfg_write_default(FILE *output)
     print_line(output, 1, "max_pending_operations :  10000");
     print_line(output, 1, "max_batch_size         :  1000");
     print_line(output, 1, "match_classes          :  yes");
-#ifdef ATTR_INDEX_creation_time
     print_line(output, 1, "detect_fake_mtime      :  no");
-#endif
     print_line(output, 1, "alert                  :  NONE");
     print_end_block(output, 0);
 }
@@ -453,9 +450,8 @@ static int entry_proc_cfg_read(config_file_t config, void *module_config, char *
         {"max_pending_operations", PT_INT, PFLG_POSITIVE | PFLG_NOT_NULL, &conf->max_pending_operations, 0},
         {"max_batch_size", PT_INT, PFLG_POSITIVE | PFLG_NOT_NULL, &conf->max_batch_size, 0},
         {"match_classes", PT_BOOL, 0, &conf->match_classes, 0},
-#ifdef ATTR_INDEX_creation_time
         {"detect_fake_mtime", PT_BOOL, 0, &conf->detect_fake_mtime, 0},
-#endif
+
         END_OF_PARAMS
     };
 
@@ -555,12 +551,8 @@ static int entry_proc_cfg_read(config_file_t config, void *module_config, char *
     entry_proc_allowed[2] = "max_batch_size";
     entry_proc_allowed[3] = "match_classes";
     entry_proc_allowed[4] = ALERT_BLOCK;
-#ifdef ATTR_INDEX_creation_time
     entry_proc_allowed[5] = "detect_fake_mtime";
     next_idx = 6;
-#else
-    next_idx = 5;
-#endif
 
     pipeline_names = malloc(16*256); /* max 16 strings of 256 (oversized) */
     if (!pipeline_names)
@@ -663,7 +655,6 @@ static int entry_proc_cfg_reload(entry_proc_config_t *conf)
         entry_proc_conf.match_classes = conf->match_classes;
     }
 
-#ifdef ATTR_INDEX_creation_time
     if (conf->detect_fake_mtime != entry_proc_conf.detect_fake_mtime)
     {
         DisplayLog(LVL_MAJOR, "EntryProc_Config",
@@ -671,7 +662,6 @@ static int entry_proc_cfg_reload(entry_proc_config_t *conf)
                    bool2str(entry_proc_conf.detect_fake_mtime), bool2str(conf->detect_fake_mtime));
         entry_proc_conf.detect_fake_mtime = conf->detect_fake_mtime;
     }
-#endif
 
     /* Check alert rules  */
     update_alerts(entry_proc_conf.alert_list, entry_proc_conf.alert_count,
@@ -757,13 +747,11 @@ static void entry_proc_cfg_write_template(FILE *output)
     print_line(output, 1, "# at policy application time (not during a scan or reading changelog)");
     print_line(output, 1, "match_classes = yes;");
 
-#ifdef ATTR_INDEX_creation_time
     fprintf(output, "\n");
     print_line(output, 1, "# Faking mtime to an old time causes the file to be migrated");
     print_line(output, 1, "# with top priority. Enabling this parameter detect this behavior");
     print_line(output, 1, "# and doesn't allow  mtime < creation_time");
     print_line(output, 1, "detect_fake_mtime = no;");
-#endif
 
     print_end_block(output, 0);
 }

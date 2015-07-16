@@ -52,12 +52,8 @@ typedef enum {
     CRITERIA_DIRCOUNT,
     CRITERIA_LAST_ACCESS,
     CRITERIA_LAST_MOD,
-#ifdef ATTR_INDEX_creation_time
     CRITERIA_CREATION,
-#endif
-#ifdef ATTR_INDEX_rm_time
     CRITERIA_RMTIME,
-#endif
 #ifdef _LUSTRE
     CRITERIA_POOL,
     CRITERIA_OST,

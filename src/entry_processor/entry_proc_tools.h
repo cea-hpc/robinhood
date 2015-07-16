@@ -30,11 +30,11 @@ typedef struct entry_proc_config_t
     uint64_t       alert_attr_mask;
 
     bool           match_classes;
-#ifdef ATTR_INDEX_creation_time
+
     /* fake mtime in the past causes higher
      * migration priority */
     bool           detect_fake_mtime;
-#endif
+
 } entry_proc_config_t;
 
 extern entry_proc_config_t entry_proc_conf;

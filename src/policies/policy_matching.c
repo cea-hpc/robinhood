@@ -581,14 +581,13 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
 
         break;
 
-#ifdef ATTR_INDEX_type
     case CRITERIA_TYPE: /* type = 'type' */
 
         *p_attr_index = ATTR_INDEX_type;
         *p_compar = Policy2FilterComparator(p_comp->op);
         p_value->value.val_str = type2db(p_comp->val.type);
         break;
-#endif
+
     case CRITERIA_OWNER: /* owner like 'owner' */
         *p_attr_index = ATTR_INDEX_owner;
         *p_compar = Policy2FilterComparator(p_comp->op);
@@ -613,13 +612,12 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
         p_value->value.val_uint = p_comp->val.integer;
         break;
 
-#ifdef ATTR_INDEX_dircount
     case CRITERIA_DIRCOUNT:
         *p_attr_index = ATTR_INDEX_dircount;
         *p_compar = Policy2FilterComparator(p_comp->op);
         p_value->value.val_uint = p_comp->val.integer;
         break;
-#endif
+
     case CRITERIA_LAST_ACCESS:
         *p_attr_index = ATTR_INDEX_last_access;
 
@@ -635,41 +633,12 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
         p_value->value.val_uint = time(NULL) - p_comp->val.duration;
         break;
 
-#ifdef ATTR_INDEX_last_archive
-    case CRITERIA_LAST_ARCHIVE:
-        *p_attr_index = ATTR_INDEX_last_archive;
-        *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op));
-        p_value->value.val_uint = time(NULL) - p_comp->val.duration;
-
-        /* last_archive == 0 has a special meaning that file
-         * has never been archived */
-        if ((p_comp->op == COMP_EQUAL)
-            && (p_comp->val.duration == 0))
-        {
-            p_value->value.val_uint = 0;
-            /* Caller (append_simple_AND_expr) must also set ALLOW_NULL flag */
-        }
-
-        break;
-#endif
-
-#ifdef ATTR_INDEX_last_restore
-    case CRITERIA_LAST_RESTORE:
-        *p_attr_index = ATTR_INDEX_last_restore;
-        *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op));
-        p_value->value.val_uint = time(NULL) - p_comp->val.duration;
-        break;
-#endif
-
-#ifdef ATTR_INDEX_creation_time
     case CRITERIA_CREATION:
         *p_attr_index = ATTR_INDEX_creation_time;
         *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op));
         p_value->value.val_uint = time(NULL) - p_comp->val.duration;
         break;
-#endif
 
-#ifdef ATTR_INDEX_rm_time
     case CRITERIA_RMTIME:
         if (smi == NULL || !(smi->sm->flags & SM_DELETED))
         {
@@ -682,7 +651,6 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
         *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op));
         p_value->value.val_uint = time(NULL) - p_comp->val.duration;
         break;
-#endif
 
 #ifdef _LUSTRE
     case CRITERIA_POOL:
@@ -816,7 +784,6 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
         else
             return BOOL2POLICY(!rc);
 
-#ifdef ATTR_INDEX_type
     case CRITERIA_TYPE:
 
         /* type is required */
@@ -832,7 +799,6 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
             return BOOL2POLICY(rc);
         else
             return BOOL2POLICY(!rc);
-#endif
 
     case CRITERIA_OWNER:
         /* owner is required */
@@ -870,14 +836,12 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
         rc = int_compare(ATTR(p_entry_attr, depth), p_triplet->op, p_triplet->val.integer);
         return BOOL2POLICY(rc);
 
-#ifdef ATTR_INDEX_dircount
     case CRITERIA_DIRCOUNT:
         /* dircount is required */
         CHECK_ATTR(p_entry_attr, dircount, no_warning);
 
         rc = int_compare(ATTR(p_entry_attr, dircount), p_triplet->op, p_triplet->val.integer);
         return BOOL2POLICY(rc);
-#endif
 
     case CRITERIA_LAST_ACCESS:
         /* last_access is required */
@@ -896,38 +860,6 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
                           time_modify(p_triplet->val.duration, p_pol_mod));
         return BOOL2POLICY(rc);
 
-#ifdef ATTR_INDEX_last_archive
-    case CRITERIA_LAST_ARCHIVE:
-        /* last_archive == 0 IF-AND-ONLY-IF file has never been archived */
-        if (!ATTR_MASK_TEST(p_entry_attr, last_archive)
-            || ATTR(p_entry_attr, last_archive) == 0)
-        {
-            if ((p_triplet->op == COMP_EQUAL)
-                && (p_triplet->val.duration == 0))
-                return POLICY_MATCH;
-            else /* last_archive > X do not match */
-                return POLICY_NO_MATCH;
-        }
-
-        rc = int_compare(time(NULL) - ATTR(p_entry_attr, last_archive), p_triplet->op,
-                          time_modify(p_triplet->val.duration, p_pol_mod));
-        return BOOL2POLICY(rc);
-
-        break;
-#endif
-
-#ifdef ATTR_INDEX_last_restore
-    case CRITERIA_LAST_RESTORE:
-        /* restore time is required */
-        CHECK_ATTR(p_entry_attr, last_restore, no_warning);
-
-        rc = int_compare(time(NULL) - ATTR(p_entry_attr, last_restore), p_triplet->op,
-                          time_modify(p_triplet->val.duration, p_pol_mod));
-        return BOOL2POLICY(rc);
-
-        break;
-#endif
-#ifdef ATTR_INDEX_creation_time
     case CRITERIA_CREATION:
         /* creation_time is required */
         CHECK_ATTR(p_entry_attr, creation_time, no_warning);
@@ -937,9 +869,7 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
         return BOOL2POLICY(rc);
 
         break;
-#endif
 
-#ifdef ATTR_INDEX_rm_time
     case CRITERIA_RMTIME:
         if (smi == NULL || !(smi->sm->flags & SM_DELETED))
         {
@@ -955,8 +885,6 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
         return BOOL2POLICY(rc);
 
         break;
-#endif
-
 
 #ifdef _LUSTRE
     case CRITERIA_POOL:

@@ -159,15 +159,11 @@ static struct criteria_descr_t {
                         PFLG_POSITIVE | PFLG_COMPARABLE},
     [CRITERIA_LAST_MOD] = {"last_mod", ATTR_MASK_last_mod, PT_DURATION,
                         PFLG_POSITIVE | PFLG_COMPARABLE},
-#ifdef ATTR_INDEX_creation_time
     [CRITERIA_CREATION] = {"creation", ATTR_MASK_creation_time, PT_DURATION,
                         PFLG_POSITIVE | PFLG_COMPARABLE},
-#endif
-#ifdef ATTR_INDEX_rm_time
     /* needs a 'remove' status manager */
     [CRITERIA_RMTIME] = {"rm_time", ATTR_MASK_rm_time, PT_DURATION,
                          PFLG_POSITIVE | PFLG_COMPARABLE | PFLG_STATUS},
-#endif
 #ifdef _LUSTRE
     [CRITERIA_POOL] = {"ost_pool", ATTR_MASK_stripe_info, PT_STRING, 0},
     [CRITERIA_OST] =  {"ost_index", ATTR_MASK_stripe_items, PT_INT, PFLG_POSITIVE},
@@ -178,7 +174,7 @@ static struct criteria_descr_t {
      * the last standard criteria */
     [CRITERIA_XATTR] = {XATTR_PREFIX, XATTR_NEED, PT_STRING, PFLG_XATTR},
 
-    /* CRITERIA_SM_INFO: type and flags are attribute specific. */
+    /* CRITERIA_SM_INFO: type and flags are provided by status managers (sm_info_def_t) */
 };
 
 const char *criteria2str(compare_criteria_t crit)
@@ -221,14 +217,10 @@ int str2lru_attr(const char *str, const struct sm_instance *smi)
             return ATTR_INDEX_last_access;
         else if (!strcasecmp(str, criteria2str(CRITERIA_LAST_MOD)))
             return ATTR_INDEX_last_mod;
-#ifdef ATTR_INDEX_creation_time
         else if (!strcasecmp(str, criteria2str(CRITERIA_CREATION)))
             return ATTR_INDEX_creation_time;
-#endif
-#ifdef ATTR_INDEX_rm_time
         else if (!strcasecmp(str, criteria2str(CRITERIA_RMTIME)))
             return ATTR_INDEX_rm_time;
-#endif
         else if (!strcasecmp(str, "none"))
             return LRU_ATTR_NONE;
 
@@ -966,20 +958,16 @@ static int print_condition( const compare_triplet_t * p_triplet, char *out_str, 
         return snprintf( out_str, str_size, "%s %s \"%s\"", criteria2str( p_triplet->crit ),
                          op2str( p_triplet->op ), p_triplet->val.str );
 
-#ifdef ATTR_INDEX_type
     case CRITERIA_TYPE:
         return snprintf( out_str, str_size, "%s %s \"%s\"", criteria2str( p_triplet->crit ),
                          op2str( p_triplet->op ), type2str( p_triplet->val.type ) );
-#endif
 
         /* int values */
     case CRITERIA_DEPTH:
 #ifdef _LUSTRE
     case CRITERIA_OST:
 #endif
-#ifdef ATTR_INDEX_dircount
     case CRITERIA_DIRCOUNT:
-#endif
         return snprintf( out_str, str_size, "%s %s %d", criteria2str( p_triplet->crit ),
                          op2str( p_triplet->op ), p_triplet->val.integer );
 
@@ -992,18 +980,8 @@ static int print_condition( const compare_triplet_t * p_triplet, char *out_str, 
 
     case CRITERIA_LAST_ACCESS:
     case CRITERIA_LAST_MOD:
-#ifdef ATTR_INDEX_last_archive
-    case CRITERIA_LAST_ARCHIVE:
-#endif
-#ifdef ATTR_INDEX_last_restore
-    case CRITERIA_LAST_RESTORE:
-#endif
-#ifdef ATTR_INDEX_creation_time
     case CRITERIA_CREATION:
-#endif
-#ifdef ATTR_INDEX_rm_time
     case CRITERIA_RMTIME:
-#endif
         FormatDurationFloat( tmp_buff, 256, p_triplet->val.duration );
         return snprintf( out_str, str_size, "%s %s %s", criteria2str( p_triplet->crit ),
                          op2str( p_triplet->op ), tmp_buff );
@@ -1177,10 +1155,7 @@ bool update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
 #ifdef _LUSTRE
         case CRITERIA_OST:
 #endif
-
-#ifdef ATTR_INDEX_dircount
         case CRITERIA_DIRCOUNT:
-#endif
             if (p_triplet1->val.integer != p_triplet2->val.integer)
             {
                 DisplayLog(LVL_EVENT, RELOAD_TAG,
@@ -1197,15 +1172,7 @@ bool update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
             /* duration conditions */
         case CRITERIA_LAST_ACCESS:
         case CRITERIA_LAST_MOD:
-#ifdef ATTR_INDEX_last_archive
-        case CRITERIA_LAST_ARCHIVE:
-#endif
-#ifdef ATTR_INDEX_last_restore
-        case CRITERIA_LAST_RESTORE:
-#endif
-#ifdef ATTR_INDEX_creation_time
         case CRITERIA_CREATION:
-#endif
             if (p_triplet1->val.duration != p_triplet2->val.duration)
             {
                 FormatDurationFloat(tmp_buff1, 256, p_triplet1->val.duration);
@@ -1220,7 +1187,6 @@ bool update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
             else
                 return false;
 
-#ifdef ATTR_INDEX_type
         case CRITERIA_TYPE:
             if (p_triplet1->val.type != p_triplet2->val.type)
             {
@@ -1234,7 +1200,6 @@ bool update_boolexpr(const bool_node_t * tgt, const bool_node_t * src)
             }
             else
                 return false;
-#endif
 
             /* unmodifiable conditions */
         case CRITERIA_TREE:

@@ -525,11 +525,9 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
              * insert entry to the DB */
             p_op->db_op_type = OP_TYPE_INSERT;
 
-    #ifdef ATTR_INDEX_creation_time
             /* new entry, set insertion time */
             ATTR_MASK_SET( &p_op->fs_attrs, creation_time );
             ATTR( &p_op->fs_attrs, creation_time ) = cltime2sec(logrec->cr_time);
-    #endif
 
             /* we must get info that is not provided by the chglog */
             p_op->fs_attr_need |= (POSIX_ATTR_MASK | ATTR_MASK_name | ATTR_MASK_parent_id
@@ -775,10 +773,9 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
 #endif
 
-#ifdef ATTR_INDEX_creation_time
         if (entry_proc_conf.detect_fake_mtime)
              p_op->db_attr_need |= ATTR_MASK_creation_time;
-#endif
+
         if (type_clue == TYPE_NONE || type_clue == TYPE_LINK)
             /* check if link content is set for this entry */
             p_op->db_attr_need |= ATTR_MASK_link;
@@ -890,10 +887,8 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         /* retrieve missing attributes for diff */
         p_op->fs_attr_need |= (diff_mask & ~p_op->fs_attrs.attr_mask);
 
-#ifdef ATTR_INDEX_creation_time
         if (entry_proc_conf.detect_fake_mtime)
              p_op->db_attr_need |= ATTR_MASK_creation_time;
-#endif
 
         /* get all needed attributes for status */
         attr_allow_cached = attrs_for_status_mask(status_scope, false);
@@ -973,14 +968,12 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             /* new entry */
             p_op->db_op_type = OP_TYPE_INSERT;
 
-#ifdef ATTR_INDEX_creation_time
             /* set creation time if it was not set by scan module */
             if (!ATTR_MASK_TEST(&p_op->fs_attrs, creation_time))
             {
                 ATTR_MASK_SET( &p_op->fs_attrs, creation_time );
                 ATTR( &p_op->fs_attrs, creation_time ) = time(NULL); /* FIXME min(atime,mtime,ctime)? */
             }
-#endif
 
 #ifdef _LUSTRE
             /* get stripe for files */
@@ -1237,14 +1230,12 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         path_check_update(&p_op->entry_id, path, &p_op->fs_attrs, p_op->fs_attr_need);
 #endif
 
-#ifdef ATTR_INDEX_creation_time
     if (entry_proc_conf.detect_fake_mtime
         && ATTR_FSorDB_TEST(p_op, creation_time)
         && ATTR_MASK_TEST(&p_op->fs_attrs, last_mod))
     {
         check_and_warn_fake_mtime(p_op);
     }
-#endif
 
 #ifdef _LUSTRE
     /* getstripe only for files */
@@ -1478,11 +1469,9 @@ int EntryProc_pre_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
     int            rc;
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
 
-#ifdef ATTR_INDEX_creation_time
     /* once set, never change creation time */
     if (p_op->db_op_type != OP_TYPE_INSERT)
         ATTR_MASK_UNSET(&p_op->fs_attrs, creation_time);
-#endif
 
 #ifdef HAVE_CHANGELOGS
     /* handle nlink. We don't want the values from the filesystem if
@@ -1495,15 +1484,14 @@ int EntryProc_pre_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
             ATTR_MASK_SET(&p_op->fs_attrs, nlink);
             ATTR(&p_op->fs_attrs, nlink) = 1;
         }
-#ifdef ATTR_INDEX_nlink
         else if ((logrec->cr_type == CL_HARDLINK) &&
-                 (ATTR_MASK_TEST(&p_op->db_attrs, nlink))) {
+                 (ATTR_MASK_TEST(&p_op->db_attrs, nlink)))
+        {
             /* New hardlink. Add 1 to existing value. Ignore what came
              * from the FS, since it can be out of sync by now. */
             ATTR_MASK_SET(&p_op->fs_attrs, nlink);
             ATTR(&p_op->fs_attrs, nlink) = ATTR(&p_op->db_attrs, nlink) + 1;
         }
-#endif
     }
 #endif
 

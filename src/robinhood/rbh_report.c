@@ -1867,9 +1867,6 @@ static void report_topsize( unsigned int count, int flags )
     entry_id_t     id;
 
     int list[] = { ATTR_INDEX_fullpath,
-#ifdef ATTR_INDEX_status
-                   ATTR_INDEX_status,
-#endif
                    ATTR_INDEX_size,
                    ATTR_INDEX_owner,
                    ATTR_INDEX_gr_name,

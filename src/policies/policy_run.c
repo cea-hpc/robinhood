@@ -1645,15 +1645,6 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     if (rc)
         return rc;
 #endif
-
-#ifdef ATTR_INDEX_no_release // no_archive etc...
-    /* do not retrieve entries with 'no_release' tag = 1 */
-    fval.value.val_bool = true;
-    rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_no_release, NOTEQUAL,
-                                 fval, FILTER_FLAG_ALLOW_NULL);
-    if (rc)
-        return rc;
-#endif
 #endif
 
     /* set target filter and attr mask */
@@ -1765,10 +1756,9 @@ inline static int update_entry(lmgr_t *lmgr, const entry_id_t *p_entry_id,
 
     /* also unset read only attrs */
     tmp_attrset.attr_mask &= ~readonly_attr_set;
-#ifdef ATTR_INDEX_creation_time
+
     /* never update creation time */
     ATTR_MASK_UNSET(&tmp_attrset, creation_time);
-#endif
 
     /* update DB and skip the entry */
     rc = ListMgr_Update(lmgr, p_entry_id, &tmp_attrset);
@@ -2089,24 +2079,6 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     /* From here, assume that entry is valid */
     ATTR_MASK_SET(&new_attr_set, invalid);
     ATTR(&new_attr_set, invalid) = false;
-#endif
-
-#if 0 // TODO RBHv3: manage no_release, no_archive etc.
-#ifdef ATTR_INDEX_no_release
-    /* check that the entry has the expected status */
-    if (ATTR_MASK_TEST(&new_attr_set, no_release) && ATTR(&new_attr_set, no_release))
-    {
-        /* this entry is now tagged 'no_release' */
-        DisplayLog(LVL_MAJOR, PURGE_TAG,
-                    "Entry " DFID_NOBRACE " is now tagged 'no_release', skipping it.",
-                    PFID(&p_item->entry_id));
-
-        update_entry(lmgr, &p_item->entry_id, &new_attr_set);
-        Acknowledge(&purge_queue, PURGE_ENTRY_WHITELISTED, 0, 0);
-
-        goto end;
-    }
-#endif
 #endif
 
     /* check the entry still matches the policy scope */

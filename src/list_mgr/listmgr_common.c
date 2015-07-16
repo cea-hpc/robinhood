@@ -937,7 +937,6 @@ filter_dir_e dir_filter(lmgr_t *p_mgr, GString *filter_str, const lmgr_filter_t 
 {
     int i;
 
-#ifdef ATTR_INDEX_dircount
     if ( p_filter->filter_type == FILTER_SIMPLE )
     {
         for ( i = 0; i < p_filter->filter_simple.filter_count; i++ )
@@ -987,7 +986,6 @@ filter_dir_e dir_filter(lmgr_t *p_mgr, GString *filter_str, const lmgr_filter_t 
             }
         }
     }
-#endif
     return FILTERDIR_NONE;
 }
 

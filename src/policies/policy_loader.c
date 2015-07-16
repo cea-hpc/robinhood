@@ -1178,6 +1178,7 @@ static int read_fileclass_definition(config_item_t cfg_item,
 
     p_policies->global_fileset_mask |= fset->attr_mask;
 
+    /* @FIXME check standard attributes + sm_info of type PT_DURATION */
     if (fset->attr_mask & (
 #ifdef ATTR_INDEX_last_archive
         ATTR_MASK_last_archive |

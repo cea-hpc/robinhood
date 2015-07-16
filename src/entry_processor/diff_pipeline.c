@@ -183,10 +183,8 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     /* retrieve missing attributes for diff */
     p_op->fs_attr_need |= (diff_mask & ~p_op->fs_attrs.attr_mask);
 
-#ifdef ATTR_INDEX_creation_time
     if (entry_proc_conf.detect_fake_mtime)
          p_op->db_attr_need |= ATTR_MASK_creation_time;
-#endif
 
     attr_allow_cached = attrs_for_status_mask(status_scope, false);
     attr_need_fresh = attrs_for_status_mask(status_scope, true);
@@ -257,14 +255,12 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         /* new entry */
         p_op->db_op_type = OP_TYPE_INSERT;
 
-#ifdef ATTR_INDEX_creation_time
         /* set creation time if it was not set by scan module */
         if (!ATTR_MASK_TEST(&p_op->fs_attrs, creation_time))
         {
             ATTR_MASK_SET( &p_op->fs_attrs, creation_time );
             ATTR( &p_op->fs_attrs, creation_time ) = time(NULL); /* XXX min(atime,mtime,ctime)? */
         }
-#endif
 
 #ifdef _LUSTRE
         if (ATTR_MASK_TEST(&p_op->fs_attrs, type)
@@ -287,7 +283,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 p_op->fs_attr_need &= ~ATTR_MASK_link;
             }
 
-#ifdef ATTR_INDEX_status
+#ifdef ATTR_INDEX_status /** @FIXME RBHv3 drop old-style status reference */
         if (ATTR_MASK_TEST(&p_op->fs_attrs, type)
 #ifdef _LUSTRE_HSM
             && !strcmp( ATTR(&p_op->fs_attrs, type), STR_TYPE_FILE ))
@@ -313,7 +309,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     {
         p_op->db_op_type = OP_TYPE_UPDATE;
 
-#ifdef ATTR_INDEX_status
+#ifdef ATTR_INDEX_status /** @FIXME RBHv3 drop old-style status reference */
         /* only if status is in diff_mask */
         if (diff_mask & ATTR_MASK_status)
         {
@@ -446,14 +442,12 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         path_check_update(&p_op->entry_id, path, &p_op->fs_attrs, p_op->fs_attr_need);
 #endif
 
-#ifdef ATTR_INDEX_creation_time
     if (entry_proc_conf.detect_fake_mtime
         && ATTR_FSorDB_TEST(p_op, creation_time)
         && ATTR_MASK_TEST(&p_op->fs_attrs, last_mod))
     {
         check_and_warn_fake_mtime(p_op);
     }
-#endif
 
 #ifdef _LUSTRE
     /* getstripe only for files */
@@ -591,11 +585,10 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
     int rc;
 
-#ifdef ATTR_INDEX_creation_time
     /* once set, never change creation time */
     if (p_op->db_op_type != OP_TYPE_INSERT)
         ATTR_MASK_UNSET( &p_op->fs_attrs, creation_time );
-#endif
+
     /* Only keep fields that changed */
     if (p_op->db_op_type == OP_TYPE_UPDATE)
     {
