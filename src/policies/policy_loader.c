@@ -1733,7 +1733,8 @@ static void free_policy_action(policy_action_t *action)
 {
     switch (action->type)
     {
-        case ACTION_NONE: /* not set */
+        case ACTION_UNSET:
+        case ACTION_NONE:
             break;
         case ACTION_FUNCTION:
             free(action->action_u.func.name);
