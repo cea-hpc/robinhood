@@ -860,18 +860,18 @@ function test_purge_lru
     # initial scan
     $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 
-    # create 6 files 
+    # create 6 files
   	for i in {1..6}; do
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
         sleep 1
 	done
 
-    # access 4 files 
+    # access 4 files
   	for i in {1..4}; do
 		dd if=$ROOT/file.$i of=/dev/null bs=1M count=1 >/dev/null 2>/dev/null || error "reading file.$i"
         sleep 1
 	done
-    
+
  	# read changelogs
 	if (( $no_log )); then
 		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
@@ -6789,6 +6789,50 @@ function recov_filters
     (( $NB_ERROR == 0 )) && echo OK
 }
 
+function test_tokudb
+{
+    # Check we are using MariaDB
+    rpm -qi MariaDB-common || {
+        echo "MariaDB not installed: skipped"
+        set_skipped
+        return 1
+    }
+
+    # TokuDB must be available too
+    mysql robinhood_lustre -e "show engines" | grep TokuDB || {
+        echo "TokuDB not enabled: skipped"
+        set_skipped
+        return 1
+    }
+
+    clean_logs
+
+    # Create the tables with various compression schemes.
+
+    echo "Test without default compression, i.e. none"
+    $CFG_SCRIPT empty_db robinhood_lustre > /dev/null
+    $RH -f ./cfg/tokudb1.conf --scan -l DEBUG -L rh_scan.log --once || error ""
+    mysql robinhood_lustre -e "show create table ENTRIES;" |
+        grep "ENGINE=TokuDB .*\`COMPRESSION\`=tokudb_uncompressed" ||
+        error "invalid engine/compression"
+
+    echo "Tests with valid compression names"
+    for COMPRESS in tokudb_uncompressed tokudb_zlib tokudb_lzma ; do
+        $CFG_SCRIPT empty_db robinhood_lustre > /dev/null
+        RBH_TOKU_COMPRESS=$COMPRESS $RH -f ./cfg/tokudb2.conf --scan -l DEBUG -L rh_scan.log --once || error ""
+        mysql robinhood_lustre -e "show create table ENTRIES;" |
+            grep "ENGINE=TokuDB .*\`COMPRESSION\`=${COMPRESS}" ||
+            error "invalid engine/compression"
+    done
+
+    echo "Test with invalid compression name"
+    $CFG_SCRIPT empty_db robinhood_lustre > /dev/null
+    RBH_TOKU_COMPRESS=some_non_existent_compression $RH -f ./cfg/tokudb2.conf --scan -l DEBUG -L rh_scan.log --once &&
+        error "should have failed"
+    grep "Error: Incorrect value 'some_non_existent_compression' for option 'compression'" rh_scan.log ||
+        error "expected error not found"
+}
+
 function import_test
 {
 	config_file=$1
@@ -10092,6 +10136,7 @@ run_test 506a     recov_filters  test_recov.conf  since    "FS recovery with tim
 run_test 506b     recov_filters  test_recov2.conf  since    "FS recovery with time filter (archive_symlinks=FALSE)"
 run_test 507a     recov_filters  test_recov.conf  dir    "FS recovery with dir filter"
 run_test 507b     recov_filters  test_recov2.conf  dir    "FS recovery with dir filter (archive_symlinks=FALSE)"
+run_test 508    test_tokudb "Test TokuDB compression"
 
 
 #### Tests by Sogeti ####

@@ -508,6 +508,10 @@ static void append_engine(GString *request)
 {
 #ifdef _MYSQL
     g_string_append_printf(request, " ENGINE=%s", lmgr_config.db_config.engine);
+
+    if (strcasecmp(lmgr_config.db_config.engine, "TokuDB") == 0)
+        g_string_append_printf(request, " COMPRESSION=%s",
+                               lmgr_config.db_config.tokudb_compression);
 #endif
 }
 

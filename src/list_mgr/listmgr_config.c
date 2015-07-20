@@ -48,6 +48,13 @@ static void lmgr_cfg_set_default(void *module_config)
     conf->db_config.port = 0;
     conf->db_config.socket[0] = '\0';
     strcpy(conf->db_config.engine, "InnoDB");
+
+    /* Depending on the MariaDB version, the TokuDB compression
+     * default can be either no compression or zlib compression. See
+     * https://mariadb.com/kb/en/mariadb/tokudb-differences. Lets pick
+     * no compression, as zlib compression appears to slow database
+     * inserts when used by robinhood. */
+    strcpy(conf->db_config.tokudb_compression, "tokudb_uncompressed");
 #elif defined (_SQLITE)
     strcpy( conf->db_config.filepath, "/var/robinhood/robinhood_sqlite_db" );
     conf->db_config.retry_delay_microsec = 1000;        /* 1ms */
@@ -116,7 +123,7 @@ static int lmgr_cfg_read(config_file_t config, void *module_config, char *msg_ou
 #ifdef _MYSQL
     static const char *db_allowed[] = {
         "server", "db", "user", "password", "password_file", "port", "socket",
-        "engine", NULL
+        "engine", "tokudb_compression", NULL
     };
 
     const cfg_param_t db_params[] = {
@@ -132,6 +139,8 @@ static int lmgr_cfg_read(config_file_t config, void *module_config, char *msg_ou
          conf->db_config.socket, sizeof(conf->db_config.socket)},
         {"engine", PT_STRING, PFLG_NO_WILDCARDS | PFLG_NOT_EMPTY,
          conf->db_config.engine, sizeof(conf->db_config.engine)},
+        {"tokudb_compression", PT_STRING, PFLG_NO_WILDCARDS,
+         conf->db_config.tokudb_compression, sizeof(conf->db_config.tokudb_compression)},
         END_OF_PARAMS
     };
 #elif defined (_SQLITE)
