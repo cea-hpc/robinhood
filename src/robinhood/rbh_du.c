@@ -704,7 +704,6 @@ int main( int argc, char **argv )
     bool           chgd = false;
     char           err_msg[4096];
     char           badcfg[RBH_PATH_MAX];
-    bool           fs_init = false;
 
     bin = rh_basename(argv[0]);
 
@@ -847,12 +846,8 @@ int main( int argc, char **argv )
     /* Initialize filesystem access */
     rc = InitFS();
     if (rc)
-    {
         fprintf(stderr, "WARNING: cannot access filesystem %s (%s), du output may be wrong or incomplete.\n",
                 global_config.fs_path, strerror(abs(rc)));
-    }
-    else
-        fs_init = true;
 
     /* Initialize list manager */
     rc = ListMgr_Init(true);

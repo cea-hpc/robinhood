@@ -1196,7 +1196,6 @@ int main(int argc, char **argv)
     bool           chgd = false;
     char           badcfg[RBH_PATH_MAX];
     bool           neg = false;
-    bool           fs_init = false;
 
     bin = rh_basename(argv[0]);
 
@@ -1508,12 +1507,8 @@ int main(int argc, char **argv)
     /* Initialize filesystem access */
     rc = InitFS();
     if (rc)
-    {
         fprintf(stderr, "WARNING: cannot access filesystem %s (%s), find output may be incomplete.\n",
                 global_config.fs_path, strerror(abs(rc)));
-    }
-    else
-        fs_init = true;
 
     /* Initialize list manager (report only) */
     rc = ListMgr_Init(true);

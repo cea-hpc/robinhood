@@ -1526,7 +1526,6 @@ static void report_fs_info( int flags )
 
 static int report_entry(const char *entry, int flags)
 {
-    bool is_id = true;
     int rc;
     entry_id_t id;
     attr_set_t attrs;
@@ -1534,8 +1533,6 @@ static int report_entry(const char *entry, int flags)
     /* try it as a fid */
     if (sscanf(entry, SFID, RFID(&id)) != FID_SCAN_CNT)
     {
-        is_id = false;
-
         if ((rc = InitFS()) != 0)
             fprintf(stderr, "Warning: cannot access the filesystem to get entry id: %s\n",
                     strerror(-rc));
