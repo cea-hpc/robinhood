@@ -443,6 +443,19 @@ static int check_table_vars(db_conn_t *pconn)
     return rc;
 }
 
+static void append_engine(char *strbuf)
+{
+#ifdef _MYSQL
+    strcat(strbuf, " ENGINE=");
+    strcat(strbuf, lmgr_config.db_config.engine);
+
+    if (strcasecmp(lmgr_config.db_config.engine, "TokuDB") == 0) {
+        strcat(strbuf, " COMPRESSION=");
+        strcat(strbuf, lmgr_config.db_config.tokudb_compression);
+    }
+#endif
+}
+
 static int create_table_vars(db_conn_t *pconn)
 {
     char strbuf[4096];
@@ -452,10 +465,7 @@ static int create_table_vars(db_conn_t *pconn)
     strcpy(strbuf, "CREATE TABLE "VAR_TABLE" ("
            "varname VARCHAR(255) PRIMARY KEY, "
            "value TEXT)");
-#ifdef _MYSQL
-    strcat(strbuf, " ENGINE=");
-    strcat(strbuf, lmgr_config.db_config.engine);
-#endif
+    append_engine(strbuf);
     DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
 
     rc = db_exec_sql(pconn, strbuf, NULL);
@@ -544,11 +554,7 @@ static int create_table_main(db_conn_t *pconn)
         }
     }
     strcpy(next, ")");
-
-    #ifdef _MYSQL
-    strcat(strbuf, " ENGINE=");
-    strcat(strbuf, lmgr_config.db_config.engine);
-    #endif
+    append_engine(strbuf);
     DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
 
     rc = db_exec_sql(pconn, strbuf, NULL);
@@ -645,11 +651,7 @@ static int create_table_dnames(db_conn_t *pconn)
         }
     }
     strcpy(next, ")");
-
-#ifdef _MYSQL
-    strcat(strbuf, " ENGINE=");
-    strcat(strbuf, lmgr_config.db_config.engine);
-#endif
+    append_engine(strbuf);
     DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
 
     rc = db_exec_sql(pconn, strbuf, NULL);
@@ -809,10 +811,7 @@ static int create_table_annex(db_conn_t *pconn)
         }
     }
     strcpy( next, ")" );
-#ifdef _MYSQL
-    strcat(strbuf, " ENGINE=");
-    strcat(strbuf, lmgr_config.db_config.engine);
-#endif
+    append_engine(strbuf);
     DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
 
     rc = db_exec_sql(pconn, strbuf, NULL);
@@ -912,10 +911,7 @@ static int create_table_stripe_info(db_conn_t *pconn)
             " (id "PK_TYPE" PRIMARY KEY, validator INT, "
             "stripe_count INT UNSIGNED, stripe_size INT UNSIGNED, pool_name VARCHAR(%u))",
             MAX_POOL_LEN - 1);
-#ifdef _MYSQL
-    strcat(strbuf, " ENGINE=");
-    strcat(strbuf, lmgr_config.db_config.engine);
-#endif
+    append_engine(strbuf);
     DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
 
     rc = db_exec_sql(pconn, strbuf, NULL);
@@ -974,10 +970,7 @@ static int create_table_stripe_items(db_conn_t *pconn)
     sprintf(strbuf, "CREATE TABLE "STRIPE_ITEMS_TABLE
             " (id "PK_TYPE", stripe_index INT UNSIGNED, ostidx INT UNSIGNED, details BINARY(%u))",
             STRIPE_DETAIL_SZ);
-#ifdef _MYSQL
-    strcat(strbuf, " ENGINE=");
-    strcat(strbuf, lmgr_config.db_config.engine);
-#endif
+    append_engine(strbuf);
     DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
 
     rc = db_exec_sql(pconn, strbuf, NULL);
@@ -1217,10 +1210,7 @@ static int create_table_acct(db_conn_t *pconn)
         }
     }
     strcpy(next,"))");
-#ifdef _MYSQL
-    strcat(strbuf, " ENGINE=");
-    strcat(strbuf, lmgr_config.db_config.engine);
-#endif
+    append_engine(strbuf);
     DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
 
     rc = db_exec_sql(pconn, strbuf, NULL);
@@ -1305,10 +1295,7 @@ static int create_table_softrm(db_conn_t *pconn)
              , field_infos[ATTR_INDEX_backendpath].db_type_size
 #endif
            );
-#ifdef _MYSQL
-    strcat(strbuf, " ENGINE=");
-    strcat(strbuf, lmgr_config.db_config.engine);
-#endif
+    append_engine(strbuf);
     DisplayLog(LVL_FULL, LISTMGR_TAG, "Table creation request =\n%s", strbuf);
 
     rc = db_exec_sql(pconn, strbuf, NULL);

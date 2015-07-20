@@ -839,19 +839,19 @@ function test_purge_lru
     # initial scan
     $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 
-    # create 6 files 
+    # create 6 files
   	for i in {1..6}; do
 		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
         sleep 1
 	done
 
-    # access 4 files 
+    # access 4 files
   	for i in {1..4}; do
 		dd if=$ROOT/file.$i of=/dev/null bs=1M count=1 >/dev/null 2>/dev/null || error "reading file.$i"
         touch -a $ROOT/file.$i
         sleep 1
 	done
-    
+
  	# read changelogs
 	if (( $no_log )); then
 		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
@@ -1619,7 +1619,7 @@ function test_default
         (( $nb_b != 3 )) && error "unexpected number of migrated *.B files: $nb_b != 3"
         (( $nb_ac != 0 )) && error "unexpected number of migrated *.[AC] files: $nb_ac != 0"
     fi
-    
+
     # purge the files (if applicable)
     if (( ($is_hsmlite == 0) || ($shook != 0) )); then
 
@@ -1648,7 +1648,7 @@ function test_default
             purge_pat="Y*"
         fi
         other=$(( 9 - $nb_purge ))
-        
+
         nbp=$(grep "$REL_STR" rh_purge.log | grep -E "$ROOT/$purge_pat"| wc -l)
         nbnp=$(grep "$REL_STR" rh_purge.log | grep -vE "$ROOT/$purge_pat" | wc -l)
 
@@ -3829,7 +3829,7 @@ function get_db_info
     local config_file=$1
     local field=$2
     local entry=$3
-    
+
     $REPORT -f ./cfg/$config_file -e $entry -c | egrep -E "^$field," | cut -d ',' -f 2 | sed -e 's/^ //g'
 }
 
@@ -3844,7 +3844,7 @@ function test_root_changelog
 		return 1
     fi
 
-    # create a directory and a file 
+    # create a directory and a file
     local d=$ROOT/subdir
     local f=$ROOT/subdir/file
     mkdir $d || error "creating directory $d"
@@ -3894,7 +3894,7 @@ function test_root_changelog
     sleep 1
     # read the changelog
     readlog_chk $config_file
-    
+
     # check the id, path and parent for $ROOT, $d and $f
     idrb=$(get_db_info $config_file id $idr | tr -d '[]')
     [ "$idr" = "$idrb" ] || error "id doesn't match: $idr != $idrb"
@@ -3966,7 +3966,7 @@ function partial_paths
     f3=$($REPORT -f ./cfg/$config_file --dump --csv -q | grep "file3" | awk '{print $(NF)}')
     echo "file3 reported with path $f3"
     [[ $f3 = /* ]] && [[ $f3 != $ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
-    
+
     # check filter path behavior
     # should report at least file2 (and optionnally file3 : must check its path is valid)
     f2=$($REPORT -f ./cfg/$config_file --dump --csv -q -P "$ROOT/dir1" | grep file2 | awk '{print $(NF)}')
@@ -4012,7 +4012,7 @@ function partial_paths
 	   $LFS changelog_clear lustre-MDT0000 cl1 0
 
         rm -f $ROOT/dir1/dir2/file3
-        readlog_chk $config_file 
+        readlog_chk $config_file
 
 	    if (( $is_lhsm + $is_hsmlite > 0 )); then
             $REPORT -f ./cfg/$config_file -Rcq > report.log
@@ -4034,9 +4034,9 @@ function partial_paths
             (( $(wc -l report.log | awk '{print $1}') == 1 )) || error "file3 not restored"
         fi
 	fi
-    
+
     # TODO check disaster recovery
-    
+
     rm -f report.log
 }
 
@@ -4156,7 +4156,7 @@ function test_compress
     (( $type_comp == 0 )) || error "No compressed file data expected in backend: found $type_comp"
     (( $name_ncomp == 4 )) || error "4 non-compressed file names expected in backend: found $name_ncomp"
     (( $type_ncomp == 4 )) || error "4 ASCII file data expected in backend: found $type_ncomp"
-    
+
     # turn compression on
     export compress=yes
 
@@ -4517,7 +4517,7 @@ function test_diff_apply_fs # test diff --apply=fs in particular for entry recov
         # check their contents
         nbl=$(wc -l lovea | awk '{print $1}')
         nbo=$(wc -l fid_remap | awk '{print $1}')
-        
+
         echo "$nbl items in lovea, $nbo items in fid_remap"
         [[ "$nbf" == "$nbl" ]] || error "unexpected number of items in lovea $nbl: $nbf expected"
         [[ "$nbso" == "$nbo" ]] || error "unexpected number of items in fid_remap $nbo: $nbso expected"
@@ -4938,7 +4938,7 @@ function scan_check_no_update
 {
     cfg=$1
     mode=$2
-    
+
     # no stripe update expected for 2nd run
     :> rh.log
     :> rh.out
@@ -5367,7 +5367,7 @@ function test_hardlinks
     for f in $rmids; do
         grep "\[$f\]" find.out && error "deleted id ($f) found in find output"
     done
-    
+
     unset count_nb_final
     if (( $is_lhsm + $is_hsmlite == 1 )); then
         # check that removed entries are scheduled for HSM rm
@@ -5505,7 +5505,7 @@ function test_hl_count
   	countValues="1;$fcount"
 	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i -P <path>' output"
 
-    
+
     rm -f report.out
 }
 
@@ -5783,7 +5783,7 @@ function test_logs
             # wait for syslog to flush logs to disk
             sync; sleep 2
 			tail -n +"$init_msg_idx" /var/log/messages | grep $CMD > /tmp/extract_all
-            
+
 			egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z0-9_ ]* \|' > /tmp/extract_log
 			egrep -v 'ALERT|: [A-Za-Z0-9_ ]* \|' /tmp/extract_all > /tmp/extract_report
 			grep 'ALERT' /tmp/extract_all > /tmp/extract_alert
@@ -6309,8 +6309,8 @@ function recov_filters
     [[ -z $sync_cnt ]] && sync_cnt=0
 
     #          full, delta, empty, rename, empty_new, empty_rename, nobkp
-    # synchro:    2             2       2                        2       
-    # modified:          2                                               
+    # synchro:    2             2       2                        2
+    # modified:          2
     # new:                                         2                    2
     echo "files: new: $new_cnt, modified: $mod_cnt, synchro: $sync_cnt"
     if [[ $flavor != since ]]; then
@@ -6369,6 +6369,53 @@ function recov_filters
     (( $(grep Restoring recov.log | wc -l) == ${#matching[@]} )) || error "Too many files restored"
 
     (( $NB_ERROR == 0 )) && echo OK
+}
+
+function test_tokudb
+{
+    # Check we are using MariaDB
+    rpm -qi MariaDB-common || {
+        echo "MariaDB not installed: skipped"
+        set_skipped
+        return 1
+    }
+
+    # TokuDB must be available too
+    mysql robinhood_lustre -e "show engines" | grep TokuDB || {
+        echo "TokuDB not enabled: skipped"
+        set_skipped
+        return 1
+    }
+
+    # Create the tables with various compression schemes.
+
+    echo "Test with tokudb1.conf (default compression, i.e. none)"
+    $CFG_SCRIPT empty_db robinhood_lustre > /dev/null
+    $RH -f ./cfg/tokudb1.conf --scan -l FULL -L rh_scan.log --once || error ""
+    mysql robinhood_lustre -e "show create table ENTRIES;" |
+        grep "ENGINE=TokuDB.*\`COMPRESSION\`=tokudb_uncompressed" ||
+        error "invalid engine/compression"
+
+    echo "Test with tokudb2.conf (no compression)"
+    $CFG_SCRIPT empty_db robinhood_lustre > /dev/null
+    $RH -f ./cfg/tokudb2.conf --scan -l DEBUG -L rh_scan.log --once || error ""
+    mysql robinhood_lustre -e "show create table ENTRIES;" |
+        grep "ENGINE=TokuDB.*\`COMPRESSION\`=tokudb_uncompressed" ||
+        error "invalid engine/compression"
+
+    echo "Test with tokudb3.conf (zlib compression)"
+    $CFG_SCRIPT empty_db robinhood_lustre > /dev/null
+    $RH -f ./cfg/tokudb3.conf --scan -l DEBUG -L rh_scan.log  --once || error ""
+    mysql robinhood_lustre -e "show create table ENTRIES;" > rh_scan.log
+    grep "ENGINE=TokuDB.*\`COMPRESSION\`=tokudb_zlib" rh_scan.log ||
+        error "invalid engine/compression"
+
+    echo "Test with tokudb4.conf (invalid compression)"
+    $CFG_SCRIPT empty_db robinhood_lustre > /dev/null
+    $RH -f ./cfg/tokudb4.conf --scan -l DEBUG -L rh_scan.log --once &&
+        error "should have failed"
+    grep "Error: Incorrect value 'some_non_existent_compression' for option 'compression'" rh_scan.log ||
+        error "expected error not found"
 }
 
 function import_test
@@ -9785,6 +9832,7 @@ run_test 506a     recov_filters  test_recov.conf  since    "FS recovery with tim
 run_test 506b     recov_filters  test_recov2.conf  since    "FS recovery with time filter (archive_symlinks=FALSE)"
 run_test 507a     recov_filters  test_recov.conf  dir    "FS recovery with dir filter"
 run_test 507b     recov_filters  test_recov2.conf  dir    "FS recovery with dir filter (archive_symlinks=FALSE)"
+run_test 508    test_tokudb "Test TokuDB compression"
 
 
 #### Tests by Sogeti ####

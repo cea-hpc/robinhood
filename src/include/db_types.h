@@ -45,6 +45,7 @@ typedef struct db_config_t
     int            port;
     char           socket[RBH_PATH_MAX];
     char           engine[1024];
+    char           tokudb_compression[50];
 } db_config_t;
 
 #elif defined(_SQLITE)
