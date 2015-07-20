@@ -1036,7 +1036,9 @@ int rbh_init_internals(void)
 {
     int rc;
 
+#if !(GLIB_CHECK_VERSION(2, 32, 0))
     g_thread_init(NULL);
+#endif
 
     /* Initialize global tools */
 #ifdef _LUSTRE
