@@ -435,7 +435,7 @@ static void set_name(CL_REC_TYPE * logrec, entry_proc_op_t * p_op)
     else
     {
         DisplayLog(LVL_MAJOR, CHGLOG_TAG, "Error: insane parent fid "DFID
-                   "in %s changelog record (namelen=%u)",
+                   " in %s changelog record (namelen=%u)",
                    PFID(&logrec->cr_pfid),
                    changelog_type2str(logrec->cr_type), logrec->cr_namelen);
     }
