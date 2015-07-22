@@ -75,6 +75,7 @@ int            GetStringParam(config_item_t block, const char *block_name,
     int            extra = 0;
     char          *name;
     char          *value;
+    gsize          sz;
 
     err_msg[0] = '\0';
 
@@ -88,7 +89,12 @@ int            GetStringParam(config_item_t block, const char *block_name,
     if (rc)
         return rc;
 
-    rh_strncpy(target, value, target_size);
+    sz = g_strlcpy(target, value, target_size);
+    if (sz >= target_size) {
+        sprintf(err_msg, "Option too long for parameter '%s::%s', line %d", block_name,
+                var_name, rh_config_GetItemLine(curr_item));
+        return EINVAL;
+    }
 
     if ( extra )
     {

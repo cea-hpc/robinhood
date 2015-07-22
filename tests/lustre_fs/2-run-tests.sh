@@ -6833,6 +6833,31 @@ function test_tokudb
         error "expected error not found"
 }
 
+function test_cfg_overflow
+{
+    clean_logs
+
+    # fs_key is harcoded as 128 bytes max. Try various lengths.
+
+    echo "Test with a valid key"
+    FS_KEY="fsname" $RH -f ./cfg/overflow.conf --test-syntax |
+        grep "has been read successfully" || error "valid config failed"
+
+    echo "Test with an invalid key, at the size limit"
+    FS_KEY="ghfkfkjghsdfklhgjklsdfhgkdjfhgkljfhgkljdfghlkfjghkjfhgjklhkljdfhsglkjfhlkgjhflkjghdflkjhgldfksjhglkdfjhglkjdfhglkjdfhglkjfdhglk" $RH -f ./cfg/overflow.conf --test-syntax |&
+        grep "Invalid type for fs_key" || error "unexpected result for invalid key"
+
+    echo "Test with a key 1 character too long"
+    FS_KEY="ghfkfkjghsdfklhgjklsdfhgkdjfhgkljfhgkljdfghlkfjghkjfhgjklhkljdfhsglkjfhlkgjhflkjghdflkjhgldfksjhglkdfjhglkjdfhglkjdfhglkjfdhglkq" $RH -f ./cfg/overflow.conf --test-syntax |&
+        grep "Option too long for parameter 'General::fs_key'" || error "unexpected result for 127 chars key"
+
+    echo "Test with a key several characters too long"
+    FS_KEY="ghfkfkjghsdfklhgjklsdfhgkdjfhgkllkhfglkhjgyugfhlgfghfhfhhfkdhliutylkrhgkjdfshgskjjfhgkljdfghlkfjghkjfhgjklhkljdfhsglkjfhlkgjhflkjghdflkjhgldfksjhglkdfjhglkjdfhglkjdfhglkjfdhglkq" $RH -f ./cfg/overflow.conf --test-syntax |&
+        grep "Option too long for parameter 'General::fs_key'" || error "unexpected result for too long key"
+
+
+}
+
 function import_test
 {
 	config_file=$1
@@ -10137,6 +10162,7 @@ run_test 506b     recov_filters  test_recov2.conf  since    "FS recovery with ti
 run_test 507a     recov_filters  test_recov.conf  dir    "FS recovery with dir filter"
 run_test 507b     recov_filters  test_recov2.conf  dir    "FS recovery with dir filter (archive_symlinks=FALSE)"
 run_test 508    test_tokudb "Test TokuDB compression"
+run_test 509    test_cfg_overflow "config options too long"
 
 
 #### Tests by Sogeti ####
