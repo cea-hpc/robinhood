@@ -61,6 +61,7 @@ static int polrun_set_default(const policy_descr_t *pol, policy_run_config_t *cf
 
     cfg->check_action_status_on_startup = true;
     cfg->recheck_ignored_classes = false;
+    cfg->report_actions = true;
 
     return 0;
 }
@@ -104,6 +105,7 @@ static void policy_run_cfg_write_default(FILE *output)
     print_line(output, 1, "check_actions_interval  : 30min");
     print_line(output, 1, "check_actions_on_startup: yes");
     print_line(output, 1, "recheck_ignored_classes : no" );
+    print_line(output, 1, "report_actions          : yes" );
     print_line(output, 1, "nb_threads              : 4");
     print_line(output, 1, "queue_size              : 4096");
     print_line(output, 1, "db_result_size_max      : 100000");
@@ -146,6 +148,9 @@ static void policy_run_cfg_write_template(FILE *output)
     print_line(output, 1, "# or if entries move from one class to another.");
     print_line(output, 1, "# This can significantly slow down policy application.");
     print_line(output, 1, "#recheck_ignored_classes = no;" );
+    fprintf(output, "\n");
+    print_line(output, 1, "# report actions to report log file?");
+    print_line(output, 1, "report_actions = yes;");
     fprintf(output, "\n");
     print_line(output, 1, "# pre-maintenance feature parameters");
     print_line(output, 1, "#pre_maintenance_window = 24h;");
@@ -533,7 +538,7 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
         "max_action_volume", "nb_threads", "suspend_error_pct",
         "suspend_error_min", "report_interval", "action_timeout",
         "check_actions_interval", "check_actions_on_startup",
-        "recheck_ignored_classes",
+        "recheck_ignored_classes", "report_actions",
         "pre_maintenance_window", "maint_min_apply_delay", "queue_size",
         "db_result_size_max", "action_params", "action",
         NULL
@@ -561,6 +566,7 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
             &conf->check_action_status_on_startup, 0},
         {"recheck_ignored_classes",     PT_BOOL,     0,
             &conf->recheck_ignored_classes, 0},
+        {"report_actions",     PT_BOOL,     0, &conf->report_actions, 0},
         {"pre_maintenance_window",      PT_DURATION, PFLG_POSITIVE | PFLG_NOT_NULL,
             &conf->pre_maintenance_window, 0},
         {"maint_min_apply_delay",       PT_DURATION, PFLG_POSITIVE,
@@ -1033,6 +1039,14 @@ static int polrun_reload(const char *blkname, policy_run_config_t *cfg_tgt,
                        bool2str(cfg_tgt->recheck_ignored_classes),
                        bool2str(cfg_new->recheck_ignored_classes));
         cfg_tgt->recheck_ignored_classes = cfg_new->recheck_ignored_classes;
+    }
+
+    if (cfg_tgt->report_actions != cfg_new->report_actions)
+    {
+        PARAM_UPDT_MSG(blkname, "report_actions", "%s",
+                       bool2str(cfg_tgt->report_actions),
+                       bool2str(cfg_new->report_actions));
+        cfg_tgt->report_actions = cfg_new->report_actions;
     }
 
     update_triggers(cfg_tgt->trigger_list, cfg_tgt->trigger_count,
