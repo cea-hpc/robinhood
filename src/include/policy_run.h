@@ -185,6 +185,9 @@ typedef struct policy_run_config_t
     bool   check_action_status_on_startup;
     bool   recheck_ignored_classes;
 
+    /** report policy actions in report file? */
+    bool   report_actions;
+
 } policy_run_config_t;
 
 typedef struct counters_t {
