@@ -585,7 +585,7 @@ int main(int argc, char **argv)
     if (CheckLastFS() != 0)
         exit(1);
 
-    if (options.diff_arg.diff_mask == 0)
+    if (attr_mask_is_null(options.diff_arg.diff_mask))
     {
         /* parse "all" */
         char tmpstr[] = "all";

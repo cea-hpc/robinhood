@@ -1342,62 +1342,62 @@ const char *mode_string(mode_t mode, char *buf)
  *  This is used for alerts and diff display (brief argument).
  */
 int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
-               uint64_t overide_mask, bool brief)
+               attr_mask_t overide_mask, bool brief)
 {
-    uint64_t       mask = p_attr_set->attr_mask;
+    attr_mask_t       mask = p_attr_set->attr_mask;
     size_t         written = 0;
     char           tmpbuf[24576];
     const char *   format;
     int i;
 
-    if ( overide_mask )
-        mask = mask & overide_mask;
+    if (attr_mask_is_null(overide_mask))
+        mask = attr_mask_and(&mask, &overide_mask);
 
-    if ( mask & ATTR_MASK_fullpath )
+    if (mask.std & ATTR_MASK_fullpath)
     {
         if (brief)
             format = "path='%s',";
         else
             format = "Path:     \"%s\"\n";
         written +=
-            snprintf( out_str + written, strsize - written, format,
-                      ATTR( p_attr_set, fullpath ) );
+            snprintf(out_str + written, strsize - written, format,
+                      ATTR(p_attr_set, fullpath));
     }
     /* this information is redundant with fullpath,
      * so only display it if path is not known */
-    else if ( mask & ATTR_MASK_name )
+    else if (mask.std & ATTR_MASK_name)
     {
         if (brief)
             format = "name='%s',";
         else
             format = "Name:     \"%s\"\n";
         written +=
-            snprintf( out_str + written, strsize - written, format,
-                      ATTR( p_attr_set, name ) );
+            snprintf(out_str + written, strsize - written, format,
+                      ATTR(p_attr_set, name));
     }
-    if ( mask & ATTR_MASK_parent_id )
+    if (mask.std & ATTR_MASK_parent_id)
     {
         if (brief)
             format = "parent="DFID",";
         else
             format = "Parent:   "DFID"\n";
         written +=
-            snprintf( out_str + written, strsize - written, format,
-                      PFID(&ATTR(p_attr_set, parent_id)) );
+            snprintf(out_str + written, strsize - written, format,
+                      PFID(&ATTR(p_attr_set, parent_id)));
     }
 
-    if ( mask & ATTR_MASK_type )
+    if (mask.std & ATTR_MASK_type)
     {
         if (brief)
             format = "type=%s,";
         else
             format = "Type:     %s\n";
         written +=
-            snprintf( out_str + written, strsize - written, format,
-                      ATTR( p_attr_set, type ) );
+            snprintf(out_str + written, strsize - written, format,
+                      ATTR(p_attr_set, type));
     }
 
-    if (mask & ATTR_MASK_nlink)
+    if (mask.std & ATTR_MASK_nlink)
     {
         if (brief)
             format = "nlink=%u,";
@@ -1408,175 +1408,175 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
                       ATTR(p_attr_set, nlink));
     }
 
-    if ( mask & ATTR_MASK_mode )
+    if (mask.std & ATTR_MASK_mode)
     {
         if (brief)
             format = "mode=%#o,";
         else
             format = "Mode:     %#o\n";
         written +=
-            snprintf( out_str + written, strsize - written, format,
-                      ATTR( p_attr_set, mode ) );
+            snprintf(out_str + written, strsize - written, format,
+                      ATTR(p_attr_set, mode));
     }
 
-    if ( mask & ATTR_MASK_owner )
+    if (mask.std & ATTR_MASK_owner)
     {
         if (brief)
             format = "owner=%s,";
         else
             format = "Owner:    \"%s\"\n";
         written +=
-            snprintf( out_str + written, strsize - written, format,
-                      ATTR( p_attr_set, owner ) );
+            snprintf(out_str + written, strsize - written, format,
+                      ATTR(p_attr_set, owner));
     }
-    if ( mask & ATTR_MASK_gr_name )
+    if (mask.std & ATTR_MASK_gr_name)
     {
         if (brief)
             format = "group=%s,";
         else
             format = "Group:    \"%s\"\n";
         written +=
-            snprintf( out_str + written, strsize - written, format,
-                      ATTR( p_attr_set, gr_name ) );
+            snprintf(out_str + written, strsize - written, format,
+                      ATTR(p_attr_set, gr_name));
     }
-    if ( mask & ATTR_MASK_size )
+    if (mask.std & ATTR_MASK_size)
     {
         if (brief)
         {
-            written += snprintf( out_str + written, strsize - written, "size=%"PRIu64",",
-                        ATTR( p_attr_set, size ));
+            written += snprintf(out_str + written, strsize - written, "size=%"PRIu64",",
+                        ATTR(p_attr_set, size));
         }
         else
         {
-            FormatFileSize( tmpbuf, sizeof(tmpbuf), ATTR( p_attr_set, size ) );
-            written += snprintf( out_str + written, strsize - written, "Size:     %s\n", tmpbuf );
+            FormatFileSize(tmpbuf, sizeof(tmpbuf), ATTR(p_attr_set, size));
+            written += snprintf(out_str + written, strsize - written, "Size:     %s\n", tmpbuf);
         }
     }
-    if ( mask & ATTR_MASK_blocks )
+    if (mask.std & ATTR_MASK_blocks)
     {
         if (brief)
             format = "blocks=%Lu,";
         else
             format = "Blocks:   %Lu\n";
         written +=
-            snprintf( out_str + written, strsize - written, format,
-                      ATTR( p_attr_set, blocks ) );
+            snprintf(out_str + written, strsize - written, format,
+                      ATTR(p_attr_set, blocks));
     }
-    if ( mask & ATTR_MASK_depth )
+    if (mask.std & ATTR_MASK_depth)
     {
         if (brief)
             format = "depth=%u,";
         else
             format = "Depth:    %u\n";
         written +=
-            snprintf( out_str + written, strsize - written, format,
-                      ATTR( p_attr_set, depth ) );
+            snprintf(out_str + written, strsize - written, format,
+                      ATTR(p_attr_set, depth));
     }
 
-    if ( mask & ATTR_MASK_dircount )
+    if (mask.std & ATTR_MASK_dircount)
     {
         if (brief)
             format = "dircount=%u,";
         else
             format = "DirCount: %u\n";
         written +=
-            snprintf( out_str + written, strsize - written, format,
-                      ATTR( p_attr_set, dircount ) );
+            snprintf(out_str + written, strsize - written, format,
+                      ATTR(p_attr_set, dircount));
     }
 
-    if ( mask & ATTR_MASK_last_access )
+    if (mask.std & ATTR_MASK_last_access)
     {
         if (brief)
         {
             written +=
-                snprintf( out_str + written, strsize - written, "access=%u,", ATTR( p_attr_set, last_access ));
+                snprintf(out_str + written, strsize - written, "access=%u,", ATTR(p_attr_set, last_access));
         }
         else
         {
-            FormatDurationFloat( tmpbuf, 256, time( NULL ) - ATTR( p_attr_set, last_access ) );
+            FormatDurationFloat(tmpbuf, 256, time(NULL) - ATTR(p_attr_set, last_access));
             written +=
-                snprintf( out_str + written, strsize - written, "Last Access: %s ago\n", tmpbuf );
+                snprintf(out_str + written, strsize - written, "Last Access: %s ago\n", tmpbuf);
         }
     }
-    if ( mask & ATTR_MASK_last_mod )
+    if (mask.std & ATTR_MASK_last_mod)
     {
         if (brief)
         {
-            written += snprintf( out_str + written, strsize - written, "modif=%u,",
-                    ATTR( p_attr_set, last_mod ));
+            written += snprintf(out_str + written, strsize - written, "modif=%u,",
+                    ATTR(p_attr_set, last_mod));
         }
         else
         {
-            FormatDurationFloat( tmpbuf, 256, time( NULL ) - ATTR( p_attr_set, last_mod ) );
-            written += snprintf( out_str + written, strsize - written, "Last Mod: %s ago\n", tmpbuf );
+            FormatDurationFloat(tmpbuf, 256, time(NULL) - ATTR(p_attr_set, last_mod));
+            written += snprintf(out_str + written, strsize - written, "Last Mod: %s ago\n", tmpbuf);
         }
     }
 
-    if ( mask & ATTR_MASK_creation_time )
+    if (mask.std & ATTR_MASK_creation_time)
     {
         if (brief)
         {
-            written += snprintf( out_str + written, strsize - written, "creation=%lu,",
-                                 (unsigned long)ATTR( p_attr_set, creation_time ));
+            written += snprintf(out_str + written, strsize - written, "creation=%lu,",
+                                 (unsigned long)ATTR(p_attr_set, creation_time));
         }
         else
         {
-            FormatDurationFloat( tmpbuf, 256, time( NULL ) - ATTR( p_attr_set, creation_time ) );
-            written += snprintf( out_str + written, strsize - written, "Creation: %s ago\n", tmpbuf );
+            FormatDurationFloat(tmpbuf, 256, time(NULL) - ATTR(p_attr_set, creation_time));
+            written += snprintf(out_str + written, strsize - written, "Creation: %s ago\n", tmpbuf);
         }
     }
 
 #ifdef _LUSTRE
-    if ( mask & ATTR_MASK_stripe_items)
+    if (mask.std & ATTR_MASK_stripe_items)
     {
         if (brief)
             format = "stripes={%s},";
         else
             format = "Stripes: %s\n";
         written +=
-            snprintf( out_str + written, strsize - written, format,
-                      FormatStripeList( tmpbuf, sizeof(tmpbuf), &ATTR( p_attr_set, stripe_items), brief));
+            snprintf(out_str + written, strsize - written, format,
+                      FormatStripeList(tmpbuf, sizeof(tmpbuf), &ATTR(p_attr_set, stripe_items), brief));
     }
 
-    if (mask & ATTR_MASK_stripe_info)
+    if (mask.std & ATTR_MASK_stripe_info)
     {
         if (brief){
-            if (!EMPTY_STRING(ATTR( p_attr_set, stripe_info).pool_name)) {
+            if (!EMPTY_STRING(ATTR(p_attr_set, stripe_info).pool_name)) {
                 format = "stripe_count=%u,stripe_size=%"PRIu64",ost_pool=%s,";
                 written +=
-                    snprintf( out_str + written, strsize - written, format,
-                              ATTR( p_attr_set, stripe_info).stripe_count,
-                              ATTR( p_attr_set, stripe_info).stripe_size,
-                              ATTR( p_attr_set, stripe_info).pool_name );
+                    snprintf(out_str + written, strsize - written, format,
+                              ATTR(p_attr_set, stripe_info).stripe_count,
+                              ATTR(p_attr_set, stripe_info).stripe_size,
+                              ATTR(p_attr_set, stripe_info).pool_name);
             }
             else
             {
                 format = "stripe_count=%u,stripe_size=%"PRIu64",";
                 written +=
-                    snprintf( out_str + written, strsize - written, format,
-                              ATTR( p_attr_set, stripe_info).stripe_count,
-                              ATTR( p_attr_set, stripe_info).stripe_size );
+                    snprintf(out_str + written, strsize - written, format,
+                              ATTR(p_attr_set, stripe_info).stripe_count,
+                              ATTR(p_attr_set, stripe_info).stripe_size);
             }
         }
         else
         {
-            FormatFileSize( tmpbuf, 256, ATTR( p_attr_set, stripe_info).stripe_size);
-            if (!EMPTY_STRING(ATTR( p_attr_set, stripe_info).pool_name)) {
+            FormatFileSize(tmpbuf, 256, ATTR(p_attr_set, stripe_info).stripe_size);
+            if (!EMPTY_STRING(ATTR(p_attr_set, stripe_info).pool_name)) {
                 format = "Stripe count: %u\n"
                          "Stripe size:  %s\n"
                          "OST pool:     %s\n";
                 written +=
-                    snprintf( out_str + written, strsize - written, format,
-                              ATTR( p_attr_set, stripe_info).stripe_count, tmpbuf,
-                              ATTR( p_attr_set, stripe_info).pool_name );
+                    snprintf(out_str + written, strsize - written, format,
+                              ATTR(p_attr_set, stripe_info).stripe_count, tmpbuf,
+                              ATTR(p_attr_set, stripe_info).pool_name);
             }
             else
             {
                 format = "Stripe count: %u\n"
                          "Stripe size:  %s\n";
                 written +=
-                    snprintf( out_str + written, strsize - written, format,
-                              ATTR( p_attr_set, stripe_info).stripe_count,
+                    snprintf(out_str + written, strsize - written, format,
+                              ATTR(p_attr_set, stripe_info).stripe_count,
                               tmpbuf);
             }
         }
@@ -1588,7 +1588,7 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
         sm_instance_t * smi = get_sm_instance(i);
 
         /* print status */
-        if (mask & SMI_MASK(i))
+        if (mask.status & SMI_MASK(i))
         {
             if (brief)
                 format = "%s=%s,";
@@ -1600,11 +1600,11 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
                          smi->user_name, STATUS_ATTR(p_attr_set, i));
         }
         /* print specific info for this status manager */
-        if (mask & smi_info_bits(smi))
+        if (mask.sm_info & smi_info_bits(smi))
         {
             for (i = 0; i < smi->sm->nb_info; i++)
             {
-                if (mask & smi_info_bit(smi, i))
+                if (mask.sm_info & smi_info_bit(smi, i))
                 {
                     written += snprintf(out_str + written, strsize - written,
                                         brief ? "%s=" : "%s:  ",
@@ -1622,7 +1622,7 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
         }
     }
 
-    if ( mask & ATTR_MASK_link )
+    if (mask.std & ATTR_MASK_link)
     {
         if (brief)
             format = "lnk='%s',";
@@ -1633,7 +1633,6 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
             snprintf(out_str + written, strsize - written, format,
                      ATTR(p_attr_set, link));
     }
-
 
     if (brief && written) {
         /* remove final , */
@@ -1657,18 +1656,18 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
  *  Apply attribute changes
  *  \param change_mask mask of attributes to be changed
  */
-int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t * p_attr_new,
-                          const attr_set_t * p_attr_old,
-                          uint64_t change_mask, int dry_run)
+int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t *p_attr_new,
+                          const attr_set_t *p_attr_old,
+                          attr_mask_t change_mask, bool dry_run)
 {
-    uint64_t  mask = p_attr_new->attr_mask & change_mask;
+    attr_mask_t  mask = attr_mask_and(&p_attr_new->attr_mask, &change_mask);
     int rc, err = 0;
     const char *chattr_path = NULL;
 #ifdef _HAVE_FID
     char fid_path[RBH_PATH_MAX];
 #endif
 
-    if (!mask)
+    if (attr_mask_is_null(mask))
         return 0;
 
     if (!ATTR_MASK_TEST(p_attr_new, fullpath))
@@ -1685,7 +1684,7 @@ int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t * p_attr_new,
     else
         chattr_path = ATTR(p_attr_new, fullpath);
 
-    if ( mask & ATTR_MASK_fullpath )
+    if (mask.std & ATTR_MASK_fullpath)
     {
         if (!ATTR_MASK_TEST(p_attr_old, fullpath))
         {
@@ -1703,27 +1702,27 @@ int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t * p_attr_new,
                             ATTR(p_attr_old,fullpath), ATTR(p_attr_new, fullpath));
         }
     }
-    else if ( mask & ATTR_MASK_parent_id )
+    else if ( mask.std & ATTR_MASK_parent_id )
     {
         /* can't change parent without changing path!!! */
     }
-    else if ( mask & ATTR_MASK_name )
+    else if ( mask.std & ATTR_MASK_name )
     {
         /* just change name */
     }
 
 
-    if ( mask & ATTR_MASK_type )
+    if ( mask.std & ATTR_MASK_type )
     {
         /* can't change entry type without creating/removing it */
     }
 
-    if ( mask & (ATTR_MASK_owner | ATTR_MASK_gr_name))
+    if ( mask.std & (ATTR_MASK_owner | ATTR_MASK_gr_name))
     {
         uid_t u = -1;
         gid_t g = -1;
 
-        if (mask & ATTR_MASK_owner)
+        if (mask.std & ATTR_MASK_owner)
         {
             struct passwd p;
             char buf[4096];
@@ -1735,7 +1734,7 @@ int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t * p_attr_new,
                 u = res->pw_uid;
         }
 
-        if (mask & ATTR_MASK_gr_name)
+        if (mask.std & ATTR_MASK_gr_name)
         {
             struct group gs;
             char buf[4096];
@@ -1761,7 +1760,7 @@ int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t * p_attr_new,
     }
 
     /* always set mode after chown, as it can be changed by chown */
-    if ( mask & ATTR_MASK_mode )
+    if ( mask.std & ATTR_MASK_mode )
     {
 
         if (!dry_run && chmod(chattr_path,  ATTR(p_attr_new, mode)))
@@ -1777,13 +1776,13 @@ int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t * p_attr_new,
     /* stripe_items / stripe_info => restripe the file? */
     /* status => perform the needed action? */
 
-    if ( mask & ATTR_MASK_size )
+    if ( mask.std & ATTR_MASK_size )
     {
         /** @TODO if new size is zero: truncate.
          * else, we have no idea of what's in the file...
          */
     }
-    if (mask & (ATTR_MASK_last_access | ATTR_MASK_last_mod))
+    if (mask.std & (ATTR_MASK_last_access | ATTR_MASK_last_mod))
     {
         struct utimbuf t = {
             .actime = -1,
@@ -1791,9 +1790,9 @@ int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t * p_attr_new,
         };
         int get_stat = 0;
 
-        if (mask & ATTR_MASK_last_access)
+        if (mask.std & ATTR_MASK_last_access)
             t.actime = ATTR(p_attr_new, last_access);
-        if (mask & ATTR_MASK_last_mod)
+        if (mask.std & ATTR_MASK_last_mod)
             t.modtime = ATTR(p_attr_new, last_mod);
 
         /* if there is still a value == -1, we must fill it
@@ -2507,10 +2506,10 @@ int create_from_attrs(const attr_set_t * attrs_in,
 #ifdef _HAVE_FID
 void path_check_update(const entry_id_t *p_id,
                        const char *fid_path, attr_set_t *p_attrs,
-                       uint64_t attr_mask)
+                       attr_mask_t attr_mask)
 {
     int rc;
-    if (attr_mask & (ATTR_MASK_name | ATTR_MASK_parent_id))
+    if (attr_mask.std & (ATTR_MASK_name | ATTR_MASK_parent_id))
     {
         rc = Lustre_GetNameParent(fid_path, 0, &ATTR(p_attrs, parent_id),
                                   ATTR(p_attrs, name), RBH_NAME_MAX);
@@ -2530,7 +2529,7 @@ void path_check_update(const entry_id_t *p_id,
     }
 
     /* if fullpath is in the policy, get the fullpath */
-    if (attr_mask & ATTR_MASK_fullpath)
+    if (attr_mask.std & ATTR_MASK_fullpath)
     {
         rc = Lustre_GetFullPath(p_id, ATTR(p_attrs, fullpath), RBH_PATH_MAX);
         if (rc == 0)

@@ -269,7 +269,7 @@ static void entry_proc_cfg_set_default(void *module_config)
 
     conf->alert_list = NULL;
     conf->alert_count = 0;
-    conf->alert_attr_mask = 0;
+    conf->alert_attr_mask = null_mask;
 }
 
 static void entry_proc_cfg_write_default(FILE *output)
@@ -537,7 +537,8 @@ static int entry_proc_cfg_read(config_file_t config, void *module_config, char *
             if ( rc )
                 return rc;
 
-            conf->alert_attr_mask |= conf->alert_list[conf->alert_count - 1].attr_mask;
+            conf->alert_attr_mask = attr_mask_or(&conf->alert_attr_mask,
+                                                 &conf->alert_list[conf->alert_count - 1].attr_mask);
         }
     }                           /* Loop on subblocks */
 
@@ -588,7 +589,7 @@ static void update_alerts( alert_item_t * old_items, unsigned int old_count,
     /* compare alert boolean expression structure */
     for ( i = 0; i < new_count; i++ )
     {
-        if ( ( old_items[i].attr_mask != new_items[i].attr_mask )
+        if ( !attr_mask_equal(&old_items[i].attr_mask, &new_items[i].attr_mask)
              || compare_boolexpr( &old_items[i].boolexpr, &new_items[i].boolexpr ) )
         {
             DisplayLog( LVL_MAJOR, "EntryProc_Config",
@@ -852,7 +853,8 @@ void check_stripe_info(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
                         if (!(ATTR_MASK_TEST(&p_op->fs_attrs, stripe_info)
                               && ATTR_MASK_TEST(&p_op->fs_attrs, stripe_items)))
                         {
-                                p_op->fs_attr_need |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
+                            attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_info);
+                            attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_items);
                         }
                     }
                     else /* stripe is OK, don't update stripe items */

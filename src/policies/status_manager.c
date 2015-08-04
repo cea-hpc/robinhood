@@ -29,7 +29,7 @@ unsigned int sm_inst_count = 0; /* must be available from other modules to handl
 
 /** list of status manager info */
 struct _sm_attr_info *sm_attr_info;
-int sm_attr_count;
+unsigned int sm_attr_count;
 
 
 void sm_status_ensure_alloc(char const ***p_tab)
@@ -83,8 +83,8 @@ int set_sm_info(const sm_instance_t *smi, attr_set_t *pattrs,
     if (pattrs->attr_values.sm_info == NULL)
         return -ENOMEM;
 
-    if (unlikely(smi_info_index(smi, attr_index) >= ALL_ATTR_COUNT))
-        RBH_BUG("attr index out of range");
+    assert(attr2sminfo_index(smi_info_index(smi, attr_index))
+            < sizeof(pattrs->attr_mask.sm_info) * CHAR_BIT);
 
     info = &SMI_INFO(pattrs, smi, attr_index);
 
@@ -99,16 +99,16 @@ int set_sm_info(const sm_instance_t *smi, attr_set_t *pattrs,
 }
 
 /** build a string with the list of statuses in the given mask */
-char *name_status_mask(uint64_t mask, char *buf, int sz)
+char *name_status_mask(uint32_t status_mask, char *buf, int sz)
 {
     int i = 0;
-    uint64_t m;
+    uint32_t m = 1;
     buf[0] = '\0';
     char *cur = buf;
 
-    for (i = 0, m = (1LL << ATTR_COUNT); i < sm_inst_count; i++, m <<= 1)
+    for (i = 0 ; i < sm_inst_count; i++, m <<= 1)
     {
-        if (mask & m)
+        if (status_mask & m)
         {
             sm_instance_t *smi = get_sm_instance(i);
             /* append smi name */
@@ -152,7 +152,7 @@ static const sm_info_def_t status_def = {
 /** helper for sm_attr_get. Assume smi is set. */
 static int get_smi_attr(const sm_instance_t *smi, const attr_set_t *p_attrs,
                         const char *attr_name, void **val,
-                        const sm_info_def_t **ppdef)
+                        const sm_info_def_t **ppdef, unsigned int *attr_index)
 {
     int i;
 
@@ -162,10 +162,11 @@ static int get_smi_attr(const sm_instance_t *smi, const attr_set_t *p_attrs,
     {
         *ppdef = &status_def;
 
+        *attr_index = smi_status_index(smi);
         if (val == NULL)
             /* caller doesn't care about the value, it just want to know if
-             * the attribute exists (+ the status index)*/
-            return smi_status_index(smi);
+             * the attribute exists (+ the attribute index)*/
+            return 0;
 
         /* XXX NULL or empty string? */
         if (!ATTR_MASK_STATUS_TEST(p_attrs, smi->smi_index))
@@ -174,7 +175,7 @@ static int get_smi_attr(const sm_instance_t *smi, const attr_set_t *p_attrs,
             return -ENOENT;
 
         *val = (char *)STATUS_ATTR(p_attrs, smi->smi_index);
-        return *val ? 0 : -ENOENT;
+        return *val != NULL ? 0 : -ENOENT;
     }
 
     /* other attrs */
@@ -183,11 +184,12 @@ static int get_smi_attr(const sm_instance_t *smi, const attr_set_t *p_attrs,
         if (!strcasecmp(attr_name, smi->sm->info_types[i].user_name))
         {
             *ppdef = &smi->sm->info_types[i];
+            *attr_index = smi_info_index(smi, i);
 
             if (val == NULL)
                 /* caller doesn't care about the value, it just want to know if
                  * the attribute exists (and the smi info index) */
-                return smi_info_index(smi, i);
+                return 0;
 
             if (!ATTR_MASK_INFO_TEST(p_attrs, smi, i))
                 return -ENOENT;
@@ -195,7 +197,7 @@ static int get_smi_attr(const sm_instance_t *smi, const attr_set_t *p_attrs,
                 return -ENOENT;
 
             *val = SMI_INFO(p_attrs, smi, i);
-            return *val ? 0 : -ENOENT;
+            return *val != NULL ? 0 : -ENOENT;
         }
     }
     return -EINVAL;
@@ -203,7 +205,8 @@ static int get_smi_attr(const sm_instance_t *smi, const attr_set_t *p_attrs,
 
 /* -EINVAL: invalid argument, -ENOENT: missing attribute value */
 int sm_attr_get(const sm_instance_t *smi, const attr_set_t *p_attrs,
-                const char *name, void **val, const sm_info_def_t **ppdef)
+                const char *name, void **val, const sm_info_def_t **ppdef,
+                unsigned int *attr_index)
 {
     const char *dot = strchr(name, '.');
 
@@ -228,11 +231,11 @@ int sm_attr_get(const sm_instance_t *smi, const attr_set_t *p_attrs,
         }
         free(smi_name);
 
-        return get_smi_attr(smi2, p_attrs, dot+1, val, ppdef);
+        return get_smi_attr(smi2, p_attrs, dot+1, val, ppdef, attr_index);
     }
     else
     {
-        int rc = get_smi_attr(smi, p_attrs, name, val, ppdef);
+        int rc = get_smi_attr(smi, p_attrs, name, val, ppdef, attr_index);
 
         /* If no smi is explicitely specified, it was just
          * a try to match. So, change EINVAL to ENOENT. */
@@ -336,57 +339,55 @@ static bool sm_instance_exists(const char *name, sm_instance_t **smi_ptr)
  * attributes.
  * This function translates generic masks to the actual ones.
  */
-static uint64_t actual_mask(sm_instance_t *smi, uint64_t mask)
+static attr_mask_t actual_mask(sm_instance_t *smi, attr_mask_t mask)
 {
-    uint64_t       gen_bits;
-    uint64_t       gen_status;
+    uint64_t       gen_info;
+    uint32_t       gen_status;
 
     /* generic attribute mask */
-    gen_bits = mask & bit_range(GENERIC_INFO_OFFSET, smi->sm->nb_info);
+    gen_info = mask.sm_info & bit_range(GENERIC_INFO_OFFSET, smi->sm->nb_info);
     /* generic status mask */
-    gen_status = mask & SMI_MASK(0);
+    gen_status = mask.status & SMI_MASK(0);
 
-    /* clean generic bits */
-    mask &= ~gen_bits;
-    mask &= ~gen_status;
+    /* clean generic info */
+    mask.sm_info &= ~gen_info;
+    mask.status &= ~gen_status;
 
-    /* replace with real bits */
-    if (gen_bits)
-        /* shift gen_bits by real offset - GENERIC_INFO_OFFSET */
-        mask |= (gen_bits << (smi_info_index(smi, 0) - GENERIC_INFO_OFFSET));
+    /* replace with real info */
+    if (gen_info)
+        /* shift gen_info by real offset - GENERIC_INFO_OFFSET */
+        mask.sm_info |= (gen_info << smi->sm_info_offset);
 
     if (gen_status)
-        mask |= SMI_MASK(smi->smi_index);
+        mask.status |= SMI_MASK(smi->smi_index);
 
     return mask;
 }
 
 /** translate a generic mask SMI_MASK(0) and GENERIC_INFO_OFFSET to all status and info masks */
-uint64_t translate_all_status_mask(uint64_t mask)
+attr_mask_t translate_all_status_mask(attr_mask_t mask)
 {
-    uint64_t       gen_bits;
-    uint64_t       gen_status;
+    uint64_t       gen_info;
+    uint32_t       gen_status;
 
-    /* generic attribute mask */
-    gen_bits = mask & bit_range(GENERIC_INFO_OFFSET, sm_attr_count);
     /* generic status mask */
-    gen_status = mask & SMI_MASK(0);
+    gen_status = mask.status & SMI_MASK(0);
+    /* generic attribute mask */
+    gen_info = mask.sm_info & bit_range(GENERIC_INFO_OFFSET, sm_attr_count);
 
     /* clean generic bits */
-    mask &= ~gen_bits;
-    mask &= ~gen_status;
+    mask.status &= ~gen_status;
+    mask.sm_info &= ~gen_info;
 
     /* replace with real bits */
-    if (gen_bits)
-        mask |= all_sm_info_mask();
+    if (gen_info)
+        mask.sm_info |= all_sm_info_mask();
 
     if (gen_status)
-        mask |= all_status_mask();
+        mask.status |= all_status_mask();
 
     return mask;
 }
-
-
 
 /** create a status manager instance (if it does not already exist) */
 sm_instance_t *create_sm_instance(const char *pol_name,const char *sm_name)
@@ -442,6 +443,22 @@ sm_instance_t *create_sm_instance(const char *pol_name,const char *sm_name)
     /* @TODO load its configuration */
     /* @TODO initialize it */
 
+    /* check it fits into the status mask */
+    if (sm_inst_count + 1 >= member_size(attr_mask_t, status) * CHAR_BIT)
+    {
+        DisplayLog(LVL_CRIT, "smi_create", "Too many status managers: max %lu supported",
+                   member_size(attr_mask_t, status) * CHAR_BIT);
+        goto out_free;
+    }
+
+    /* check it fits into the sm_info mask */
+    if (sm_attr_count + sm->nb_info >= member_size(attr_mask_t, sm_info) * CHAR_BIT)
+    {
+        DisplayLog(LVL_CRIT, "smi_create", "Too many policy-specific attributes: max %lu supported",
+                   member_size(attr_mask_t, sm_info) * CHAR_BIT);
+        goto out_free;
+    }
+
     /* add it the the list of SMIs */
     sm_inst_count++;
     sm_inst = realloc(sm_inst, sm_inst_count * sizeof(sm_instance_t*));
@@ -449,13 +466,7 @@ sm_instance_t *create_sm_instance(const char *pol_name,const char *sm_name)
         goto out_free;
     sm_inst[sm_inst_count-1] = smi;
 
-    /* the attribute mask cannot handle more that 64 attributes */
-    if (smi_info_index(smi, sm->nb_info - 1) >= 64)
-    {
-        DisplayLog(LVL_CRIT, "smi_create", "Too many policy-specific attributes (attribute mask is 64bits)");
-        goto out_free;
-    }
-
+    /* register sm specific info */
     sm_attr_count += sm->nb_info;
     sm_attr_info = realloc(sm_attr_info, sm_attr_count * sizeof(struct _sm_attr_info));
     if (sm_attr_info == NULL)
@@ -539,7 +550,7 @@ char *allowed_status_str(const status_manager_t *sm, char *buf, int sz)
 #ifdef HAVE_CHANGELOGS
 int run_all_cl_cb(const CL_REC_TYPE *logrec, const entry_id_t *id,
                   const attr_set_t *attrs, attr_set_t *refreshed_attrs,
-                  uint64_t *status_need, uint64_t status_mask,
+                  attr_mask_t *status_need, uint32_t status_mask,
                   proc_action_e *rec_action)
 {
     int rc, err_max = 0;
@@ -569,7 +580,7 @@ int run_all_cl_cb(const CL_REC_TYPE *logrec, const entry_id_t *id,
         if (rc == 0)
         {
             if (getstatus)
-                *status_need |= SMI_MASK(i);
+                status_need->status |= SMI_MASK(i);
 
             /* keep the action with the highest priority */
             if (curr_action > *rec_action)

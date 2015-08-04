@@ -211,12 +211,14 @@ static int listmgr_softrm_all(lmgr_t *p_mgr, time_t rm_time)
 {
     int      rc, nbannex = 0;
     GString *req, *annex_fields;
+    attr_mask_t mask_tmp = softrm_attr_set;
 
-    /* manage fullpath independantly to make sure it is the first attribute,
+    /* manage fullpath independantly to make sure it is the first attribute
      * as we will set it to "one_path(id)". */
+    attr_mask_unset_index(&mask_tmp, ATTR_INDEX_fullpath);
+
     req = g_string_new("INSERT IGNORE INTO " SOFT_RM_TABLE "(id,fullpath");
-    attrmask2fieldlist(req, softrm_attr_set & ~ATTR_MASK_fullpath, T_SOFTRM,
-                       true,  false, "","");
+    attrmask2fieldlist(req, mask_tmp, T_SOFTRM, true,  false, "","");
 
     annex_fields = g_string_new(NULL);
     nbannex = attrmask2fieldlist(annex_fields, softrm_attr_set, T_ANNEX, true,  false,
@@ -269,7 +271,7 @@ static void set_fullpath(lmgr_t *p_mgr, attr_set_t *attrs)
         && ATTR_MASK_TEST(attrs, parent_id)
         && ATTR_MASK_TEST(attrs, name))
     {
-        attr_set_t dir_attrs = {0};
+        attr_set_t dir_attrs = ATTR_SET_INIT;
 
         /* try to get parent path, so we can build <parent_path>/<name> */
         ATTR_MASK_SET(&dir_attrs, fullpath);
@@ -306,6 +308,7 @@ static int listmgr_softrm_single(lmgr_t *p_mgr, const entry_id_t *p_id,
     int  rc;
     char err_buf[1024];
     GString *req;
+    attr_mask_t tmp_mask;
 
     if (!ATTR_MASK_TEST(p_old_attrs, rm_time))
     {
@@ -321,8 +324,8 @@ static int listmgr_softrm_single(lmgr_t *p_mgr, const entry_id_t *p_id,
     else /* else, don't update */
         req = g_string_new("INSERT IGNORE INTO " SOFT_RM_TABLE "(id");
 
-    attrmask2fieldlist(req, softrm_attr_set & p_old_attrs->attr_mask,
-                       T_SOFTRM, true,  false, "","");
+    tmp_mask = attr_mask_and(&softrm_attr_set, &p_old_attrs->attr_mask);
+    attrmask2fieldlist(req, tmp_mask, T_SOFTRM, true,  false, "","");
     g_string_append(req, ") VALUES (");
 
     entry_id2pk(p_id, PTR_PK(pk));
@@ -443,6 +446,8 @@ static int create_tmp_table_rm(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
     return rc;
 }
 
+#define MAX_SOFTRM_FIELDS 128 /* id + std attributes + status + sminfo */
+
 /** Perform removal or soft removal for all entries matching a filter
  * (no transaction management).
  */
@@ -455,7 +460,7 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
     bool                distinct = false;
     bool                direct_del = false;
     char                tmp_table_name[256];
-    char           *field_tab[ATTR_COUNT+1]; /* id + attributes */
+    char           *field_tab[MAX_SOFTRM_FIELDS];
     result_handle_t result;
     DEF_PK(pk);
     GString        *filter_names = NULL;
@@ -464,6 +469,9 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
     GString        *req = NULL;
     int             rc;
     unsigned int    nb;
+    attr_mask_t mask_no_rmtime = softrm_attr_set;
+
+    attr_mask_unset_index(&mask_no_rmtime, ATTR_INDEX_rm_time);
 
     if (no_filter(p_filter))
     {
@@ -572,8 +580,7 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
     if (soft_rm)
     {
         g_string_assign(req, "SELECT id");
-        nb += attrmask2fieldlist(req, softrm_attr_set & ~ATTR_MASK_rm_time,
-                                 T_TMP_SOFTRM, true, false, "","");
+        nb += attrmask2fieldlist(req, mask_no_rmtime, T_TMP_SOFTRM, true, false, "","");
         g_string_append_printf(req, " FROM %s", tmp_table_name);
     }
     else
@@ -602,9 +609,9 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
 
         if (soft_rm)
         {
-            attr_set_t old_attrs = {0};
+            attr_set_t old_attrs = ATTR_SET_INIT;
 
-            old_attrs.attr_mask = softrm_attr_set & ~ATTR_MASK_rm_time;
+            old_attrs.attr_mask = mask_no_rmtime;
 
             /* parse result attributes + set rm_time for listmgr_softrm_single */
             rc = result2attrset(T_TMP_SOFTRM, field_tab + 1,  nb - 1, &old_attrs);
@@ -731,13 +738,14 @@ int            ListMgr_SoftRemove(lmgr_t *p_mgr, const entry_id_t *p_id,
                                   attr_set_t *p_old_attrs)
 {
     int        rc;
-    attr_set_t all_attrs = {0};
-
-    ATTR_MASK_INIT(&all_attrs);
+    attr_set_t all_attrs = ATTR_SET_INIT;
 
     /* get missing attributes for SOFT_RM table from DB */
-    all_attrs.attr_mask = softrm_attr_set &~ ATTR_MASK_rm_time
-                          &~ p_old_attrs->attr_mask;
+    all_attrs.attr_mask = softrm_attr_set;
+    /* ...except rm_time */
+    attr_mask_unset_index(&all_attrs.attr_mask, ATTR_INDEX_rm_time);
+    /* ...except attributes already in p_old_attrs */
+    all_attrs.attr_mask = attr_mask_and_not(&all_attrs.attr_mask, &p_old_attrs->attr_mask);
 
     /* these are needed for remove function */
     if (!ATTR_MASK_TEST(&all_attrs, parent_id)
@@ -747,7 +755,8 @@ int            ListMgr_SoftRemove(lmgr_t *p_mgr, const entry_id_t *p_id,
         ATTR_MASK_SET(&all_attrs, name);
     }
 
-    if (all_attrs.attr_mask && (ListMgr_Get(p_mgr, p_id, &all_attrs) != DB_SUCCESS))
+    if (!attr_mask_is_null(all_attrs.attr_mask)
+        && (ListMgr_Get(p_mgr, p_id, &all_attrs) != DB_SUCCESS))
         ATTR_MASK_INIT(&all_attrs);
 
     if (p_old_attrs != NULL)
@@ -896,7 +905,6 @@ int            ListMgr_GetNextRmEntry(struct lmgr_rm_list_t *p_iter,
 {
     int            rc = 0;
     int i;
-#define MAX_SOFTRM_FIELDS (ATTR_COUNT+1) /* id + attributes */
     char *record[MAX_SOFTRM_FIELDS];
 
     if (p_iter->result_len > MAX_SOFTRM_FIELDS)
@@ -949,8 +957,8 @@ int     ListMgr_GetRmEntry(lmgr_t * p_mgr,
     if (!p_id || !p_attrs)
         return DB_INVALID_ARG;
 
-    /* remove fields that are not in SOFTRM table */
-    p_attrs->attr_mask &= softrm_attr_set;
+    /* only keep fields in SOFTRM table */
+    p_attrs->attr_mask = attr_mask_and(&p_attrs->attr_mask, &softrm_attr_set);
 
     req = g_string_new("SELECT ");
     nb = attrmask2fieldlist(req, p_attrs->attr_mask, T_SOFTRM, 0, 0, 0, 0);

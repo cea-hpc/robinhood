@@ -197,7 +197,7 @@ struct param_descr {
 
 /** return a string attribute */
 static char *get_str_attr(const entry_id_t *id, const attr_set_t *attrs,
-                   int attr_index, bool *free_str)
+                          int attr_index, bool *free_str)
 {
     *free_str = false;
 
@@ -206,8 +206,10 @@ static char *get_str_attr(const entry_id_t *id, const attr_set_t *attrs,
         DisplayLog(LVL_MAJOR, PARAMS_TAG, "ERROR: entry attributes are not available in this context");
         return NULL;
     }
-    if ((attrs->attr_mask & (1LL << attr_index)) == 0)
+    if (!attr_mask_test_index(&attrs->attr_mask, attr_index))
     {
+        /* for getting field_name in field_info array */
+        assert(attr_index < 32);
         DisplayLog(LVL_MAJOR, PARAMS_TAG, "ERROR: missing attribute '%s' to perform variable substitution",
                    field_infos[attr_index].field_name);
         return NULL;
@@ -306,7 +308,7 @@ struct set_param_mask_args
     /** description of the string being parsed */
     const char               *str_descr;
     /** mask being built (to be returned by params_mask()) */
-    uint64_t                  mask;
+    attr_mask_t               mask;
 };
 
 /** callback function to generate std params mask */
@@ -324,22 +326,27 @@ static int set_param_mask(const char *name, int begin_idx, int end_idx,
     if (a != NULL)
     {
         if (a->attr_index != -1)
-            args->mask |= (1LL << a->attr_index);
+            attr_mask_set_index(&args->mask, a->attr_index);
     }
 
     /* unknown param have no mask */
     return 0;
 }
 
-uint64_t params_mask(const char *str, const char *str_descr)
+attr_mask_t params_mask(const char *str, const char *str_descr, bool *err)
 {
     struct set_param_mask_args args = {
-        .mask        = 0,
+        .mask        = {0},
         .str_descr   = str_descr
     };
 
+    *err = false;
+
     if (placeholder_foreach(str, str_descr, set_param_mask, (void*)&args, 0))
-        return (uint64_t)-1LL;
+    {
+        *err = true;
+        return null_mask;
+    }
 
     return args.mask;
 }

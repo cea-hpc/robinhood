@@ -172,9 +172,10 @@ int read_scalar_params(config_item_t block, const char *block_name,
  *                related status manager ('status' criteria is policy dependant).
  */
 #include "rbh_boolexpr.h"
+#include "list_mgr.h"
 struct sm_instance;
 int            GetBoolExpr(config_item_t block, const char *block_name,
-                           bool_node_t *p_bool_node, uint64_t *p_attr_mask,
+                           bool_node_t *p_bool_node, attr_mask_t *p_attr_mask,
                            char *err_msg, const struct sm_instance *smi);
 
 /**
@@ -182,9 +183,8 @@ int            GetBoolExpr(config_item_t block, const char *block_name,
  */
 struct policies_t;
 int            GetSetExpr(config_item_t block, const char *block_name,
-                          bool_node_t * p_bool_node,
-                          uint64_t *p_attr_mask, const struct policies_t *policies,
-                          char *err_msg);
+                          bool_node_t * p_bool_node, attr_mask_t *p_attr_mask,
+                          const struct policies_t *policies, char *err_msg);
 
 /**
  * Check that no unknown parameter or block is found.

@@ -98,7 +98,7 @@ static void __attribute__((__unused__))
     /* compare whitelist boolean expression structure */
     for (i = 0; i < new_count; i++)
     {
-        if ((old_items[i].attr_mask != new_items[i].attr_mask)
+        if (!attr_mask_equal(&old_items[i].attr_mask, &new_items[i].attr_mask)
              || compare_boolexpr(&old_items[i].bool_expr,
                                   &new_items[i].bool_expr))
         {
@@ -157,11 +157,12 @@ static void free_whitelist(whitelist_item_t * p_items, unsigned int count)
 int parse_policy_action(const char *name, const char *value,
                         char **extra, unsigned int extra_cnt,
                         policy_action_t *action,
-                        uint64_t *mask, char *msg_out)
+                        attr_mask_t *mask, char *msg_out)
 {
     if (!strcasecmp(value, "cmd"))
     {
-        uint64_t m;
+        attr_mask_t m;
+        bool error = false;
 
         /* external command */
         /* 1 single argument expected */
@@ -177,13 +178,13 @@ int parse_policy_action(const char *name, const char *value,
 
         /* Get attribute mask for this command, in case it contains attribute
          * placeholder */
-        m = params_mask(action->action_u.command, name);
-        if (m == (uint64_t)-1LL)
+        m = params_mask(action->action_u.command, name, &error);
+        if (error)
         {
             sprintf(msg_out, "Unexpected parameters in %s cmd", name);
             return EINVAL;
         }
-        *mask |= m;
+        *mask = attr_mask_or(mask, &m);
     }
     else /* <module>.<action_name> expected */
     {
@@ -258,7 +259,7 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
     int          rc, prev;
     const char  *name;
     char         tmpstr[1024];
-    uint64_t     mask;
+    attr_mask_t  mask;
     char       **extra = NULL;
     unsigned int extra_cnt = 0;
     bool         unique;
@@ -423,7 +424,7 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
     /* analyze boolean expression */
     /* pass the status manager instance to interpret status condition
      * depending on the context */
-    mask = 0;
+    mask = null_mask;
     rc = GetBoolExpr(sub_item, SCOPE_BLOCK, &policy->scope, &mask,
                      msg_out, policy->status_mgr);
     if (rc)
@@ -899,9 +900,10 @@ static action_params_t *alloc_policy_params(fileset_item_t *fset,
  *                            in action param values.
  */
 int read_action_params(config_item_t param_block, action_params_t *params,
-                       uint64_t *mask, char *msg_out)
+                       attr_mask_t *mask, char *msg_out)
 {
     int i, rc;
+    bool error = false;
 
     /* iterate on key/values of an action_params block */
     for (i = 0; i < rh_config_GetNbItems(param_block); i++)
@@ -910,7 +912,7 @@ int read_action_params(config_item_t param_block, action_params_t *params,
         char          *subitem_name;
         char          *value;
         char          *descr;
-        uint64_t       m;
+        attr_mask_t    m;
         int            extra = 0;
 
         rc = rh_config_GetKeyValue(sub_item, &subitem_name, &value, &extra);
@@ -950,16 +952,16 @@ int read_action_params(config_item_t param_block, action_params_t *params,
 
         /* Get attribute mask for this parameter, in case it contains attribute
          * placeholder */
-        m = params_mask(value, descr);
+        m = params_mask(value, descr, &error);
         free(descr);
-        if (m == (uint64_t)-1LL)
+        if (error)
         {
             sprintf(msg_out, "Unexpected parameters in %s, line %u.",
                     rh_config_GetBlockName(param_block),
                     rh_config_GetItemLine(sub_item));
             return EINVAL;
         }
-        *mask |= m;
+        *mask = attr_mask_or(mask, &m);
     }
 
     return 0;
@@ -1043,7 +1045,7 @@ static int read_policy_action_params(config_item_t param_block,
                                      const char *blk_name,
                                      const char *policy_name,
                                      action_params_t *params,
-                                     uint64_t *mask,
+                                     attr_mask_t *mask,
                                      char *msg_out)
 {
     int      rc = 0;
@@ -1176,17 +1178,11 @@ static int read_fileclass_definition(config_item_t cfg_item,
             return EINVAL;
     }
 
-    p_policies->global_fileset_mask |= fset->attr_mask;
+    p_policies->global_fileset_mask = attr_mask_or(&p_policies->global_fileset_mask,
+                                                   &fset->attr_mask);
 
     /* @FIXME check standard attributes + sm_info of type PT_DURATION */
-    if (fset->attr_mask & (
-#ifdef ATTR_INDEX_last_archive
-        ATTR_MASK_last_archive |
-#endif
-#ifdef ATTR_INDEX_last_restore
-        ATTR_MASK_last_restore |
-#endif
-        ATTR_MASK_last_access | ATTR_MASK_last_mod))
+    if (fset->attr_mask.std & (ATTR_MASK_last_access | ATTR_MASK_last_mod))
     {
        DisplayLog(LVL_MAJOR, CHK_TAG, "WARNING: in FileClass '%s', line %d: "
                   "time-based conditions should be specified in policy "
@@ -1371,7 +1367,7 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
         return rc == ENOENT ? 0 : rc; /* not mandatory */
 
     /* initialize global attributes mask */
-    p_policies->global_fileset_mask = 0;
+    p_policies->global_fileset_mask = null_mask;
 
     p_policies->fileset_count = rh_config_GetNbItems(fileset_block);
 
@@ -1448,7 +1444,7 @@ static int parse_rule_block(config_item_t config_item,
     bool     is_default = false;
     bool     has_target = false;
     int      i, j, k, rc;
-    uint64_t mask;
+    attr_mask_t mask;
     bool     definition_done = false;
 
     /* initialize output */
@@ -1517,13 +1513,13 @@ static int parse_rule_block(config_item_t config_item,
 
             /* analyze boolean expression */
             /* allow using 'status' related info in conditions */
-            mask = 0;
+            mask = null_mask;
             rc = GetBoolExpr(sub_item, CONDITION_BLOCK, &rule->condition,
                              &mask, msg_out, policy->status_mgr);
             if (rc)
                 return rc;
 
-            rule->attr_mask |= mask;
+            rule->attr_mask = attr_mask_or(&rule->attr_mask, &mask);
             definition_done = true;
         }
         else /* not a block */
@@ -1606,7 +1602,7 @@ static int parse_rule_block(config_item_t config_item,
                 rule->target_list[rule->target_count-1] = fs;
 
                 /* add fileset mask to policy mask */
-                rule->attr_mask |= fs->attr_mask;
+                rule->attr_mask = attr_mask_or(&rule->attr_mask, &fs->attr_mask);
             }
             else if (!strcasecmp(subitem_name, "action"))
             {
@@ -1856,7 +1852,8 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
                     goto err;
 
                 /* add expression attr mask to policy mask */
-                rules->run_attr_mask |= rules->whitelist_rules[curr_ign].attr_mask;
+                rules->run_attr_mask = attr_mask_or(&rules->run_attr_mask,
+                                   &rules->whitelist_rules[curr_ign].attr_mask);
                 curr_ign++;
             }
             /* allow 'rule' or 'policy' */
@@ -1870,7 +1867,8 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
                 if (rc)
                     goto err;
 
-                rules->run_attr_mask |= rules->rules[curr_rule].attr_mask;
+                rules->run_attr_mask = attr_mask_or(&rules->run_attr_mask,
+                                            &rules->rules[curr_rule].attr_mask);
                 curr_rule++;
             }
             else
@@ -1938,7 +1936,8 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
             }
 
             /* add fileset attr mask to policy mask */
-            rules->run_attr_mask |= rules->ignore_list[curr_ign_fc]->attr_mask;
+            rules->run_attr_mask = attr_mask_or(&rules->run_attr_mask,
+                                  &rules->ignore_list[curr_ign_fc]->attr_mask);
             curr_ign_fc++;
 
         }                       /* end of vars */

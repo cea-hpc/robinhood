@@ -28,6 +28,8 @@
 /* avoid linking with all robinhood libs */
 log_config_t log_config = { .debug_level = LVL_DEBUG };
 global_config_t global_config = { .fs_path = "somefspath" };
+unsigned int sm_inst_count;
+unsigned int sm_attr_count;
 
 void DisplayLogFn(log_level debug_level, const char *tag, const char *format, ...)
 {
@@ -98,7 +100,7 @@ static void test_subst_params(void)
     const char *cmd;
     int         rc;
     const attr_set_t attrs = {
-        .attr_mask = ATTR_MASK_name | ATTR_MASK_fullpath,
+        .attr_mask = {.std = ATTR_MASK_name | ATTR_MASK_fullpath},
         .attr_values = {
             .name = "somename",
             .fullpath = "somepath",
@@ -401,67 +403,69 @@ static void test_subst_params(void)
 
 static void test_param_mask(void)
 {
-    uint64_t newmask;
+    attr_mask_t newmask;
+    bool        err = false;
 
     /* no variable */
-    newmask = params_mask("", descr);
-    assert(newmask == 0);
+    newmask = params_mask("", descr, &err);
+    assert(!err && attr_mask_is_null(newmask));
 
     /* Empty variable */
-    newmask = params_mask("{}", descr);
-    assert(newmask == (uint64_t)-1LL);
+    newmask = params_mask("{}", descr, &err);
+    assert(err);
 
     /* Known std parameter */
-    newmask = params_mask("{name}", descr);
-    assert(newmask == ATTR_MASK_name);
+    newmask = params_mask("{name}", descr, &err);
+    assert(!err && newmask.std == ATTR_MASK_name);
 
     /* Known std parameter but not an attribute */
-    newmask = params_mask("{fid}", descr);
-    assert(newmask == 0);
+    newmask = params_mask("{fid}", descr, &err);
+    assert(!err && attr_mask_is_null(newmask));
 
     /* Unknown parameter */
-    newmask = params_mask("{marco}", descr);
-    assert(newmask == 0);
+    newmask = params_mask("{marco}", descr, &err);
+    assert(!err && attr_mask_is_null(newmask));
 
     /*
      * With extra parameters
      */
 
     /* no variable */
-    newmask = params_mask("", descr);
-    assert(newmask == 0);
+    newmask = params_mask("", descr, &err);
+    assert(!err && attr_mask_is_null(newmask));
 
     /* Empty variable */
-    newmask = params_mask("{}", descr);
-    assert(newmask == (uint64_t)-1LL);
+    newmask = params_mask("{}", descr, &err);
+    assert(err);
 
     /* Known std parameter */
-    newmask = params_mask("{name}", descr);
-    assert(newmask == ATTR_MASK_name);
+    newmask = params_mask("{name}", descr, &err);
+    assert(!err && newmask.std == ATTR_MASK_name);
 
     /* Known std parameter but not an attribute */
-    newmask = params_mask("{fid}", descr);
-    assert(newmask == 0);
+    newmask = params_mask("{fid}", descr, &err);
+    assert(!err && attr_mask_is_null(newmask));
 
     /* extra parameter */
-    newmask = params_mask("{marco}", descr);
-    assert(newmask == 0);
+    newmask = params_mask("{marco}", descr, &err);
+    assert(!err && attr_mask_is_null(newmask));
 
     /* twice the same variable */
-    newmask = params_mask("{fullpath}{fullpath}", descr);
-    assert(newmask == ATTR_MASK_fullpath);
+    newmask = params_mask("{fullpath}{fullpath}", descr, &err);
+    assert(!err && newmask.std == ATTR_MASK_fullpath);
 
     /* 2 variables */
-    newmask = params_mask("wertyu{fullpath}fghj {name}", descr);
-    assert(newmask == (ATTR_MASK_fullpath | ATTR_MASK_name));
+    newmask = params_mask("wertyu{fullpath}fghj {name}", descr, &err);
+    assert(!err && (newmask.std == (ATTR_MASK_fullpath | ATTR_MASK_name)));
 
     /* 1 known variable and 1 unknown */
-    newmask = params_mask("wertyu{fullpath}fghj {namee}", descr);
-    assert(newmask == ATTR_MASK_fullpath);
+    newmask = params_mask("wertyu{fullpath}fghj {namee}", descr, &err);
+    assert(!err && newmask.std == ATTR_MASK_fullpath);
 
     /* 5 mixed variables */
-    newmask = params_mask("{hello}wertyu{fullpath}{marco}fghj {name}{fid}", descr);
-    assert(newmask == (ATTR_MASK_fullpath | ATTR_MASK_name));
+    newmask = params_mask("{hello}wertyu{fullpath}{marco}fghj {name}{fid}",
+                          descr, &err);
+    assert(!err && (newmask.std == (ATTR_MASK_fullpath | ATTR_MASK_name)));
 }
 
 int main(int argc, char **argv)

@@ -101,6 +101,8 @@
 #define unlikely(x)     (x)
 #endif
 
+#define member_size(_type, _member) sizeof(((_type*)0)->_member)
+
 /**
  * Send a mail
  */
@@ -225,7 +227,7 @@ int            Lustre_GetNameParent(const char *path, int linkno,
 
 void path_check_update(const entry_id_t *p_id,
                        const char *fid_path, attr_set_t *p_attrs,
-                       uint64_t attr_mask);
+                       attr_mask_t attr_mask);
 
 #define FID_IS_ZERO(_pf) (((_pf)->f_seq == 0) && ((_pf)->f_oid == 0))
 
@@ -357,15 +359,15 @@ const char *mode_string(mode_t mode, char *buf);
  *  \param brief brief notation for diff
  */
 int            PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
-                          uint64_t overide_mask, bool brief);
+                          attr_mask_t overide_mask, bool brief);
 
 /**
  *  Apply attribute changes
  *  \param change_mask mask of attributes to be changed
  */
 int            ApplyAttrs(const entry_id_t * p_id,
-                          const attr_set_t * p_attr_new, const attr_set_t * p_attr_old,
-                          uint64_t change_mask, int dry_run);
+                          const attr_set_t * p_attr_new, const attr_set_t *p_attr_old,
+                          attr_mask_t change_mask, bool dry_run);
 
 
 /** Compute greatest common divisor (GCD) of 2 numbers */
@@ -422,8 +424,9 @@ char *quote_shell_arg(const char *arg);
  * @param[in] str string to be parsed.
  * @param[in] str_descr string context description to be displayed in
  *                      error messages (e.g. "cfg_block::foo_param line 42").
+ * @param[our] err this boolean is set to true if an syntax in encountered.
  */
-uint64_t params_mask(const char *str, const char *str_descr);
+attr_mask_t params_mask(const char *str, const char *str_descr, bool *err);
 
 /**
  * Replace special parameters {cfg}, {fspath}, ... in the given string.

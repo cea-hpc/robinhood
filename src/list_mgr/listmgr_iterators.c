@@ -54,18 +54,18 @@ static int append_dirattr_select(GString *str, unsigned int dirattr_index,
     return -1;
 }
 
-#define append_dir_filter(_a1, _a2, _a3, _a4, _a5, _a6) append_dir_req(_a1, _a2, _a3, -1, _a4, _a5, _a6)
+#define append_dir_filter(_a1, _a2, _a3, _a4, _a5, _a6) append_dir_req(_a1, _a2, _a3, ATTR_INDEX_FLG_UNSPEC, _a4, _a5, _a6)
 
 
 /**
  * Append a directory condition (sort or filter on dirattr) to an iterator request.
  */
-static void append_dir_req(GString *from, GString *where, int sort_attr_index,
+static void append_dir_req(GString *from, GString *where, unsigned int sort_attr_index,
                            filter_dir_e filter_dir, /* type of dir filter */
                            unsigned int filter_dir_index, /* index of filter dirattr */
                            const char *filter_dir_str) /* looks like dirattr >= X */
 {
-    if (sort_attr_index < 0)
+    if (sort_attr_index & ATTR_INDEX_FLG_UNSPEC)
     {
         switch (filter_dir)
         {
@@ -137,12 +137,12 @@ static void append_dir_req(GString *from, GString *where, int sort_attr_index,
  * Set t_sort or sort_dirattr depending on sort type.
  */
 static inline void check_sort(const lmgr_sort_type_t *p_sort_type,
-                              table_enum *t_sort, int *sort_dirattr,
+                              table_enum *t_sort, unsigned int *sort_dirattr,
                               bool *distinct)
 {
     /* initialize outputs */
     *t_sort = T_NONE;
-    *sort_dirattr = -1;
+    *sort_dirattr = ATTR_INDEX_FLG_UNSPEC;
 
     /* is there a sort order ? */
     if (p_sort_type == NULL || p_sort_type->order == SORT_NONE)
@@ -168,13 +168,13 @@ static inline void check_sort(const lmgr_sort_type_t *p_sort_type,
 
 /** Indicate if a sort operation is to be done depending on the variables
  * set by check_sort(). */
-static inline bool do_sort(table_enum t_sort, int sort_dirattr)
+static inline bool do_sort(table_enum t_sort, unsigned int sort_dirattr)
 {
-    return (t_sort != T_NONE) || (sort_dirattr != -1);
+    return (t_sort != T_NONE) || ((sort_dirattr & ATTR_INDEX_FLG_UNSPEC) == 0);
 }
 
 static int select_all_request(lmgr_t *p_mgr, GString *req, table_enum sort_table,
-                              int sort_dirattr, bool distinct)
+                              unsigned int sort_dirattr, bool distinct)
 {
     if (!do_sort(sort_table, sort_dirattr))
     {
@@ -186,7 +186,7 @@ static int select_all_request(lmgr_t *p_mgr, GString *req, table_enum sort_table
         g_string_printf(req, "SELECT %s FROM %s", distinct?"DISTINCT(id)":"id",
                         table2name(sort_table));
     }
-    else if (sort_dirattr != -1)
+    else if ((sort_dirattr & ATTR_INDEX_FLG_UNSPEC) == 0)
     {
         append_dirattr_select(req, sort_dirattr, "dirattr_sort");
     }
@@ -209,7 +209,7 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
     filter_dir_e        filter_dir_type = FILTERDIR_NONE;
     unsigned int        filter_dir_index = 0;
     table_enum          sort_table = T_NONE;
-    int                 sort_dirattr = -1;
+    unsigned int        sort_dirattr = ATTR_INDEX_FLG_UNSPEC;
     struct field_count  fcnt = {0};
     bool                distinct = false;
     table_enum          query_tab = T_NONE;
@@ -290,6 +290,7 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
         }
     }
 
+#define SORT_ATTR_OPTIM (ATTR_INDEX_FLG_UNSPEC | 0x2)
 #if 0 /** @TODO RBHv3 to be reimplemnted */
                         /* both filter and sort order */
                         /* @TODO optim if both filter and sort order are on the same field */
@@ -297,8 +298,8 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
                         {
                             query_end = query + append_dirattr_select(query, filter_dir_index, "dirattr");
                             query_end += sprintf(query_end, " HAVING %s", filter_dir_str);
-                            /* -2 for this optim */
-                            sort_dirattr = -2;
+                            /* special value for this optim */
+                            sort_dirattr = SORT_ATTR_OPTIM;
                         }
                         else
                         {
@@ -321,9 +322,9 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
         else if (sort_table != T_NONE)
             g_string_append_printf(req, " ORDER BY %s.%s ", table2name(sort_table),
                                    field_name(p_sort_type->attr_index));
-        else if (sort_dirattr == -2)
+        else if (sort_dirattr == SORT_ATTR_OPTIM)
             g_string_append(req, " ORDER BY dirattr ");
-        else if (sort_dirattr != -1)
+        else if ((sort_dirattr & ATTR_INDEX_FLG_UNSPEC) == 0)
             g_string_append(req, " ORDER BY dirattr_sort ");
 
         if (p_sort_type->order == SORT_ASC)
@@ -416,14 +417,14 @@ int ListMgr_GetNext( struct lmgr_iterator_t *p_iter, entry_id_t * p_id, attr_set
             if (p_iter->opt_is_set && p_iter->opt.allow_no_attr)
             {
                 /* clear missing fields */
-                p_info->attr_mask &= dir_attr_set;
+                p_info->attr_mask = attr_mask_and(&p_info->attr_mask, &dir_attr_set);
                 /* special field dircount */
-                if (dirattr_fields( p_info->attr_mask ))
+                if (dirattr_fields(p_info->attr_mask))
                 {
                     if (listmgr_get_dirattrs(p_iter->p_mgr, pk, p_info))
                     {
                         DisplayLog( LVL_MAJOR, LISTMGR_TAG, "listmgr_get_dirattr failed for "DPK, pk );
-                        p_info->attr_mask &= ~dir_attr_set;
+                        p_info->attr_mask = attr_mask_and_not(&p_info->attr_mask, &dir_attr_set);
                     }
                 }
 

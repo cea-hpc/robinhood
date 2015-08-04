@@ -29,7 +29,7 @@
 typedef struct whitelist_item_t
 {
     bool_node_t    bool_expr;
-    uint64_t       attr_mask;   /**< summary of attributes involved in boolean expression */
+    attr_mask_t    attr_mask;   /**< summary of attributes involved in boolean expression */
 } whitelist_item_t;
 
 #define POLICY_NAME_LEN  128
@@ -47,7 +47,7 @@ typedef struct fileset_item_t
     /** condition for files to be in this fileset */
     bool_node_t    definition;
     /** summary of attributes involved in boolean expression */
-    uint64_t       attr_mask;
+    attr_mask_t    attr_mask;
 
     /* user tunable */
     unsigned int   matchable:1;                /* is the fileset matchable or is it a temporary
@@ -127,7 +127,7 @@ typedef struct rule_item_t
     action_params_t      action_params;
 
     /** attributes involved in condition, action and action_params */
-    uint64_t             attr_mask;
+    attr_mask_t          attr_mask;
 
 } rule_item_t;
 
@@ -144,7 +144,7 @@ typedef struct policy_rules_t
     unsigned int   rule_count;
 
     /* minimum set of attributes for checking rules and building action_params */
-    uint64_t       run_attr_mask;
+    attr_mask_t    run_attr_mask;
 
 } policy_rules_t;
 
@@ -175,13 +175,13 @@ typedef struct policy_descr_t {
     /** @TODO store policy info a persistent way for later check */
     char                name[POLICY_NAME_LEN];
     bool_node_t         scope;
-    uint64_t            scope_mask;
+    attr_mask_t         scope_mask;
     char               *implements; /* in the case of 'multi-action' status managers,
                                        indicate the implemented action. */
     struct sm_instance *status_mgr;
     policy_action_t     default_action;
     /* attr index of the sort order (e.g. last_mod, creation_time, ...) */
-    int    default_lru_sort_attr; /* default value for policy_run_config_t.lru_sort_attr */
+    unsigned int        default_lru_sort_attr; /* default value for policy_run_config_t.lru_sort_attr */
     policy_rules_t      rules;
     bool                manage_deleted; /* does this policy manage deleted entries */
 } policy_descr_t;
@@ -193,11 +193,11 @@ typedef struct policies_t
 {
     policy_descr_t  *policy_list;
     unsigned int     policy_count;
-    uint64_t         global_status_mask; // mask for all policies that provide a get_status function
+    attr_mask_t      global_status_mask; // mask for all policies that provide a get_status function
 
     fileset_item_t  *fileset_list;
     unsigned int     fileset_count;
-    uint64_t         global_fileset_mask; // mask for all filesets
+    attr_mask_t      global_fileset_mask; // mask for all filesets
 
     unsigned int     manage_deleted:1; // is there any policy that manages deleted entries?
 
@@ -265,7 +265,7 @@ policy_match_t match_scope(const policy_descr_t *pol, const entry_id_t *id,
  *                 if true, set a status in the mask if the entry can't be matched against a scope (no warning is issued).
  */
 void add_matching_scopes_mask(const entry_id_t *id, const attr_set_t *attr,
-                              bool tolerant, uint64_t *mask);
+                              bool tolerant, uint32_t *mask);
 
 
 //int match_scope_deleted(policy);
@@ -309,13 +309,13 @@ policy_match_t entry_matches(const entry_id_t *p_entry_id, const attr_set_t *p_e
 
 /* read an action params block from config */
 int read_action_params(config_item_t param_block, action_params_t *params,
-                       uint64_t *mask, char *msg_out);
+                       attr_mask_t *mask, char *msg_out);
 
 /* parse policy action value from config */
 int parse_policy_action(const char *name, const char *value,
                         char **extra, unsigned int extra_cnt,
                         policy_action_t *action,
-                        uint64_t *mask, char *msg_out);
+                        attr_mask_t *mask, char *msg_out);
 
 /**
  * Convert criteria to ListMgr data
@@ -327,7 +327,7 @@ int parse_policy_action(const char *name, const char *value,
  * \return -1 if this is not a criteria stored in DB.
  */
 struct sm_instance;
-int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
+int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
                     filter_comparator_t *p_compar, filter_value_t *p_value,
                     bool *p_must_release, const struct sm_instance *smi);
 

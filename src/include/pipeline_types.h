@@ -61,7 +61,7 @@ typedef enum {
 typedef struct _diff_arg
 {
     enum {NO_APPLY = 0, APPLY_FS, APPLY_DB} apply;
-    uint64_t diff_mask;
+    attr_mask_t diff_mask;
     const char * db_tag;
     FILE * lovea_file;
     FILE * fid_remap_file;

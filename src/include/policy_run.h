@@ -107,7 +107,7 @@ typedef struct trigger_item_t
 
     /* action params (overrides policy action params) */
     action_params_t action_params;
-    uint64_t        params_mask;
+    attr_mask_t     params_mask;
 
 } trigger_item_t;
 
@@ -169,7 +169,7 @@ typedef struct policy_run_config_t
 
     /** attr index of the sort order (e.g. last_mod, creation_time, ...).
      * overrides default_lru_sort_attr (from policy descr). */
-    int    lru_sort_attr;
+    unsigned int   lru_sort_attr;
 
     /** if specified, overrides default_action from the policy descriptor.
      * Can then be overriden by rules. */
@@ -180,7 +180,7 @@ typedef struct policy_run_config_t
     action_params_t action_params;
 
     /** attributes used in action and action_params */
-    uint64_t        run_attr_mask;
+    attr_mask_t     run_attr_mask;
 
     bool   check_action_status_on_startup;
     bool   recheck_ignored_classes;

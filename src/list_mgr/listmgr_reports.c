@@ -51,7 +51,8 @@ typedef struct lmgr_report_t
 /* Return field string */
 static inline const char *field_str( unsigned int index )
 {
-    if (index == (unsigned int)-1)
+    /* count(id) for special COUNT attribute */
+    if (index == ATTR_INDEX_FLG_COUNT)
         return "id";
     else
         return field_name(index);
@@ -60,11 +61,11 @@ static inline const char *field_str( unsigned int index )
 /* Return field flag */
 static inline int field_flag(unsigned int index)
 {
-    if (index == (unsigned int)-1)
+    if (index == ATTR_INDEX_FLG_COUNT)
         return 0;
     else if (index < ATTR_COUNT)
         return field_infos[index].flags;
-    else /* status */
+    else /* status, sm_info */
         return 0;
 }
 

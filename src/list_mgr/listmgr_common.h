@@ -202,68 +202,68 @@ static inline void *dup_value(db_type_t db_type, db_type_u uval)
     return ptr;
 }
 
-/* precomputed masks for testing attr sets efficiently */
-extern uint64_t  main_attr_set;
-extern uint64_t  names_attr_set;
-extern uint64_t  annex_attr_set;
-extern uint64_t  gen_attr_set;
-extern uint64_t  stripe_attr_set;
-extern uint64_t  dir_attr_set;
-extern uint64_t  slink_attr_set;
-extern uint64_t  acct_attr_set;
-extern uint64_t  acct_pk_attr_set;
-extern uint64_t  softrm_attr_set;
-
-/* extern int     readonly_attr_set; => moved to listmgr.h */
+/** precomputed masks for testing attr sets efficiently.
+ */
+extern attr_mask_t  main_attr_set;
+extern attr_mask_t  names_attr_set;
+extern attr_mask_t  annex_attr_set;
+extern attr_mask_t  gen_attr_set;
+extern attr_mask_t  stripe_attr_set;
+extern attr_mask_t  dir_attr_set;
+extern attr_mask_t  slink_attr_set;
+extern attr_mask_t  acct_attr_set;
+extern attr_mask_t  acct_pk_attr_set;
+extern attr_mask_t  softrm_attr_set;
+extern attr_mask_t  readonly_attr_set;
 
 void           init_attrset_masks(const lmgr_config_t *lmgr_config);
 
-/** return the sub mask of main fields in attr_mask */
-static inline uint64_t main_fields(uint64_t attr_mask)
+/** indicate if there are main fields in attr_mask */
+static inline bool main_fields(attr_mask_t attr_mask)
 {
-    return attr_mask & main_attr_set;
+    return !attr_mask_is_null(attr_mask_and(&attr_mask, &main_attr_set));
 }
 
-/** return the sub mask of name fields in attr_mask */
-static inline uint64_t names_fields(uint64_t attr_mask)
+/** indicate if there name fields in attr_mask */
+static inline bool names_fields(attr_mask_t attr_mask)
 {
-    return attr_mask & names_attr_set;
+    return !attr_mask_is_null(attr_mask_and(&attr_mask, &names_attr_set));
 }
 
-/** return the sub mask of annex fields in attr_mask */
-static inline uint64_t annex_fields(uint64_t attr_mask)
+/** indicate if there are name field annex fields in attr_mask */
+static inline bool annex_fields(attr_mask_t attr_mask)
 {
-    return attr_mask & annex_attr_set;
+    return !attr_mask_is_null(attr_mask_and(&attr_mask, &annex_attr_set));
 }
 
 /** return the sub mask of generated fields in attr_mask */
-static inline uint64_t gen_fields(uint64_t attr_mask)
+static inline attr_mask_t gen_fields(attr_mask_t attr_mask)
 {
-    return attr_mask & gen_attr_set;
+    return attr_mask_and(&attr_mask, &gen_attr_set);
 }
 
-/** return the sub mask of stripe fields in attr_mask */
-static inline uint64_t stripe_fields(uint64_t attr_mask)
+/**  ndicate if there are  stripe fields in attr_mask */
+static inline bool stripe_fields(attr_mask_t attr_mask)
 {
-    return attr_mask & stripe_attr_set;
+    return !attr_mask_is_null(attr_mask_and(&attr_mask, &stripe_attr_set));
 }
 
-/** return the sub mask of readonly fields in attr_mask */
-static inline uint64_t readonly_fields(uint64_t attr_mask)
+/** indicate if there are readonly fields in attr_mask */
+static inline bool readonly_fields(attr_mask_t attr_mask)
 {
-    return attr_mask & readonly_attr_set;
+    return !attr_mask_is_null(attr_mask_and(&attr_mask, &readonly_attr_set));
 }
 
-/** return the sub mask of directory specific attributes in attr_mask */
-static inline uint64_t dirattr_fields(uint64_t attr_mask)
+/** indicate if there are directory specific attributes in attr_mask */
+static inline bool dirattr_fields(attr_mask_t attr_mask)
 {
-    return attr_mask & dir_attr_set;
+    return !attr_mask_is_null(attr_mask_and(&attr_mask, &dir_attr_set));
 }
 
 /** return the sub mask of symlink specific attributes in attr_mask */
-static inline uint64_t slinkattr_fields(uint64_t attr_mask)
+static inline attr_mask_t slinkattr_fields(attr_mask_t attr_mask)
 {
-    return attr_mask & slink_attr_set;
+    return attr_mask_and(&attr_mask, &slink_attr_set);
 }
 
 /**
@@ -272,9 +272,7 @@ static inline uint64_t slinkattr_fields(uint64_t attr_mask)
  */
 static inline bool is_acct_field(unsigned int attr_index)
 {
-    assert(attr_index < sizeof(acct_attr_set) * CHAR_BIT);
-
-    return ((1LL << attr_index) & acct_attr_set);
+    return attr_mask_test_index(&acct_attr_set, attr_index);
 }
 
 /**
@@ -283,9 +281,7 @@ static inline bool is_acct_field(unsigned int attr_index)
  */
 static inline bool is_acct_pk(unsigned int attr_index)
 {
-    assert(attr_index < sizeof(acct_pk_attr_set) * CHAR_BIT);
-
-    return ((1LL << attr_index) & acct_pk_attr_set);
+    return attr_mask_test_index(&acct_pk_attr_set, attr_index);
 }
 
 /**
@@ -294,9 +290,7 @@ static inline bool is_acct_pk(unsigned int attr_index)
  */
 static inline bool is_softrm_field(unsigned int attr_index)
 {
-    assert(attr_index < sizeof(softrm_attr_set) * CHAR_BIT);
-
-    return ((1LL << attr_index) & softrm_attr_set);
+    return attr_mask_test_index(&softrm_attr_set, attr_index);
 }
 
 /* ------------ */
@@ -304,13 +298,12 @@ static inline bool is_softrm_field(unsigned int attr_index)
 /** indicate if the attribute is a status field */
 static inline bool is_status_field(unsigned int attr_index)
 {
-    return ((attr_index >= ATTR_COUNT) &&
-              (attr_index < ATTR_COUNT + sm_inst_count));
+    return attr_index & ATTR_INDEX_FLG_STATUS;
 }
 
 static inline bool is_sm_info_field(unsigned int attr_index)
 {
-    return (attr_index >= ATTR_COUNT + sm_inst_count);
+    return attr_index & ATTR_INDEX_FLG_SMINFO;
 }
 
 /** check if one of the given flags is set for the given field */
@@ -447,21 +440,22 @@ typedef enum {
     SUBSTRACT
 } operation_type;
 
-void           add_source_fields_for_gen(uint64_t *attr_mask);
+void           add_source_fields_for_gen(uint32_t *std_mask);
 void           generate_fields( attr_set_t * p_set );
 
 int parse_entry_id(lmgr_t *p_mgr, const char *str, PK_PARG_T p_pk, entry_id_t *p_id);
 
-int            attrmask2fieldlist(GString *str, uint64_t attr_mask,
+int            attrmask2fieldlist(GString *str, attr_mask_t attr_mask,
                                   table_enum table, bool leading_comma,
-                                  bool for_update, char *prefix, char *suffix);
+                                  bool for_update, const char *prefix,
+                                  const char *suffix);
 
-int            attrmask2fieldcomparison(GString *str, uint64_t attr_mask,
+int            attrmask2fieldcomparison(GString *str, attr_mask_t attr_mask,
                                   table_enum table, const char *left_prefix,
                                   const char *right_prefix,
                                   const char *comparator, const char *separator);
 
-int            attrmask2fieldoperation(GString *str, uint64_t attr_mask,
+int            attrmask2fieldoperation(GString *str, attr_mask_t attr_mask,
                                        table_enum table, const char *prefix,
                                        operation_type operation);
 
@@ -565,41 +559,43 @@ int lmgr_set_var(db_conn_t *pconn, const char *varname, const char *value);
 int fullpath_attr2db(const char *attr, char *db);
 void fullpath_db2attr(const char *db, char *attr);
 
-static inline uint64_t sum_masks(attr_set_t **p_attrs, unsigned int count,
-                                 uint64_t t_mask)
+static inline attr_mask_t sum_masks(attr_set_t **p_attrs, unsigned int count,
+                                    attr_mask_t t_mask)
 {
-    uint64_t m = 0;
+    attr_mask_t sum = {0};
     unsigned int i;
 
     for (i = 0; i < count; i++)
     {
-        m |= (p_attrs[i]->attr_mask & t_mask);
+        attr_mask_t filtered = attr_mask_and(&p_attrs[i]->attr_mask, &t_mask);
+
+        sum = attr_mask_or(&sum, &filtered);
     }
-    return m;
+    return sum;
 }
 
 void separated_db2list_inplace(char *list);
 
-static inline const char *field_name(int index)
+static inline const char *field_name(unsigned int index)
 {
-    if (index < ATTR_COUNT)
+    if (is_std_attr(index))
         return field_infos[index].field_name;
-    else if (index < ATTR_COUNT + sm_inst_count)/* status */
-        return get_sm_instance(index - ATTR_COUNT)->db_field;
-    else if (index < ATTR_COUNT + sm_inst_count + sm_attr_count) /* specific SM info */
-        return sm_attr_info[index - ATTR_COUNT - sm_inst_count].db_attr_name;
+    else if (is_status(index))
+        return get_sm_instance(attr2status_index(index))->db_field;
+    else if (is_sm_info(index))
+        return sm_attr_info[attr2sminfo_index(index)].db_attr_name;
     else
         return NULL;
 }
 
-static inline db_type_t field_type(int index)
+static inline db_type_t field_type(unsigned int index)
 {
-    if (index < ATTR_COUNT)
+    if (is_std_attr(index))
         return field_infos[index].db_type;
-    else if (index < ATTR_COUNT + sm_inst_count)/* status */
+    else if (is_status(index))
         return DB_TEXT;
-    else if (index < ATTR_COUNT + sm_inst_count + sm_attr_count) /* specific SM info */
-        return sm_attr_info[index - ATTR_COUNT - sm_inst_count].def->db_type;
+    else if (is_sm_info(index))
+        return sm_attr_info[attr2sminfo_index(index)].def->db_type;
     else
         RBH_BUG("Unexpected field type");
 }

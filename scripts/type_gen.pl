@@ -157,6 +157,10 @@ foreach $index (sort {0+$a <=> 0+$b}  keys %attrlist )
 print OUTPUT "\n";
 print OUTPUT "#define ATTR_COUNT ".$next_index."\n";
 print OUTPUT "\n";
+print OUTPUT "#if ATTR_COUNT > 32\n";
+print OUTPUT "#error \"Standard attribute index must fit in a 32bits mask\"\n";
+print OUTPUT "#endif\n";
+print OUTPUT "\n";
 foreach $index (sort {0+$a <=> 0+$b}  keys %attrlist )
 {
 #        my $mask_val = 1<<$index;

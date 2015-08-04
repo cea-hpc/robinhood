@@ -44,7 +44,7 @@ static int  EntryProc_batch_apply(struct entry_proc_op_t **, int, lmgr_t *);
 static int  EntryProc_report_rm( struct entry_proc_op_t *, lmgr_t * );
 
 /* forward declaration to check batchable operations for db_apply stage */
-static bool dbop_is_batchable(struct entry_proc_op_t *, struct entry_proc_op_t *, uint64_t *);
+static bool dbop_is_batchable(struct entry_proc_op_t *, struct entry_proc_op_t *, attr_mask_t *);
 
 /* pipeline stages */
 enum {
@@ -166,9 +166,10 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
     int      rc = 0;
     int      next_stage = -1; /* -1 = skip */
-    uint64_t attr_allow_cached = 0;
-    uint64_t attr_need_fresh = 0;
-    uint64_t status_scope;
+    attr_mask_t attr_allow_cached = null_mask;
+    attr_mask_t attr_need_fresh = null_mask;
+    uint32_t status_scope; /* status mask only */
+    attr_mask_t tmp;
 
     const pipeline_stage_t *stage_info =
         &entry_proc_pipeline[p_op->pipeline_stage];
@@ -179,28 +180,30 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
     /* XXX also retrieve needed attributes to check the scope? */
 
-    p_op->db_attr_need |= diff_mask;
-    /* retrieve missing attributes for diff */
-    p_op->fs_attr_need |= (diff_mask & ~p_op->fs_attrs.attr_mask);
+    /* get diff attributes from DB and FS (to allow comparison) */
+    p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &diff_mask);
+
+    tmp = attr_mask_and_not(&diff_mask, &p_op->fs_attrs.attr_mask);
+    p_op->fs_attr_need = attr_mask_or(&p_op->fs_attr_need, &tmp);
 
     if (entry_proc_conf.detect_fake_mtime)
-         p_op->db_attr_need |= ATTR_MASK_creation_time;
+        attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_creation_time);
 
     attr_allow_cached = attrs_for_status_mask(status_scope, false);
     attr_need_fresh = attrs_for_status_mask(status_scope, true);
     /* XXX check if entry is in policy scope? */
 
     /* what must be retrieved from DB: */
-    p_op->db_attr_need |= (attr_allow_cached
-                           & ~p_op->fs_attrs.attr_mask);
-    p_op->db_attr_need |= (entry_proc_conf.alert_attr_mask
-                           & ~p_op->fs_attrs.attr_mask);
+    tmp = attr_mask_and_not(&attr_allow_cached, &p_op->fs_attrs.attr_mask);
+    p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
+    tmp = attr_mask_and_not(&entry_proc_conf.alert_attr_mask, &p_op->fs_attrs.attr_mask);
+    p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
 
     /* no dircount for non-dirs */
     if (ATTR_MASK_TEST(&p_op->fs_attrs, type) &&
         !strcmp(ATTR(&p_op->fs_attrs, type), STR_TYPE_DIR))
     {
-        p_op->db_attr_need &= ~ATTR_MASK_dircount;
+        attr_mask_unset_index(&p_op->db_attr_need, ATTR_INDEX_dircount);
     }
 
     /* no readlink for non symlinks */
@@ -208,15 +211,16 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     {
         if (!strcmp(ATTR(&p_op->fs_attrs, type), STR_TYPE_LINK))
         {
-            p_op->db_attr_need |= ATTR_MASK_link; /* check if it is known */
+            attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_link); /* check if it is known */
             /* no stripe for symlinks */
-            p_op->db_attr_need &= ~ (ATTR_MASK_stripe_info|ATTR_MASK_stripe_items);
+            attr_mask_unset_index(&p_op->db_attr_need, ATTR_INDEX_stripe_info);
+            attr_mask_unset_index(&p_op->db_attr_need, ATTR_INDEX_stripe_items);
         }
         else
-            p_op->db_attr_need &= ~ATTR_MASK_link;
+            attr_mask_unset_index(&p_op->db_attr_need, ATTR_INDEX_link);
     }
 
-    if (p_op->db_attr_need)
+    if (!attr_mask_is_null(p_op->db_attr_need))
     {
         p_op->db_attrs.attr_mask = p_op->db_attr_need;
         rc = ListMgr_Get(lmgr, &p_op->entry_id, &p_op->db_attrs);
@@ -247,8 +251,9 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
     /* get status for all policies with a matching scope */
     add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true,
-                             &p_op->fs_attr_need);
-    p_op->fs_attr_need |= (attr_need_fresh & ~ p_op->fs_attrs.attr_mask);
+                             &p_op->fs_attr_need.status);
+    tmp = attr_mask_and_not(&attr_need_fresh, &p_op->fs_attrs.attr_mask);
+    p_op->fs_attr_need = attr_mask_or(&p_op->fs_attr_need, &tmp);
 
     if ( !p_op->db_exists )
     {
@@ -268,20 +273,23 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 /* only if it was not retrieved during the scan */
                 && !(ATTR_MASK_TEST(&p_op->fs_attrs, stripe_info)
                     && ATTR_MASK_TEST(&p_op->fs_attrs, stripe_items)))
-                p_op->fs_attr_need |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
+        {
+            attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_info);
+            attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_items);
+        }
 #endif
 
-            /* readlink for symlinks (if not already known) */
-            if (ATTR_MASK_TEST(&p_op->fs_attrs, type)
-                && !strcmp(ATTR( &p_op->fs_attrs, type ), STR_TYPE_LINK)
-                && !ATTR_MASK_TEST(&p_op->fs_attrs, link))
-            {
-                p_op->fs_attr_need |= ATTR_MASK_link;
-            }
-            else
-            {
-                p_op->fs_attr_need &= ~ATTR_MASK_link;
-            }
+        /* readlink for symlinks (if not already known) */
+        if (ATTR_MASK_TEST(&p_op->fs_attrs, type)
+            && !strcmp(ATTR( &p_op->fs_attrs, type ), STR_TYPE_LINK)
+            && !ATTR_MASK_TEST(&p_op->fs_attrs, link))
+        {
+            attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_link);
+        }
+        else
+        {
+            attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_link);
+        }
 
 #ifdef ATTR_INDEX_status /** @FIXME RBHv3 drop old-style status reference */
         if (ATTR_MASK_TEST(&p_op->fs_attrs, type)
@@ -334,22 +342,22 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         }
 #endif
 
-        if (diff_mask & ATTR_MASK_link)
+        if (attr_mask_test_index(&diff_mask, ATTR_INDEX_link))
         {
             if (ATTR_MASK_TEST(&p_op->fs_attrs, type)) /* likely set */
             {
                 if (strcmp(ATTR( &p_op->fs_attrs, type ), STR_TYPE_LINK))
                     /* non-link */
-                    p_op->fs_attr_need &= ~ATTR_MASK_link;
+                    attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_link);
                 else
                 {
                     /* link */
 #ifdef _LUSTRE
                     /* already known (in DB or FS) */
                     if (ATTR_FSorDB_TEST(p_op, link))
-                        p_op->fs_attr_need &= ~ATTR_MASK_link;
+                        attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_link);
                     else /* not known */
-                        p_op->fs_attr_need |= ATTR_MASK_link;
+                        attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_link);
 #else
                     /* For non-lustre filesystems, inodes may be recycled, so re-read link even if it is is DB */
                     if (ATTR_MASK_TEST(&p_op->fs_attrs, link))
@@ -363,13 +371,13 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
         /* get parent_id+name, if not set during scan (eg. for root directory) */
         if (!ATTR_MASK_TEST( &p_op->fs_attrs, name))
-            p_op->fs_attr_need |= ATTR_MASK_name;
+            attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_name);
         if (!ATTR_MASK_TEST( &p_op->fs_attrs, parent_id))
-            p_op->fs_attr_need |= ATTR_MASK_parent_id;
+            attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_parent_id);
 
 #ifdef _LUSTRE
         /* only if stripe is in diff_mask || db_apply */
-        if ((diff_mask & (ATTR_MASK_stripe_info | ATTR_MASK_stripe_items))
+        if ((diff_mask.std & (ATTR_MASK_stripe_info | ATTR_MASK_stripe_items))
             || (diff_arg->apply == APPLY_DB))
         {
             /* get stripe only for files */
@@ -428,11 +436,11 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         ", Getstatus(%s), Getstripe=%u",
          PFID(&p_op->entry_id), NEED_GETATTR(p_op)?1:0,
          NEED_GETPATH(p_op)?1:0, NEED_READLINK(p_op)?1:0,
-         name_status_mask(p_op->fs_attr_need, tmp_buf, sizeof(tmp_buf)),
+         name_status_mask(p_op->fs_attr_need.status, tmp_buf, sizeof(tmp_buf)),
          NEED_GETSTRIPE(p_op)?1:0);
 
     /* don't retrieve info which is already fresh */
-    p_op->fs_attr_need &= ~p_op->fs_attrs.attr_mask;
+    p_op->fs_attr_need = attr_mask_and_not(&p_op->fs_attr_need, &p_op->fs_attrs.attr_mask);
 
     /* scans: never need to get attr (provided in operation) */
 
@@ -454,7 +462,10 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if ( NEED_GETSTRIPE(p_op)
          && ATTR_FSorDB_TEST( p_op, type )
          && strcmp( ATTR_FSorDB( p_op, type), STR_TYPE_FILE ) != 0 )
-        p_op->fs_attr_need &= ~(ATTR_MASK_stripe_info | ATTR_MASK_stripe_items);
+    {
+        attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_info);
+        attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_items);
+    }
 
     if (NEED_GETSTRIPE(p_op))
     {
@@ -479,20 +490,20 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     {
         int i;
         sm_instance_t *smi;
-        attr_set_t merged_attrs = {0}; /* attrs from FS+DB */
-        attr_set_t new_attrs = {0}; /* attributes + status */
-
-        ATTR_MASK_INIT(&merged_attrs);
+        /** attrs from FS+DB */
+        attr_set_t merged_attrs = ATTR_SET_INIT;
+        /** attributes + status */
+        attr_set_t new_attrs = ATTR_SET_INIT;
 
         ListMgr_MergeAttrSets(&merged_attrs, &p_op->fs_attrs, 1);
         ListMgr_MergeAttrSets(&merged_attrs, &p_op->db_attrs, 0);
 
         /* match policy scopes according to newly set information:
          * remove needed status from mask and append the updated one. */
-        p_op->fs_attr_need &= ~all_status_mask();
+        p_op->fs_attr_need.status &= ~all_status_mask();
         /* FIXME this fails if scope attributes are missing */
         add_matching_scopes_mask(&p_op->entry_id, &merged_attrs, false,
-                                 &p_op->fs_attr_need);
+                                 &p_op->fs_attr_need.status);
 
         i = 0;
         while ((smi = get_sm_instance(i)) != NULL)
@@ -541,7 +552,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     /* readlink only for symlinks */
     if (NEED_READLINK(p_op) && ATTR_FSorDB_TEST(p_op, type)
         && strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_LINK) != 0)
-        p_op->fs_attr_need &= ~ATTR_MASK_link;
+        attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_link);
 
     if (NEED_READLINK(p_op))
     {
@@ -592,37 +603,41 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     /* Only keep fields that changed */
     if (p_op->db_op_type == OP_TYPE_UPDATE)
     {
-        uint64_t loc_diff_mask = ListMgr_WhatDiff(&p_op->fs_attrs, &p_op->db_attrs);
+        attr_mask_t tmp;
+        attr_mask_t loc_diff_mask = ListMgr_WhatDiff(&p_op->fs_attrs, &p_op->db_attrs);
 
         /* In scan mode, always keep md_update and path_update,
          * to avoid their cleaning at the end of the scan.
          * Also keep name and parent as they are keys in DNAMES table.
          */
-        uint64_t to_keep = ATTR_MASK_parent_id | ATTR_MASK_name;
+        attr_mask_t to_keep = {.std = ATTR_MASK_parent_id | ATTR_MASK_name, 0, 0LL };
 
         /* the mask to be displayed > diff_mask (include to_keep flags) */
-        uint64_t display_mask = diff_mask & loc_diff_mask;
+        attr_mask_t display_mask = attr_mask_and(&diff_mask, &loc_diff_mask);
 
         /* keep fullpath if parent or name changed (friendly display) */
-        if (loc_diff_mask & (ATTR_MASK_parent_id | ATTR_MASK_name)) {
-            to_keep |= ATTR_MASK_fullpath;
-            display_mask |= ATTR_MASK_fullpath;
+        if (loc_diff_mask.std & (ATTR_MASK_parent_id | ATTR_MASK_name)) {
+            to_keep.std |= ATTR_MASK_fullpath;
+            display_mask.std |= ATTR_MASK_fullpath;
         }
 #ifdef HAVE_CHANGELOGS
         if (!p_op->extra_info.is_changelog_record)
 #endif
-            to_keep |= (ATTR_MASK_md_update | ATTR_MASK_path_update);
+            to_keep.std |= (ATTR_MASK_md_update | ATTR_MASK_path_update);
 
         /* remove other unchanged attrs or attrs not in db mask */
-        p_op->fs_attrs.attr_mask &= (loc_diff_mask | to_keep | ~p_op->db_attrs.attr_mask);
+        tmp = attr_mask_or(&loc_diff_mask, &to_keep);
+        tmp = attr_mask_or_not(&tmp, &p_op->db_attrs.attr_mask);
+        p_op->fs_attrs.attr_mask = attr_mask_and(&p_op->fs_attrs.attr_mask, &tmp);
 
         /* nothing changed => noop */
-        if (p_op->fs_attrs.attr_mask == 0)
+        if (attr_mask_is_null(p_op->fs_attrs.attr_mask))
         {
             /* no op */
             p_op->db_op_type = OP_TYPE_NONE;
         }
-        else if ((loc_diff_mask & diff_mask) && (display_mask != 0))
+        else if (!attr_mask_is_null(attr_mask_and(&loc_diff_mask, &diff_mask))
+                 && !attr_mask_is_null(display_mask))
         {
             char attrchg[RBH_PATH_MAX] = "";
 
@@ -650,7 +665,7 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             }
         }
     }
-    else if (diff_mask)
+    else if (!attr_mask_is_null(diff_mask))
     {
         if (p_op->db_op_type == OP_TYPE_INSERT)
         {
@@ -697,7 +712,7 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     }
 
     if (diff_arg->apply == APPLY_DB)
-        p_op->fs_attrs.attr_mask &= ~readonly_attr_set;
+        attr_mask_unset_readonly(&p_op->fs_attrs.attr_mask);
 
     /* always go to APPLY step, at least to tag the entry */
     rc = EntryProcessor_Acknowledge(p_op, STAGE_APPLY, false);
@@ -709,7 +724,7 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
 /* forward declaration to check batchable operations for db_apply stage */
 static bool dbop_is_batchable(struct entry_proc_op_t *first, struct
-entry_proc_op_t *next, uint64_t *full_attr_mask)
+entry_proc_op_t *next, attr_mask_t *full_attr_mask)
 {
     /* batch nothing if not applying to DB */
     if ((diff_arg->apply != APPLY_DB) || (pipeline_flags & RUNFLG_DRY_RUN))
@@ -729,7 +744,7 @@ entry_proc_op_t *next, uint64_t *full_attr_mask)
      * the same or 0. Ask the list manager about that. */
     else if (lmgr_batch_compat(*full_attr_mask, next->fs_attrs.attr_mask))
     {
-        *full_attr_mask |= next->fs_attrs.attr_mask;
+        *full_attr_mask = attr_mask_or(full_attr_mask, &next->fs_attrs.attr_mask);
         return true;
     }
     else
@@ -788,9 +803,14 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         case OP_TYPE_SOFT_REMOVE:
             if (log_config.debug_level >= LVL_DEBUG) {
                 char buff[2*RBH_PATH_MAX];
-                PrintAttrs(buff, 2*RBH_PATH_MAX, &p_op->fs_attrs,
-                           ATTR_MASK_fullpath | ATTR_MASK_parent_id | ATTR_MASK_name
-                           | sm_softrm_mask(), true);
+                attr_mask_t tmp = null_mask;
+                attr_mask_t tmp2 = null_mask;
+
+                tmp.std = ATTR_MASK_fullpath | ATTR_MASK_parent_id | ATTR_MASK_name;
+                tmp2 = sm_softrm_mask();
+                tmp = attr_mask_or(&tmp, &tmp2);
+
+                PrintAttrs(buff, 2*RBH_PATH_MAX, &p_op->fs_attrs, tmp, true);
                 DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "SoftRemove("DFID",%s)",
                             PFID(&p_op->entry_id), buff);
             }
@@ -819,6 +839,7 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
     if (diff_arg->apply == APPLY_FS)
     {
+        attr_mask_t tmp;
 
         /* all changes must be reverted. So, insert=>rm, rm=>create, ... */
         /* FIXME as this step is parallel, how to manage file creation while
@@ -879,9 +900,11 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 }
                 break;
             case OP_TYPE_UPDATE:
+                tmp = attr_mask_and(&p_op->db_attrs.attr_mask, &p_op->fs_attrs.attr_mask);
+                tmp = attr_mask_and(&tmp, &diff_mask);
+
                 /*attributes to be changed: p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask & diff_mask */
-                rc = ApplyAttrs(&p_op->entry_id, &p_op->db_attrs, &p_op->fs_attrs,
-                                p_op->db_attrs.attr_mask & p_op->fs_attrs.attr_mask & diff_mask,
+                rc = ApplyAttrs(&p_op->entry_id, &p_op->db_attrs, &p_op->fs_attrs, tmp,
                                 pipeline_flags & RUNFLG_DRY_RUN);
                 break;
 
@@ -1002,7 +1025,7 @@ static int hsm_recover(lmgr_t * lmgr,
         case RS_NON_FILE:
         case RS_FILE_DELTA:
 
-            new_attrs.attr_mask &= ~readonly_attr_set;
+            attr_mask_unset_readonly(&new_attrs.attr_mask);
             rc = ListMgr_Replace(lmgr, p_id, p_oldattr, &new_id, &new_attrs,
                                  true, true);
             if (rc)
@@ -1129,7 +1152,7 @@ static int std_recover(lmgr_t * lmgr,
 #endif
 
     /* insert the new entry to the DB */
-    new_attrs.attr_mask &= ~readonly_attr_set;
+    attr_mask_unset_readonly(&new_attrs.attr_mask);
     rc = ListMgr_Replace(lmgr, p_id, p_oldattr, &new_id, &new_attrs,
                          true, true);
     if (rc)
@@ -1166,7 +1189,7 @@ static int EntryProc_report_rm(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
     rm_cb_func_t cb = NULL;
 
     /* callback func for diff display */
-    if (diff_mask)
+    if (!attr_mask_is_null(diff_mask))
         cb = no_tag_cb;
 
     /* If gc_entries or gc_names are not set,
@@ -1238,12 +1261,17 @@ static int EntryProc_report_rm(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
             }
             else
             {
-                int getattr_mask;
+                attr_mask_t getattr_mask = {0};
 
                 if (diff_arg->apply == APPLY_FS)
-                    getattr_mask = 0xFFFFFFFF; /* all possible info */
+                {
+                    /* all possible info */
+                    getattr_mask.std = ~0;
+                    getattr_mask.status = ~0;
+                    getattr_mask.sm_info = ~0LL;
+                }
                 else
-                    getattr_mask = ATTR_MASK_fullpath;
+                    getattr_mask.std = ATTR_MASK_fullpath;
 
                 attrs.attr_mask = getattr_mask;
                 while ((rc = ListMgr_GetNext(it, &id, &attrs )) == DB_SUCCESS)
@@ -1252,7 +1280,8 @@ static int EntryProc_report_rm(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
                     {
                         /* FS apply: reverse display */
                         char attrnew[RBH_PATH_MAX];
-                        PrintAttrs(attrnew, RBH_PATH_MAX, &attrs, 0, 1);
+
+                        PrintAttrs(attrnew, RBH_PATH_MAX, &attrs, null_mask, 1);
 
                         printf("++"DFID" %s\n", PFID(&id), attrnew);
                         /* create or recover it (even without HSM mode) */

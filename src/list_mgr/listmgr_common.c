@@ -221,149 +221,154 @@ static inline table_enum field2table(int i)
         return T_NONE;
 }
 
-/* precomputed masks for testing attr sets efficiently */
-uint64_t      main_attr_set = 0;
-uint64_t      names_attr_set = 0;
-uint64_t      annex_attr_set = 0;
-uint64_t      stripe_attr_set = 0;
-uint64_t      dir_attr_set = 0;
-uint64_t      slink_attr_set = 0;
-uint64_t      readonly_attr_set = 0;
-uint64_t      gen_attr_set = 0;
-uint64_t      acct_attr_set = 0;
-uint64_t      acct_pk_attr_set = 0;
-uint64_t      softrm_attr_set = 0;
+/* precomputed masks for testing attr sets efficiently (global = zero initially) */
+attr_mask_t  main_attr_set = {0};
+attr_mask_t  names_attr_set ={0};
+attr_mask_t  annex_attr_set = {0};
+attr_mask_t  gen_attr_set ={0};
+attr_mask_t  stripe_attr_set ={0};
+attr_mask_t  dir_attr_set ={0};
+attr_mask_t  slink_attr_set ={0};
+attr_mask_t  acct_attr_set = {0};
+attr_mask_t  acct_pk_attr_set = {0};
+attr_mask_t  softrm_attr_set = {0};
+attr_mask_t  readonly_attr_set = {0};
 
 void init_attrset_masks(const lmgr_config_t *lmgr_config)
 {
-    int            i;
-    uint64_t       mask = 1;
+    int            i, cookie;
+    attr_mask_t    tmp_mask;
 
-    main_attr_set = 0;
-    names_attr_set = 0;
-    annex_attr_set = 0;
-    gen_attr_set = 0;
-    stripe_attr_set = 0;
-    readonly_attr_set = 0;
-    acct_pk_attr_set = 0;
-    acct_attr_set = 0;
-    dir_attr_set = 0;
-    slink_attr_set = 0;
-    softrm_attr_set = 0;
+    main_attr_set = null_mask;
+    names_attr_set = null_mask;
+    annex_attr_set = null_mask;
+    gen_attr_set = null_mask;
+    stripe_attr_set = null_mask;
+    dir_attr_set = null_mask;
+    slink_attr_set = null_mask;
+    acct_attr_set = null_mask;
+    acct_pk_attr_set = null_mask;
+    softrm_attr_set = null_mask;
+    readonly_attr_set = null_mask;
 
     if (lmgr_config->acct)
     {
-        acct_pk_attr_set |= ATTR_MASK_owner;
-        acct_pk_attr_set |= ATTR_MASK_gr_name;
-        acct_pk_attr_set |= ATTR_MASK_type;
+        acct_pk_attr_set.std |= ATTR_MASK_owner;
+        acct_pk_attr_set.std |= ATTR_MASK_gr_name;
+        acct_pk_attr_set.std |= ATTR_MASK_type;
     }
     /** @TODO RBHv3: implement status accounting.
      * /!\ as a given status can be NULL, it can't be part of the PK.
      * Then, is it possible to group by it?
      */
-    acct_pk_attr_set |= all_status_mask();
+    acct_pk_attr_set.status |= all_status_mask();
 
     /* The following fields must be in SOFT_RM table:
      * Posix attributes + fullpath + fields with REMOVED flag
      * + fields indicated by status managers for SOFT_RM.
      */
-    softrm_attr_set |= POSIX_ATTR_MASK | ATTR_MASK_fullpath | sm_softrm_fields();
+    softrm_attr_set.std |= POSIX_ATTR_MASK | ATTR_MASK_fullpath;
+    tmp_mask = sm_softrm_fields();
+    softrm_attr_set = attr_mask_or(&softrm_attr_set, &tmp_mask);
 
     /* size: also used for size range stats */
-    acct_attr_set |= ATTR_MASK_size | ATTR_MASK_blocks ;
+    acct_attr_set.std |= ATTR_MASK_size | ATTR_MASK_blocks ;
 
-    for (i = 0; i < ALL_ATTR_COUNT; i++, mask <<= 1)
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         /* is it read only ? */
         if (is_read_only_field(i))
-            readonly_attr_set |= mask;
+            attr_mask_set_index(&readonly_attr_set, i);
 
         /* (fields with remove flag) other flags set previously */
         if (test_field_flag(i, REMOVED))
-            softrm_attr_set |= mask;
+            attr_mask_set_index(&softrm_attr_set, i);
 
         /* The ID field is both in NAMES and MAIN. (XXX not an attribute) */
         if (is_names_field(i))
-            names_attr_set |= mask;
+            attr_mask_set_index(&names_attr_set, i);
 
         if (is_main_field(i))
-            main_attr_set |= mask;
+            attr_mask_set_index(&main_attr_set, i);
         else if (is_gen_field(i))
-            gen_attr_set |= mask;
+            attr_mask_set_index(&gen_attr_set, i);
         else if (is_annex_field(i))
-            annex_attr_set |= mask;
+            attr_mask_set_index(&annex_attr_set, i);
         else if (is_stripe_field(i))
-            stripe_attr_set |= mask;
+            attr_mask_set_index(&stripe_attr_set, i);
         else if (is_dirattr(i))
-            dir_attr_set |= mask;
+            attr_mask_set_index(&dir_attr_set, i);
 
         /* not mutually exclusive with previous */
         if (is_slinkattr(i))
-            slink_attr_set |= mask;
+            attr_mask_set_index(&slink_attr_set, i);
     }
 }
 
 
 /**
  * Add source info of generated fields to attr mask.
+ * only apply to std attrs.
  */
-void add_source_fields_for_gen(uint64_t * attr_mask)
+void add_source_fields_for_gen(uint32_t *std_mask)
 {
     int i;
-    uint64_t mask = 1;
+    uint32_t mask = 1;
 
     /* add attr mask for source info of generated fields */
     for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
     {
-        if ( ((*attr_mask) & mask)
+        if ( ((*std_mask) & mask)
              && ((field_infos[i].flags & GENERATED) || (field_infos[i].flags & DIR_ATTR))
              && (field_infos[i].gen_index != -1) )
         {
-           (*attr_mask) |= (1LL << field_infos[i].gen_index);
+           (*std_mask) |= (1 << field_infos[i].gen_index);
         }
     }
 }
 
 /** generate fields */
-void           generate_fields( attr_set_t * p_set )
+void generate_fields(attr_set_t *p_set)
 {
     int i;
-    uint64_t mask = 1;
+    uint32_t mask = 1;
 
-    for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
+    /* only work on standard attributes */
+    for (i = 0; i < ATTR_COUNT; i++, mask <<= 1)
     {
-        if ( ( p_set->attr_mask & mask) && (field_infos[i].flags & GENERATED) )
+        if ((p_set->attr_mask.std & mask) && (field_infos[i].flags & GENERATED))
         {
            void * src_data;
            void * tgt_data;
 
-           if ( field_infos[i].gen_func == NULL )
+           if (field_infos[i].gen_func == NULL)
            {
                /* cannot generate a field without a function */
-               DisplayLog( LVL_DEBUG, LISTMGR_TAG,
+               DisplayLog(LVL_DEBUG, LISTMGR_TAG,
                            "generated field without generation function: %s",
-                           field_infos[i].field_name );
-               p_set->attr_mask &= ~mask;
+                           field_infos[i].field_name);
+               p_set->attr_mask.std &= ~mask;
                continue;
            }
 
            /* is it generated from another field ? */
-           if ( field_infos[i].gen_index != -1 )
+           if (field_infos[i].gen_index != -1)
            {
-                uint64_t src_mask = (1LL << field_infos[i].gen_index);
+                uint32_t src_mask = (1 << field_infos[i].gen_index);
                 /* is source set? */
-                if ( (p_set->attr_mask & src_mask) == 0 )
+                if ((p_set->attr_mask.std & src_mask) == 0)
                 {
-                    DisplayLog( LVL_FULL, LISTMGR_TAG,
-                                "Source info '%s' of generated field '%s' is not set "
-                                "in the database",
-                                field_infos[field_infos[i].gen_index].field_name,
-                                field_infos[i].field_name );
-                    p_set->attr_mask &= ~mask;
+                    DisplayLog(LVL_FULL, LISTMGR_TAG,
+                               "Source info '%s' of generated field '%s' is not set "
+                               "in the database",
+                               field_infos[field_infos[i].gen_index].field_name,
+                               field_infos[i].field_name);
+                    p_set->attr_mask.std &= ~mask;
                     continue;
                 }
 
-                src_data = ( char * ) &p_set->attr_values + field_infos[field_infos[i].gen_index].offset;
+                src_data = (char *) &p_set->attr_values + field_infos[field_infos[i].gen_index].offset;
            }
            else
            {
@@ -371,50 +376,49 @@ void           generate_fields( attr_set_t * p_set )
                 src_data = NULL;
            }
 
-           tgt_data = ( char * ) &p_set->attr_values + field_infos[i].offset;
+           tgt_data = (char *) &p_set->attr_values + field_infos[i].offset;
 
-           if ( field_infos[i].gen_func( tgt_data, src_data ) != 0 )
-                p_set->attr_mask &= ~mask;
+           if (field_infos[i].gen_func(tgt_data, src_data) != 0)
+                p_set->attr_mask.std &= ~mask;
            else
-                DisplayLog( LVL_FULL, LISTMGR_TAG, "Field '%s' auto-generated",
-                            field_infos[i].field_name );
+                DisplayLog(LVL_FULL, LISTMGR_TAG, "Field '%s' auto-generated",
+                            field_infos[i].field_name);
 
         } /* end if generated */
     } /* end for attr list */
-
 }
 
 /**
  * Generate fields automatically from already existing fields,
  * and check the target mask is satisfied.
  */
-int  ListMgr_GenerateFields(attr_set_t *p_set, uint64_t target_mask)
+int ListMgr_GenerateFields(attr_set_t *p_set, attr_mask_t target_mask)
 {
-    uint64_t save_mask = p_set->attr_mask;
+    attr_mask_t save_mask = p_set->attr_mask;
 
     /* are there generated fields that are not set for the target */
-    if ( target_mask & ~p_set->attr_mask & gen_attr_set )
+    if (target_mask.std & ~p_set->attr_mask.std & gen_attr_set.std)
     {
         /* try to generate missing fields */
-        p_set->attr_mask |= (target_mask & ~p_set->attr_mask & gen_attr_set);
-        generate_fields( p_set );
+        p_set->attr_mask.std |= (target_mask.std & ~p_set->attr_mask.std
+                                 & gen_attr_set.std);
+        generate_fields(p_set);
 
         /* still missing? */
-        if ( target_mask & ~p_set->attr_mask )
+        if (target_mask.std & ~p_set->attr_mask.std)
         {
-               DisplayLog(LVL_VERB, LISTMGR_TAG, "Field still missing (can't be generated): %#"PRIX64,
-                          target_mask & ~p_set->attr_mask);
+               DisplayLog(LVL_VERB, LISTMGR_TAG, "Field still missing (can't be generated): %#"PRIX32,
+                          target_mask.std & ~p_set->attr_mask.std);
                /* never leave the function with less info than when entering! */
-               p_set->attr_mask |= save_mask;
+               p_set->attr_mask.std |= save_mask.std;
                return DB_ATTR_MISSING;
         }
     }
 
     /* never leave the function with less info than when entering! */
-    p_set->attr_mask |= save_mask;
+    p_set->attr_mask.std |= save_mask.std;
 
     return DB_SUCCESS;
-
 }
 
 
@@ -463,6 +467,29 @@ static void print_func_call(GString *str, int func_index, const char *prefix)
     g_string_append(str, ")");
 }
 
+/** test if there are read only fields in the given mask
+ * and print an error in this case.
+ * @retval false if not.
+ * @retval true if some fields in attr_mask are read only.
+ */
+
+static bool _check_read_only_fields(const attr_mask_t *mask,
+                                    const char *file_name,
+                                    const char *func_name)
+{
+    attr_mask_t tmp;
+
+    if (!readonly_fields(*mask))
+        return false;
+
+    tmp = attr_mask_and(mask, &readonly_attr_set);
+    DisplayLog(LVL_CRIT, LISTMGR_TAG, "Error in %s:%s: attributes "DMASK
+               " are read-only", file_name, func_name, PMASK(&tmp));
+    return true;
+}
+
+#define check_read_only_fields(_m) _check_read_only_fields(_m, __FILE__, __func__)
+
 /**
  * @param table T_MAIN, T_ANNEX, T_ACCT
  * @param prefix
@@ -470,12 +497,12 @@ static void print_func_call(GString *str, int func_index, const char *prefix)
  * @param separator
  * @return nbr of fields
  */
-int attrmask2fieldlist(GString *str, uint64_t attr_mask, table_enum table, bool leading_comma,
-                       bool for_update, char *prefix, char *suffix)
+int attrmask2fieldlist(GString *str, attr_mask_t attr_mask, table_enum table,
+                       bool leading_comma, bool for_update,
+                       const char *prefix, const char *suffix)
 {
-    int            i;
+    int            i, cookie;
     unsigned int   nbfields = 0;
-    uint64_t       mask = 1;
     char          *for_update_str = "";
 
     /* optim: exit immediatly if no field matches */
@@ -485,12 +512,8 @@ int attrmask2fieldlist(GString *str, uint64_t attr_mask, table_enum table, bool 
         return 0;
     if ((table == T_DNAMES) && !names_fields(attr_mask))
         return 0;
-    if (for_update && (readonly_fields(attr_mask) != 0))
-    {
-        DisplayLog(LVL_CRIT, LISTMGR_TAG, "Error in %s:%s: attributes %#"PRIX64" are read-only",
-                   __FILE__, __FUNCTION__, readonly_fields(attr_mask));
+    if (for_update && check_read_only_fields(&attr_mask))
         return -DB_READ_ONLY_ATTR;
-    }
 
     if (for_update)
         for_update_str = "=?";
@@ -498,9 +521,10 @@ int attrmask2fieldlist(GString *str, uint64_t attr_mask, table_enum table, bool 
     if ((table == T_STRIPE_INFO) || (table == T_STRIPE_ITEMS))
         return -DB_NOT_SUPPORTED;
 
-    for (i = 0; i < ALL_ATTR_COUNT; i++, mask <<= 1)
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
-        if (attr_mask & mask)
+        if (attr_mask_test_index(&attr_mask, i))
         {
             if (match_table(table, i))
             {
@@ -536,11 +560,11 @@ int attrmask2fieldlist(GString *str, uint64_t attr_mask, table_enum table, bool 
  * @param operation
  * @return nbr of fields
  */
-int attrmask2fieldoperation(GString *str, uint64_t attr_mask, table_enum table,
-                            const char *prefix, operation_type operation)
+int attrmask2fieldoperation(GString *str, attr_mask_t attr_mask,
+                            table_enum table, const char *prefix,
+                            operation_type operation)
 {
-    int i;
-    uint64_t mask = 1;
+    int i, cookie;
     unsigned int  nbfields = 0;
     char operator;
 
@@ -549,9 +573,10 @@ int attrmask2fieldoperation(GString *str, uint64_t attr_mask, table_enum table,
     else
         operator = '+';
 
-    for (i = 0; i < ATTR_COUNT; i++, mask <<= 1)
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
-        if (attr_mask & mask)
+        if (attr_mask_test_index(&attr_mask, i))
         {
             if (match_table(table, i))
             {
@@ -576,17 +601,18 @@ int attrmask2fieldoperation(GString *str, uint64_t attr_mask, table_enum table,
  * @param separator
  * @return nbr of fields
  */
-int attrmask2fieldcomparison(GString *str, uint64_t attr_mask, table_enum table,
-                             const char *left_prefix, const char *right_prefix,
+int attrmask2fieldcomparison(GString *str, attr_mask_t attr_mask,
+                             table_enum table, const char *left_prefix,
+                             const char *right_prefix,
                              const char *comparator, const char * separator)
 {
-    int i;
-    uint64_t mask = 1;
+    int i, cookie;
     unsigned int  nbfields = 0;
 
-    for (i = 0; i < ALL_ATTR_COUNT; i++, mask <<= 1)
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
-        if (attr_mask & mask)
+        if (attr_mask_test_index(&attr_mask, i))
         {
             if (match_table(table, i))
             {
@@ -602,7 +628,7 @@ int attrmask2fieldcomparison(GString *str, uint64_t attr_mask, table_enum table,
 }
 
 static void print_attr_value(lmgr_t *p_mgr, GString *str, const attr_set_t *p_set,
-                             int attr_index)
+                             unsigned int attr_index)
 {
     char tmp[1024];
     db_type_u typeu;
@@ -622,18 +648,21 @@ static void print_attr_value(lmgr_t *p_mgr, GString *str, const attr_set_t *p_se
     }
     else if (is_status_field(attr_index))
     {
-        ASSIGN_UNION(typeu, DB_TEXT, p_set->attr_values.sm_status[attr_index - ATTR_COUNT]);
+        unsigned int status_idx = attr2status_index(attr_index);
+
+        ASSIGN_UNION(typeu, DB_TEXT,
+             p_set->attr_values.sm_status[status_idx]);
         t = DB_TEXT;
     }
     else if (is_sm_info_field(attr_index))
     {
-        int info_idx = attr_index - (ATTR_COUNT + sm_inst_count);
+        unsigned int info_idx = attr2sminfo_index(attr_index);
 
         t = sm_attr_info[info_idx].def->db_type;
         ASSIGN_UNION(typeu, t, (char *)p_set->attr_values.sm_info[info_idx]);
     }
     else
-        RBH_BUG("Attribute index exceeds max value ALL_ATTR_COUNT");
+        RBH_BUG("Attribute index is not in a valid range");
 
     printdbtype(p_mgr, str, t, &typeu);
 }
@@ -647,16 +676,16 @@ static void print_attr_value(lmgr_t *p_mgr, GString *str, const attr_set_t *p_se
 int attrset2valuelist(lmgr_t *p_mgr, GString *str, const attr_set_t *p_set,
                       table_enum table, bool leading_coma)
 {
-    int            i;
+    int            i, cookie;
     unsigned int   nbfields = 0;
-    uint64_t       mask = 1;
 
     if ((table == T_STRIPE_INFO) || (table == T_STRIPE_ITEMS))
         return -DB_NOT_SUPPORTED;
 
-    for (i = 0; i < ALL_ATTR_COUNT; i++, mask <<= 1)
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
-        if (p_set->attr_mask & mask)
+        if (attr_mask_test_index(&p_set->attr_mask, i))
         {
             if (match_table(table, i))
             {
@@ -678,23 +707,19 @@ int attrset2valuelist(lmgr_t *p_mgr, GString *str, const attr_set_t *p_set,
 int attrset2updatelist(lmgr_t *p_mgr, GString *str, const attr_set_t *p_set,
                        table_enum table, bool leading_coma, bool generic_value)
 {
-    int            i;
+    int            i, cookie;
     unsigned int   nbfields = 0;
-    uint64_t       mask = 1;
 
     if ((table == T_STRIPE_INFO) || (table == T_STRIPE_ITEMS))
         return -DB_NOT_SUPPORTED;
 
-    if (readonly_fields(p_set->attr_mask))
-    {
-        DisplayLog(LVL_CRIT, LISTMGR_TAG, "Error in %s:%s: attributes %#"PRIX64" are read-only",
-                   __FILE__, __FUNCTION__, readonly_fields(p_set->attr_mask));
+    if (check_read_only_fields(&p_set->attr_mask))
         return -DB_READ_ONLY_ATTR;
-    }
 
-    for (i = 0; i < ALL_ATTR_COUNT; i++, mask <<= 1)
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
-        if ((p_set->attr_mask & mask) && match_table(table, i))
+        if (attr_mask_test_index(&p_set->attr_mask, i) && match_table(table, i))
         {
             if (leading_coma || (nbfields > 0))
                 g_string_append(str, ",");
@@ -770,14 +795,14 @@ void fullpath_db2attr(const char *db, char *attr)
 int result2attrset( table_enum table, char **result_tab,
                     unsigned int res_count, attr_set_t * p_set )
 {
-    int            i;
+    int            i, cookie;
     unsigned int   nbfields = 0;
     db_type_u      typeu;
-    uint64_t       mask = 1;
 
-    for (i = 0; i < ALL_ATTR_COUNT; i++, mask <<= 1)
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
-        if ((p_set->attr_mask & mask) && match_table(table, i))
+        if (attr_mask_test_index(&p_set->attr_mask, i) && match_table(table, i))
         {
             if (log_config.debug_level >= LVL_FULL && result_tab != NULL)
             {
@@ -800,7 +825,7 @@ int result2attrset( table_enum table, char **result_tab,
                     || (result_tab[nbfields+2] == NULL))
                 {
                     /* must skip 3 columns in this case */
-                    p_set->attr_mask &= ~(1LL << i);
+                    attr_mask_unset_index(&p_set->attr_mask, i);
                     nbfields+=3;
                     continue;
                 }
@@ -816,7 +841,7 @@ int result2attrset( table_enum table, char **result_tab,
 #endif
             if ((result_tab == NULL) || (result_tab[nbfields] == NULL))
             {
-                p_set->attr_mask &= ~(1LL << i);
+                attr_mask_unset_index(&p_set->attr_mask, i);
                 nbfields++;
                 continue;
             }
@@ -826,7 +851,7 @@ int result2attrset( table_enum table, char **result_tab,
                            "Error: cannot parse field value '%s' (position %u) for %s",
                            result_tab[nbfields], nbfields, field_name(i));
                 RBH_BUG("DB value cannot be parsed: DB may be corrupted");
-                p_set->attr_mask &= ~(1LL << i);
+                attr_mask_unset_index(&p_set->attr_mask, i);
                 nbfields++;
                 continue;
             }
@@ -839,7 +864,7 @@ int result2attrset( table_enum table, char **result_tab,
             }
             else if (is_status_field(i))
             {
-                int status_idx = i - ATTR_COUNT;
+                unsigned int status_idx = attr2status_index(i);
 
                 /* allocate status array */
                 sm_status_ensure_alloc(&p_set->attr_values.sm_status);
@@ -849,11 +874,11 @@ int result2attrset( table_enum table, char **result_tab,
 
                 /* status = '' => not set */
                 if (p_set->attr_values.sm_status[status_idx] == NULL)
-                    p_set->attr_mask &= ~(1LL << i);
+                    attr_mask_unset_index(&p_set->attr_mask, i);
             }
             else if (is_sm_info_field(i))
             {
-                int info_idx = i - (ATTR_COUNT + sm_inst_count);
+                unsigned int info_idx = attr2sminfo_index(i);
 
                 /* allocate info array */
                 sm_info_ensure_alloc(&p_set->attr_values.sm_info);
@@ -864,7 +889,7 @@ int result2attrset( table_enum table, char **result_tab,
 
                 /* status = '' => not set */
                 if (p_set->attr_values.sm_info[info_idx] == NULL)
-                    p_set->attr_mask &= ~(1LL << i);
+                    attr_mask_unset_index(&p_set->attr_mask, i);
             }
             else if (is_sepdlist(i))
                 separated_db2list(typeu.val_str, ((char*)&p_set->attr_values + field_infos[i].offset),
@@ -1138,7 +1163,7 @@ static void attr2filter_field(GString *str, table_enum table,
         }
     }
     else if ((table == T_STRIPE_ITEMS || table == T_NONE)
-              && (field_infos[attr].db_type == DB_STRIPE_ITEMS))
+              && (field_type(attr) == DB_STRIPE_ITEMS))
     {
         if (prefix_table)
             g_string_append_printf(str, "%s.", STRIPE_ITEMS_TABLE);
@@ -1146,7 +1171,7 @@ static void attr2filter_field(GString *str, table_enum table,
         g_string_append(str, "ostidx");
     }
     else if ((table == T_STRIPE_INFO || table == T_NONE)
-              && (field_infos[attr].db_type == DB_STRIPE_INFO))
+              && (field_type(attr) == DB_STRIPE_INFO))
     {
         /* XXX Assume that the only possible filter here is on pool_name */
         if (prefix_table)
@@ -1274,7 +1299,7 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
                 nbfields++;
             }
             else if ((table == T_STRIPE_ITEMS || table == T_NONE)
-                      && (field_infos[index].db_type == DB_STRIPE_ITEMS))
+                      && (field_type(index) == DB_STRIPE_ITEMS))
             {
                 /* single value or a list? */
                 if (p_filter->filter_simple.filter_compar[i] == IN
@@ -1302,7 +1327,7 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
                 nbfields++;
             }
             else if ((table == T_STRIPE_INFO || table == T_NONE)
-                      && (field_infos[index].db_type == DB_STRIPE_INFO))
+                      && (field_type(index) == DB_STRIPE_INFO))
             {
                 g_string_append_printf(str, "%s'%s'",
                              compar2str(p_filter->filter_simple.filter_compar[i]),
@@ -1628,29 +1653,31 @@ int _lmgr_flush_commit(lmgr_t *p_mgr, int behavior)
  */
 void ListMgr_MergeAttrSets(attr_set_t *p_target_attrset, const attr_set_t *p_source_attrset, bool update)
 {
-    int            i;
-    uint64_t       mask = 1;
+    int            i, cookie;
     db_type_u      typeu;
 
-    for ( i = 0; i < ALL_ATTR_COUNT; i++, mask <<= 1 ) /* FIXME  leaks? */
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1) /** @FIXME this function leaks */
     {
-        if ( (update || !( p_target_attrset->attr_mask & mask ))
-             && ( p_source_attrset->attr_mask & mask ) )
+        if ((update || !attr_mask_test_index(&p_target_attrset->attr_mask, i))
+             && attr_mask_test_index(&p_source_attrset->attr_mask, i))
         {
             /* status attr */
             if (is_status_field(i))
             {
+                unsigned int status_idx = attr2status_index(i);
+
                 if (p_source_attrset->attr_values.sm_status == NULL)
                     RBH_BUG("status flag is set but status array is not allocated");
 
                 sm_status_ensure_alloc(&p_target_attrset->attr_values.sm_status);
-                p_target_attrset->attr_values.sm_status[i - ATTR_COUNT]
-                    = p_source_attrset->attr_values.sm_status[i - ATTR_COUNT];
+                p_target_attrset->attr_values.sm_status[status_idx]
+                    = p_source_attrset->attr_values.sm_status[status_idx];
             }
             /* SM specific info */
             else if (is_sm_info_field(i))
             {
-                unsigned int idx = i - (ATTR_COUNT + sm_inst_count);
+                unsigned int idx = attr2sminfo_index(i);
 
                 if (p_source_attrset->attr_values.sm_info == NULL)
                     RBH_BUG("specific info flag is set but info array is not allocated");
@@ -1690,29 +1717,29 @@ void ListMgr_MergeAttrSets(attr_set_t *p_target_attrset, const attr_set_t *p_sou
                         sizeof( stripe_info_t ) );
             }
 
-            p_target_attrset->attr_mask |= mask;
+            attr_mask_set_index(&p_target_attrset->attr_mask, i);
         }
     }
     return;
 }
 
 
-void ListMgr_FreeAttrs( attr_set_t * p_set )
+void ListMgr_FreeAttrs(attr_set_t *p_set)
 {
-#ifdef _LUSTRE
-    int            i;
-    uint64_t       mask = 1;
-
-    if (p_set == NULL || p_set->attr_mask == 0)
+    if (p_set == NULL)
         return;
 
-    /* Free stripe count attributes */
-    for ( i = 0; i < ATTR_COUNT; i++, mask <<= 1 )
+#ifdef _LUSTRE
+    int i;
+
+    /* Free stripe count attributes (in std attrs) */
+    for (i = 0; i < ATTR_COUNT; i++)
     {
-        if ( ( field_infos[i].db_type == DB_STRIPE_ITEMS ) && ( p_set->attr_mask & mask ) )
+        if ((field_infos[i].db_type == DB_STRIPE_ITEMS)
+            && attr_mask_test_index(&p_set->attr_mask, i))
         {
-            free_stripe_items( ( stripe_items_t * ) ( ( char * ) &p_set->attr_values +
-                                                      field_infos[i].offset ) );
+            free_stripe_items((stripe_items_t *) ((char *) &p_set->attr_values +
+                                                  field_infos[i].offset));
         }
     }
 #endif
@@ -1721,37 +1748,40 @@ void ListMgr_FreeAttrs( attr_set_t * p_set )
 }
 
 /** return the mask of attributes that differ */
-int ListMgr_WhatDiff(const attr_set_t * p_tgt, const attr_set_t * p_src)
+attr_mask_t ListMgr_WhatDiff(const attr_set_t *p_tgt, const attr_set_t *p_src)
 {
-    int            i;
-    uint64_t       bit = 1;
-    uint64_t common_mask = p_tgt->attr_mask & p_src->attr_mask;
-    uint64_t diff_mask = 0;
+    int         i, cookie;
+    attr_mask_t common_mask
+            = attr_mask_and(&p_tgt->attr_mask, &p_src->attr_mask);
+    attr_mask_t diff_mask = null_mask;
 
-    for (i = 0; i < ALL_ATTR_COUNT; i++, bit <<= 1)
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
-        if (bit & common_mask)
+        if (attr_mask_test_index(&common_mask, i))
         {
             int is_diff = 0;
 
             /* status attr */
             if (is_status_field(i))
             {
+                unsigned int status_idx = attr2status_index(i);
+
                 /** array is allocated as we check the common mask */
-                if (p_tgt->attr_values.sm_status[i - ATTR_COUNT]
-                    != p_src->attr_values.sm_status[i - ATTR_COUNT])
-                    diff_mask |= bit;
+                if (p_tgt->attr_values.sm_status[status_idx]
+                    != p_src->attr_values.sm_status[status_idx])
+                    attr_mask_set_index(&diff_mask, i);
             }
             /* SM specific info */
             else if (is_sm_info_field(i))
             {
-                unsigned int idx = i - (ATTR_COUNT + sm_inst_count);
+                unsigned int idx = attr2sminfo_index(i);
 
                 DIFF_UNION(is_diff, field_type(i),
                            p_src->attr_values.sm_info[idx],
                            p_tgt->attr_values.sm_info[idx]);
                 if (is_diff)
-                    diff_mask |= bit;
+                    attr_mask_set_index(&diff_mask, i);
             }
             else if (!is_stripe_field(i))
             {
@@ -1762,7 +1792,7 @@ int ListMgr_WhatDiff(const attr_set_t * p_tgt, const attr_set_t * p_src)
                            ((char *)&p_tgt->attr_values +
                                 field_infos[i].offset));
                 if (is_diff)
-                    diff_mask |= bit;
+                    attr_mask_set_index(&diff_mask, i);
             }
 #ifdef _LUSTRE
             else if ( field_infos[i].db_type == DB_STRIPE_INFO )
@@ -1778,7 +1808,7 @@ int ListMgr_WhatDiff(const attr_set_t * p_tgt, const attr_set_t * p_src)
                     || (strcmp(ATTR(p_tgt, stripe_info).pool_name,
                            ATTR(p_src, stripe_info).pool_name) != 0))
                 {
-                    diff_mask |= bit;
+                    attr_mask_set_index(&diff_mask, i);
                 }
             }
             else if ( field_infos[i].db_type == DB_STRIPE_ITEMS )
@@ -1809,7 +1839,7 @@ int ListMgr_WhatDiff(const attr_set_t * p_tgt, const attr_set_t * p_src)
                     }
                 }
                 if (is_diff)
-                     diff_mask |= bit;
+                    attr_mask_set_index(&diff_mask, i);
             }
 #endif
         }
@@ -1960,25 +1990,29 @@ int _lmgr_delayed_retry(lmgr_t *lmgr, int errcode, const char *func, int line)
 }
 
 /** check attribute mask compatibility for a given table */
-static inline bool table_mask_compat(uint64_t m1, uint64_t m2)
+static inline bool table_mask_compat(attr_mask_t m1, attr_mask_t m2)
 {
     /* attrs in a given table must be the same or 0 */
-    if (m1 == 0 || m2 == 0)
+    if (attr_mask_is_null(m1) || attr_mask_is_null(m2))
         return true;
     else
-        return (m1 == m2);
+        return attr_mask_equal(&m1, &m2);
 }
 
 /** Check mask compatibility for request batching. */
-bool lmgr_batch_compat(uint64_t m1, uint64_t m2)
+bool lmgr_batch_compat(attr_mask_t m1, attr_mask_t m2)
 {
-    if (!table_mask_compat(m1 & main_attr_set, m2 & main_attr_set))
+    if (!table_mask_compat(attr_mask_and(&m1, &main_attr_set),
+                           attr_mask_and(&m2, &main_attr_set)))
         return false;
-    if (!table_mask_compat(m1 & names_attr_set, m2 & names_attr_set))
+    if (!table_mask_compat(attr_mask_and(&m1, &names_attr_set),
+                           attr_mask_and(&m2, &names_attr_set)))
         return false;
-    if (!table_mask_compat(m1 & annex_attr_set, m2 & annex_attr_set))
+    if (!table_mask_compat(attr_mask_and(&m1, &annex_attr_set),
+                           attr_mask_and(&m2, &annex_attr_set)))
         return false;
-    if (!table_mask_compat(m1 & stripe_attr_set, m2 & stripe_attr_set))
+    if (!table_mask_compat(attr_mask_and(&m1, &stripe_attr_set),
+                           attr_mask_and(&m2, &stripe_attr_set)))
         return false;
 
     return true;
@@ -1999,4 +2033,50 @@ int parse_entry_id(lmgr_t *p_mgr, const char *str, PK_PARG_T p_pk, entry_id_t *p
     if (rc)
         DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Unexpected format for database key: "DPK, p_pk);
     return rc;
+}
+
+int attr_index_iter(unsigned int init, int *cookie)
+{
+    assert(cookie != NULL);
+
+    if (*cookie == -1)
+        /* initial step */
+        *cookie = init;
+    else
+        (*cookie)++;
+
+    if (*cookie == ATTR_COUNT)
+    {
+        /* reached the end of std attrs */
+        if (sm_inst_count > 0)
+            /* go to first status index */
+            *cookie = ATTR_INDEX_FLG_STATUS;
+        else if (sm_attr_count > 0)
+            /* go to first sminfo index */
+            *cookie = ATTR_INDEX_FLG_SMINFO;
+        else
+            return -1;
+    }
+    else if (*cookie == (ATTR_INDEX_FLG_STATUS | sm_inst_count))
+    {
+        /* reached the end of status attrs */
+        if (sm_attr_count > 0)
+            /* go to first sminfo index */
+            *cookie = ATTR_INDEX_FLG_SMINFO;
+        else
+            return -1;
+    }
+    else if (*cookie == (ATTR_INDEX_FLG_SMINFO | sm_attr_count))
+    {
+        /* the end of everything */
+        return -1;
+    }
+
+    return *cookie;
+}
+
+/** unset read-only attributes from mask */
+void attr_mask_unset_readonly(attr_mask_t *mask)
+{
+    *mask = attr_mask_and_not(mask, &readonly_attr_set);
 }

@@ -496,7 +496,7 @@ static int set_filter_value_generic(const sm_info_def_t *def,
  * \retval -1 if this is not a criteria stored in DB.
  */
 /** @TODO factorize criteria2filter */
-int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
+int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
                     filter_comparator_t *p_compar, filter_value_t *p_value,
                     bool *p_must_release, const sm_instance_t *smi)
 {
@@ -670,7 +670,7 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
         if (smi == NULL)
             RBH_BUG("status filter with no status manager in the context");
 
-        *p_attr_index = ATTR_COUNT + smi->smi_index;
+        *p_attr_index = smi_status_index(smi);
         *p_compar = Policy2FilterComparator(p_comp->op);
         p_value->value.val_str = p_comp->val.str;
         break;
@@ -679,18 +679,18 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
         {
             const sm_info_def_t *def = NULL;
             int rc;
+            unsigned int idx;
             bool oppose = false;
 
-            rc = sm_attr_get(smi, NULL, p_comp->attr_name, NULL, &def);
+            rc = sm_attr_get(smi, NULL, p_comp->attr_name, NULL, &def, &idx);
             if (rc < 0)
             {
-                *p_attr_index = -1;
                 DisplayLog(LVL_CRIT, POLICY_TAG, "couldn't find criteria '%s' in context",
                            p_comp->attr_name);
                 return -1;
             }
-            DisplayLog(LVL_FULL, POLICY_TAG, "Attribute index of '%s' = %d", p_comp->attr_name, rc);
-            *p_attr_index = rc;
+            DisplayLog(LVL_FULL, POLICY_TAG, "Attribute index of '%s' = %d", p_comp->attr_name, idx);
+            *p_attr_index = idx;
             rc = set_filter_value_generic(def, p_comp->op, &p_comp->val, &p_value->value, &oppose);
             if (rc)
                 return -1;
@@ -705,7 +705,7 @@ int criteria2filter(const compare_triplet_t *p_comp, int *p_attr_index,
 
     case CRITERIA_XATTR:
     default:
-        *p_attr_index = -1;
+        *p_attr_index = ATTR_INDEX_FLG_UNSPEC;
         return -1;
     }
 
@@ -967,8 +967,9 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
         {
             void *val;
             const sm_info_def_t *def;
+            unsigned int idx;
 
-            rc = sm_attr_get(smi, p_entry_attr, p_triplet->attr_name, &val, &def);
+            rc = sm_attr_get(smi, p_entry_attr, p_triplet->attr_name, &val, &def, &idx);
             if (rc < 0)
             {
                if (!no_warning)
@@ -1415,7 +1416,7 @@ rule_item_t *policy_case(const policy_descr_t *policy,
                          fileset_item_t ** pp_fileset)
 {
     int            count, i, j;
-    int            default_index = -1;
+    unsigned int   default_index = ATTR_INDEX_FLG_UNSPEC;
     rule_item_t *pol_list;
 
     pol_list = policy->rules.rules;
@@ -1485,7 +1486,7 @@ rule_item_t *policy_case(const policy_descr_t *policy,
 
 
     /* if there a default ? */
-    if (default_index != -1)
+    if (default_index != ATTR_INDEX_FLG_UNSPEC)
         return &pol_list[default_index];
 
     /* entry matches no policy => ignored */
@@ -1772,27 +1773,28 @@ policy_match_t match_scope(const policy_descr_t *pol, const entry_id_t *id,
             else if ((_m) == POLICY_NO_MATCH) \
                 DisplayLog(LVL_FULL, POLICY_TAG, "entry "DFID" doesn't match scope for policy %s", \
                            PFID((_id)), (_p)->name); \
-            else if ((_m) == POLICY_MISSING_ATTR) \
+            else if ((_m) == POLICY_MISSING_ATTR) {\
+                attr_mask_t tmp = attr_mask_and_not(&(_p)->scope_mask, &(_a)->attr_mask); \
                 DisplayLog(LVL_FULL, POLICY_TAG, "missing attrs to determine " \
                            "if entry "DFID" matches scope for policy %s: "     \
-                           "scope_mask=%#LX, attr_mask=%#LX, missing=%#LX",    \
-                           PFID((_id)), (_p)->name, (ull_t)((_p)->scope_mask), \
-                           (ull_t)((_a)->attr_mask), (ull_t)((_p)->scope_mask & ~(_a)->attr_mask)); \
-            else \
+                           "scope_mask="DMASK", attr_mask="DMASK", missing="DMASK,    \
+                           PFID((_id)), (_p)->name, PMASK(&(_p)->scope_mask), \
+                           PMASK(&(_a)->attr_mask), PMASK(&tmp)); \
+            } else \
                 DisplayLog(LVL_FULL, POLICY_TAG, "entry "DFID": error matching scope for policy %s", \
                        PFID((_id)), (_p)->name); \
         } \
     } while(0)
 
 void add_matching_scopes_mask(const entry_id_t *id, const attr_set_t *attrs,
-                              bool tolerant, uint64_t *mask)
+                              bool tolerant, uint32_t *status_mask)
 {
     unsigned int i;
     policy_match_t match;
 
     for (i = 0; i < policies.policy_count; i++)
     {
-        uint64_t curr_mask;
+        uint32_t curr_mask;
 
         /* no status */
         if (policies.policy_list[i].status_mgr == NULL)
@@ -1802,7 +1804,7 @@ void add_matching_scopes_mask(const entry_id_t *id, const attr_set_t *attrs,
 
         /* Avoid rematching if the status is already set in the mask,
          * as it is already matched by another policy. */
-        if ((*mask) & curr_mask)
+        if ((*status_mask) & curr_mask)
             continue;
 
         if (tolerant)
@@ -1812,7 +1814,7 @@ void add_matching_scopes_mask(const entry_id_t *id, const attr_set_t *attrs,
 
             /* set the current attr bit if it is not sure it doesn't match */
             if (match != POLICY_NO_MATCH)
-                *mask |= curr_mask;
+                *status_mask |= curr_mask;
         }
         else
         {
@@ -1821,7 +1823,7 @@ void add_matching_scopes_mask(const entry_id_t *id, const attr_set_t *attrs,
 
             /* set the current attr bit if it is sure it matches */
             if (match == POLICY_MATCH)
-                *mask |= curr_mask;
+                *status_mask |= curr_mask;
         }
     }
 }

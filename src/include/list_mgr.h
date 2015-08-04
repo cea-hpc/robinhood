@@ -92,34 +92,6 @@ typedef enum {
 
 #define DB_IS_NULL( _p_v ) ( ((_p_v)->type == DB_TEXT) && ((_p_v)->value_u.val_str == NULL) )
 
-/* update set mask and attr value */
-#define ATTR_MASK_INIT(_p_set) ((_p_set)->attr_mask = 0LL)
-#define ATTR_MASK_SET(_p_set, _attr_name) ((_p_set)->attr_mask |= ATTR_MASK_##_attr_name)
-#define ATTR_MASK_UNSET(_p_set, _attr_name) ((_p_set)->attr_mask &= ~ATTR_MASK_##_attr_name)
-#define ATTR_MASK_TEST(_p_set, _attr_name) !!((_p_set)->attr_mask & ATTR_MASK_##_attr_name)
-#define ATTR(_p_set, _attr_name) ((_p_set)->attr_values._attr_name)
-
-/* set status attribute mask: bits after ATTR_COUNT */
-#define SMI_MASK(_smi_idx)  (1LL << (ATTR_COUNT+(_smi_idx)))
-#define ATTR_MASK_STATUS_SET(_p_set, _smi_idx) ((_p_set)->attr_mask |= SMI_MASK(_smi_idx))
-#define ATTR_MASK_STATUS_UNSET(_p_set, _smi_idx) ((_p_set)->attr_mask &= ~ SMI_MASK(_smi_idx))
-#define ATTR_MASK_STATUS_TEST(_p_set, _smi_idx) !!((_p_set)->attr_mask & SMI_MASK(_smi_idx))
-#define STATUS_ATTR(_p_set, _smi_idx) ((_p_set)->attr_values.sm_status[(_smi_idx)])
-
-/* policy specific attributes: bits after statuses */
-#define ATTR_MASK_INFO_SET(_p_set, _smi, _attr_idx) ((_p_set)->attr_mask |= smi_info_bit((_smi), (_attr_idx)))
-#define ATTR_MASK_INFO_UNSET(_p_set, _smi, _attr_idx) ((_p_set)->attr_mask &= ~smi_info_bit((_smi), (_attr_idx)))
-#define ATTR_MASK_INFO_TEST(_p_set, _smi, _attr_idx) !!((_p_set)->attr_mask & smi_info_bit((_smi), (_attr_idx)))
-#define SMI_INFO(_p_set, _smi, _attr_idx) ((_p_set)->attr_values.sm_info[(_smi)->sm_info_offset+(_attr_idx)])
-
-#define ALL_ATTR_COUNT (ATTR_COUNT + sm_inst_count + sm_attr_count)
-
-
-#define POSIX_ATTR_MASK (ATTR_MASK_size | ATTR_MASK_blocks | ATTR_MASK_owner \
-                         | ATTR_MASK_gr_name | ATTR_MASK_last_access \
-                         | ATTR_MASK_last_mod | ATTR_MASK_type | ATTR_MASK_mode \
-                         | ATTR_MASK_nlink)
-
 #define LIST_SEP_CHAR    '+'
 #define LIST_SEP_STR     "+"
 /** for use in printf (in case it includes special char) */
@@ -244,14 +216,247 @@ typedef struct lmgr_iter_opt_t
 } lmgr_iter_opt_t;
 #define LMGR_ITER_OPT_INIT {.list_count_max = 0, .force_no_acct = 0, .allow_no_attr = 0}
 
+typedef struct attr_mask {
+    uint32_t std;     /**< standard attribute mask */
+    uint32_t status;  /**< status attribute mask */
+    uint64_t sm_info; /**< attribute mask of status managers info */
+} attr_mask_t;
+
+
+/** helper to display masks */
+#define DMASK "%#"PRIX32"/%#"PRIX32"/%#"PRIX64
+#define PMASK(_pm) (_pm)->std, (_pm)->status, (_pm)->sm_info
+
+static const attr_mask_t null_mask = {0};
+
+/** indicate if no bit is set in the attr mask
+ * get the whole mask structure, as it can be convenient
+ * to test the output of attr_mask_and.
+ */
+static inline bool attr_mask_is_null(const attr_mask_t mask)
+{
+    return (mask.std == 0 && mask.status == 0 && mask.sm_info == 0);
+}
+
+/** indicate attrs mask equals */
+static inline bool attr_mask_equal(const attr_mask_t *mask1, const attr_mask_t *mask2)
+{
+    return (mask1->std == mask2->std) && (mask1->status == mask2->status)
+           && (mask1->sm_info == mask2->sm_info);
+}
+
+
+/** logical AND of 2 masks */
+static inline attr_mask_t attr_mask_and(const attr_mask_t *mask1, const attr_mask_t* mask2)
+{
+    attr_mask_t mask_out;
+
+    mask_out.std = mask1->std & mask2->std;
+    mask_out.status = mask1->status & mask2->status;
+    mask_out.sm_info = mask1->sm_info & mask2->sm_info;
+
+    return mask_out;
+}
+
+/** remove bits from second mask */
+static inline attr_mask_t attr_mask_and_not(const attr_mask_t *mask1, const attr_mask_t* mask2)
+{
+    attr_mask_t mask_out;
+
+    mask_out.std = mask1->std & ~mask2->std;
+    mask_out.status = mask1->status & ~mask2->status;
+    mask_out.sm_info = mask1->sm_info & ~mask2->sm_info;
+
+    return mask_out;
+}
+
+/** add missing bits from second mask */
+static inline attr_mask_t attr_mask_or_not(const attr_mask_t *mask1, const attr_mask_t* mask2)
+{
+    attr_mask_t mask_out;
+
+    mask_out.std = mask1->std | ~mask2->std;
+    mask_out.status = mask1->status | ~mask2->status;
+    mask_out.sm_info = mask1->sm_info | ~mask2->sm_info;
+
+    return mask_out;
+}
+
+/** logical OR of 2 masks */
+static inline attr_mask_t attr_mask_or(const attr_mask_t *mask1, const attr_mask_t* mask2)
+{
+    attr_mask_t mask_out;
+
+    mask_out.std = mask1->std | mask2->std;
+    mask_out.status = mask1->status | mask2->status;
+    mask_out.sm_info = mask1->sm_info | mask2->sm_info;
+
+    return mask_out;
+}
+
+/** part of attr index that contains flags */
+#define ATTR_INDEX_FLG_MASK     0xFF000000
+/** flags included to index value for status and sm_info */
+#define ATTR_INDEX_FLG_STATUS   0x01000000
+#define ATTR_INDEX_FLG_SMINFO   0x02000000
+/** specific value for getting entry count report */
+#define ATTR_INDEX_FLG_COUNT    0x04000000
+/** unspecified attribute index */
+#define ATTR_INDEX_FLG_UNSPEC   0x08000000
+
+/** convert an attribute index to the index in status array */
+static inline unsigned int attr2status_index(unsigned int index)
+{
+    assert(index & ATTR_INDEX_FLG_STATUS);
+    return index & ~ATTR_INDEX_FLG_STATUS;
+}
+/** convert an attribute index to the index in sm_info array */
+static inline unsigned int attr2sminfo_index(unsigned int index)
+{
+    assert(index & ATTR_INDEX_FLG_SMINFO);
+    return index & ~ATTR_INDEX_FLG_SMINFO;
+}
+
 /** Set of attributes for a FS entry */
 typedef struct attr_set_t
 {
     /** attributes in the structure */
-    uint64_t       attr_mask;
+    attr_mask_t    attr_mask;
     /** associated values */
     entry_info_t   attr_values;
 } attr_set_t;
+
+/** static attr_set_t initializer.
+ * First item is a structure.
+ */
+#define ATTR_SET_INIT {{0}}
+
+/** initialize attr mask */
+static inline void ATTR_MASK_INIT(attr_set_t *p_set)
+{
+    memset(&p_set->attr_mask, 0, sizeof(p_set->attr_mask));
+}
+
+/** callback function for 'attrs_for_each'
+ * the iteration stops if callback function returns < 0
+ */
+typedef int (*attr_cb_t)(unsigned int attr_index, void *args);
+
+/** iterate on all attributes */
+int attrs_for_each(attr_cb_t func, void *args);
+
+/** iterator on attr indexes
+ * @param init   initial value of the iteration.
+ * @param cookie must initially store -1
+ * @return next iterator value, -1 when the loop ends.
+ */
+int attr_index_iter(unsigned int init, int *cookie);
+
+
+extern unsigned int sm_inst_count; /* defined in 'status_manager.c' */
+extern unsigned int sm_attr_count; /* defined in 'status_manager.c' */
+
+static inline bool attr_mask_test_index(const attr_mask_t *p_mask, unsigned int index)
+{
+    if (index & ATTR_INDEX_FLG_STATUS)
+    {
+        assert(attr2status_index(index) < sm_inst_count);
+
+        /* remove the bit and test in status mask */
+        return (p_mask->status & (1 << attr2status_index(index)));
+    }
+    else if (index & ATTR_INDEX_FLG_SMINFO)
+    {
+        assert(attr2sminfo_index(index) < sm_attr_count);
+
+        /* remove the bit and test in sm_info mask */
+        return (p_mask->sm_info & (1LL <<  attr2sminfo_index(index)));
+    }
+    else
+    {
+        assert(index < (sizeof(p_mask->std) * CHAR_BIT));
+        /* test standard mask */
+        return (p_mask->std & (1 << index));
+    }
+}
+
+#include <inttypes.h>
+static inline void attr_mask_set_index(attr_mask_t *mask, unsigned int index)
+{
+    if (index & ATTR_INDEX_FLG_STATUS)
+    {
+        assert(attr2status_index(index) < sm_inst_count);
+
+        /* remove the flag and set bit in status mask */
+        mask->status |= (1 << attr2status_index(index));
+    }
+    else if (index & ATTR_INDEX_FLG_SMINFO)
+    {
+        assert(attr2sminfo_index(index) < sm_attr_count);
+
+        /* remove the flag and set bit in sm_info mask */
+        mask->sm_info |= (1LL << attr2sminfo_index(index));
+    }
+    else
+    {
+        assert(index < (sizeof(mask->std) * CHAR_BIT));
+
+        /* set standard mask */
+        mask->std |= (1 << index);
+    }
+}
+
+static inline void attr_mask_unset_index(attr_mask_t *mask, unsigned int index)
+{
+    if (index & ATTR_INDEX_FLG_STATUS)
+    {
+        assert(attr2status_index(index) < sm_inst_count);
+
+        /* remove the flag and unset bit in status mask */
+        mask->status &= ~(1 << attr2status_index(index));
+    }
+    else if (index & ATTR_INDEX_FLG_SMINFO)
+    {
+        assert(attr2sminfo_index(index) < sm_attr_count);
+
+        /* remove the flag and unset bit in sm_info mask */
+        mask->sm_info &= ~(1LL << attr2sminfo_index(index));
+    }
+    else
+    {
+        assert(index < (sizeof(mask->std) * CHAR_BIT));
+
+        /* set standard mask */
+        mask->std &= ~(1 << index);
+    }
+}
+
+#define ATTR_MASK_SET(_p_set, _attr_name) ((_p_set)->attr_mask.std |= ATTR_MASK_##_attr_name)
+#define ATTR_MASK_UNSET(_p_set, _attr_name) ((_p_set)->attr_mask.std &= ~ATTR_MASK_##_attr_name)
+#define ATTR_MASK_TEST(_p_set, _attr_name) !!((_p_set)->attr_mask.std & ATTR_MASK_##_attr_name)
+#define ATTR(_p_set, _attr_name) ((_p_set)->attr_values._attr_name)
+
+/* status mask is in a dedicated mask */
+#define SMI_MASK(_smi_idx)  (1 << (_smi_idx))
+#define ATTR_MASK_STATUS_SET(_p_set, _smi_idx) ((_p_set)->attr_mask.status |= SMI_MASK(_smi_idx))
+#define ATTR_MASK_STATUS_UNSET(_p_set, _smi_idx) ((_p_set)->attr_mask.status &= ~ SMI_MASK(_smi_idx))
+#define ATTR_MASK_STATUS_TEST(_p_set, _smi_idx) !!((_p_set)->attr_mask.status & SMI_MASK(_smi_idx))
+#define STATUS_ATTR(_p_set, _smi_idx) ((_p_set)->attr_values.sm_status[(_smi_idx)])
+
+/* policy specific attributes are in a dedicated mask */
+#define ATTR_MASK_INFO_SET(_p_set, _smi, _attr_idx) ((_p_set)->attr_mask.sm_info |= smi_info_bit((_smi), (_attr_idx)))
+#define ATTR_MASK_INFO_UNSET(_p_set, _smi, _attr_idx) ((_p_set)->attr_mask.sm_info &= ~smi_info_bit((_smi), (_attr_idx)))
+#define ATTR_MASK_INFO_TEST(_p_set, _smi, _attr_idx) !!((_p_set)->attr_mask.sm_info & smi_info_bit((_smi), (_attr_idx)))
+#define SMI_INFO(_p_set, _smi, _attr_idx) ((_p_set)->attr_values.sm_info[(_smi)->sm_info_offset+(_attr_idx)])
+
+#define POSIX_ATTR_MASK (ATTR_MASK_size | ATTR_MASK_blocks | ATTR_MASK_owner \
+                         | ATTR_MASK_gr_name | ATTR_MASK_last_access \
+                         | ATTR_MASK_last_mod | ATTR_MASK_type | ATTR_MASK_mode \
+                         | ATTR_MASK_nlink)
+
+
+/** unset read-only attributes from mask */
+void attr_mask_unset_readonly(attr_mask_t *mask);
 
 /** comparators for filters */
 typedef enum
@@ -367,9 +572,6 @@ typedef struct lmgr_sort_type_t
     unsigned int   attr_index;
     sort_order_t   order;
 } lmgr_sort_type_t;
-
-/* mask of read-only attributes */
-extern uint64_t readonly_attr_set;
 
 /* -------- Main functions -------- */
 
@@ -705,7 +907,7 @@ void           ListMgr_CloseIterator( struct lmgr_iterator_t *p_iter );
  */
 int ListMgr_GetChild( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
                       const wagon_t * parent_list, unsigned int parent_count,
-                      uint64_t attr_mask,
+                      attr_mask_t attr_mask,
                       wagon_t ** child, attr_set_t ** child_attr_list,
                       unsigned int * child_count);
 
@@ -735,7 +937,7 @@ typedef enum
 /** describe a report field */
 typedef struct report_field_descr_t
 {
-    int            attr_index; /* -1 for count(*) */
+    int            attr_index; /* ATTR_INDEX_FLG_COUNT for count */
     report_type_t  report_type;
     sort_order_t   sort_flag;
 
@@ -991,7 +1193,7 @@ int            lmgr_set_filter_expression( lmgr_filter_t * p_filter, struct bool
  * @param index if not NULL, it is set to the index of the unsupported filter.
  *              and -1 for other errors.
  */
-int lmgr_check_filter_fields(lmgr_filter_t * p_filter, uint64_t attr_mask, int *index);
+int lmgr_check_filter_fields(lmgr_filter_t * p_filter, attr_mask_t attr_mask, int *index);
 
 /** Convert a set notation (eg. "3,5-8,12") to a list of values
  * \param type[in] the type of output array (DB_INT, DB_UINT, ...)
@@ -1013,7 +1215,7 @@ void           ListMgr_MergeAttrSets(attr_set_t *p_target_attrset,
                                      bool update);
 
 /** return the mask of attributes that differ */
-int ListMgr_WhatDiff(const attr_set_t * p_tgt, const attr_set_t * p_src);
+attr_mask_t ListMgr_WhatDiff(const attr_set_t *p_tgt, const attr_set_t *p_src);
 
 /** print attribute value to display to the user
  * @param quote string to quote string types (eg. "'").
@@ -1027,10 +1229,10 @@ int ListMgr_PrintAttr(char *str, int size, db_type_t type,
  * Generate fields automatically from already existing fields,
  * and check the target mask is satisfied.
  */
-int  ListMgr_GenerateFields(attr_set_t * p_set, uint64_t target_mask);
+int  ListMgr_GenerateFields(attr_set_t *p_set, attr_mask_t target_mask);
 
 /** Check mask compatibility for request batching. */
-bool lmgr_batch_compat(uint64_t m1, uint64_t m2);
+bool lmgr_batch_compat(attr_mask_t m1, attr_mask_t m2);
 
 #endif
 

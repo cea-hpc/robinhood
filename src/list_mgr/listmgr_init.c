@@ -136,22 +136,23 @@ static void append_field(GString *str, bool is_first, db_type_t type,
 
 static void append_field_def(int i, GString *str, bool is_first, db_type_u *default_value)
 {
+    unsigned int idx;
+
     if (is_status_field(i))
     {
-        append_status_def(get_sm_instance(i - ATTR_COUNT), str, is_first);
+        idx = attr2status_index(i);
+        append_status_def(get_sm_instance(idx), str, is_first);
         return;
     }
     if (is_sm_info_field(i))
     {
-        unsigned int idx = i - (ATTR_COUNT + sm_inst_count);
-
+        idx = attr2sminfo_index(i);
         append_field(str, is_first, sm_attr_info[idx].def->db_type,
                      sm_attr_info[idx].def->db_type_size,
                      sm_attr_info[idx].db_attr_name,
                      &sm_attr_info[idx].def->db_default);
         return;
     }
-
 
     append_field(str, is_first, field_infos[i].db_type,
                  field_infos[i].db_type_size,
@@ -403,8 +404,10 @@ static const char *acct_table(void)
 
     if (lmgr_config.acct)
     {
-        int i;
-        for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
+        int i, cookie;
+
+        cookie = -1;
+        while ((i = attr_index_iter(0, &cookie)) != -1)
         {
             if (is_acct_field(i) || is_acct_pk(i))
             {
@@ -537,7 +540,7 @@ static int check_table_main(db_conn_t *pconn)
                                   strbuf, sizeof(strbuf));
     if (rc == DB_SUCCESS)
     {
-        int i;
+        int i, cookie;
         int curr_field_index = 0;
 
         /* check primary key */
@@ -545,7 +548,8 @@ static int check_table_main(db_conn_t *pconn)
             return DB_BAD_SCHEMA;
 
         /* std fields + SM status + SM specific info */
-        for (i = 0; i < ALL_ATTR_COUNT; i++)
+        cookie = -1;
+        while ((i = attr_index_iter(0, &cookie)) != -1)
         {
             if (is_main_field(i) && !is_funcattr(i))
             {
@@ -570,12 +574,13 @@ static int check_table_main(db_conn_t *pconn)
 static int create_table_main(db_conn_t *pconn)
 {
     GString    *request;
-    int         i, rc;
+    int         i, rc, cookie;
     db_type_u   default_val;
 
     request = g_string_new("CREATE TABLE "MAIN_TABLE" (id "PK_TYPE" PRIMARY KEY");
 
-    for (i = 0; i < ALL_ATTR_COUNT; i++)
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         if (is_main_field(i) && !is_funcattr(i))
         {
@@ -603,7 +608,8 @@ static int create_table_main(db_conn_t *pconn)
         goto free_str;
 
     /* create indexes on this table */
-    for (i = 0; i < ATTR_COUNT; i++)
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         if (is_main_field(i) && is_indexed_field(i))
         {
@@ -630,7 +636,7 @@ static int check_table_dnames(db_conn_t *pconn)
 
     if (rc == DB_SUCCESS)
     {
-        int i;
+        int i, cookie;
         int curr_field_index = 0;
 
         /* check first fields: id and pkn */
@@ -639,7 +645,8 @@ static int check_table_dnames(db_conn_t *pconn)
         if (check_field_name("pkn", &curr_field_index, DNAMES_TABLE, fieldtab))
             return DB_BAD_SCHEMA;
 
-        for (i = 0; i < ATTR_COUNT; i++)
+        cookie = -1;
+        while ((i = attr_index_iter(0, &cookie)) != -1)
         {
             if (is_names_field(i) && !is_funcattr(i))
             {
@@ -663,12 +670,13 @@ static int check_table_dnames(db_conn_t *pconn)
 static int create_table_dnames(db_conn_t *pconn)
 {
     GString    *request;
-    int         i, rc;
+    int         i, rc, cookie;
 
     request = g_string_new("CREATE TABLE "DNAMES_TABLE" (id "PK_TYPE", "
                            "pkn VARBINARY(40) PRIMARY KEY");
 
-    for (i = 0; i < ATTR_COUNT; i++)
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         if (is_names_field(i) && !is_funcattr(i))
         {
@@ -683,7 +691,8 @@ static int create_table_dnames(db_conn_t *pconn)
         goto free_str;
 
     /* create indexes on this table */
-    for (i = 0; i < ATTR_COUNT; i++)
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         if (is_names_field(i) && is_indexed_field(i))
         {
@@ -705,7 +714,7 @@ free_str:
 
 static int check_table_annex(db_conn_t *pconn)
 {
-    int rc, i;
+    int rc, i, cookie;
     char  strbuf[4096];
     char *fieldtab[MAX_DB_FIELDS];
 
@@ -720,7 +729,8 @@ static int check_table_annex(db_conn_t *pconn)
         if (check_field_name("id", &curr_field_index, ANNEX_TABLE, fieldtab))
             return DB_BAD_SCHEMA;
 
-        for (i = 0; i < ATTR_COUNT; i++)
+        cookie = -1;
+        while ((i = attr_index_iter(0, &cookie)) != -1)
         {
             if (is_annex_field(i) && !is_funcattr(i))
             {
@@ -745,11 +755,12 @@ static int check_table_annex(db_conn_t *pconn)
 static int create_table_annex(db_conn_t *pconn)
 {
     GString  *request;
-    int       i, rc;
+    int       i, rc, cookie;
 
     request = g_string_new("CREATE TABLE "ANNEX_TABLE" (id "PK_TYPE" PRIMARY KEY");
 
-    for (i = 0; i < ATTR_COUNT; i++)
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         if (is_annex_field(i) && !is_funcattr(i))
         {
@@ -764,7 +775,8 @@ static int create_table_annex(db_conn_t *pconn)
         goto free_str;
 
     /* create indexes on this table */
-    for (i = 0; i < ATTR_COUNT; i++)
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         if (is_annex_field(i) && is_indexed_field(i))
         {
@@ -921,8 +933,8 @@ static void disable_acct(void)
 {
     lmgr_config.acct = false;
     /* reset acct masks */
-    acct_pk_attr_set = 0;
-    acct_attr_set = 0;
+    acct_pk_attr_set = null_mask;
+    acct_attr_set = null_mask;
 }
 
 static int check_table_acct(db_conn_t *pconn)
@@ -935,6 +947,7 @@ static int check_table_acct(db_conn_t *pconn)
                               strbuf, sizeof(strbuf));
     if (rc == DB_SUCCESS)
     {
+        int cookie;
         int curr_field_index = 0;
 
         /* When running daemon mode with accounting disabled: drop ACCT table,
@@ -954,7 +967,8 @@ static int check_table_acct(db_conn_t *pconn)
         }
 
         /* check primary key */
-        for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
+        cookie = -1;
+        while ((i = attr_index_iter(0, &cookie)) != -1)
         {
             if (is_acct_pk(i))
             {
@@ -963,7 +977,8 @@ static int check_table_acct(db_conn_t *pconn)
             }
         }
         /* check other fields */
-        for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
+        cookie = -1;
+        while ((i = attr_index_iter(0, &cookie)) != -1)
         {
             if (is_acct_field(i))
             {
@@ -1060,7 +1075,7 @@ static int populate_acct_table(db_conn_t *pconn)
 static int create_table_acct(db_conn_t *pconn)
 {
     GString *request;
-    int      i, rc;
+    int      i, rc, cookie;
     bool     first_acct_pk = true;
     bool     is_first_acct_field = true;
 
@@ -1069,7 +1084,8 @@ static int create_table_acct(db_conn_t *pconn)
 
     request = g_string_new("CREATE TABLE "ACCT_TABLE" (");
 
-    for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         if (is_acct_pk(i))
         {
@@ -1078,7 +1094,8 @@ static int create_table_acct(db_conn_t *pconn)
         }
     }
 
-    for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         if (is_acct_field(i))
             append_field_def(i, request, is_first_acct_field, NULL);
@@ -1097,7 +1114,8 @@ static int create_table_acct(db_conn_t *pconn)
     /* PK definition */
     g_string_append(request, ", PRIMARY KEY ( ");
 
-    for (i = 0; i < ATTR_COUNT + sm_inst_count; i++)
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         if (is_acct_pk(i))
         {
@@ -1127,7 +1145,7 @@ free_str:
 
 static int check_table_softrm(db_conn_t *pconn)
 {
-    int rc;
+    int rc, cookie;
     char  strbuf[4096];
     char *fieldtab[MAX_DB_FIELDS];
 
@@ -1142,7 +1160,8 @@ static int check_table_softrm(db_conn_t *pconn)
         if (check_field_name("id", &curr_index, SOFT_RM_TABLE, fieldtab))
             return DB_BAD_SCHEMA;
 
-        for (i = 0; i < ALL_ATTR_COUNT; i++)
+        cookie = -1;
+        while ((i = attr_index_iter(0, &cookie)) != -1)
         {
             if (is_softrm_field(i)) /* no func attr in softrm table */
             {
@@ -1166,11 +1185,12 @@ static int check_table_softrm(db_conn_t *pconn)
 static int create_table_softrm(db_conn_t *pconn)
 {
     GString *request;
-    int      rc, i;
+    int      rc, i, cookie;
 
     request = g_string_new("CREATE TABLE "SOFT_RM_TABLE" (id "PK_TYPE" PRIMARY KEY");
 
-    for (i = 0; i < ALL_ATTR_COUNT; i++)
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         if (is_softrm_field(i))
             append_field_def(i, request, 0, NULL);
@@ -1183,7 +1203,8 @@ static int create_table_softrm(db_conn_t *pconn)
         goto free_str;
 
     /* create indexes on this table */
-    for (i = 0; i < ATTR_COUNT; i++)
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         if (is_softrm_field(i) && is_indexed_field(i))
         {
@@ -1522,7 +1543,7 @@ free_str:
 
 static int create_trig_acct_update(db_conn_t *pconn)
 {
-    int      rc, i;
+    int      rc, i, cookie;
     bool     is_first_field = true;
     GString *request;
     char     err_buf[1024];
@@ -1545,7 +1566,9 @@ static int create_trig_acct_update(db_conn_t *pconn)
     /* generate comparison like NEW.size<>=OLD.size OR NEW.blocks<>OLD.blocks */
     attrmask2fieldcomparison(request, acct_attr_set, T_ACCT, "NEW.", "OLD.", "<>", "OR");
     g_string_append(request, "THEN \n\t\t UPDATE " ACCT_TABLE " SET ");
-    for (i = 0; i < ATTR_COUNT; i++)
+
+    cookie = -1;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         if (is_acct_field(i))
         {

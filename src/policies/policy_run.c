@@ -348,31 +348,29 @@ static int policy_action(policy_info_t *policy,
  */
 static inline int get_sort_attr(policy_info_t *p, const attr_set_t *p_attrs)
 {
+    if (p->config->lru_sort_attr == LRU_ATTR_NONE)
+        return -1;
+
+    if (!attr_mask_test_index(&p_attrs->attr_mask, p->config->lru_sort_attr))
+        return -1;
+
     if (is_sm_info(p->config->lru_sort_attr))
     {
-        int idx = p->config->lru_sort_attr - (ATTR_COUNT + sm_inst_count);
-        if ((p_attrs->attr_mask & (1LL << p->config->lru_sort_attr)) == 0)
-            return -1;
+        unsigned int idx = attr2sminfo_index(p->config->lru_sort_attr);
 
         return *((unsigned int *)p_attrs->attr_values.sm_info[idx]);
     }
 
     switch(p->config->lru_sort_attr)
     {
-        case LRU_ATTR_NONE:
-            return -1;
         case ATTR_INDEX_creation_time:
-            return (ATTR_MASK_TEST(p_attrs, creation_time)?
-                    ATTR(p_attrs, creation_time) : -1);
+            return ATTR(p_attrs, creation_time);
         case ATTR_INDEX_last_mod:
-            return (ATTR_MASK_TEST(p_attrs, last_mod)?
-                    ATTR(p_attrs, last_mod) : -1);
+            return ATTR(p_attrs, last_mod);
         case ATTR_INDEX_last_access:
-            return (ATTR_MASK_TEST(p_attrs, last_access)?
-                    ATTR(p_attrs, last_access) : -1);
+            return ATTR(p_attrs, last_access);
         case ATTR_INDEX_rm_time:
-            return (ATTR_MASK_TEST(p_attrs, rm_time)?
-                    ATTR(p_attrs, rm_time) : -1);
+            return ATTR(p_attrs, rm_time);
         default:
             return -1;
     }
@@ -417,11 +415,12 @@ static inline void set_max_time_attrs(policy_info_t *p, attr_set_t *p_attrs,
                     return;
                 *dup = (int)value;
 
-                /* Don't know the effect of this attribute
-                 * on other attributes.
+                /* Don't know the implications of this attribute
+                 * on other time attributes.
                  * So, just set its value and return. */
                 if (set_sm_info(p->descr->status_mgr, p_attrs,
-                                p->config->lru_sort_attr - smi_info_index(p->descr->status_mgr, 0),
+                                attr2sminfo_index(p->config->lru_sort_attr)
+                                - p->descr->status_mgr->sm_info_offset,
                                 dup))
                     free(dup);
                 return;
@@ -447,12 +446,12 @@ static inline void set_max_time_attrs(policy_info_t *p, attr_set_t *p_attrs,
 /** return attribute name from its index. */
 static const char *attrindex2name(int index)
 {
-    if (index < ATTR_COUNT)
+    if (is_std_attr(index))
         return field_infos[index].field_name;
     else if (is_status(index))
-        return get_sm_instance(index - ATTR_COUNT)->db_field;
+        return get_sm_instance(attr2status_index(index))->db_field;
     else if (is_sm_info(index))
-        return sm_attr_info[index - (ATTR_COUNT + sm_inst_count)].user_attr_name;
+        return sm_attr_info[attr2sminfo_index(index)].user_attr_name;
 
     return "?";
 }
@@ -464,8 +463,6 @@ static inline const char* sort_attr_name(const policy_info_t *pol)
 
     if (attr == LRU_ATTR_NONE)
         return "none";
-
-    assert(attr < (ATTR_COUNT + sm_inst_count + sm_attr_count));
 
     return attrindex2name(attr);
 }
@@ -480,7 +477,7 @@ static inline const char* sort_attr_name(const policy_info_t *pol)
 static bool heuristic_end_of_list(policy_info_t *policy, time_t last_time)
 {
     entry_id_t     void_id;
-    attr_set_t     void_attr = {0};
+    attr_set_t     void_attr = ATTR_SET_INIT;
     bool           rb = false;
 
     /* list all files if policies are ignored */
@@ -970,61 +967,64 @@ static int wait_queue_empty(policy_info_t *policy, unsigned int nb_submitted,
 }
 
 /** set the mask of attributes to be retrieved from db */
-static uint64_t db_attr_mask(policy_info_t *policy, const policy_param_t *param)
+static attr_mask_t db_attr_mask(policy_info_t *policy,
+                                const policy_param_t *param)
 {
-    uint64_t mask = 0LL;
+    attr_mask_t mask = {0};
+    attr_mask_t tmp;
 
 /* TODO depends on the prototype of the action to be taken + fileset mask + condition mask... */
 
     /* needed for ListMgr_Remove() operations */
 #ifdef HAVE_FID
-    mask |= ATTR_MASK_name | ATTR_MASK_parent_id;
+    mask.std |= ATTR_MASK_name | ATTR_MASK_parent_id;
 #endif
     /* needed for posix operations, and for display */
-    mask |= ATTR_MASK_fullpath;
+    mask.std |= ATTR_MASK_fullpath;
 
     /* needed if update params != never */
     if (updt_params.md.when != UPDT_NEVER &&
         updt_params.md.when != UPDT_ALWAYS )
-        mask |= ATTR_MASK_md_update;
+        mask.std |= ATTR_MASK_md_update;
 
 #ifdef HAVE_FID
     if (updt_params.path.when != UPDT_NEVER &&
         updt_params.path.when != UPDT_ALWAYS)
-        mask |= ATTR_MASK_path_update;
+        mask.std |= ATTR_MASK_path_update;
 #endif
     /* needed to check the entry order didn't change */
     if (policy->config->lru_sort_attr != LRU_ATTR_NONE)
-        mask |= (1LL << policy->config->lru_sort_attr);
+        attr_mask_set_index(&mask, policy->config->lru_sort_attr);
 
     /* needed for size counters and logging, or to verify the entry didn't change */
-    mask |= ATTR_MASK_size;
+    mask.std |= ATTR_MASK_size;
     /* depends on policy params (limits) */
     if (param->target_ctr.blocks != 0 || param->target_ctr.targeted != 0)
-        mask |= ATTR_MASK_blocks;
+        mask.std |= ATTR_MASK_blocks;
 #ifdef _LUSTRE
     if (param->target == TGT_POOL || param->target == TGT_OST)
     {
-        mask |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
+        mask.std |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
     }
 #endif
 
     /* Get attrs to match policy scope */
-    mask |= policy->descr->scope_mask;
+    mask = attr_mask_or(&mask, &policy->descr->scope_mask);
 
     /* needed (cached) attributes to check status from scope */
-    mask |= attrs_for_status_mask(mask, false);
+    tmp = attrs_for_status_mask(mask.status, false);
+    mask = attr_mask_or(&mask, &tmp);
 
     /* needed attributes to check policy rules */
-    mask |= policy->descr->rules.run_attr_mask;
+    mask = attr_mask_or(&mask, &policy->descr->rules.run_attr_mask);
 
     /* needed attributes to build action params */
-    mask |= policy->config->run_attr_mask;
+    mask = attr_mask_or(&mask, &policy->descr->rules.run_attr_mask);
 
     /* if the policy manages deleted entries, get all
      * SOFTRM attributes for the current status manager */
     if (policy->descr->manage_deleted && (policy->descr->status_mgr != NULL))
-        mask |= policy->descr->status_mgr->softrm_table_mask;
+        mask = attr_mask_or(&mask, &policy->descr->status_mgr->softrm_table_mask);
 
     // TODO class management?
 
@@ -1115,7 +1115,7 @@ static int check_scan_done(const policy_info_t *pol, lmgr_t *lmgr)
  * By the way, log target information for this run.
  */
 static int set_target_filter(const policy_info_t *pol, const policy_param_t *p_param,
-                             lmgr_filter_t  *filter, uint64_t *attr_mask)
+                             lmgr_filter_t  *filter, attr_mask_t *attr_mask)
 {
     filter_value_t fval;
 
@@ -1131,7 +1131,7 @@ static int set_target_filter(const policy_info_t *pol, const policy_param_t *p_p
                        p_param->optarg_u.index);
 
             /* retrieve stripe info and stripe items */
-            *attr_mask |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
+            attr_mask->std |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
 
             /* retrieve files from this OST */
             fval.value.val_uint = p_param->optarg_u.index;
@@ -1142,7 +1142,7 @@ static int set_target_filter(const policy_info_t *pol, const policy_param_t *p_p
             DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on pool '%s'",
                        p_param->optarg_u.name);
 
-            *attr_mask |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
+            attr_mask->std |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
 
              /* retrieve files from this pool */
             fval.value.val_str = p_param->optarg_u.name;
@@ -1155,7 +1155,7 @@ static int set_target_filter(const policy_info_t *pol, const policy_param_t *p_p
             DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on '%s' user files",
                        p_param->optarg_u.name);
 
-            *attr_mask |= ATTR_MASK_owner;
+            attr_mask->std |= ATTR_MASK_owner;
 
             /* retrieve files for this owner */
             fval.value.val_str = p_param->optarg_u.name;
@@ -1167,7 +1167,7 @@ static int set_target_filter(const policy_info_t *pol, const policy_param_t *p_p
             DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on '%s' group files",
                        p_param->optarg_u.name);
 
-            *attr_mask |= ATTR_MASK_gr_name;
+            attr_mask->std |= ATTR_MASK_gr_name;
 
             /* retrieve files for this group */
             fval.value.val_str = p_param->optarg_u.name;
@@ -1179,7 +1179,7 @@ static int set_target_filter(const policy_info_t *pol, const policy_param_t *p_p
             DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on fileclass '%s'",
                        p_param->optarg_u.name);
 
-            *attr_mask |= ATTR_MASK_fileclass;
+            attr_mask->std |= ATTR_MASK_fileclass;
 
             fval.value.val_str = p_param->optarg_u.name;
             return lmgr_simple_filter_add(filter, ATTR_INDEX_fileclass,
@@ -1332,7 +1332,7 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
                               struct policy_iter *it,
                               const lmgr_iter_opt_t *req_opt,
                               const lmgr_sort_type_t *sort_type,
-                              lmgr_filter_t *filter, uint64_t attr_mask,
+                              lmgr_filter_t *filter, attr_mask_t attr_mask,
                               int *last_sort_time,
                               unsigned int *db_current_list_count,
                               unsigned int *db_total_list_count)
@@ -1585,7 +1585,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     lmgr_sort_type_t        sort_type;
     int                     last_sort_time = 0;
     /* XXX first_request_start = policy_start */
-    uint64_t                attr_mask;
+    attr_mask_t             attr_mask;
     unsigned int            nb_returned, total_returned;
 
     lmgr_iter_opt_t opt = LMGR_ITER_OPT_INIT;
@@ -1740,9 +1740,6 @@ inline static int invalidate_entry(lmgr_t * lmgr, entry_id_t * p_entry_id)
 }
 #endif
 
-/* declaration from listmgr_common.c */
-extern uint64_t     readonly_attr_set;
-
 inline static int update_entry(lmgr_t *lmgr, const entry_id_t *p_entry_id,
                                const attr_set_t *p_attr_set)
 {
@@ -1755,7 +1752,7 @@ inline static int update_entry(lmgr_t *lmgr, const entry_id_t *p_entry_id,
     ATTR_MASK_UNSET(&tmp_attrset, stripe_items);
 
     /* also unset read only attrs */
-    tmp_attrset.attr_mask &= ~readonly_attr_set;
+    attr_mask_unset_readonly(&tmp_attrset.attr_mask);
 
     /* never update creation time */
     ATTR_MASK_UNSET(&tmp_attrset, creation_time);
@@ -1817,7 +1814,7 @@ static int check_entry(policy_info_t *policy, lmgr_t *lmgr, queue_item_t *p_item
     ATTR(new_attr_set, md_update) = time(NULL);
 
     /* get fullpath or name, if they are needed for applying policy */
-    if (policy->descr->rules.run_attr_mask & (ATTR_MASK_fullpath | ATTR_MASK_name))
+    if (policy->descr->rules.run_attr_mask.std & (ATTR_MASK_fullpath | ATTR_MASK_name))
     {
         path_check_update(&p_item->entry_id, fid_path, new_attr_set,
                           policy->descr->rules.run_attr_mask);
@@ -2014,7 +2011,7 @@ static action_status_t check_entry_times(policy_info_t *pol, lmgr_t *lmgr,
 static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
                           queue_item_t * p_item, bool free_item)
 {
-    attr_set_t     new_attr_set = {0};
+    attr_set_t     new_attr_set = ATTR_SET_INIT;
     int            rc;
 
     policy_match_t   match;
@@ -2438,7 +2435,7 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in
 
     unsigned int nb_returned = 0;
     unsigned int nb_aborted = 0;
-    uint64_t     attr_mask_sav = 0;
+    attr_mask_t  attr_mask_sav = {0};
 
     /* attributes to be retrieved */
     ATTR_MASK_INIT(&q_item.entry_attr);
@@ -2448,7 +2445,12 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in
 
     /* needed attributes from DB */
     if (pol->descr->status_mgr != NULL)
-        q_item.entry_attr.attr_mask |= smi_needed_attrs(pol->descr->status_mgr, false);
+    {
+        attr_mask_t tmp = smi_needed_attrs(pol->descr->status_mgr, false);
+
+        q_item.entry_attr.attr_mask
+            = attr_mask_or(&q_item.entry_attr.attr_mask, &tmp);
+    }
 
     attr_mask_sav = q_item.entry_attr.attr_mask;
 

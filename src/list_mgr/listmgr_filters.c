@@ -353,7 +353,7 @@ static bool is_simple_expr(bool_node_t *boolexpr, int depth, bool_op_t op_ctx)
     }
 }
 
-static bool allow_null(int attr_index, const filter_comparator_t *comp,
+static bool allow_null(unsigned int attr_index, const filter_comparator_t *comp,
                        const filter_value_t *val)
 {
     /* don't add 'OR IS NULL' if NULL is explicitely matched */
@@ -397,11 +397,13 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
                               const sm_instance_t *smi, int expr_flag,
                               int depth, bool_op_t op_ctx)
 {
-    int                 index, rc, new_depth;
+    int                 rc, new_depth;
+    unsigned int        index = ATTR_INDEX_FLG_UNSPEC;
     int                 flag = 0;
     filter_comparator_t comp;
     filter_value_t      val;
     bool                must_free;
+    attr_mask_t         tmp;
 
     switch (boolexpr->node_type)
     {
@@ -422,7 +424,7 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
             rc = criteria2filter(boolexpr->content_u.bool_expr.expr1->content_u.condition,
                                  &index, &comp, &val, &must_free, smi);
 
-            if (rc != 0 || index < 0)
+            if (rc != 0 || (index & ATTR_INDEX_FLG_UNSPEC))
                 /* do nothing (equivalent to 'AND TRUE') */
                 return 0;
 
@@ -454,7 +456,14 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
                                  &index, &comp, &val, &must_free,
                                  smi);
 
-            if (rc != 0 || index < 0 || (readonly_fields(1LL << index) != 0))
+            if (rc != 0 || (index & ATTR_INDEX_FLG_UNSPEC))
+                /* do nothing (equivalent to 'AND TRUE') */
+                return 0;
+
+            /* test readonly fields */
+            tmp = null_mask;
+            attr_mask_set_index(&tmp, index);
+            if (readonly_fields(tmp))
                 /* do nothing (equivalent to 'AND TRUE') */
                 return 0;
 
@@ -550,7 +559,7 @@ int lmgr_set_filter_expression( lmgr_filter_t * p_filter, struct bool_node_t *bo
  * @param index if not NULL, it is set to the index of the unsupported filter.
  *              and -1 for other errors.
  */
-int lmgr_check_filter_fields(lmgr_filter_t *p_filter, uint64_t attr_mask, int *index)
+int lmgr_check_filter_fields(lmgr_filter_t *p_filter, attr_mask_t attr_mask, int *index)
 {
     int i;
 
@@ -562,8 +571,8 @@ int lmgr_check_filter_fields(lmgr_filter_t *p_filter, uint64_t attr_mask, int *i
 
     for (i = 0; i < p_filter->filter_simple.filter_count; i++)
     {
-        uint64_t fmask = (1LL << p_filter->filter_simple.filter_index[i]);
-        if (fmask & ~attr_mask)
+        if (!attr_mask_test_index(&attr_mask,
+                                  p_filter->filter_simple.filter_index[i]))
         {
             if (index)
                 *index = i;

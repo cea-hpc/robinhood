@@ -214,7 +214,7 @@ typedef struct rbh_options {
     bool           test_syntax;
     bool           partial_scan;
     char           partial_scan_path[RBH_PATH_MAX]; /* can be a deep path */
-    uint64_t       diff_mask;
+    attr_mask_t    diff_mask;
 
     char           policy_string[MAX_OPT_LEN];
     char           target_string[RBH_PATH_MAX]; /* can be a deep file */
@@ -1174,7 +1174,7 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
         return EINVAL;
     }
 
-    if (opt->diff_mask && (*action_mask != ACTION_MASK_SCAN)
+    if (!attr_mask_is_null(opt->diff_mask) && (*action_mask != ACTION_MASK_SCAN)
         && (*action_mask != ACTION_MASK_HANDLE_EVENTS))
     {
         fprintf(stderr, "Error: --diff option only applies to --scan and --readlog actions\n");
@@ -1552,7 +1552,7 @@ int main(int argc, char **argv)
 
     if ( action_mask & ( ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS ) )
     {
-        if (options.diff_mask)
+        if (!attr_mask_is_null(options.diff_mask))
             /* convert status[0] to all status flags */
             options.diff_mask = translate_all_status_mask(options.diff_mask);
 

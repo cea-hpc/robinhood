@@ -91,8 +91,9 @@ int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
     int      i, rc = 0;
     int      total_si;
     GString *req = g_string_new("");
+    attr_mask_t tmp_mask = {ATTR_MASK_stripe_info, 0, 0LL};
 
-    if (sum_masks(p_attrs, count, ATTR_MASK_stripe_info) != 0)
+    if (!attr_mask_is_null(sum_masks(p_attrs, count, tmp_mask)))
     {
         /* build batch request for STRIPE_INFO table */
         g_string_assign(req, "INSERT INTO "STRIPE_INFO_TABLE" ("
@@ -149,7 +150,8 @@ int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
     }
 
     /* bulk insert stripe items (if any is set) */
-    if (sum_masks(p_attrs, count, ATTR_MASK_stripe_items) == 0)
+    tmp_mask.std = ATTR_MASK_stripe_items;
+    if (attr_mask_is_null(sum_masks(p_attrs, count, tmp_mask)))
         goto out;
 
     total_si = 0;

@@ -132,8 +132,8 @@ typedef struct status_manager {
     const sm_info_def_t *info_types;
 
     /** masks of needed attributes (cached or fresh) to get the status of an entry */
-    uint64_t status_needs_attrs_cached;
-    uint64_t status_needs_attrs_fresh;
+    attr_mask_t status_needs_attrs_cached;
+    attr_mask_t status_needs_attrs_fresh;
 
     /** retrieve the status of an entry */
     sm_status_func_t   get_status_func;
@@ -156,13 +156,13 @@ typedef struct status_manager {
     /* ---- mask and function to manage deleted entries ---- */
 
     /** needed attributes to determine if the entry is to be moved to softrm */
-    uint64_t                softrm_filter_mask;
+    attr_mask_t             softrm_filter_mask;
     /** determine if a deleted entry must be inserted to softrm table */
     softrm_filter_func_t    softrm_filter_func;
 
     /** mask of attributes to be saved in SOFTRM table (needed to re-create the inode,
      *  schedule the 'remove' policy and recover/rebind the entry). */
-    uint64_t                softrm_table_mask;
+    attr_mask_t             softrm_table_mask;
 
     /** undelete an entry */
     undelete_func_t         undelete_func; /* NULL if the status manager can't run 'undelete' */
@@ -207,14 +207,14 @@ typedef struct sm_instance
     unsigned int sm_info_offset;
 
     /** translated masks to get status */
-    uint64_t status_mask_fresh;
-    uint64_t status_mask_cached;
+    attr_mask_t status_mask_fresh;
+    attr_mask_t status_mask_cached;
 
     /** translated mask for softrm filter */
-    uint64_t softrm_filter_mask;
+    attr_mask_t softrm_filter_mask;
 
     /** translated mask to insert into SOFTRM table */
-    uint64_t softrm_table_mask;
+    attr_mask_t softrm_table_mask;
 
     /** status manager global context */
     void        *context;
@@ -225,27 +225,22 @@ typedef struct sm_instance
 extern unsigned int sm_inst_count; /* defined in 'status_manager.c' */
 
 /** number of status manager specific informations */
-extern int sm_attr_count;
+extern unsigned int sm_attr_count;
 
-static inline bool is_std_attr(int index)
+static inline bool is_std_attr(unsigned int index)
 {
-    if (index < 0)
-        return false;
-
-    return (index < ATTR_COUNT);
+    return (((index & ATTR_INDEX_FLG_MASK) == 0) && index < ATTR_COUNT);
 }
 
-static inline bool is_status(int index)
+static inline bool is_status(unsigned int index)
 {
-    if (index < 0)
-        return false;
-    return (index >= ATTR_COUNT && index < ATTR_COUNT + sm_inst_count);
+    return ((index & ATTR_INDEX_FLG_STATUS) &&
+            (attr2status_index(index) < sm_inst_count));
 }
-static inline bool is_sm_info(int index)
+static inline bool is_sm_info(unsigned int index)
 {
-    if (index < 0)
-        return false;
-    return (index >= ATTR_COUNT + sm_inst_count);
+    return ((index & ATTR_INDEX_FLG_SMINFO) &&
+            (attr2sminfo_index(index) < sm_attr_count));
 }
 
 /** pointers to SM specific information */
@@ -317,8 +312,8 @@ int run_all_cl_cb(const CL_REC_TYPE *logrec,
                   const entry_id_t  *id,
                   const attr_set_t  *attrs,
                   attr_set_t        *refreshed_attrs,
-                  uint64_t          *status_need,
-                  uint64_t           status_mask,
+                  attr_mask_t       *status_need,
+                  uint32_t           status_mask,
                   proc_action_e     *post_action);
 
 /** When an entry is deleted, this function indicates what action is to be taken
@@ -338,15 +333,15 @@ static inline uint64_t bit_range(unsigned int offset, unsigned int bits)
 }
 
 /** return the mask of all statuses */
-static inline uint64_t all_status_mask(void)
+static inline uint32_t all_status_mask(void)
 {
-    return bit_range(ATTR_COUNT, sm_inst_count);
+    return bit_range(0, sm_inst_count);
 }
 
 /** return the mask of all specific info */
 static inline uint64_t all_sm_info_mask(void)
 {
-    return bit_range(ATTR_COUNT + sm_inst_count, sm_attr_count);
+    return bit_range(0, sm_attr_count);
 }
 
 /**
@@ -355,30 +350,30 @@ static inline uint64_t all_sm_info_mask(void)
  * attributes.
  * This macro if a helper for setting a mask of policy-specific attributes.
  */
-#define GENERIC_INFO_OFFSET  (ATTR_COUNT + 1)
-#define GENERIC_INFO_BIT(_i) (1LL << (GENERIC_INFO_OFFSET + (_i)))
+#define GENERIC_INFO_OFFSET  (0)
+#define GENERIC_INFO_BIT(_i) (1LL << (_i))
 
 static inline unsigned int smi_status_index(const sm_instance_t *smi)
 {
-    return ATTR_COUNT + smi->smi_index;
+    return ATTR_INDEX_FLG_STATUS | smi->smi_index;
 }
 
-/** return the attribute index of a status manager specific info */
-static inline unsigned int smi_info_index(const sm_instance_t *smi, unsigned int attr_idx)
+/** return the attribute index of the <n>th status manager specific info */
+static inline unsigned int smi_info_index(const sm_instance_t *smi, unsigned int n)
 {
-    return ATTR_COUNT + sm_inst_count + smi->sm_info_offset + attr_idx;
+    return ATTR_INDEX_FLG_SMINFO | (smi->sm_info_offset + n);
 }
 
-/** return the attribute mask for a status manager specific info */
-static inline uint64_t smi_info_bit(const sm_instance_t *smi, unsigned int attr_idx)
+/** return the sm_info mask of <n>th status manager specific info */
+static inline uint64_t smi_info_bit(const sm_instance_t *smi, unsigned int n)
 {
-    return 1LL << smi_info_index(smi, attr_idx);
+    return 1LL << (smi->sm_info_offset + n);
 }
 
 /** return the attribute mask for all specific info of the status manager */
 static inline uint64_t smi_info_bits(const sm_instance_t *smi)
 {
-    return bit_range(smi_info_index(smi,0), smi->sm->nb_info);
+    return bit_range(smi->sm_info_offset, smi->sm->nb_info);
 }
 
 /** helper to set/overwrite a SM info */
@@ -386,7 +381,7 @@ int set_sm_info(const sm_instance_t *smi, attr_set_t *pattrs,
                 unsigned int attr_index, void *val);
 
 /** translate a generic mask SMI_MASK(0) and GENERIC_INFO_OFFSET to all status and info masks */
-uint64_t translate_all_status_mask(uint64_t mask);
+attr_mask_t translate_all_status_mask(attr_mask_t mask);
 
 /**
  * Return needed attributes to determine entry status for the given
@@ -395,10 +390,10 @@ uint64_t translate_all_status_mask(uint64_t mask);
  *              false, to get the list of attribute that can be cached
  *                  (retrieved from DB).
  */
-static inline uint64_t smi_needed_attrs(const sm_instance_t *smi, bool fresh)
+static inline attr_mask_t smi_needed_attrs(const sm_instance_t *smi, bool fresh)
 {
     if (smi == NULL)
-        return 0;
+        return null_mask;
 
     if (fresh)
         return smi->status_mask_fresh;
@@ -411,17 +406,19 @@ static inline uint64_t smi_needed_attrs(const sm_instance_t *smi, bool fresh)
  * Note: it doesn't check policy scope, as is its supposed to
  * be checked to build the input mask.
  */
-static inline uint64_t attrs_for_status_mask(uint64_t mask, bool fresh)
+static inline attr_mask_t attrs_for_status_mask(uint32_t status_mask, bool fresh)
 {
     int i = 0;
-    uint64_t m;
-    uint64_t ret = 0;
+    uint32_t m;
+    attr_mask_t ret = {0};
 
-    for (i = 0, m = (1LL << ATTR_COUNT); i < sm_inst_count; i++, m <<= 1)
+    for (i = 0, m = 1; i < sm_inst_count; i++, m <<= 1)
     {
-        if (mask & m)
+        if (status_mask & m)
         {
-            ret |= smi_needed_attrs(get_sm_instance(i), fresh);
+            attr_mask_t attr_need = smi_needed_attrs(get_sm_instance(i), fresh);
+
+            ret = attr_mask_or(&ret, &attr_need);
         }
     }
 
@@ -457,9 +454,9 @@ static inline bool smi_support_action(sm_instance_t *smi, const char *name)
  * (needed to re-create the inode, schedule the 'remove' policy,
  * and recover/rebind the entry).
  */
-static inline uint64_t sm_softrm_fields(void)
+static inline attr_mask_t sm_softrm_fields(void)
 {
-    uint64_t       all = 0;
+    attr_mask_t    all = null_mask;
     int            i = 0;
     sm_instance_t *smi;
 
@@ -467,7 +464,9 @@ static inline uint64_t sm_softrm_fields(void)
     while ((smi = get_sm_instance(i)) != NULL)
     {
         if (smi_manage_deleted(smi))
-            all |= smi->softrm_table_mask;
+        {
+            all = attr_mask_or(&all, &smi->softrm_table_mask);
+        }
         i++;
     }
     return all;
@@ -476,9 +475,9 @@ static inline uint64_t sm_softrm_fields(void)
 /**
  * Retrieve the mask of attributes to check if an entry must be saved in SOFTRM table.
  */
-static inline uint64_t sm_softrm_mask(void)
+static inline attr_mask_t sm_softrm_mask(void)
 {
-    uint64_t       all = 0;
+    attr_mask_t    all = null_mask;
     int            i = 0;
     sm_instance_t *smi;
 
@@ -486,14 +485,14 @@ static inline uint64_t sm_softrm_mask(void)
     while ((smi = get_sm_instance(i)) != NULL)
     {
         if (smi_manage_deleted(smi))
-            all |= smi->softrm_filter_mask;
+            all = attr_mask_or(&all, &smi->softrm_filter_mask);
         i++;
     }
     return all;
 }
 
 /** build a string with the list of statuses in the given mask */
-char *name_status_mask(uint64_t mask, char *buf, int sz);
+char *name_status_mask(uint32_t status_mask, char *buf, int sz);
 
 /** retrieve a status manager from its name */
 sm_instance_t *smi_by_name(const char *smi_name);
@@ -501,11 +500,12 @@ sm_instance_t *smi_by_name(const char *smi_name);
 /** Search the given attribute name (status or policy specific info).
  * If there is no smi in the context, name must be of the form '<sm_instance_name>.<attr_name>'
  * else, it can be just <attr_name> (implicit sm_instance name).
- * @return   if val is NULL, return the index of the given attribute. Else, return 0 on success.
+ * @return   0 on success, < 0 on failure.
  * @retval  -ENOENT if the requested attribute is not set in attributes structure.
  * @retval  -EINVAL if status manager or attr name is invalid.
  */
 int sm_attr_get(const sm_instance_t *smi, const attr_set_t *p_attrs,
-                const char *name, void **val, const sm_info_def_t **ppdef);
+                const char *name, void **val, const sm_info_def_t **ppdef,
+                unsigned int *attr_index);
 
 #endif

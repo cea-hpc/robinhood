@@ -156,7 +156,7 @@ static inline void rbh_scrub_release_list(unsigned int first, unsigned int count
  * \param cb_func, callback function for each set of directory
  */
 int rbh_scrub(lmgr_t   * p_mgr, const wagon_t * id_list,
-              unsigned int id_count, uint64_t dir_attr_mask,
+              unsigned int id_count, attr_mask_t dir_attr_mask,
               scrub_callback_t cb_func,
               void * arg)
 {
@@ -299,36 +299,37 @@ int Path2Id(const char *path, entry_id_t * id)
 
 
 struct __diffattr {
-    uint64_t mask;       /* 0 for last */
+    attr_mask_t mask;       /* 0 for last */
     char * name;    /* NULL for last */
     int negate;     /* negate the given mask */
 } diffattrs[] = {
-    { ATTR_MASK_fullpath | ATTR_MASK_parent_id | ATTR_MASK_name, "path", 0 },
-    { POSIX_ATTR_MASK | ATTR_MASK_link, "posix", 0 },
+    {{.std = ATTR_MASK_fullpath | ATTR_MASK_parent_id | ATTR_MASK_name}, "path", 0 },
+    {{.std = POSIX_ATTR_MASK | ATTR_MASK_link}, "posix", 0 },
 #ifdef _LUSTRE
-    { ATTR_MASK_stripe_info | ATTR_MASK_stripe_items, "stripe", 0 },
+    {{.std = ATTR_MASK_stripe_info | ATTR_MASK_stripe_items}, "stripe", 0 },
 #endif
-    { ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id
-     | POSIX_ATTR_MASK | ATTR_MASK_link | SMI_MASK(0) /* stands for all status */
-     | GENERIC_INFO_BIT(0) /* stands for all policy specific info */
-     | ATTR_MASK_creation_time
+    {{.std = ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id
 #ifdef _LUSTRE
         | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items
 #endif
-    , "all", 0},
-    { SMI_MASK(0) /* stands for all status */, "status", 0},
-    { ATTR_MASK_last_mod | ATTR_MASK_last_access | ATTR_MASK_creation_time,
+        | POSIX_ATTR_MASK | ATTR_MASK_link | ATTR_MASK_creation_time,
+      .status = SMI_MASK(0), /* stands for all status */
+      .sm_info = GENERIC_INFO_BIT(0)}, /* stands for all policy specific info */
+      "all", 0},
+    {{.status = SMI_MASK(0)} /* stands for all status */, "status", 0},
+    {{.std = ATTR_MASK_last_mod | ATTR_MASK_last_access
+            | ATTR_MASK_creation_time},
       "notimes", 1},
-    { ATTR_MASK_last_access, "noatime", 1},
+    {{.std = ATTR_MASK_last_access}, "noatime", 1},
 
-    { 0, NULL, 0 }
+    {{0}, NULL, 0}
 };
 
 /* parse attrset for --diff option */
-int parse_diff_mask(const char *arg, uint64_t *diff_mask, char *msg)
+int parse_diff_mask(const char *arg, attr_mask_t *diff_mask, char *msg)
 {
-    uint64_t mask_pos = 0;
-    uint64_t mask_neg = 0;
+    attr_mask_t mask_pos = null_mask;
+    attr_mask_t mask_neg = null_mask;
     struct __diffattr *attr;
     char buff[4096];
     char *curr, *init;
@@ -347,9 +348,9 @@ int parse_diff_mask(const char *arg, uint64_t *diff_mask, char *msg)
             {
                 found = 1;
                 if (attr->negate)
-                    mask_neg |= attr->mask;
+                    mask_neg = attr_mask_or(&mask_neg, &attr->mask);
                 else
-                    mask_pos |= attr->mask;
+                    mask_pos = attr_mask_or(&mask_pos, &attr->mask);
             }
         }
         if (!found) {
@@ -358,7 +359,7 @@ int parse_diff_mask(const char *arg, uint64_t *diff_mask, char *msg)
         }
     }
 
-    *diff_mask = (mask_pos & ~mask_neg);
+    *diff_mask = attr_mask_and_not(&mask_pos, &mask_neg);
     return 0;
 }
 
@@ -512,7 +513,7 @@ static const char *print_sm_attr(char *out, size_t out_sz, const void *pvalue,
 
 /** print an attribute from attrs structure */
 const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
-                     int attr_index, int csv, name_func name_resolver,
+                     unsigned int attr_index, int csv, name_func name_resolver,
                      char *out, size_t out_sz)
 {
     time_t tt;
@@ -521,14 +522,14 @@ const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
     /* if attr is not set in mask, print nothing */
     if  (attr_index != ATTR_INDEX_fullpath /* specific case */
          && attr_index != ATTR_INDEX_ID
-         && (attrs->attr_mask & (1LL << attr_index)) == 0)
+         && !attr_mask_test_index(&attrs->attr_mask, attr_index))
         return "";
 
     if (is_status(attr_index))
-        return STATUS_ATTR(attrs, attr_index - ATTR_COUNT);
+        return STATUS_ATTR(attrs, attr2status_index(attr_index));
     else if (is_sm_info(attr_index))
     {
-        unsigned int idx = attr_index - (ATTR_COUNT + sm_inst_count);
+        unsigned int idx = attr2sminfo_index(attr_index);
 
         return print_sm_attr(out, out_sz, attrs->attr_values.sm_info[idx],
                              sm_attr_info[idx].def->crit_type, csv);
@@ -793,7 +794,7 @@ static inline struct attr_display_spec *attr_info(int index)
     {
         /* build a special decriptor (/!\ not reentrant) */
         tmp_rec.attr_index = index;
-        tmp_rec.name = get_sm_instance(index - ATTR_COUNT)->user_name;
+        tmp_rec.name = get_sm_instance(attr2status_index(index))->user_name;
         tmp_rec.length_csv = tmp_rec.length_full = 15;
         tmp_rec.result2str = print_res_status;
         return &tmp_rec;
@@ -802,7 +803,7 @@ static inline struct attr_display_spec *attr_info(int index)
     {
          /* build a special decriptor (/!\ not reentrant) */
         tmp_rec.attr_index = index;
-        tmp_rec.name = sm_attr_info[index - (ATTR_COUNT + sm_inst_count)].user_attr_name;
+        tmp_rec.name = sm_attr_info[attr2sminfo_index(index)].user_attr_name;
         tmp_rec.length_csv = tmp_rec.length_full = 15;
         tmp_rec.result2str = print_res_sm_info;
         return &tmp_rec;
@@ -827,9 +828,9 @@ const char *attrindex2name(unsigned int index)
     int i;
 
     if (is_status(index))
-        return get_sm_instance(index - ATTR_COUNT)->user_name;
+        return get_sm_instance(attr2status_index(index))->user_name;
     else if (is_sm_info(index))
-        return sm_attr_info[index - (ATTR_COUNT + sm_inst_count)].user_attr_name;
+        return sm_attr_info[attr2sminfo_index(index)].user_attr_name;
 
     for (i = 0; attr[i].name != NULL; i++)
         if (attr[i].attr_index == index)
@@ -858,7 +859,7 @@ unsigned int attrindex2len(unsigned int index, int csv)
 #define PROF_RATIO_LEN   7
 
 /** standard attribute display for reports */
-void print_attr_list_custom(int rank_field, int *attr_list, int attr_count,
+void print_attr_list_custom(int rank_field, unsigned int *attr_list, int attr_count,
                             profile_field_descr_t *p_profile, bool csv,
                             const char * custom_title, int custom_len)
 {
@@ -922,7 +923,7 @@ void print_attr_list_custom(int rank_field, int *attr_list, int attr_count,
     printf("\n");
 }
 
-void print_attr_values_custom(int rank, int *attr_list, int attr_count,
+void print_attr_values_custom(int rank, unsigned int *attr_list, int attr_count,
                               attr_set_t * attrs, const entry_id_t *id,
                               bool csv, name_func name_resolver,
                               const char *custom, int custom_len)

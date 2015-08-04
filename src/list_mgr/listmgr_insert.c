@@ -57,8 +57,8 @@ static bool entry_filter(table_enum table, bool update,
     switch(table)
     {
         case T_MAIN:
-            /* don't set this entry if no attribute is in match_mask */
-            if ((p_attrs->attr_mask & main_attr_set) == 0)
+            /* don't set this entry if no attribute is in the table */
+            if (!main_fields(p_attrs->attr_mask))
                 return false;
             return true;
         case T_DNAMES:
@@ -72,7 +72,7 @@ static bool entry_filter(table_enum table, bool update,
             }
             return true;
         case T_ANNEX:
-            if ((p_attrs->attr_mask & annex_attr_set) == 0)
+            if (!annex_fields(p_attrs->attr_mask))
                 return false;
             return true;
         default:
@@ -89,7 +89,7 @@ static bool entry_filter(table_enum table, bool update,
  *                       attribute in this mask.
  */
 static int run_batch_insert(lmgr_t *p_mgr,
-                            uint64_t full_mask,
+                            attr_mask_t full_mask,
                             pktype *const pklist,
                             attr_set_t **p_attrs, unsigned int count,
                             table_enum table,
@@ -166,10 +166,11 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
 {
     int            rc = 0;
     int            i;
-    uint64_t       full_mask;
+    attr_mask_t       full_mask;
+    attr_mask_t       all_bits_on = {.std = ~0, .status = ~0, .sm_info = ~0LL};
     pktype        *pklist = NULL;
 
-    full_mask = sum_masks(p_attrs, count, ~0);
+    full_mask = sum_masks(p_attrs, count, all_bits_on);
     pklist = (pktype *)MemCalloc(count, sizeof(pktype));
     if (pklist == NULL)
         return DB_NO_MEMORY;
@@ -180,8 +181,8 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
         if (!lmgr_batch_compat(full_mask, p_attrs[i]->attr_mask))
         {
             DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Incompatible attr mask "
-                       "in batched operation: %#"PRIX64" vs. %#"PRIX64,
-                       p_attrs[i]->attr_mask, full_mask);
+                       "in batched operation: "DMASK" vs. "DMASK,
+                       PMASK(&p_attrs[i]->attr_mask), PMASK(&full_mask));
             rc = DB_INVALID_ARG;
             goto out_free;
         }
@@ -198,7 +199,8 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
     /* allow inserting entries in MAIN_TABLE, without name information */
 
     /* both parent and name are defined */
-    if ((full_mask & ATTR_MASK_name) && (full_mask & ATTR_MASK_parent_id))
+    if (attr_mask_test_index(&full_mask, ATTR_INDEX_name)
+        &&  attr_mask_test_index(&full_mask, ATTR_INDEX_parent_id))
     {
         rc = run_batch_insert(p_mgr, full_mask, pklist, p_attrs, count,
                               T_DNAMES, true, false, "pkn", HNAME_DEF);
@@ -224,8 +226,7 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
 
 #ifdef _LUSTRE
     /* batch insert of striping info */
-    if ((full_mask & ATTR_MASK_stripe_info)
-         || (full_mask & ATTR_MASK_stripe_items))
+    if (stripe_fields(full_mask))
     {
         /* create validator list */
         int *validators = (int*)MemCalloc(count, sizeof(int));
@@ -310,10 +311,12 @@ int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t ** p_ids,
         RBH_BUG("NULL pointer argument");
 
     /* read only fields in info mask? */
-    if (readonly_attr_set & p_attrs[0]->attr_mask)
+    if (readonly_fields(p_attrs[0]->attr_mask))
     {
-        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Error: trying to insert read only values: attr_mask=%#"PRIX64,
-                   readonly_attr_set & p_attrs[0]->attr_mask);
+        attr_mask_t and = attr_mask_and(&p_attrs[0]->attr_mask, &readonly_attr_set);
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG,
+                   "Error: trying to insert read only values: attr_mask="
+                    DMASK, PMASK(&and));
         return DB_INVALID_ARG;
     }
 

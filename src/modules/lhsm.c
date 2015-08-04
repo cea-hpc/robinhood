@@ -120,9 +120,11 @@ static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
         if (action == HUA_REMOVE)
         {
             unsigned int *tmp;
+            unsigned int idx;
             const sm_info_def_t *def;
 
-            rc = sm_attr_get(NULL, attrs, "lhsm.archive_id", (void **)&tmp, &def);
+            rc = sm_attr_get(NULL, attrs, "lhsm.archive_id", (void **)&tmp,
+                             &def, &idx);
             if (rc == 0)
             {
                 /* sanity check of returned type */
@@ -702,8 +704,8 @@ status_manager_t lhsm_sm = {
      * As we don't know the actual index of the status manager instance (smi)
      * we set it to SMI_MASK(0). It is translated later by accessors to
      * its actual index.  */
-    .status_needs_attrs_cached = ATTR_MASK_type | SMI_MASK(0),
-    .status_needs_attrs_fresh = 0,
+    .status_needs_attrs_cached = {.std = ATTR_MASK_type, .status =  SMI_MASK(0)},
+    .status_needs_attrs_fresh = {0},
 
     .get_status_func = lhsm_status,
     .changelog_cb = lhsm_cl_cb,
@@ -712,14 +714,14 @@ status_manager_t lhsm_sm = {
     .action_cb = lhsm_action_callback,
 
     /* fields for managing deleted entries */
-    .softrm_filter_mask = ATTR_MASK_type | SMI_MASK(0),
+    .softrm_filter_mask = {.std = ATTR_MASK_type, .status = SMI_MASK(0)},
     .softrm_filter_func = lhsm_softrm_filter,
 
     /** needed attributes for undelete in addition to POSIX and fullpath:
      * - lhsm_status: to know the original status of the 'undeleted' entry.
      * - archive_id: to know what archive the hsm_remove order must be sent to.
      */
-    .softrm_table_mask = SMI_MASK(0) | GENERIC_INFO_BIT(ATTR_ARCHIVE_ID),
+    .softrm_table_mask = {.status = SMI_MASK(0), .sm_info = GENERIC_INFO_BIT(ATTR_ARCHIVE_ID)},
     .undelete_func = NULL, /* FIXME to be implemented */
 
     /* XXX about full disaster recovery: must recreate all metadata (incl. symlinks => need link field)

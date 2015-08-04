@@ -48,10 +48,10 @@ typedef int    ( *scrub_callback_t ) ( wagon_t * id_list,
 /** scan sets of directories
  * \param cb_func, callback function for each set of directory
  */
-int rbh_scrub(lmgr_t   * p_mgr, const wagon_t * id_list,
-              unsigned int id_count, uint64_t dir_attr_mask,
+int rbh_scrub(lmgr_t   *p_mgr, const wagon_t *id_list,
+              unsigned int id_count, attr_mask_t dir_attr_mask,
               scrub_callback_t cb_func,
-              void * arg);
+              void *arg);
 
 
 int Path2Id(const char *path, entry_id_t * id);
@@ -69,7 +69,7 @@ static inline void free_wagon(wagon_t *ids, int first, int last)
 }
 
 /** parse attrset for --diff option */
-int parse_diff_mask(const char *arg, uint64_t *diff_mask, char *msg);
+int parse_diff_mask(const char *arg, attr_mask_t *diff_mask, char *msg);
 
 /** parse a status argument <status_name|policy_name>[:<status_value>] */
 int parse_status_arg(const char *option, char *arg, char **p_st_name, char **p_st_val,
@@ -108,8 +108,8 @@ static inline char *print_brief_sz(uint64_t sz, char * buf)
 }
 
 /* special attr indexes for display functions */
-#define ATTR_INDEX_COUNT (-1)
-#define ATTR_INDEX_ID    (-2)
+#define ATTR_INDEX_COUNT ATTR_INDEX_FLG_COUNT
+#define ATTR_INDEX_ID    (ATTR_INDEX_FLG_UNSPEC | 0x1)
 
 const char *attrindex2name(unsigned int index);
 unsigned int attrindex2len(unsigned int index, int csv);
@@ -119,25 +119,25 @@ typedef const char *(*name_func)(const entry_id_t *p_id, attr_set_t *attrs,
                                  char *buff);
 
 const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
-                     int attr_index, int csv, name_func name_resolver,
+                     unsigned int attr_index, int csv, name_func name_resolver,
                      char *out, size_t out_sz);
 
-void print_attr_list_custom(int rank_field, int *attr_list, int attr_count,
+void print_attr_list_custom(int rank_field, unsigned int *attr_list, int attr_count,
                             profile_field_descr_t *p_profile, bool csv,
                             const char *custom_title, int custom_len);
 
-void print_attr_values_custom(int rank, int *attr_list, int attr_count,
+void print_attr_values_custom(int rank, unsigned int *attr_list, int attr_count,
                               attr_set_t * attrs, const entry_id_t *id,
                               bool csv, name_func name_resolver,
                               const char *custom, int custom_len);
 
-static inline void print_attr_list(int rank_field, int *attr_list, int attr_count,
+static inline void print_attr_list(int rank_field, unsigned int *attr_list, int attr_count,
                                    profile_field_descr_t *p_profile, bool csv)
 {
     print_attr_list_custom(rank_field, attr_list, attr_count, p_profile, csv, NULL, 0);
 }
 
-static inline void print_attr_values(int rank, int *attr_list, int attr_count,
+static inline void print_attr_values(int rank, unsigned int *attr_list, int attr_count,
                                      attr_set_t *attrs, const entry_id_t *id,
                                      bool csv, name_func name_resolver)
 {

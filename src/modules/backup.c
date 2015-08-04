@@ -1561,15 +1561,17 @@ static int backup_command(const char *cmd_in, const entry_id_t *p_id,
 */
 
 struct attr_save {
-    uint64_t attr_mask;
-    char *attr_path;
+    attr_mask_t attr_mask;
+    char       *attr_path;
 };
 
 /** replace path attribute with target in case of copyback, and save previous value in attr_save */
 static void path_replace(struct attr_save *save, attr_set_t *p_attrs,
                          const char *path)
 {
-    save->attr_mask = p_attrs->attr_mask & ATTR_MASK_fullpath;
+    save->attr_mask = null_mask;
+    save->attr_mask.std = p_attrs->attr_mask.std & ATTR_MASK_fullpath;
+
     save->attr_path = ATTR_MASK_TEST(p_attrs, fullpath)?
                         strdup(ATTR(p_attrs, fullpath)):NULL;
 
@@ -1581,8 +1583,8 @@ static void path_replace(struct attr_save *save, attr_set_t *p_attrs,
 static void path_restore(struct attr_save *save, attr_set_t *p_attrs)
 {
     /* restore initial values */
-    p_attrs->attr_mask &= ~ATTR_MASK_fullpath;
-    p_attrs->attr_mask |= save->attr_mask;
+    p_attrs->attr_mask.std &= ~ATTR_MASK_fullpath;
+    p_attrs->attr_mask = attr_mask_or(&p_attrs->attr_mask, &save->attr_mask);
     if (save->attr_path != NULL)
     {
         strcpy(ATTR(p_attrs, fullpath), save->attr_path);
@@ -1601,7 +1603,7 @@ static int wrap_file_copy(sm_instance_t *smi,
     char *tmp = NULL;
     int rc;
     struct stat info;
-    struct attr_save sav = {0};
+    struct attr_save sav = ATTR_SET_INIT;
     action_params_t tmp_params = {0};
 
 
@@ -2197,7 +2199,7 @@ static recov_status_t recov_file(const entry_id_t *p_id,
 
     if (!*no_copy)
     {
-        struct attr_save sav = {0};
+        struct attr_save sav = ATTR_SET_INIT;
         action_params_t  recov_params = {0};
         post_action_e    dummy_after;
 
@@ -2732,12 +2734,12 @@ status_manager_t backup_sm = {
 
     /* Previous backup path is also needed.
      * It is only in DB (so it is a cached information). */
-    .status_needs_attrs_cached = ATTR_MASK_type | ATTR_MASK_fullpath
-                                 | GENERIC_INFO_BIT(ATTR_BK_PATH), /* XXX used last_archive in v2.5? */
+    .status_needs_attrs_cached = {.std = ATTR_MASK_type | ATTR_MASK_fullpath,
+                                  .sm_info = GENERIC_INFO_BIT(ATTR_BK_PATH) }, /* XXX used last_archive in RBH2.5 */
 
     /* needs fresh mtime/size information from lustre
      * to determine if the entry changed */
-    .status_needs_attrs_fresh = ATTR_MASK_last_mod | ATTR_MASK_size,
+    .status_needs_attrs_fresh = {.std = ATTR_MASK_last_mod | ATTR_MASK_size},
 
     .get_status_func = backup_status,
 //    .changelog_cb = backup_cl_cb, /* @TODO */
@@ -2748,10 +2750,11 @@ status_manager_t backup_sm = {
     /* no action callback as it has an executor */
 
     /* fields for managing deleted entries */
-    .softrm_filter_mask = ATTR_MASK_type | SMI_MASK(0),
+    .softrm_filter_mask = {.std = ATTR_MASK_type, .status = SMI_MASK(0)},
 //    .softrm_filter_func = backup_softrm_filter, /* @TODO */
-    .softrm_table_mask = SMI_MASK(0) | ATTR_MASK_type | ATTR_MASK_fullpath
-                         | GENERIC_INFO_BIT(ATTR_BK_PATH),
+    .softrm_table_mask = {.std = ATTR_MASK_type | ATTR_MASK_fullpath,
+                          .status = SMI_MASK(0),
+                          .sm_info = GENERIC_INFO_BIT(ATTR_BK_PATH)},
     .undelete_func = backup_recover,
 
     .cfg_funcs = &backup_cfg_hdlr,

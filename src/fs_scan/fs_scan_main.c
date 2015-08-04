@@ -426,10 +426,12 @@ static void update_ignore( whitelist_item_t * old_items, unsigned int old_count,
    /* compare ignore boolean expression structure */
    for (i = 0; i < new_count; i++ )
    {
-        if ( (old_items[i].attr_mask != new_items[i].attr_mask)
-             || compare_boolexpr( &old_items[i].bool_expr, &new_items[i].bool_expr) )
+        if (!attr_mask_equal(&old_items[i].attr_mask, &new_items[i].attr_mask)
+            || compare_boolexpr(&old_items[i].bool_expr, &new_items[i].bool_expr))
         {
-           DisplayLog( LVL_MAJOR, RELOAD_TAG, "Ignore expression #%u changed in block '%s'. Only numerical values can be modified dynamically. Ignore update cancelled", i, block_name );
+           DisplayLog(LVL_MAJOR, RELOAD_TAG, "Ignore expression #%u changed in block '%s'. "
+                     "Only numerical values can be modified dynamically. "
+                     "Skipping parameter update.", i, block_name);
            return;
         }
    }

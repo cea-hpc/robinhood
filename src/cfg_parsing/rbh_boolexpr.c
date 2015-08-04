@@ -136,7 +136,7 @@ static int process_any_level_condition( char * regexpr, char *err_msg )
 /** criteria parsing */
 static struct criteria_descr_t {
     const char *name;
-    uint64_t    attr_mask;
+    uint32_t  std_attr_mask;
     cfg_param_type type;
     int   parsing_flags;
 } const criteria_descr[] = {
@@ -186,7 +186,7 @@ const char *criteria2str(compare_criteria_t crit)
 }
 
 compare_criteria_t str2criteria(const char *str, const struct sm_instance *smi,
-                                const sm_info_def_t **def, int *idx)
+                                const sm_info_def_t **def, unsigned int *idx)
 {
     int i;
 
@@ -198,19 +198,18 @@ compare_criteria_t str2criteria(const char *str, const struct sm_instance *smi,
         if (!strcasecmp(str, criteria_descr[i].name))
             return i;
 
-    i = sm_attr_get(smi, NULL, str, NULL, def);
-    if (i >= 0)
-    {
-        *idx = i;
+    i = sm_attr_get(smi, NULL, str, NULL, def, idx);
+    if (i == 0)
+        /* found this criteria in SM info */
         return CRITERIA_SM_INFO;
-    }
 
     return NO_CRITERIA;
 }
 
-int str2lru_attr(const char *str, const struct sm_instance *smi)
+unsigned int str2lru_attr(const char *str, const struct sm_instance *smi)
 {
-        int       idx;
+        int   rc;
+        unsigned int idx;
         const sm_info_def_t *def;
 
         if (!strcasecmp(str, criteria2str(CRITERIA_LAST_ACCESS)))
@@ -224,8 +223,8 @@ int str2lru_attr(const char *str, const struct sm_instance *smi)
         else if (!strcasecmp(str, "none"))
             return LRU_ATTR_NONE;
 
-        idx = sm_attr_get(smi, NULL, str, NULL, &def);
-        if (idx < 0)
+        rc = sm_attr_get(smi, NULL, str, NULL, &def, &idx);
+        if (rc < 0)
             return LRU_ATTR_INVAL;
         else if (def->crit_type != PT_DURATION)
             return LRU_ATTR_INVAL;
@@ -248,9 +247,9 @@ int str2lru_attr(const char *str, const struct sm_instance *smi)
 
 
 static int criteria2condition(const type_key_value *key_value,
-        compare_triplet_t *p_triplet, uint64_t *p_attr_mask, char *err_msg,
-        compare_criteria_t crit, cfg_param_type type, uint64_t attr_mask, int flags,
-        const sm_instance_t *smi)
+        compare_triplet_t *p_triplet, attr_mask_t *p_attr_mask, char *err_msg,
+        compare_criteria_t crit, cfg_param_type type, attr_mask_t attr_mask,
+        int flags, const sm_instance_t *smi)
 {
     /* unexpected status in this context */
     if (flags & PFLG_STATUS)
@@ -263,10 +262,10 @@ static int criteria2condition(const type_key_value *key_value,
         }
         else if (!strcasecmp(key_value->varname, "status"))
             /* status attribute */
-            *p_attr_mask |= SMI_MASK(smi->smi_index);
+            attr_mask_set_index(p_attr_mask, ATTR_INDEX_FLG_STATUS | smi->smi_index);
         else if (smi->sm->flags & SM_DELETED)
             /* attribute for deleted entries (e.g. rm_time) */
-            *p_attr_mask |= attr_mask;
+            *p_attr_mask =attr_mask_or(p_attr_mask, &attr_mask);
         else
         {
             /* this status manager does not support deleted entries */
@@ -276,7 +275,7 @@ static int criteria2condition(const type_key_value *key_value,
         }
     }
     else
-        *p_attr_mask |= attr_mask;
+        *p_attr_mask = attr_mask_or(p_attr_mask, &attr_mask);
 
     if (crit == CRITERIA_SM_INFO)
     {
@@ -442,12 +441,13 @@ static int criteria2condition(const type_key_value *key_value,
  *  interpret and check a condition.
  */
 static int interpret_condition(type_key_value *key_value, compare_triplet_t *p_triplet,
-                               uint64_t *p_attr_mask, char *err_msg,
+                               attr_mask_t *p_attr_mask, char *err_msg,
                                const sm_instance_t *smi)
 {
     const struct criteria_descr_t *pcrit;
     const sm_info_def_t *def;
-    int       idx;
+    unsigned int idx;
+    attr_mask_t tmp = null_mask;
     /* check the name for the condition */
     compare_criteria_t crit = str2criteria(key_value->varname, smi, &def, &idx);
 
@@ -469,21 +469,28 @@ static int interpret_condition(type_key_value *key_value, compare_triplet_t *p_t
         int pflags = (t == PT_DURATION || t == PT_SIZE || t == PT_INT
             || t == PT_INT64 || t == PT_FLOAT) ? PFLG_COMPARABLE : 0;
 
+        attr_mask_set_index(&tmp, idx);
+
         return criteria2condition(key_value, p_triplet, p_attr_mask, err_msg,
-                                  crit, t, 1LL << idx, pflags, smi);
+                                  crit, t, tmp, pflags, smi);
     }
     else
+    {
+        tmp.std = pcrit->std_attr_mask;
+
         return criteria2condition(key_value, p_triplet, p_attr_mask, err_msg,
-                                  crit, pcrit->type, pcrit->attr_mask,
-                                  pcrit->parsing_flags, smi);
+                                  crit, pcrit->type, tmp, pcrit->parsing_flags,
+                                  smi);
+    }
 }
 
 
 /**
  *  Recursive function for building boolean expression.
  */
-static int build_bool_expr(type_bool_expr * p_in_bool_expr, bool_node_t * p_out_node,
-                           uint64_t *p_attr_mask, char *err_msg,
+static int build_bool_expr(type_bool_expr *p_in_bool_expr,
+                           bool_node_t *p_out_node,
+                           attr_mask_t *p_attr_mask, char *err_msg,
                            const sm_instance_t *smi)
 {
     int            rc;
@@ -661,15 +668,15 @@ free_expr1:
  *                related status manager ('status' criteria is policy dependant).
  */
 int GetBoolExpr(config_item_t block, const char *block_name,
-                bool_node_t * p_bool_node, uint64_t *p_attr_mask, char *err_msg,
-                const sm_instance_t *smi)
+                bool_node_t *p_bool_node, attr_mask_t *p_attr_mask,
+                char *err_msg, const sm_instance_t *smi)
 {
     generic_item  *curr_block = ( generic_item * ) block;
     generic_item  *subitem;
     int            rc;
 
     /* initialize attr mask */
-    *p_attr_mask = 0;
+    *p_attr_mask = null_mask;
 
     /* check it is a block */
     if ( !curr_block || ( curr_block->type != TYPE_BLOCK ) )
@@ -754,7 +761,7 @@ int FreeBoolExpr(bool_node_t *p_expr, bool free_top_node)
  *  of defined classes.
  */
 static int build_set_expr(type_set * p_in_set,
-                          bool_node_t * p_out_node, uint64_t *p_attr_mask,
+                          bool_node_t * p_out_node, attr_mask_t *p_attr_mask,
                           const policies_t *policies, char *err_msg)
 {
     int i, rc;
@@ -769,7 +776,7 @@ static int build_set_expr(type_set * p_in_set,
             {
                 /* found */
                 *p_out_node = policies->fileset_list[i].definition;
-                (*p_attr_mask) |= policies->fileset_list[i].attr_mask;
+                *p_attr_mask = attr_mask_or(p_attr_mask, &policies->fileset_list[i].attr_mask);
                 /* top level expression is not owner of the content */
                 p_out_node->content_u.bool_expr.owner = 0;
                 return 0;
@@ -861,7 +868,7 @@ return rc;
  * Build a policy boolean expression from a union/intersection of fileclasses
  */
 int GetSetExpr(config_item_t block, const char *block_name,
-               bool_node_t * p_bool_node, uint64_t *p_attr_mask,
+               bool_node_t * p_bool_node, attr_mask_t *p_attr_mask,
                const policies_t *policies, char *err_msg)
 {
     generic_item  *curr_block = ( generic_item * ) block;
@@ -869,7 +876,7 @@ int GetSetExpr(config_item_t block, const char *block_name,
     int            rc;
 
     /* initialize attr mask */
-    *p_attr_mask = 0;
+    *p_attr_mask = null_mask;
 
     /* check it is a block */
     if ( !curr_block || ( curr_block->type != TYPE_BLOCK ) )

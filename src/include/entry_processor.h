@@ -39,7 +39,7 @@ typedef struct alert_item_t
 {
     char           title[ALERT_TITLE_MAX];
     bool_node_t    boolexpr;
-    uint64_t       attr_mask;
+    attr_mask_t    attr_mask;
 } alert_item_t;
 
 /* === pipeline stage flags ===  */
@@ -73,7 +73,7 @@ typedef int (*step_batch_function_t) (struct entry_proc_op_t **, int count, lmgr
  */
 typedef bool (*test_batchable_func_t)(struct entry_proc_op_t *,
                                       struct entry_proc_op_t *,
-                                      uint64_t *full_mask);
+                                      attr_mask_t *full_mask);
 
 /**
  * Definition of a pipeline stage
@@ -172,9 +172,9 @@ typedef struct entry_proc_op_t
     entry_id_t     entry_id;
 
     /* list of attrs to be retrieved from DB */
-    uint64_t       db_attr_need;
+    attr_mask_t    db_attr_need;
     /* list of attrs to be retrieved from FS */
-    uint64_t       fs_attr_need;
+    attr_mask_t    fs_attr_need;
 
     /* attrs from DB (cached) */
     attr_set_t     db_attrs;
@@ -213,12 +213,12 @@ typedef struct entry_proc_op_t
          ATTR(&(_entry_op_p)->fs_attrs, _attr):           \
          ATTR(&(_entry_op_p)->db_attrs, _attr))
 
-#define NEED_ANYSTATUS(_op) ((_op)->fs_attr_need >= SMI_MASK(0))
-#define NEED_GETSTATUS(_op, _i) ((_op)->fs_attr_need & SMI_MASK(_i))
-#define NEED_GETSTRIPE(_op) ((_op)->fs_attr_need & (ATTR_MASK_stripe_info | ATTR_MASK_stripe_items ))
-#define NEED_GETPATH(_op) ((_op)->fs_attr_need & (ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id | ATTR_MASK_depth ))
-#define NEED_GETATTR(_op) ((_op)->fs_attr_need & POSIX_ATTR_MASK )
-#define NEED_READLINK(_op) ((_op)->fs_attr_need & ATTR_MASK_link)
+#define NEED_ANYSTATUS(_op) ((_op)->fs_attr_need.status != 0)
+#define NEED_GETSTATUS(_op, _i) ((_op)->fs_attr_need.status & SMI_MASK(_i))
+#define NEED_GETSTRIPE(_op) ((_op)->fs_attr_need.std & (ATTR_MASK_stripe_info | ATTR_MASK_stripe_items ))
+#define NEED_GETPATH(_op) ((_op)->fs_attr_need.std & (ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id | ATTR_MASK_depth))
+#define NEED_GETATTR(_op) ((_op)->fs_attr_need.std & POSIX_ATTR_MASK)
+#define NEED_READLINK(_op) ((_op)->fs_attr_need.std & ATTR_MASK_link)
 
 /** config handlers */
 extern mod_cfg_funcs_t entry_proc_cfg_hdlr;

@@ -85,7 +85,7 @@ int listmgr_get_dirattrs( lmgr_t * p_mgr, PK_ARG_T dir_pk, attr_set_t * p_attrs 
         DisplayLog(LVL_FULL, LISTMGR_TAG,
                    "Type='%s' != 'dir' => unsetting dirattrs in attr mask",
                    ATTR(p_attrs, type));
-        p_attrs->attr_mask &= ~dir_attr_set;
+        p_attrs->attr_mask = attr_mask_and_not(&p_attrs->attr_mask, &dir_attr_set);
         return 0;
     }
 
@@ -175,6 +175,36 @@ free_str:
     return rc;
 }
 
+/** only keep supported bits in the given mask */
+static void supported_bits_only(attr_mask_t *p_mask)
+{
+    /* don't get fields that are not in main, names, annex, stripe...
+     * This allows the caller to set all bits 'on' to get everything.
+     */
+    p_mask->std &= (main_attr_set.std | names_attr_set.std
+                              | annex_attr_set.std | stripe_attr_set.std
+                              | dir_attr_set.std | slink_attr_set.std);
+
+    p_mask->status &= (main_attr_set.status | names_attr_set.status
+                              | annex_attr_set.status | stripe_attr_set.status
+                              | dir_attr_set.status | slink_attr_set.status);
+
+    p_mask->sm_info &= (main_attr_set.sm_info | names_attr_set.sm_info
+                              | annex_attr_set.sm_info | stripe_attr_set.sm_info
+                              | dir_attr_set.sm_info | slink_attr_set.sm_info);
+}
+
+/** clean bits of attributes in main, annex and names */
+static void clean_std_table_bits(attr_mask_t *p_mask)
+{
+    p_mask->std &= ~(main_attr_set.std | annex_attr_set.std
+                               | names_attr_set.std);
+    p_mask->status &= ~(main_attr_set.status | annex_attr_set.status
+                               | names_attr_set.status);
+    p_mask->sm_info &= ~(main_attr_set.sm_info | annex_attr_set.sm_info
+                               | names_attr_set.sm_info);
+}
+
 /**
  *  Retrieve entry attributes from its primary key
  */
@@ -200,11 +230,13 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
     req = g_string_new("SELECT ");
     from = g_string_new(" FROM ");
 
-    /* retrieve source info for generated fields */
-    add_source_fields_for_gen(&p_info->attr_mask);
+    /* retrieve source info for generated fields (only about std fields)*/
+    add_source_fields_for_gen(&p_info->attr_mask.std);
 
-    /* don't get fields that are not in main, names, annex, stripe... */
-    p_info->attr_mask &= (main_attr_set | names_attr_set | annex_attr_set | stripe_attr_set | dir_attr_set | slink_attr_set);
+    /* don't get fields that are not in main, names, annex, stripe...
+     * This allows the caller to set all bits 'on' to get everything.
+     */
+    supported_bits_only(&p_info->attr_mask);
 
     /* get info from main table (if asked) */
     main_count = attrmask2fieldlist(req, p_info->attr_mask, T_MAIN, false,
@@ -278,7 +310,7 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
         /* END_OF_LIST means it does not exist */
         if (rc == DB_END_OF_LIST)
         {
-            p_info->attr_mask &= ~(main_attr_set|annex_attr_set|names_attr_set);
+            clean_std_table_bits(&p_info->attr_mask);
 
             /* not found, but did not check MAIN yet */
             if (checkmain)
@@ -322,7 +354,7 @@ next_table:
     if (stripe_fields(p_info->attr_mask) && ATTR_MASK_TEST(p_info, type)
         && strcmp(ATTR(p_info, type), STR_TYPE_FILE) != 0)
     {
-        p_info->attr_mask &= ~stripe_attr_set;
+        p_info->attr_mask = attr_mask_and_not(&p_info->attr_mask, &stripe_attr_set);
     }
 
     /* get stripe info if asked */
@@ -334,10 +366,11 @@ next_table:
                                 &ATTR(p_info, stripe_items) : NULL);
         if (rc == DB_ATTR_MISSING || rc == DB_NOT_EXISTS)
         {
-            p_info->attr_mask &= ~ATTR_MASK_stripe_info;
+            /* stripe info is in std mask */
+            p_info->attr_mask.std &= ~ATTR_MASK_stripe_info;
 
             if (ATTR_MASK_TEST(p_info, stripe_items))
-                p_info->attr_mask &= ~ATTR_MASK_stripe_items;
+                p_info->attr_mask.std &= ~ATTR_MASK_stripe_items;
         }
         else if (rc)
             goto free_str;
@@ -346,7 +379,7 @@ next_table:
     }
 #else
     /* POSIX: always clean stripe bits */
-    p_info->attr_mask &= ~(ATTR_MASK_stripe_info | ATTR_MASK_stripe_items);
+    p_info->attr_mask = attr_mask_and_not(&p_info->attr_mask, &stripe_attr_set);
 #endif
 
     /* special field dircount */
@@ -355,7 +388,7 @@ next_table:
         if (listmgr_get_dirattrs(p_mgr, pk, p_info))
         {
             DisplayLog(LVL_MAJOR, LISTMGR_TAG, "listmgr_get_dirattrs failed for "DPK, pk);
-            p_info->attr_mask &= ~dir_attr_set;
+            p_info->attr_mask = attr_mask_and_not(&p_info->attr_mask, &dir_attr_set);
         }
     }
 

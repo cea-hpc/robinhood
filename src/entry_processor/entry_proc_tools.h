@@ -27,7 +27,7 @@ typedef struct entry_proc_config_t
 
     alert_item_t  *alert_list;
     unsigned int   alert_count;
-    uint64_t       alert_attr_mask;
+    attr_mask_t    alert_attr_mask;
 
     bool           match_classes;
 

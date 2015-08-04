@@ -77,7 +77,7 @@ static int append_parent_cond(lmgr_t *p_mgr, GString *str, const wagon_t *parent
  */
 int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
                      const wagon_t *parent_list, unsigned int parent_count,
-                     uint64_t attr_mask,
+                     attr_mask_t attr_mask,
                      wagon_t **child_id_list, attr_set_t **child_attr_list,
                      unsigned int *child_count)
 {
@@ -101,17 +101,17 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
         RBH_BUG("cannot get children for several parent simultaneously");
 
     /* always request for name to build fullpath in wagon */
-    attr_mask |= ATTR_MASK_name;
+    attr_mask_set_index(&attr_mask, ATTR_INDEX_name);
 
     /* request is always on the DNAMES table (which contains [parent_id, id] relationship */
 
     req = g_string_new("SELECT "DNAMES_TABLE".id");
 
     /* append fields for all tables */
-    if (attr_mask)
+    if (!attr_mask_is_null(attr_mask))
     {
         /* retrieve source info for generated fields */
-        add_source_fields_for_gen(&attr_mask);
+        add_source_fields_for_gen(&attr_mask.std);
 
         field_cnt.nb_names = attrmask2fieldlist(req, attr_mask, T_DNAMES, true, false,
                                                 DNAMES_TABLE".", "");

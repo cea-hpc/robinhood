@@ -118,8 +118,9 @@ static lmgr_filter_t    parent_filter; /* same as entry_filter + condition on pa
 static bool_node_t      match_expr;
 static int              is_expr = 0; /* is it set? */
 
-static uint64_t disp_mask = ATTR_MASK_type | ATTR_MASK_blocks | ATTR_MASK_size;
-static uint64_t query_mask = 0;
+static attr_mask_t disp_mask = {.std = ATTR_MASK_type | ATTR_MASK_blocks
+                                       | ATTR_MASK_size};
+static attr_mask_t query_mask = {0};
 
 typedef struct stats_du_t
 {
@@ -239,7 +240,7 @@ static int mkfilters( void )
         else
             AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_OWNER, val);
         is_expr = 1;
-        query_mask |= ATTR_MASK_owner;
+        query_mask.std |= ATTR_MASK_owner;
     }
 
     if (prog_options.match_group)
@@ -251,7 +252,7 @@ static int mkfilters( void )
         else
             AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_GROUP, val);
         is_expr = 1;
-        query_mask |= ATTR_MASK_gr_name;
+        query_mask.std |= ATTR_MASK_gr_name;
     }
 
     if (prog_options.match_type)
@@ -263,7 +264,7 @@ static int mkfilters( void )
         else
             AppendBoolCond(&match_expr, COMP_EQUAL, CRITERIA_TYPE, val);
         is_expr = 1;
-        query_mask |= ATTR_MASK_type;
+        query_mask.std |= ATTR_MASK_type;
     }
 
     if (prog_options.match_status)
@@ -277,7 +278,7 @@ static int mkfilters( void )
             AppendBoolCond(&match_expr, COMP_EQUAL, CRITERIA_STATUS, val);
 
         is_expr = 1;
-        query_mask |= SMI_MASK(prog_options.smi->smi_index);
+        query_mask.status |= SMI_MASK(prog_options.smi->smi_index);
     }
 
 
@@ -513,7 +514,7 @@ static int list_all(stats_du_t * stats, bool display_stats)
     if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
     {
         PosixStat2EntryAttr(&st, &root_attrs, true);
-        ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
+        ListMgr_GenerateFields(&root_attrs, attr_mask_or(&disp_mask, &query_mask));
     }
 
     /* sum root if it matches */
@@ -614,7 +615,7 @@ static int list_content(char ** id_list, int id_count)
         }
 
         /* get root attrs to print it (if it matches program options) */
-        root_attrs.attr_mask = disp_mask | query_mask;
+        root_attrs.attr_mask = attr_mask_or(&disp_mask, &query_mask);
         rc = ListMgr_Get(&lmgr, &ids[i].id, &root_attrs);
         if (rc == 0)
             dircb(&ids[i], &root_attrs, 1, stats);
@@ -631,7 +632,7 @@ static int list_content(char ** id_list, int id_count)
                 if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
                 {
                     PosixStat2EntryAttr(&st, &root_attrs, true);
-                    ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
+                    ListMgr_GenerateFields(&root_attrs, attr_mask_or(&disp_mask, &query_mask));
                 }
             }
             else if (entry_id_equal(&ids[i].id, &root_id))
@@ -644,7 +645,7 @@ static int list_content(char ** id_list, int id_count)
                 if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
                 {
                     PosixStat2EntryAttr(&st, &root_attrs, true);
-                    ListMgr_GenerateFields( &root_attrs, disp_mask | query_mask);
+                    ListMgr_GenerateFields(&root_attrs, attr_mask_or(&disp_mask, &query_mask));
                 }
             }
 

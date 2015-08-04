@@ -33,7 +33,7 @@
 
 #define ERR_MISSING(_err) (((_err)==ENOENT)||((_err)==ESTALE))
 
-#define diff_mask *((uint64_t*)entry_proc_arg)
+#define diff_mask *((attr_mask_t*)entry_proc_arg)
 
 /* forward declaration of EntryProc functions of pipeline */
 static int  EntryProc_get_fid( struct entry_proc_op_t *, lmgr_t * );
@@ -49,7 +49,7 @@ static int  EntryProc_chglog_clr( struct entry_proc_op_t *, lmgr_t * );
 static int  EntryProc_rm_old_entries( struct entry_proc_op_t *, lmgr_t * );
 
 /* forward declaration to check batchable operations for db_apply stage */
-static bool dbop_is_batchable(struct entry_proc_op_t *, struct entry_proc_op_t *, uint64_t *);
+static bool dbop_is_batchable(struct entry_proc_op_t *, struct entry_proc_op_t *, attr_mask_t *);
 
 /** pipeline stages */
 enum {
@@ -145,8 +145,9 @@ int EntryProc_get_fid( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     }
     else
     {
-        DisplayLog( LVL_CRIT, ENTRYPROC_TAG,
-                    "Error: not enough information to get fid: parent_id/name or fullpath needed");
+        DisplayLog(LVL_CRIT, ENTRYPROC_TAG,
+                   "Error: not enough information to get fid: "
+                   "parent_id/name or fullpath needed");
         EntryProcessor_Acknowledge(p_op, -1, true);
         return EINVAL;
     }
@@ -224,7 +225,8 @@ static inline void check_path_info(struct entry_proc_op_t *p_op, const char *rec
     {
         DisplayLog(LVL_MAJOR, ENTRYPROC_TAG, "WARNING: name and parent should be set by %s record",
                    recname);
-        p_op->fs_attr_need |= ATTR_MASK_name | ATTR_MASK_parent_id;
+        attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_name);
+        attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_parent_id);
     }
 }
 
@@ -237,14 +239,14 @@ static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
 {
     /* alias to the log record */
     CL_REC_TYPE *logrec = p_op->extra_info.log_record.p_log_rec;
-    uint64_t status_mask_need = 0LL;
+    attr_mask_t status_mask_need = null_mask;
     proc_action_e rec_action = PROC_ACT_NONE;
 
     /* if this is a CREATE record, we know that its status is NEW. */
     if (logrec->cr_type == CL_CREATE)
     {
         /* not a symlink */
-        p_op->fs_attr_need &= ~ATTR_MASK_link;
+        attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_link);
 
         /* name and parent should have been provided by the CREATE changelog record */
         check_path_info(p_op, "CREATE");
@@ -272,10 +274,10 @@ static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
                 = cltime2sec(logrec->cr_time);
 
             /* force updating attributes */
-            p_op->fs_attr_need |= POSIX_ATTR_MASK | ATTR_MASK_stripe_info;
+            p_op->fs_attr_need.std |= POSIX_ATTR_MASK | ATTR_MASK_stripe_info;
             /* get status for all policies with a matching scope */
             add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true,
-                                     &p_op->fs_attr_need);
+                                     &p_op->fs_attr_need.status);
         }
     }
     else if (logrec->cr_type == CL_HARDLINK)
@@ -293,11 +295,11 @@ static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
         strcpy(ATTR(&p_op->fs_attrs, type), STR_TYPE_DIR);
 
         /* not a link */
-        p_op->fs_attr_need &= ~ATTR_MASK_link;
+        attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_link);
 
         /* no stripe info for dirs */
-        p_op->fs_attr_need &= ~ATTR_MASK_stripe_info;
-        p_op->fs_attr_need &= ~ATTR_MASK_stripe_items;
+        attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_info);
+        attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_items);
 
         /* path info should be set */
         check_path_info(p_op, changelog_type2str(logrec->cr_type));
@@ -309,17 +311,17 @@ static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
         strcpy(ATTR(&p_op->fs_attrs, type), STR_TYPE_LINK);
 
         /* need to get symlink content */
-        p_op->fs_attr_need |= ATTR_MASK_link;
+        attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_link);
 
         /* no stripe info for symlinks */
-        p_op->fs_attr_need &= ~ATTR_MASK_stripe_info;
-        p_op->fs_attr_need &= ~ATTR_MASK_stripe_items;
+        attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_info);
+        attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_items);
     }
 #ifdef _LUSTRE_HSM
     else if (logrec->cr_type == CL_HSM)
     {
         /* not a link */
-        p_op->fs_attr_need &= ~ATTR_MASK_link;
+        attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_link);
     }
 #endif
     else if (logrec->cr_type == CL_UNLINK)
@@ -330,8 +332,8 @@ static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
 #ifdef HAVE_CL_LAYOUT
     else if (logrec->cr_type == CL_LAYOUT)
     {
-        p_op->fs_attr_need |= ATTR_MASK_stripe_info;
-        p_op->fs_attr_need |= ATTR_MASK_stripe_items;
+        attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_info);
+        attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_items);
     }
 #endif
 
@@ -357,15 +359,16 @@ static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
                        "metadata has not been recently updated.",
                        changelog_type2str(logrec->cr_type));
 
-            p_op->fs_attr_need |= POSIX_ATTR_MASK;
+            p_op->fs_attr_need.std |= POSIX_ATTR_MASK;
         }
     }
 
     /* Changelog callback for policies with a matching scope */
-    add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true, &p_op->fs_attr_need);
+    add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true,
+                             &p_op->fs_attr_need.status);
     run_all_cl_cb(logrec, &p_op->entry_id, &p_op->db_attrs, &p_op->fs_attrs,
-                  &status_mask_need, p_op->fs_attr_need, &rec_action);
-    p_op->fs_attr_need |= status_mask_need;
+                  &status_mask_need, p_op->fs_attr_need.status, &rec_action);
+    p_op->fs_attr_need = attr_mask_or(&p_op->fs_attr_need, &status_mask_need);
 
     /* process the value of rec_action */
     switch (rec_action)
@@ -519,6 +522,8 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
     {
         if (!p_op->db_exists)
         {
+            attr_mask_t tmp;
+
             DisplayLog(LVL_FULL, ENTRYPROC_TAG, DFID"not in DB: INSERT", PFID(&p_op->entry_id));
 
             /* non-unlink (or non-destructive unlink) record on unknown entry:
@@ -529,15 +534,19 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
             ATTR_MASK_SET( &p_op->fs_attrs, creation_time );
             ATTR( &p_op->fs_attrs, creation_time ) = cltime2sec(logrec->cr_time);
 
-            /* we must get info that is not provided by the chglog */
-            p_op->fs_attr_need |= (POSIX_ATTR_MASK | ATTR_MASK_name | ATTR_MASK_parent_id
-                                   | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items
-                                   | ATTR_MASK_link) & ~ p_op->fs_attrs.attr_mask;
+            /* we must get info that is not provided by the chglog:
+             * fs_attr_need |=  <needed attributes> AND NOT in fs_attrs.
+             */
+            tmp.std = (POSIX_ATTR_MASK | ATTR_MASK_name | ATTR_MASK_parent_id
+                       | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items
+                       | ATTR_MASK_link);
+            tmp = attr_mask_and_not(&tmp, &p_op->fs_attrs.attr_mask);
+            p_op->fs_attr_need = attr_mask_or(&p_op->fs_attr_need, &tmp);
 
             /* if we needed fullpath (e.g. for policies), set it */
-            if ((p_op->db_attr_need & ATTR_MASK_fullpath) &&
+            if (attr_mask_test_index(&p_op->db_attr_need, ATTR_INDEX_fullpath) &&
                 !ATTR_MASK_TEST(&p_op->fs_attrs, fullpath))
-                p_op->fs_attr_need |= ATTR_MASK_fullpath;
+                attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_fullpath);
 
             /* EntryProc_FillFromLogRec() will determine
              * what status are to be retrieved.
@@ -545,43 +554,44 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
         }
         else /* non-unlink record on known entry */
         {
-            uint64_t db_missing;
+            attr_mask_t db_missing;
 
             p_op->db_op_type = OP_TYPE_UPDATE;
 
             /* check what information must be updated.
              * missing info = DB query - retrieved */
-            db_missing = p_op->db_attr_need & ~p_op->db_attrs.attr_mask;
+            db_missing = attr_mask_and_not(&p_op->db_attr_need,
+                                           &p_op->db_attrs.attr_mask);
 
-            /* get attrs if some is missing */
-            if ((db_missing & POSIX_ATTR_MASK) &&
-                ((p_op->fs_attrs.attr_mask & POSIX_ATTR_MASK) != POSIX_ATTR_MASK))
-                p_op->fs_attr_need |= POSIX_ATTR_MASK;
+            /* get attrs if some is missing (all std attrs) */
+            if ((db_missing.std & POSIX_ATTR_MASK) &&
+                ((p_op->fs_attrs.attr_mask.std & POSIX_ATTR_MASK) != POSIX_ATTR_MASK))
+                p_op->fs_attr_need.std |= POSIX_ATTR_MASK;
 
             /* get stripe info if missing (file only) */
-            if ((db_missing & ATTR_MASK_stripe_info) && !ATTR_MASK_TEST(&p_op->fs_attrs, stripe_info)
+            if ((db_missing.std & ATTR_MASK_stripe_info) && !ATTR_MASK_TEST(&p_op->fs_attrs, stripe_info)
                 && (!ATTR_FSorDB_TEST(p_op, type) || !strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_FILE)))
             {
-                p_op->fs_attr_need |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
+                p_op->fs_attr_need.std |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
             }
 
             /* get link content if missing (symlink only) */
-            if ((db_missing & ATTR_MASK_link) && !ATTR_MASK_TEST(&p_op->fs_attrs, link)
+            if ((db_missing.std & ATTR_MASK_link) && !ATTR_MASK_TEST(&p_op->fs_attrs, link)
                 && (!ATTR_FSorDB_TEST(p_op, type) || !strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_LINK)))
-                    p_op->fs_attr_need |= ATTR_MASK_link;
+                    p_op->fs_attr_need.std |= ATTR_MASK_link;
 
             /* EntryProc_FillFromLogRec() will determine
              * what status are to be retrieved. */
 
             /* Check md_update policy */
             if (need_md_update(&p_op->db_attrs, &md_allow_event_updt))
-                p_op->fs_attr_need |= POSIX_ATTR_MASK;
+                p_op->fs_attr_need.std |= POSIX_ATTR_MASK;
 
             /* check if path update is needed (only if it was not just updated) */
             if ((!ATTR_MASK_TEST(&p_op->fs_attrs, parent_id) || !ATTR_MASK_TEST(&p_op->fs_attrs, name))
                 && (need_path_update(&p_op->db_attrs, NULL)
-                    || (db_missing & (ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id))))
-                p_op->fs_attr_need |= ATTR_MASK_name
+                    || (db_missing.std & (ATTR_MASK_fullpath | ATTR_MASK_name | ATTR_MASK_parent_id))))
+                p_op->fs_attr_need.std |= ATTR_MASK_name
                                       | ATTR_MASK_parent_id;
         }
     }
@@ -594,7 +604,7 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
 /* Ensure the fullpath from DB is consistent.
  * Set updt_mask according to the missing info.
  */
-static void check_fullpath(attr_set_t *attrs, const entry_id_t *id, uint64_t *updt_mask)
+static void check_fullpath(attr_set_t *attrs, const entry_id_t *id, attr_mask_t *updt_mask)
 {
 #ifdef _HAVE_FID
     /* If the parent id from the changelog refers to a directory
@@ -621,7 +631,7 @@ static void check_fullpath(attr_set_t *attrs, const entry_id_t *id, uint64_t *up
                 /* fullpath is not consistent (should be <id>/name) */
                 ATTR_MASK_UNSET(attrs, fullpath);
                 /* update all path information */
-                *updt_mask |= ATTR_MASK_parent_id | ATTR_MASK_name | ATTR_MASK_fullpath;
+                updt_mask->std |= ATTR_MASK_parent_id | ATTR_MASK_name | ATTR_MASK_fullpath;
             }
             /* check if the entry is the direct child of the unknown directory */
             else if (strchr(next+1, '/') == NULL)
@@ -630,14 +640,14 @@ static void check_fullpath(attr_set_t *attrs, const entry_id_t *id, uint64_t *up
                            " is unknown (parent: "DFID", child name: '%s'): updating entry path info",
                            PFID(id), PFID(&parent_id), next+1);
                 ATTR_MASK_UNSET(attrs, fullpath);
-                *updt_mask |= ATTR_MASK_parent_id | ATTR_MASK_name | ATTR_MASK_fullpath;
+                updt_mask->std |= ATTR_MASK_parent_id | ATTR_MASK_name | ATTR_MASK_fullpath;
             }
             /* else: FIXME: We should update parent info for an upper entry. */
             else
             {
                 ATTR_MASK_UNSET(attrs, fullpath);
                 /* update path info anyhow, to try fixing the issue */
-                *updt_mask |= ATTR_MASK_parent_id | ATTR_MASK_name | ATTR_MASK_fullpath;
+                updt_mask->std |= ATTR_MASK_parent_id | ATTR_MASK_name | ATTR_MASK_fullpath;
             }
         }
         else
@@ -645,7 +655,7 @@ static void check_fullpath(attr_set_t *attrs, const entry_id_t *id, uint64_t *up
             /* fullpath is not consistent (should be <pid>/name) */
             ATTR_MASK_UNSET(attrs, fullpath);
             /* update path info, to try fixing the issue */
-            *updt_mask |= ATTR_MASK_parent_id | ATTR_MASK_name | ATTR_MASK_fullpath;
+            updt_mask->std |= ATTR_MASK_parent_id | ATTR_MASK_name | ATTR_MASK_fullpath;
         }
     }
 #else
@@ -668,9 +678,10 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 {
     int      rc = 0;
     int      next_stage = -1; /* -1 = skip */
-    uint64_t attr_allow_cached = 0;
-    uint64_t attr_need_fresh = 0;
-    uint64_t status_scope = 0;
+    attr_mask_t attr_allow_cached = null_mask;
+    attr_mask_t attr_need_fresh = null_mask;
+    uint32_t status_scope = 0; /* status mask */
+    attr_mask_t tmp;
 
     const pipeline_stage_t *stage_info =
         &entry_proc_pipeline[p_op->pipeline_stage];
@@ -696,14 +707,14 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         /* does the log record gives a clue about entry_type */
         type_clue = cl2type_clue(logrec);
 
-        p_op->db_attr_need = 0;
+        p_op->db_attr_need = null_mask;
 
         if (type_clue == TYPE_NONE)
             /* type is a useful information to take decisions (about getstripe, readlink, ...) */
-            p_op->db_attr_need |= ATTR_MASK_type;
+            attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_type);
 
         /* add diff mask for diff mode */
-        p_op->db_attr_need |= diff_mask;
+        p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &diff_mask);
 
         /* chglog_reader_config.mds_has_lu543 has already been tested
          * in changelog reader before pushing the entry. */
@@ -747,22 +758,22 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         /* If this is an unlink and we don't know whether it is the
          * last entry, use nlink. */
         if (logrec->cr_type == CL_UNLINK && p_op->check_if_last_entry)
-            p_op->db_attr_need |= ATTR_MASK_nlink;
+            attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_nlink);
         /* If it's a hard link, we will need the hlink so we can
          * increment it. Will override the fs value. */
         else if (logrec->cr_type == CL_HARDLINK)
-            p_op->db_attr_need |= ATTR_MASK_nlink;
+            attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_nlink);
 
         /* Only need to get md_update if the update policy != always */
         if (updt_params.md.when != UPDT_ALWAYS)
-            p_op->db_attr_need |= ATTR_MASK_md_update;
+            attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_md_update);
 
         /* Only need to get path_update if the update policy != always
          * and if it is not provided in logrec
          */
         if ((updt_params.path.when != UPDT_ALWAYS)
             && (logrec->cr_namelen == 0))
-            p_op->db_attr_need |= ATTR_MASK_path_update;
+            attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_path_update);
 
 #if 0 /* XXX not to be done systematically: only on specific events? (CL_LAYOUT...) */
 #ifdef _LUSTRE
@@ -774,40 +785,46 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #endif
 
         if (entry_proc_conf.detect_fake_mtime)
-             p_op->db_attr_need |= ATTR_MASK_creation_time;
+            attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_creation_time);
 
         if (type_clue == TYPE_NONE || type_clue == TYPE_LINK)
             /* check if link content is set for this entry */
-            p_op->db_attr_need |= ATTR_MASK_link;
+            attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_link);
 
         if (entry_proc_conf.match_classes)
         {
             if (updt_params.fileclass.when != UPDT_ALWAYS)
-                p_op->db_attr_need |= ATTR_MASK_class_update;
-            p_op->db_attr_need |= policies.global_fileset_mask
-                                  & ~p_op->fs_attrs.attr_mask;
+                attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_class_update);
+
+            tmp = attr_mask_and_not(&policies.global_fileset_mask, &p_op->fs_attrs.attr_mask);
+            p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
         }
-        p_op->db_attr_need |= entry_proc_conf.alert_attr_mask // TODO manage alerts as a policy
-                    & ~p_op->fs_attrs.attr_mask;
+        tmp = attr_mask_and_not(&entry_proc_conf.alert_attr_mask, &p_op->fs_attrs.attr_mask);
+        p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
 
         /* check if entry is in policies scope */
         add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true, &status_scope);
 
         /* XXX also retrieve needed attributes to check the scope? */
 
-        /* get cached info from the DB */
-        p_op->db_attr_need |= attrs_for_status_mask(status_scope, false)
-                              & ~p_op->fs_attrs.attr_mask;
+        /* get cached info from the DB
+         * db_attr_need |= <attrs_for_status> and not <fs_attrs>
+         */
+        tmp = attrs_for_status_mask(status_scope, false);
+        tmp = attr_mask_and_not(&tmp, &p_op->fs_attrs.attr_mask);
+        p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
 
         /* in case of unlink, we need softrm filter masks */
         if (p_op->extra_info.log_record.p_log_rec->cr_type == CL_UNLINK)
         {
-            p_op->db_attr_need |= sm_softrm_mask();
+            tmp = sm_softrm_mask();
+
+            p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
         }
 
         /* In case of a RENAME, match the new name (not the one from the DB). */
         if ((logrec->cr_type == CL_EXT)
-             && (p_op->db_attr_need & ATTR_MASK_fullpath))
+             && (p_op->db_attr_need.std & ATTR_MASK_fullpath))
         {
             rc = Lustre_GetFullPath(&p_op->entry_id,
                                     ATTR(&p_op->fs_attrs, fullpath),
@@ -815,7 +832,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             if (rc == 0)
             {
                 ATTR_MASK_SET(&p_op->fs_attrs, fullpath);
-                p_op->db_attr_need &= ~ATTR_MASK_fullpath;
+                p_op->db_attr_need.std &= ~ATTR_MASK_fullpath;
             }
         }
 
@@ -852,7 +869,8 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
         /* Note: this check must be done after processing log record,
          * because it can determine if status is needed */
-        p_op->fs_attr_need |= attrs_for_status_mask(p_op->fs_attr_need, true);
+        tmp = attrs_for_status_mask(p_op->fs_attr_need.status, true);
+        p_op->fs_attr_need = attr_mask_or(&p_op->fs_attr_need, &tmp);
 
         char tmp_buf[RBH_NAME_MAX];
         DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "RECORD: %s "DFID" %#x %s => "
@@ -863,7 +881,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                    logrec->cr_namelen ? rh_get_cl_cr_name(logrec) : "<null>",
                    NEED_GETSTRIPE(p_op)?1:0, NEED_GETATTR(p_op)?1:0,
                    NEED_GETPATH(p_op)?1:0, NEED_READLINK(p_op)?1:0,
-                   name_status_mask(p_op->fs_attr_need, tmp_buf, sizeof(tmp_buf)));
+                   name_status_mask(p_op->fs_attr_need.status, tmp_buf, sizeof(tmp_buf)));
     }
     else /* entry from FS scan */
     {
@@ -883,53 +901,55 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
         /* XXX also retrieve needed attributes to check the scope? */
 
-        p_op->db_attr_need |= diff_mask;
+        p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &diff_mask);
         /* retrieve missing attributes for diff */
-        p_op->fs_attr_need |= (diff_mask & ~p_op->fs_attrs.attr_mask);
+        tmp = attr_mask_and_not(&diff_mask, &p_op->fs_attrs.attr_mask);
+        p_op->fs_attr_need = attr_mask_or(&p_op->fs_attr_need, &tmp);
 
         if (entry_proc_conf.detect_fake_mtime)
-             p_op->db_attr_need |= ATTR_MASK_creation_time;
+            attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_creation_time);
 
         /* get all needed attributes for status */
         attr_allow_cached = attrs_for_status_mask(status_scope, false);
         attr_need_fresh = attrs_for_status_mask(status_scope, true);
 
         /* what must be retrieved from DB: */
-        p_op->db_attr_need |= (attr_allow_cached
-                               & ~p_op->fs_attrs.attr_mask);
-        p_op->db_attr_need |= (entry_proc_conf.alert_attr_mask
-                               & ~p_op->fs_attrs.attr_mask);
+        tmp = attr_mask_and_not(&attr_allow_cached, &p_op->fs_attrs.attr_mask);
+        p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
+
+        tmp = attr_mask_and_not(&entry_proc_conf.alert_attr_mask, &p_op->fs_attrs.attr_mask);
+        p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
 
         /* no dircount for non-dirs */
         if (ATTR_MASK_TEST(&p_op->fs_attrs, type) &&
             strcmp(ATTR(&p_op->fs_attrs, type), STR_TYPE_DIR))
-        {
-            p_op->db_attr_need &= ~ATTR_MASK_dircount;
-        }
+            attr_mask_unset_index(&p_op->db_attr_need, ATTR_INDEX_dircount);
 
         /* no readlink for non symlinks */
         if (ATTR_MASK_TEST(&p_op->fs_attrs, type)) /* likely */
         {
             if (!strcmp(ATTR(&p_op->fs_attrs, type), STR_TYPE_LINK))
             {
-                p_op->db_attr_need |= ATTR_MASK_link; /* check if it is known */
+                attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_link); /* check if it is known */
                 /* no stripe for symlinks */
-                p_op->db_attr_need &= ~ (ATTR_MASK_stripe_info|ATTR_MASK_stripe_items);
+                attr_mask_unset_index(&p_op->db_attr_need, ATTR_INDEX_stripe_info);
+                attr_mask_unset_index(&p_op->db_attr_need, ATTR_INDEX_stripe_items);
             }
             else
-                p_op->db_attr_need &= ~ATTR_MASK_link;
+                attr_mask_unset_index(&p_op->db_attr_need, ATTR_INDEX_link);
         }
 
         if (entry_proc_conf.match_classes)
         {
             if (updt_params.fileclass.when != UPDT_ALWAYS)
-                p_op->db_attr_need |= ATTR_MASK_class_update;
+                attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_class_update);
 
-            p_op->db_attr_need |= policies.global_fileset_mask &
-                                    ~p_op->fs_attrs.attr_mask;
+            tmp = attr_mask_and_not(&policies.global_fileset_mask,
+                                    &p_op->fs_attrs.attr_mask);
+            p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
         }
 
-        if (p_op->db_attr_need)
+        if (!attr_mask_is_null(p_op->db_attr_need))
         {
             p_op->db_attrs.attr_mask = p_op->db_attr_need;
             rc = ListMgr_Get(lmgr, &p_op->entry_id, &p_op->db_attrs);
@@ -937,7 +957,8 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             if (rc == DB_SUCCESS)
             {
                 p_op->db_exists = 1;
-                p_op->fs_attr_need |= (p_op->db_attr_need & ~ p_op->db_attrs.attr_mask);
+                tmp = attr_mask_and_not(&p_op->db_attr_need, &p_op->db_attrs.attr_mask);
+                p_op->fs_attr_need = attr_mask_or(&p_op->fs_attr_need, &tmp);
             }
             else if (rc == DB_NOT_EXISTS )
             {
@@ -960,8 +981,9 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         }
 
         /* get status for all policies */
-        p_op->fs_attr_need |= all_status_mask();
-        p_op->fs_attr_need |= (attr_need_fresh & ~ p_op->fs_attrs.attr_mask);
+        p_op->fs_attr_need.status |= all_status_mask();
+        tmp = attr_mask_and_not(&attr_need_fresh, &p_op->fs_attrs.attr_mask);
+        p_op->fs_attr_need = attr_mask_or(&p_op->fs_attr_need, &tmp);
 
         if ( !p_op->db_exists )
         {
@@ -982,7 +1004,10 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 /* only if it was not retrieved during the scan */
                 && !(ATTR_MASK_TEST(&p_op->fs_attrs, stripe_info)
                     && ATTR_MASK_TEST(&p_op->fs_attrs, stripe_items)))
-                p_op->fs_attr_need |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
+            {
+                attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_info);
+                attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_items);
+            }
 #endif
 
             /* readlink for symlinks (if not already known) */
@@ -990,11 +1015,11 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                 && !strcmp(ATTR( &p_op->fs_attrs, type ), STR_TYPE_LINK)
                 && !ATTR_MASK_TEST(&p_op->fs_attrs, link))
             {
-                p_op->fs_attr_need |= ATTR_MASK_link;
+                attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_link);
             }
             else
             {
-                p_op->fs_attr_need &= ~ATTR_MASK_link;
+                attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_link);
             }
 
             next_stage = STAGE_GET_INFO_FS;
@@ -1007,16 +1032,16 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             {
                 if (strcmp(ATTR( &p_op->fs_attrs, type ), STR_TYPE_LINK))
                     /* non-link */
-                    p_op->fs_attr_need &= ~ATTR_MASK_link;
+                    attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_link);
                 else
                 {
                     /* link */
 #ifdef _LUSTRE
                     /* already known (in DB or FS) */
                     if (ATTR_FSorDB_TEST(p_op, link))
-                        p_op->fs_attr_need &= ~ATTR_MASK_link;
+                        attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_link);
                     else /* not known */
-                        p_op->fs_attr_need |= ATTR_MASK_link;
+                        attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_link);
 #else
                     /* For non-lustre filesystems, inodes may be recycled, so re-read link even if it is is DB */
                     if (ATTR_MASK_TEST(&p_op->fs_attrs, link))
@@ -1029,9 +1054,9 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
             /* get parent_id+name, if not set during scan (eg. for root directory) */
             if (!ATTR_MASK_TEST( &p_op->fs_attrs, name))
-                p_op->fs_attr_need |= ATTR_MASK_name;
+                attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_name);
             if (!ATTR_MASK_TEST( &p_op->fs_attrs, parent_id))
-                p_op->fs_attr_need |= ATTR_MASK_parent_id;
+                attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_parent_id);
 
 #ifdef _LUSTRE
             /* check stripe only for files */
@@ -1094,7 +1119,7 @@ static int skip_record(struct entry_proc_op_t *p_op)
 /** take DB removal decision when an entry no longer exists in the filesystem */
 static int rm_record(struct entry_proc_op_t *p_op)
 {
-    attr_set_t merged_attrs = {0}; /* attrs from FS+DB */
+    attr_set_t merged_attrs = ATTR_SET_INIT;
     proc_action_e pa;
     int rc;
 
@@ -1173,11 +1198,11 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         ", Getstatus(%s), Getstripe=%u",
          PFID(&p_op->entry_id), NEED_GETATTR(p_op)?1:0,
          NEED_GETPATH(p_op)?1:0, NEED_READLINK(p_op)?1:0,
-         name_status_mask(p_op->fs_attr_need, tmp_buf, sizeof(tmp_buf)),
+         name_status_mask(p_op->fs_attr_need.status, tmp_buf, sizeof(tmp_buf)),
          NEED_GETSTRIPE(p_op)?1:0);
 
     /* don't retrieve info which is already fresh */
-    p_op->fs_attr_need &= ~p_op->fs_attrs.attr_mask;
+    p_op->fs_attr_need = attr_mask_and_not(&p_op->fs_attr_need, &p_op->fs_attrs.attr_mask);
 
 #ifdef HAVE_CHANGELOGS /* never needed for scans */
     if (NEED_GETATTR(p_op) && (p_op->extra_info.is_changelog_record))
@@ -1242,7 +1267,10 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     if ( NEED_GETSTRIPE(p_op)
          && ATTR_FSorDB_TEST( p_op, type )
          && strcmp( ATTR_FSorDB( p_op, type), STR_TYPE_FILE ) != 0 )
-        p_op->fs_attr_need &= ~(ATTR_MASK_stripe_info | ATTR_MASK_stripe_items);
+    {
+        attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_info);
+        attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_items);
+    }
 
     if (NEED_GETSTRIPE(p_op))
     {
@@ -1267,8 +1295,8 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     {
         int i;
         sm_instance_t *smi;
-        attr_set_t merged_attrs = {0}; /* attrs from FS+DB */
-        attr_set_t new_attrs = {0}; /* attributes + status */
+        attr_set_t merged_attrs = ATTR_SET_INIT; /* attrs from FS+DB */
+        attr_set_t new_attrs = ATTR_SET_INIT; /* attributes + status */
 
         ATTR_MASK_INIT(&merged_attrs);
 
@@ -1277,12 +1305,12 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
         /* match policy scopes according to newly set information:
          * remove needed status from mask and append the updated one. */
-        p_op->fs_attr_need &= ~all_status_mask();
+        p_op->fs_attr_need.status &= ~all_status_mask();
         /* FIXME this fails if scope attributes are missing */
 //        add_matching_scopes_mask(&p_op->entry_id, &merged_attrs, false,
 //                                 &p_op->fs_attr_need);
         add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true,
-                                 &p_op->fs_attr_need);
+                                 &p_op->fs_attr_need.status);
 
         i = 0;
         while ((smi = get_sm_instance(i)) != NULL)
@@ -1327,7 +1355,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     /* readlink only for symlinks */
     if (NEED_READLINK(p_op) && ATTR_FSorDB_TEST(p_op, type)
         && strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_LINK) != 0)
-        p_op->fs_attr_need &= ~ATTR_MASK_link;
+        attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_link);
 
     if (NEED_READLINK(p_op))
     {
@@ -1381,10 +1409,12 @@ int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     /* check alert criterias (synchronously) */
     for ( i = 0; i < entry_proc_conf.alert_count; i++ )
     {
+        attr_mask_t tmp =  attr_mask_and(&merged_attrs.attr_mask,
+                                  &entry_proc_conf.alert_list[i].attr_mask);
+
         /* check entry attr mask (else, skip it) */
-        if (!merged_attrs.attr_mask || !p_op->entry_id_is_set
-             || ( (merged_attrs.attr_mask & entry_proc_conf.alert_list[i].attr_mask ) !=
-                  entry_proc_conf.alert_list[i].attr_mask ) )
+        if (attr_mask_is_null(merged_attrs.attr_mask) || !p_op->entry_id_is_set
+             || !attr_mask_equal(&tmp, &entry_proc_conf.alert_list[i].attr_mask))
             continue;
 
         if (entry_matches(&p_op->entry_id, &merged_attrs,
@@ -1440,7 +1470,7 @@ int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
 static bool dbop_is_batchable(struct entry_proc_op_t *first,
                               struct entry_proc_op_t *next,
-                              uint64_t *full_attr_mask)
+                              attr_mask_t *full_attr_mask)
 {
     if (first->db_op_type != OP_TYPE_INSERT
         && first->db_op_type != OP_TYPE_UPDATE
@@ -1456,7 +1486,7 @@ static bool dbop_is_batchable(struct entry_proc_op_t *first,
      * the same or 0. Ask the list manager about that. */
     else if (lmgr_batch_compat(*full_attr_mask, next->fs_attrs.attr_mask))
     {
-        *full_attr_mask |= next->fs_attrs.attr_mask;
+        *full_attr_mask =  attr_mask_or(full_attr_mask, &next->fs_attrs.attr_mask);
         return true;
     }
     else
@@ -1498,29 +1528,32 @@ int EntryProc_pre_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
     /* Only update fields that changed */
     if (p_op->db_op_type == OP_TYPE_UPDATE)
     {
-        uint64_t loc_diff_mask = ListMgr_WhatDiff(&p_op->fs_attrs, &p_op->db_attrs);
+        attr_mask_t tmp;
+        attr_mask_t loc_diff_mask = ListMgr_WhatDiff(&p_op->fs_attrs, &p_op->db_attrs);
 
         /* In scan mode, always keep md_update and path_update,
          * to avoid their cleaning at the end of the scan.
          * Also keep name and parent as they are keys in DNAMES table.
          */
-        uint64_t to_keep = ATTR_MASK_parent_id | ATTR_MASK_name;
+        attr_mask_t to_keep = {.std = ATTR_MASK_parent_id | ATTR_MASK_name, 0, 0LL };
 
         /* the mask to be displayed > diff_mask (include to_keep flags) */
-        uint64_t display_mask = diff_mask & loc_diff_mask;
+        attr_mask_t display_mask = attr_mask_and(&diff_mask, &loc_diff_mask);
 
         /* keep fullpath if parent or name changed (friendly display) */
-        if (loc_diff_mask & (ATTR_MASK_parent_id | ATTR_MASK_name)) {
-            to_keep |= ATTR_MASK_fullpath;
-            display_mask |= ATTR_MASK_fullpath;
+        if (loc_diff_mask.std & (ATTR_MASK_parent_id | ATTR_MASK_name)) {
+            to_keep.std |= ATTR_MASK_fullpath;
+            display_mask.std |= ATTR_MASK_fullpath;
         }
 #ifdef HAVE_CHANGELOGS
         if (!p_op->extra_info.is_changelog_record)
 #endif
-            to_keep |= (ATTR_MASK_md_update | ATTR_MASK_path_update);
+            to_keep.std |= (ATTR_MASK_md_update | ATTR_MASK_path_update);
 
         /* remove other unchanged attrs + attrs not in db mask */
-        p_op->fs_attrs.attr_mask &= (loc_diff_mask | to_keep | ~p_op->db_attrs.attr_mask);
+        tmp = attr_mask_or(&loc_diff_mask, &to_keep);
+        tmp = attr_mask_or_not(&tmp, &p_op->db_attrs.attr_mask);
+        p_op->fs_attrs.attr_mask = attr_mask_and(&p_op->fs_attrs.attr_mask, &tmp);
 
         /* FIXME: free cleared attributes */
 
@@ -1533,18 +1566,18 @@ int EntryProc_pre_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
             ATTR_MASK_UNSET(&p_op->fs_attrs, class_update);
 
         /* nothing changed => noop */
-        if (p_op->fs_attrs.attr_mask == 0)
+        if (attr_mask_is_null(p_op->fs_attrs.attr_mask))
         {
             /* no op */
             p_op->db_op_type = OP_TYPE_NONE;
         }
         /* something changed in diffmask */
-        else if (loc_diff_mask & diff_mask)
+        else if (!attr_mask_is_null(attr_mask_and(&loc_diff_mask, &diff_mask)))
         {
             char attrchg[RBH_PATH_MAX] = "";
 
             /* attr from DB */
-            if (display_mask == 0)
+            if (attr_mask_is_null(display_mask))
                 attrchg[0] = '\0';
             else
                 PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs, display_mask, 1);
@@ -1556,16 +1589,18 @@ int EntryProc_pre_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
             printf("+"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
         }
     }
-    else if (diff_mask)
+    else if (!attr_mask_is_null(diff_mask))
     {
         if (p_op->db_op_type == OP_TYPE_INSERT)
         {
             char attrnew[RBH_PATH_MAX];
             PrintAttrs(attrnew, RBH_PATH_MAX, &p_op->fs_attrs,
-                p_op->fs_attrs.attr_mask & diff_mask, 1);
+                attr_mask_and(&p_op->fs_attrs.attr_mask, &diff_mask), 1);
             printf("++"DFID" %s\n", PFID(&p_op->entry_id), attrnew);
         }
-        else if ((p_op->db_op_type == OP_TYPE_REMOVE_LAST) || (p_op->db_op_type == OP_TYPE_REMOVE_ONE) || (p_op->db_op_type == OP_TYPE_SOFT_REMOVE))
+        else if ((p_op->db_op_type == OP_TYPE_REMOVE_LAST)
+                || (p_op->db_op_type == OP_TYPE_REMOVE_ONE)
+                || (p_op->db_op_type == OP_TYPE_SOFT_REMOVE))
         {
             if (ATTR_FSorDB_TEST(p_op, fullpath))
                 printf("--"DFID" path=%s\n", PFID(&p_op->entry_id), ATTR_FSorDB(p_op, fullpath));
@@ -1573,8 +1608,7 @@ int EntryProc_pre_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
                 printf("--"DFID"\n", PFID(&p_op->entry_id));
         }
     }
-
-    p_op->fs_attrs.attr_mask &= ~readonly_attr_set;
+    attr_mask_unset_readonly(&p_op->fs_attrs.attr_mask);
 
     rc = EntryProcessor_Acknowledge(p_op, STAGE_DB_APPLY, false);
     if (rc)
@@ -1640,10 +1674,14 @@ int EntryProc_db_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
 
         if (log_config.debug_level >= LVL_DEBUG) {
             char buff[2*RBH_PATH_MAX];
+            attr_mask_t tmp = null_mask;
+            attr_mask_t tmp2 = null_mask;
 
-            PrintAttrs(buff, 2*RBH_PATH_MAX, &p_op->fs_attrs,
-                       ATTR_MASK_fullpath | ATTR_MASK_parent_id | ATTR_MASK_name
-                       | sm_softrm_mask(), true);
+            tmp.std = ATTR_MASK_fullpath | ATTR_MASK_parent_id | ATTR_MASK_name;
+            tmp2 = sm_softrm_mask();
+            tmp = attr_mask_or(&tmp, &tmp2);
+
+            PrintAttrs(buff, 2*RBH_PATH_MAX, &p_op->fs_attrs, tmp, true);
             DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "SoftRemove("DFID",%s)",
                         PFID(&p_op->entry_id), buff);
         }
@@ -1798,7 +1836,7 @@ int EntryProc_rm_old_entries( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     rm_cb_func_t cb = NULL;
 
     /* callback func for diff display */
-    if (diff_mask)
+    if (!attr_mask_is_null(diff_mask))
         cb = mass_rm_cb;
 
     /* If gc_entries or gc_names are not set,

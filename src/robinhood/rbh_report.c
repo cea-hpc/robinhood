@@ -436,6 +436,7 @@ static int parse_size_range(const char * str, profile_field_descr_t * p_profile)
     char *sep = NULL;
     uint64_t sz1;
     uint64_t sz2;
+
    /* expected format:
         0
         <start_val><sep>[<end_val>]
@@ -1100,16 +1101,14 @@ static int mk_global_filters(lmgr_filter_t *filter, bool do_display,
     return 0;
 }
 
-static uint64_t list2mask(int *attr_list, int attr_count)
+static attr_mask_t list2mask(unsigned int *attr_list, int attr_count)
 {
     int i;
-    uint64_t mask, tmpmask;
-    mask = 0;
+    attr_mask_t mask = {0};
+
     for (i=0; i < attr_count; i++)
-    {
-        tmpmask = 1LL << attr_list[i];
-        mask |= tmpmask;
-    }
+        attr_mask_set_index(&mask, attr_list[i]);
+
     return mask;
 }
 
@@ -1200,7 +1199,7 @@ static const char *ResolvName(const entry_id_t *p_id, attr_set_t *attrs,
 static void dump_entries( type_dump type, int int_arg, char * str_arg, value_list_t * ost_list, int flags )
 {
     /* get basic information */
-    uint64_t       mask_sav;
+    attr_mask_t    mask_sav;
     int rc;
     lmgr_filter_t  filter;
     filter_value_t fv;
@@ -1214,7 +1213,7 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
 
     /* list of attributes to be use for all dumps
      * except ost dump and status dump */
-    static int list_std[] = {
+    static unsigned int list_std[] = {
                    ATTR_INDEX_type,
                    ATTR_INDEX_size,
                    ATTR_INDEX_owner,
@@ -1222,7 +1221,7 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
                    ATTR_INDEX_fileclass
                 };
 
-    static int list_status[] = {
+    static unsigned int list_status[] = {
                    ATTR_INDEX_type,
                    0, /* to be set in the code */
                    ATTR_INDEX_size,
@@ -1233,14 +1232,14 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
                 };
 
     /* list of attributes to be used for OST dumps */
-    static int list_stripe[] = {
+    static unsigned int list_stripe[] = {
                    ATTR_INDEX_type,
                    ATTR_INDEX_size,
                    ATTR_INDEX_fullpath,
                    ATTR_INDEX_stripe_info,
                    ATTR_INDEX_stripe_items
     };
-    int * list = NULL;
+    unsigned int *list = NULL;
     bool list_allocated = false;
     int list_cnt = 0;
 
@@ -1253,7 +1252,7 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
     {
         list = list_status;
         list_cnt = sizeof(list_status)/sizeof(int);
-        list[1] = ATTR_COUNT + int_arg; /* status index */
+        list[1] = ATTR_INDEX_FLG_STATUS | int_arg; /* status index */
     }
     else /* std dump: display all status */
     {
@@ -1270,7 +1269,7 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
         memcpy(list, list_std, sizeof(list_std));
         for (i = 0; i < sm_inst_count; i++)
         {
-            list[list_cnt] = i + ATTR_COUNT;
+            list[list_cnt] = ATTR_INDEX_FLG_STATUS | i;
             list_cnt++;
         }
         /* add fullpath */
@@ -1315,7 +1314,7 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
                 /* str arg: status value */
 
                 fv.value.val_str = str_arg;
-                lmgr_simple_filter_add(&filter, int_arg + ATTR_COUNT, EQUAL, fv,
+                lmgr_simple_filter_add(&filter, int_arg | ATTR_INDEX_FLG_STATUS, EQUAL, fv,
                                        EMPTY_STRING(str_arg)?FILTER_FLAG_ALLOW_NULL:0);
                 break;
 
@@ -1547,7 +1546,9 @@ static int report_entry(const char *entry, int flags)
     }
 
     /* try to get all attrs */
-    attrs.attr_mask = ~0LL;
+    attrs.attr_mask.std = ~0;
+    attrs.attr_mask.status = ~0;
+    attrs.attr_mask.sm_info = ~0LL;
 
     if (CSV(flags))
         printf("id, "DFID"\n", PFID(&id));
@@ -1556,13 +1557,13 @@ static int report_entry(const char *entry, int flags)
 
     if (ListMgr_Get(&lmgr, &id, &attrs) == DB_SUCCESS)
     {
-        int      i;
-        uint64_t mask;
+        int      i, cookie;
         char     str[RBH_PATH_MAX];
 
-        for (i = 0, mask = 1; i < ALL_ATTR_COUNT; i++, mask <<= 1)
+        cookie = -1;
+        while ((i = attr_index_iter(0, &cookie)) != -1)
         {
-            if (mask & attrs.attr_mask)
+            if (attr_mask_test_index(&attrs.attr_mask, i))
             {
                 if (attrindex2len(i, CSV(flags)) != 1) /* for '?' */
                 {
@@ -1764,7 +1765,7 @@ static void report_topdirs( unsigned int count, int flags )
      * => sorted by dircount DESC
      */
     int            rc, index;
-    uint64_t       mask_sav;
+    attr_mask_t      mask_sav;
     lmgr_sort_type_t sorttype;
     lmgr_filter_t  filter;
     filter_value_t fv;
@@ -1773,13 +1774,13 @@ static void report_topdirs( unsigned int count, int flags )
     attr_set_t     attrs;
     entry_id_t     id;
 
-    int list[] = { ATTR_INDEX_fullpath,
-                   ATTR_INDEX_dircount,
-                   ATTR_INDEX_avgsize,
-                   ATTR_INDEX_owner,
-                   ATTR_INDEX_gr_name,
-                   ATTR_INDEX_last_mod };
-    int list_cnt = sizeof(list)/sizeof(int);
+    unsigned int list[] = { ATTR_INDEX_fullpath,
+                            ATTR_INDEX_dircount,
+                            ATTR_INDEX_avgsize,
+                            ATTR_INDEX_owner,
+                            ATTR_INDEX_gr_name,
+                            ATTR_INDEX_last_mod };
+    int list_cnt = sizeof(list)/sizeof(*list);
 
     /* select only directories */
     lmgr_simple_filter_init( &filter );
@@ -1857,7 +1858,7 @@ static void report_topsize( unsigned int count, int flags )
      * => sorted by size DESC
      */
     int            rc, index;
-    uint64_t       mask_sav;
+    attr_mask_t    mask_sav;
     lmgr_sort_type_t sorttype;
     lmgr_filter_t  filter;
     filter_value_t fv;
@@ -1866,17 +1867,17 @@ static void report_topsize( unsigned int count, int flags )
     attr_set_t     attrs;
     entry_id_t     id;
 
-    int list[] = { ATTR_INDEX_fullpath,
-                   ATTR_INDEX_size,
-                   ATTR_INDEX_owner,
-                   ATTR_INDEX_gr_name,
-                   ATTR_INDEX_last_access,
-                   ATTR_INDEX_last_mod,
-                   ATTR_INDEX_fileclass,
-                   ATTR_INDEX_stripe_info,
-                   ATTR_INDEX_stripe_items
-                };
-    int list_cnt = sizeof(list)/sizeof(int);
+    unsigned int list[] = { ATTR_INDEX_fullpath,
+                            ATTR_INDEX_size,
+                            ATTR_INDEX_owner,
+                            ATTR_INDEX_gr_name,
+                            ATTR_INDEX_last_access,
+                            ATTR_INDEX_last_mod,
+                            ATTR_INDEX_fileclass,
+                            ATTR_INDEX_stripe_info,
+                            ATTR_INDEX_stripe_items
+                        };
+    int list_cnt = sizeof(list)/sizeof(*list);
 
     /* select only files */
     fv.value.val_str = STR_TYPE_FILE;
@@ -1931,7 +1932,7 @@ static void report_topsize( unsigned int count, int flags )
 static void report_oldest(obj_type_t type, unsigned int count, int flags)
 {
     int            rc, index;
-    uint64_t       mask_sav;
+    attr_mask_t    mask_sav;
     lmgr_sort_type_t sorttype;
     lmgr_filter_t  filter;
     filter_value_t fv;
@@ -1940,7 +1941,7 @@ static void report_oldest(obj_type_t type, unsigned int count, int flags)
     attr_set_t     attrs;
     entry_id_t     id;
 
-    int list_files[] = {
+    unsigned int list_files[] = {
                 ATTR_INDEX_fullpath,
                 ATTR_INDEX_owner,
                 ATTR_INDEX_gr_name,
@@ -1952,14 +1953,14 @@ static void report_oldest(obj_type_t type, unsigned int count, int flags)
                 ATTR_INDEX_stripe_items
                 };
 
-    int list_dirs[] = {
+    unsigned int list_dirs[] = {
                 ATTR_INDEX_fullpath,
                 ATTR_INDEX_owner,
                 ATTR_INDEX_gr_name,
                 ATTR_INDEX_last_mod
                 };
 
-    int *list = NULL;
+    unsigned int *list = NULL;
     int  list_cnt;
 
     lmgr_simple_filter_init(&filter);
@@ -2145,7 +2146,7 @@ static void report_deferred_rm( int flags )
     int            rc;
     struct lmgr_rm_list_t * rmlist;
     entry_id_t     id;
-    attr_set_t     attrs = {0};
+    attr_set_t     attrs = ATTR_SET_INIT;
 
     unsigned long long total_count = 0;
     unsigned long long total_size = 0;
@@ -2155,7 +2156,7 @@ static void report_deferred_rm( int flags )
 
     lmgr_sort_type_t sort;
 
-    static int list[] = {
+    static unsigned int list[] = {
                    ATTR_INDEX_rm_time,
                    ATTR_INDEX_ID, /* id */
                    ATTR_INDEX_type,
@@ -2165,7 +2166,7 @@ static void report_deferred_rm( int flags )
                    ATTR_INDEX_last_mod,
                    ATTR_INDEX_fullpath
                 };
-    int list_cnt = sizeof(list)/sizeof(int);
+    int list_cnt = sizeof(list)/sizeof(*list);
 
     lmgr_simple_filter_init( &filter );
 
@@ -2321,7 +2322,8 @@ static void report_status_info(int smi_index, const char* val, int flags)
      * - MIN/MAX/AVG file size
      */
     report_field_descr_t status_info[STATUSINFO_FIELDS] = {
-        {ATTR_COUNT + smi_index, REPORT_GROUP_BY, SORT_ASC, false, 0, FV_NULL},
+        {ATTR_INDEX_FLG_STATUS | smi_index, REPORT_GROUP_BY, SORT_ASC,
+                false, 0, FV_NULL},
         {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC, false, 0, FV_NULL},
         {ATTR_INDEX_COUNT, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
@@ -2345,7 +2347,8 @@ static void report_status_info(int smi_index, const char* val, int flags)
         filter_value_t fv;
 
         fv.value.val_str = val;
-        lmgr_simple_filter_add(&filter, ATTR_COUNT + smi_index, EQUAL, fv,
+        lmgr_simple_filter_add(&filter, ATTR_INDEX_FLG_STATUS | smi_index,
+                               EQUAL, fv,
                                EMPTY_STRING(val)? FILTER_FLAG_ALLOW_NULL : 0);
         is_filter = true;
     }

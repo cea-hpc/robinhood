@@ -78,19 +78,19 @@ const char *criteria2str(compare_criteria_t crit);
 struct sm_instance;
 struct sm_info_def;
 compare_criteria_t str2criteria(const char *str, const struct sm_instance *smi,
-                                const struct sm_info_def **ppdef, int *idx);
+                                const struct sm_info_def **ppdef, unsigned int *idx);
 
-#define LRU_ATTR_NONE  (-1)
-#define LRU_ATTR_INVAL (-2)
+#define LRU_ATTR_NONE  (ATTR_INDEX_FLG_UNSPEC)
+#define LRU_ATTR_INVAL (ATTR_INDEX_FLG_UNSPEC | 0x1)
 
 #define ALLOWED_LRU_ATTRS_STR "none, creation, last_access, last_mod, rm_time, or status manager specific."
 
 /**
  * Return the attribute index for the given lru_sort_attr string.
- * @retval LRU_ATTR_NONE (-1) 'lru_sort_attr = none' (no sorting)
- * @retval LRU_ATTR_INVAL (-2) invalid lru_sort_attr.
+ * @retval LRU_ATTR_NONE  'lru_sort_attr = none' (no sorting)
+ * @retval LRU_ATTR_INVAL invalid lru_sort_attr.
  */
-int str2lru_attr(const char *str, const struct sm_instance *smi);
+unsigned int str2lru_attr(const char *str, const struct sm_instance *smi);
 
 typedef enum {
     BOOL_ERR = 0,

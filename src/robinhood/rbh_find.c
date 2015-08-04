@@ -190,13 +190,19 @@ struct find_opt
     .no_dir = 0, .dir_only = 0, .exec = 0
 };
 
-#define LS_DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_nlink | ATTR_MASK_mode | ATTR_MASK_owner |\
-                      ATTR_MASK_gr_name | ATTR_MASK_size | ATTR_MASK_last_mod | ATTR_MASK_link)
-#define LSOST_DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_size | ATTR_MASK_stripe_items)
-#define LSCLASS_DISPLAY_MASK (ATTR_MASK_type | ATTR_MASK_size | ATTR_MASK_fileclass)
+static const attr_mask_t LS_DISPLAY_MASK = {.std = ATTR_MASK_type
+                                       | ATTR_MASK_nlink
+                                       | ATTR_MASK_mode | ATTR_MASK_owner
+                                       | ATTR_MASK_gr_name | ATTR_MASK_size
+                                       | ATTR_MASK_last_mod | ATTR_MASK_link};
 
-static uint64_t disp_mask = ATTR_MASK_type;
-static uint64_t query_mask = 0;
+static const attr_mask_t LSOST_DISPLAY_MASK = {.std = ATTR_MASK_type
+                                     | ATTR_MASK_size | ATTR_MASK_stripe_items};
+static const attr_mask_t LSCLASS_DISPLAY_MASK = {.std = ATTR_MASK_type
+                                     | ATTR_MASK_size | ATTR_MASK_fileclass};
+
+static attr_mask_t disp_mask = {.std = ATTR_MASK_type};
+static attr_mask_t query_mask = {0};
 
 //static lmgr_filter_t    dir_filter;
 
@@ -230,7 +236,7 @@ static int mkfilters(bool exclude_dirs)
         else
             AppendBoolCond(&match_expr, compflag, CRITERIA_OWNER, val);
         is_expr = 1;
-        query_mask |= ATTR_MASK_owner;
+        query_mask.std |= ATTR_MASK_owner;
     }
 
     if (prog_options.match_group)
@@ -246,7 +252,7 @@ static int mkfilters(bool exclude_dirs)
         else
             AppendBoolCond(&match_expr, compflag, CRITERIA_GROUP, val);
         is_expr = 1;
-        query_mask |= ATTR_MASK_gr_name;
+        query_mask.std |= ATTR_MASK_gr_name;
     }
 
     if (prog_options.match_name)
@@ -262,7 +268,7 @@ static int mkfilters(bool exclude_dirs)
         else
             AppendBoolCond(&match_expr, compflag, CRITERIA_FILENAME, val);
         is_expr = 1;
-        query_mask |= ATTR_MASK_name;
+        query_mask.std |= ATTR_MASK_name;
     }
 
     if (prog_options.match_size)
@@ -274,7 +280,7 @@ static int mkfilters(bool exclude_dirs)
         else
             AppendBoolCond(&match_expr, prog_options.sz_compar, CRITERIA_SIZE, val);
         is_expr = 1;
-        query_mask |= ATTR_MASK_size;
+        query_mask.std |= ATTR_MASK_size;
     }
 
     if (prog_options.match_crtime)
@@ -286,7 +292,7 @@ static int mkfilters(bool exclude_dirs)
         else
             AppendBoolCond(&match_expr, prog_options.crt_compar, CRITERIA_CREATION, val);
         is_expr = 1;
-        query_mask |= ATTR_MASK_creation_time;
+        query_mask.std |= ATTR_MASK_creation_time;
     }
 
     if (prog_options.match_mtime)
@@ -298,7 +304,7 @@ static int mkfilters(bool exclude_dirs)
         else
             AppendBoolCond(&match_expr, prog_options.mod_compar, CRITERIA_LAST_MOD, val);
         is_expr = 1;
-        query_mask |= ATTR_MASK_last_mod;
+        query_mask.std |= ATTR_MASK_last_mod;
     }
 
     if (prog_options.match_atime)
@@ -310,7 +316,7 @@ static int mkfilters(bool exclude_dirs)
         else
             AppendBoolCond(&match_expr, prog_options.acc_compar, CRITERIA_LAST_ACCESS, val);
         is_expr = 1;
-        query_mask |= ATTR_MASK_last_access;
+        query_mask.std |= ATTR_MASK_last_access;
     }
 #ifdef _LUSTRE
     if (prog_options.match_ost)
@@ -323,7 +329,7 @@ static int mkfilters(bool exclude_dirs)
         else
             AppendBoolCond(&match_expr, COMP_EQUAL, CRITERIA_OST, val);
         is_expr = 1;
-        query_mask |= ATTR_MASK_stripe_items;
+        query_mask.std |= ATTR_MASK_stripe_items;
     }
 
     if (prog_options.match_pool)
@@ -335,7 +341,7 @@ static int mkfilters(bool exclude_dirs)
         else
             AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_POOL, val);
         is_expr = 1;
-        query_mask |= ATTR_MASK_stripe_info;
+        query_mask.std |= ATTR_MASK_stripe_info;
     }
 #endif
 
@@ -356,7 +362,7 @@ static int mkfilters(bool exclude_dirs)
             AppendBoolCond(&match_expr, compflag, CRITERIA_STATUS, val);
 
         is_expr = 1;
-        query_mask |= SMI_MASK(prog_options.filter_smi->smi_index);
+        query_mask.status |= SMI_MASK(prog_options.filter_smi->smi_index);
     }
 
     /* create DB filters */
@@ -930,7 +936,7 @@ static int dircb(wagon_t * id_list, attr_set_t * attr_list,
         if (!prog_options.dir_only)
         {
             rc = ListMgr_GetChild(&lmgr, &entry_filter, id_list+i, 1,
-                                   disp_mask | query_mask,
+                                   attr_mask_or(&disp_mask, &query_mask),
                                    &chids, &chattrs, &chcount);
             if (rc)
             {
@@ -983,7 +989,7 @@ static int list_bulk(void)
     /* no tranvsersal => no wagon
      * so we need the path from the DB.
      */
-    query_mask |= ATTR_MASK_fullpath;
+    query_mask.std |= ATTR_MASK_fullpath;
 
     ATTR_MASK_INIT(&root_attrs);
 
@@ -998,7 +1004,7 @@ static int list_bulk(void)
     if (lstat(ATTR(&root_attrs, fullpath), &st) == 0)
     {
         PosixStat2EntryAttr(&st, &root_attrs, true);
-        ListMgr_GenerateFields(&root_attrs, disp_mask | query_mask);
+        ListMgr_GenerateFields(&root_attrs, attr_mask_or(&disp_mask, &query_mask));
     }
     /* root has no name... */
     ATTR_MASK_SET(&root_attrs, name);
@@ -1026,7 +1032,7 @@ static int list_bulk(void)
         return -1;
     }
 
-    attrs.attr_mask = disp_mask | query_mask;
+    attrs.attr_mask = attr_mask_or(&disp_mask, &query_mask);
     while ((rc = ListMgr_GetNext(it, &id, &attrs)) == DB_SUCCESS)
     {
         if (!is_expr || (entry_matches(&id, &attrs, &match_expr, NULL,
@@ -1056,7 +1062,7 @@ static int list_bulk(void)
         ListMgr_FreeAttrs(&attrs);
 
         /* prepare next call */
-        attrs.attr_mask = disp_mask | query_mask;
+        attrs.attr_mask = attr_mask_or(&disp_mask, &query_mask);
     }
     ListMgr_CloseIterator(it);
 
@@ -1123,7 +1129,7 @@ static int list_contents(char ** id_list, int id_count)
         }
 
         /* get root attrs to print it (if it matches program options) */
-        root_attrs.attr_mask = disp_mask | query_mask;
+        root_attrs.attr_mask = attr_mask_or(&disp_mask, &query_mask);
         rc = ListMgr_Get(&lmgr, &ids[i].id, &root_attrs);
         if (rc == 0)
             dircb(&ids[i], &root_attrs, 1, NULL);
@@ -1140,7 +1146,8 @@ static int list_contents(char ** id_list, int id_count)
                 if (lstat(ATTR(&root_attrs, fullpath), &st) == 0)
                 {
                     PosixStat2EntryAttr(&st, &root_attrs, true);
-                    ListMgr_GenerateFields(&root_attrs, disp_mask | query_mask);
+                    ListMgr_GenerateFields(&root_attrs,
+                                         attr_mask_or(&disp_mask, &query_mask));
                 }
             }
             else if (entry_id_equal(&ids[i].id, &root_id))
@@ -1153,14 +1160,16 @@ static int list_contents(char ** id_list, int id_count)
                 if (lstat(ATTR(&root_attrs, fullpath), &st) == 0)
                 {
                     PosixStat2EntryAttr(&st, &root_attrs, true);
-                    ListMgr_GenerateFields(&root_attrs, disp_mask | query_mask);
+                    ListMgr_GenerateFields(&root_attrs,
+                                         attr_mask_or(&disp_mask, &query_mask));
                 }
             }
 
             dircb(&ids[i], &root_attrs, 1, NULL);
         }
 
-        rc = rbh_scrub(&lmgr, &ids[i], 1, disp_mask | query_mask, dircb, NULL);
+        rc = rbh_scrub(&lmgr, &ids[i], 1, attr_mask_or(&disp_mask, &query_mask),
+                       dircb, NULL);
     }
 
 out:
@@ -1267,7 +1276,7 @@ int main(int argc, char **argv)
         case 'O':
             prog_options.lsost = 1;
             prog_options.print = 0;
-            disp_mask |= LSOST_DISPLAY_MASK;
+            disp_mask = attr_mask_or(&disp_mask, &LSOST_DISPLAY_MASK);
             if (neg) {
                 fprintf(stderr, "! (-not) unexpected before -lsost option\n");
                 exit(1);
@@ -1278,7 +1287,7 @@ int main(int argc, char **argv)
         case 'c':
             prog_options.lsclass = 1;
             prog_options.print = 0;
-            disp_mask |= LSCLASS_DISPLAY_MASK;
+            disp_mask = attr_mask_or(&disp_mask, &LSCLASS_DISPLAY_MASK);
             if (neg) {
                 fprintf(stderr, "! (-not) unexpected before -lsclass option\n");
                 exit(1);
@@ -1393,7 +1402,7 @@ int main(int argc, char **argv)
         case 'l':
             prog_options.ls = 1;
             prog_options.print = 0;
-            disp_mask |= LS_DISPLAY_MASK;
+            disp_mask = attr_mask_or(&disp_mask, &LS_DISPLAY_MASK);
             if (neg) {
                 fprintf(stderr, "! (-not) unexpected before -ls option\n");
                 exit(1);
@@ -1402,7 +1411,7 @@ int main(int argc, char **argv)
 
         case 'p':
             prog_options.print = 1;
-            disp_mask |= LS_DISPLAY_MASK;
+            disp_mask = attr_mask_or(&disp_mask, &LS_DISPLAY_MASK);
             if (neg) {
                 fprintf(stderr, "! (-not) unexpected before -ls option\n");
                 exit(1);
@@ -1544,10 +1553,10 @@ int main(int argc, char **argv)
                                    &prog_options.smi);
             if (rc)
                 exit(rc);
-            disp_mask |= SMI_MASK(prog_options.smi->smi_index);
+            disp_mask.status |= SMI_MASK(prog_options.smi->smi_index);
         }
         else /* display all status */
-            disp_mask |= all_status_mask();
+            disp_mask.status |= all_status_mask();
     }
 
     if (prog_options.match_status)
@@ -1560,7 +1569,7 @@ int main(int argc, char **argv)
         if (rc)
             exit(rc);
         /* add it to display mask */
-        disp_mask |= SMI_MASK(prog_options.filter_smi->smi_index);
+        disp_mask.status |= SMI_MASK(prog_options.filter_smi->smi_index);
         prog_options.filter_status_value = (char *)strval;
     }
 

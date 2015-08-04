@@ -57,7 +57,7 @@ static int polrun_set_default(const policy_descr_t *pol, policy_run_config_t *cf
 
     cfg->action = pol->default_action;
     cfg->action_params.param_set = NULL;
-    cfg->run_attr_mask = 0;
+    cfg->run_attr_mask = null_mask;
 
     cfg->check_action_status_on_startup = true;
     cfg->recheck_ignored_classes = false;
