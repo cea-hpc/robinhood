@@ -278,7 +278,8 @@ static int criteria2condition(const type_key_value *key_value,
 
     if (crit == CRITERIA_SM_INFO)
     {
-        rh_strncpy(p_triplet->attr_name, key_value->varname, sizeof(p_triplet->attr_name));
+        rh_strncpy(p_triplet->attr_name, key_value->varname,
+                   sizeof(p_triplet->attr_name));
     }
 
     p_triplet->crit = crit;

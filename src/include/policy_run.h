@@ -191,10 +191,10 @@ typedef struct policy_run_config_t
 } policy_run_config_t;
 
 typedef struct counters_t {
-    unsigned long long  count;
-    unsigned long long  vol;
-    unsigned long long  blocks;
-    unsigned long long  targeted;
+    ull_t count;
+    ull_t vol;
+    ull_t blocks;
+    ull_t targeted;
 } counters_t;
 
 /** add counters together */
@@ -224,6 +224,16 @@ static inline bool counter_reached_limit(const counters_t *c,
            || ((l->vol != 0) && (c->vol >= l->vol))
            || ((l->blocks != 0) && (c->blocks >= l->blocks))
            || ((l->targeted != 0) && (c->targeted >= l->targeted)));
+}
+
+/** test if a specified target has been reached */
+static inline bool counter_not_reached(const counters_t *c,
+                                       const counters_t *t)
+{
+     return (((t->count != 0) && (c->count < t->count))
+           || ((t->vol != 0) && (c->vol < t->vol))
+           || ((t->blocks != 0) && (c->blocks < t->blocks))
+           || ((t->targeted != 0) && (c->targeted < t->targeted)));
 }
 
 typedef struct __action_summary {

@@ -9,6 +9,7 @@ define_policy alert {
 
 alert_parameters {
     action_params { alert = raise; }
+    report_actions = no;
 }
 
 alert_trigger {
