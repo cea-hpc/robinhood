@@ -645,6 +645,8 @@ static void FlushAlerts(bool release_mutex_asap)
     unsigned int    mail_size = 0;
     char            title[MAIL_TITLE_MAX];
     GString        *contents = NULL;
+    time_t          now;
+    struct tm       date;
 
     /* first list scan, to determine the number of alerts, etc... */
     for (pcurr = alert_list; pcurr != NULL; pcurr = pcurr->next)
@@ -653,113 +655,116 @@ static void FlushAlerts(bool release_mutex_asap)
         mail_size += pcurr->estim_size;
     }
 
-    if (alert_count > 0)
+    if (alert_count == 0)
     {
-        time_t         now = time(NULL);
-        struct tm      date;
-        localtime_r(&now, &date);
-
-        snprintf(title, MAIL_TITLE_MAX, "robinhood alert summary (%s on %s): %u alerts",
-                 global_config.fs_path, machine_name, alert_count);
-
-        contents = g_string_new("");
-        g_string_printf(contents, "Date: %.4d/%.2d/%.2d %.2d:%.2d:%.2d\n"
-                        "Program: %s (pid %lu)\n"
-                        "Host: %s\n"
-                        "Filesystem: %s\n",
-                        1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
-                        date.tm_hour, date.tm_min, date.tm_sec, prog_name,
-                        (unsigned long) getpid(), machine_name,
-                        global_config.fs_path);
-
-        g_string_append(contents, "\n===== alert summary ====\n\n");
-        g_string_append_printf(contents, "%u alerts:\n", alert_count);
-
-        for (pcurr = alert_list; pcurr != NULL; pcurr = pcurr->next)
-        {
-            g_string_append_printf(contents, "\t* %u %s\n", pcurr->count,
-                                   pcurr->title);
-        }
-
-        for (pcurr = alert_list; pcurr != NULL;)
-        {
-            unsigned int i;
-
-            g_string_append_printf(contents, "\n==== alert '%s' ====\n\n",
-                                   pcurr->title);
-
-            for (i = 0; i < pcurr->count; i++)
-            {
-                /* print and free */
-                if (pcurr->entries[i])
-                {
-                    g_string_append_printf(contents, "%s\n", pcurr->entries[i]);
-                    if (log_config.alert_show_attrs)
-                        g_string_append_printf(contents, "Entry info:\n%s\n",
-                                               pcurr->info[i]);
-
-                    free(pcurr->entries[i]);
-                    free(pcurr->info[i]);
-                }
-            }
-            /* free the list of entries */
-            free(pcurr->entries);
-            free(pcurr->info);
-
-            /* set the list to the next item */
-            alert_list = pcurr->next;
-            /* free the item */
-            free(pcurr);
-            /* next item */
-            pcurr = alert_list;
-        }
-
-        /* reset alert count */
-        alert_count = 0;
-
-        /* all alerts has been released, we can put the lock */
         if (release_mutex_asap)
             V(alert_mutex);
-
-        /* send the mail and/or write the alert in alert file */
-        if (!EMPTY_STRING(log_config.alert_mail))
-            SendMail(log_config.alert_mail, title, contents->str);
-
-        if (!EMPTY_STRING(log_config.alert_file))
-        {
-            if (alert.log_type == RBH_LOG_SYSLOG)
-            {
-                /* we need to split the content after each '\n' */
-                char *curr = contents->str;
-                char *next = NULL;
-                display_line_log_(&alert, "ALERT", "=== ALERT REPORT ===");
-                do {
-                    next = strchr(curr, '\n');
-                    if (next != NULL)
-                    {
-                        next[0] = '\0';
-                        next++;
-                    }
-                    display_line_log_(&alert, "ALERT", curr);
-                    curr = next;
-                } while (curr != NULL);
-                display_line_log_(&alert, "ALERT", "=== END OF ALERT REPORT ===");
-            }
-            else
-            {
-                display_line_log_(&alert, "ALERT", "=== ALERT REPORT ===\n%s",
-                                  contents->str);
-                display_line_log_(&alert, "ALERT", "=== END OF ALERT REPORT ===");
-            }
-
-            /* always flush alerts, because we don't want to loose events */
-            flush_log_descr(&alert);
-        }
-
-        g_string_free(contents, TRUE);
-        /* mutex already released, can go out now */
         return;
     }
+
+    now = time(NULL);
+    localtime_r(&now, &date);
+
+    snprintf(title, MAIL_TITLE_MAX, "robinhood alert summary (%s on %s): %u alerts",
+             global_config.fs_path, machine_name, alert_count);
+
+    contents = g_string_new("");
+    g_string_printf(contents, "Date: %.4d/%.2d/%.2d %.2d:%.2d:%.2d\n"
+                    "Program: %s (pid %lu)\n"
+                    "Host: %s\n"
+                    "Filesystem: %s\n",
+                    1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
+                    date.tm_hour, date.tm_min, date.tm_sec, prog_name,
+                    (unsigned long) getpid(), machine_name,
+                    global_config.fs_path);
+
+    g_string_append(contents, "\n===== alert summary ====\n\n");
+    g_string_append_printf(contents, "%u alerts:\n", alert_count);
+
+    for (pcurr = alert_list; pcurr != NULL; pcurr = pcurr->next)
+    {
+        g_string_append_printf(contents, "\t* %u %s\n", pcurr->count,
+                               pcurr->title);
+    }
+
+    for (pcurr = alert_list; pcurr != NULL;)
+    {
+        unsigned int i;
+
+        g_string_append_printf(contents, "\n==== alert '%s' ====\n\n",
+                               pcurr->title);
+
+        for (i = 0; i < pcurr->count; i++)
+        {
+            /* print and free */
+            if (pcurr->entries[i])
+            {
+                g_string_append_printf(contents, "%s\n", pcurr->entries[i]);
+                if (log_config.alert_show_attrs)
+                    g_string_append_printf(contents, "Entry info:\n%s\n",
+                                           pcurr->info[i]);
+
+                free(pcurr->entries[i]);
+                free(pcurr->info[i]);
+            }
+        }
+        /* free the list of entries */
+        free(pcurr->entries);
+        free(pcurr->info);
+
+        /* set the list to the next item */
+        alert_list = pcurr->next;
+        /* free the item */
+        free(pcurr);
+        /* next item */
+        pcurr = alert_list;
+    }
+
+    /* reset alert count */
+    alert_count = 0;
+
+    /* all alerts has been released, we can put the lock */
+    if (release_mutex_asap)
+        V(alert_mutex);
+
+    /* send the mail and/or write the alert in alert file */
+    if (!EMPTY_STRING(log_config.alert_mail))
+        SendMail(log_config.alert_mail, title, contents->str);
+
+    if (!EMPTY_STRING(log_config.alert_file))
+    {
+        if (alert.log_type == RBH_LOG_SYSLOG)
+        {
+            /* we need to split the content after each '\n' */
+            char *curr = contents->str;
+            char *next = NULL;
+            display_line_log_(&alert, "ALERT", "=== ALERT REPORT ===");
+            do {
+                next = strchr(curr, '\n');
+                if (next != NULL)
+                {
+                    next[0] = '\0';
+                    next++;
+                }
+                display_line_log_(&alert, "ALERT", curr);
+                curr = next;
+            } while (curr != NULL);
+            display_line_log_(&alert, "ALERT", "=== END OF ALERT REPORT ===");
+        }
+        else
+        {
+            display_line_log_(&alert, "ALERT", "=== ALERT REPORT ===\n%s",
+                              contents->str);
+            display_line_log_(&alert, "ALERT", "=== END OF ALERT REPORT ===");
+        }
+
+        /* always flush alerts, because we don't want to loose events */
+        flush_log_descr(&alert);
+    }
+
+    g_string_free(contents, TRUE);
+    /* mutex already released, can go out now */
+
 } /*  Flush alerts */
 
 static void Alert_Add( const char * title, const char * entry, const char * info )

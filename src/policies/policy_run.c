@@ -1366,6 +1366,7 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
         attr_set.attr_mask = attr_mask;
 
         memset(&entry_id, 0, sizeof(entry_id_t));
+
         rc = iter_next(it, &entry_id, &attr_set);
 
         if (aborted(pol))
@@ -1681,6 +1682,9 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     p_pol_info->progress.policy_start = p_pol_info->progress.last_report
         = time(NULL);
 
+    /* start alert batching in case the policy trigger alerts */
+    Alert_StartBatching();
+
     /* loop on all policy passes */
     do
     {
@@ -1717,6 +1721,9 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     lmgr_simple_filter_free(&filter);
     /* iterator may have been closed in fill_workers_queue() */
     iter_close(&it);
+
+    /* flush pending alerts */
+    Alert_EndBatching();
 
     if (p_summary)
         *p_summary = p_pol_info->progress;

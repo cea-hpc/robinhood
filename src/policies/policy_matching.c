@@ -689,7 +689,9 @@ int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
                            p_comp->attr_name);
                 return -1;
             }
-            DisplayLog(LVL_FULL, POLICY_TAG, "Attribute index of '%s' = %d", p_comp->attr_name, idx);
+            DisplayLog(LVL_FULL, POLICY_TAG, "Attribute index of '%s' = %#X|%u",
+                       p_comp->attr_name, idx & ATTR_INDEX_FLG_MASK,
+                       idx &~ ATTR_INDEX_FLG_MASK);
             *p_attr_index = idx;
             rc = set_filter_value_generic(def, p_comp->op, &p_comp->val, &p_value->value, &oppose);
             if (rc)

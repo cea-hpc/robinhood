@@ -507,7 +507,7 @@ static int entry_proc_cfg_read(config_file_t config, void *module_config, char *
         if (!strcasecmp(block_name, ALERT_BLOCK))
         {
             DisplayLog(LVL_MAJOR, "EntryProc_Config", "WARNING: %s blocks are deprecated. "
-                       "Define an alert check policy instead.", ALERT_BLOCK);
+                       "Configure an alert policy instead (include 'alerts.inc').", ALERT_BLOCK);
         }
     }
 
