@@ -710,7 +710,7 @@ static inline int add_archiveid_in_table(db_conn_t * pconn, const char * table,
 
     /* alter statement */
     sprintf(strbuf, "ALTER TABLE %s ADD COLUMN archive_id INTEGER UNSIGNED "
-                    "ZEROFILL AFTER %s ;", table, prev_field);
+                    "DEFAULT 0 AFTER %s ;", table, prev_field);
     DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Table alter request =\n%s", strbuf);
 
     rc = db_exec_sql(pconn, strbuf, NULL);

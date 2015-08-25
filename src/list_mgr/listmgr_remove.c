@@ -1009,10 +1009,17 @@ int            ListMgr_GetNextRmEntry( struct lmgr_rm_list_t *p_iter,
     }
 #endif
 #ifdef _LUSTRE_HSM
-    if ( last_known_archive_id )
+    if (last_known_archive_id)
     {
-	if ( sscanf( record[2], "%u", last_known_archive_id ) <= 0 )
-	    return DB_REQUEST_FAILED;
+        if (record[2])
+        {
+            if (sscanf(record[2], "%u", last_known_archive_id) <= 0)
+                return DB_REQUEST_FAILED;
+        }
+        else
+        {
+            *last_known_archive_id = 0;
+        }
     }
 #endif
 
