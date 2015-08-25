@@ -809,26 +809,6 @@ void ListMgr_CloseReport( struct lmgr_report_t *p_iter )
 
 int ListMgr_EntryCount(lmgr_t * p_mgr, uint64_t *count)
 {
-    int            rc;
-    result_handle_t result;
-    char          *str_count = NULL;
-
-    /* execute the request */
-retry:
-    rc = db_exec_sql( &p_mgr->conn, "SELECT COUNT(*) FROM " MAIN_TABLE, &result );
-    if (lmgr_delayed_retry(p_mgr, rc))
-        goto retry;
-    else if (rc)
-        return rc;
-
-    rc = db_next_record( &p_mgr->conn, &result, &str_count, 1 );
-    if (rc)
-        return rc;
-
-    if ( sscanf( str_count, "%"SCNu64, count ) != 1 )
-        rc = DB_REQUEST_FAILED;
-
-    db_result_free( &p_mgr->conn, &result );
-    return rc;
+    return lmgr_count(&p_mgr->conn, MAIN_TABLE, count);
 }
 

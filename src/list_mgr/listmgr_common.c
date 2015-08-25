@@ -1667,3 +1667,36 @@ bool lmgr_batch_compat(int m1, int m2)
         return false;
     return true;
 }
+
+/** return the number of records in the given table */
+int lmgr_count(db_conn_t *pconn, const char *table, uint64_t *count)
+{
+    int            rc;
+    result_handle_t result;
+    char          *str_count = NULL;
+    char          query[1024];
+    lmgr_t        lmgr;
+
+    memset(&lmgr, 0, sizeof(lmgr));
+    lmgr.conn = *pconn;
+
+    snprintf(query, sizeof(query), "SELECT COUNT(*) FROM %s", table);
+
+    /* execute the request */
+retry:
+    rc = db_exec_sql(pconn, query, &result);
+    if (lmgr_delayed_retry(&lmgr, rc))
+        goto retry;
+    else if (rc)
+        return rc;
+
+    rc = db_next_record(pconn, &result, &str_count, 1);
+    if (rc)
+        return rc;
+
+    if (sscanf(str_count, "%"SCNu64, count) != 1)
+        rc = DB_REQUEST_FAILED;
+
+    db_result_free(pconn, &result);
+    return rc;
+}

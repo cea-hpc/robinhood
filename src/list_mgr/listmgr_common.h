@@ -346,4 +346,7 @@ static inline int sum_masks(attr_set_t **p_attrs, unsigned int count, int t_mask
     return m;
 }
 
+/** return the number of records in the given table */
+int lmgr_count(db_conn_t *pconn, const char *table, uint64_t *count);
+
 #endif
