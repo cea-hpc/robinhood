@@ -7555,7 +7555,7 @@ function test_alerts
 	test -f "/tmp/rh_alert.log" || touch "/tmp/rh_alert.log"
 
 	echo "1-Preparing Filesystem..."
-	if [ $testKey == "extAttributes" ]; then
+	if [ $testKey == "extended_attribute" ]; then
 		echo " is for extended attributes"
 		echo "data" > $ROOT/file.1
 		echo "data" > $ROOT/file.2
@@ -7574,7 +7574,7 @@ function test_alerts
 		dd if=/dev/zero of=$ROOT/dir2/file.3 bs=1k count=1 >/dev/null 2>/dev/null || error "writing file.3"
 		ln -s $ROOT/dir1/file.1 $ROOT/dir1/link.1 || error "creating hardlink $ROOT/dir1/link.1"
 
-		if  [ $testKey == "dircount" ]; then
+		if  [ $testKey == "nonempty_dir" ]; then
 			# add a folder with one file
 			mkdir -p $ROOT/dir3
 		    dd if=/dev/zero of=$ROOT/dir3/file.4 bs=1k count=1 >/dev/null 2>/dev/null || error "writing file.4"
@@ -7586,55 +7586,49 @@ function test_alerts
 		sleep $sleepTime
 	fi
 	# specific optional action after sleep process ..........
-	if [ $testKey == "lastAccess" ]; then
+	if [ $testKey == "last_access_1min" ]; then
 		head $ROOT/dir1/file.1 > /dev/null || error "opening $ROOT/dir1/file.1"
-	elif [ $testKey == "lastModif" ]; then
+	elif [ $testKey == "last_mod_1min" ]; then
 		echo "data" > $ROOT/dir1/file.1 || error "writing in $ROOT/dir1/file.1"
 	fi
 
+    export ALERT_CLASS=$testKey
+
 	echo "2-Scanning filesystem..."
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "performing FS scan"
+	$RH -f ./cfg/$config_file --scan --run=alert -l MAJOR -I --once || error "scan+alert error"
 
 	echo "3-Checking results..."
 	logFile=/tmp/rh_alert.log
 	case "$testKey" in
-		pathName)
-			alertKey=Alert_Name
+		file1)
 			expectedEntry="file.1 "
 			occur=1
 			;;
-		type)
-			alertKey=Alert_Type
+		type_file)
 			expectedEntry="file.1;file.2;file.3"
 			occur=3
 			;;
-		owner)
-			alertKey=Alert_Owner
+		root_owner)
 			expectedEntry="file.1;file.3"
 			occur=2
 			;;
-		size)
-			alertKey=Alert_Size
+		size10k)
 			expectedEntry="file.1;file.2"
 			occur=2
 			;;
-		lastAccess)
-			alertKey=Alert_LastAccess
+		last_access_1min)
 			expectedEntry="file.1 "
 			occur=1
 			;;
-		lastModif)
-			alertKey=Alert_LastModif
+		last_mod_1min)
 			expectedEntry="file.1 "
 			occur=1
 			;;
-		dircount)
-			alertKey=Alert_Dircount
+		nonempty_dir)
 			expectedEntry="dir1;dir2"
 			occur=2
 			;;
-		extAttributes)
-			alertKey=Alert_ExtendedAttribut
+		extended_attribute)
 			expectedEntry="file.1"
 			occur=1
 			;;
@@ -7644,11 +7638,11 @@ function test_alerts
 	esac
 
 	# launch the validation for all alerts
-	check_alert $alertKey $expectedEntry $occur $logFile
+	check_alert $testKey $expectedEntry $occur $logFile
 	res=$?
 
 	if (( $res == 1 )); then
-		error "Test for $alertKey failed"
+		error "Test for $testKey failed"
 	fi
 
 	echo "end...."
@@ -7663,6 +7657,7 @@ function test_alerts_OST
 
 	# get input parameters ....................
 	config_file=$1
+	testKey=$2  #== key word for specific tests
 
 	clean_logs
 
@@ -7678,21 +7673,22 @@ function test_alerts_OST
 		$LFS setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 
+    export ALERT_CLASS=$testKey
+
 	echo "2-Scanning filesystem..."
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "performing FS scan"
+	$RH -f ./cfg/$config_file --scan --run=alert -l MAJOR -I --once || error "scan+alert error"
 
 	echo "3-Checking results..."
 	logFile=/tmp/rh_alert.log
-	alertKey=Alert_OST
 	expectedEntry="file.3;file.4;file.5"
 	occur=3
 
 	# launch the validation for all alerts
-	check_alert $alertKey $expectedEntry $occur $logFile
+	check_alert $testKey $expectedEntry $occur $logFile
 	res=$?
 
 	if (( $res == 1 )); then
-		error "Test for $alertKey failed"
+		error "Test for $testKey failed"
 	fi
 }
 
@@ -10158,15 +10154,15 @@ run_test 509    test_cfg_overflow "config options too long"
 
 
 #### Tests by Sogeti ####
-run_test 600a test_alerts Alert_Path_Name.conf "pathName" 0 "TEST_ALERT_PATH_NAME"
-run_test 600b test_alerts Alert_Type.conf "type" 0 "TEST_ALERT_TYPE"
-run_test 600c test_alerts Alert_Owner.conf "owner" 0 "TEST_ALERT_OWNER"
-run_test 600d test_alerts Alert_Size.conf "size" 0 "TEST_ALERT_SIZE"
-run_test 600e test_alerts Alert_LastAccess.conf "lastAccess" 60 "TEST_ALERT_LAST_ACCESS"
-run_test 600f test_alerts Alert_LastModification.conf "lastModif" 60 "TEST_ALERT_LAST_MODIFICATION"
-run_test 600g test_alerts_OST Alert_OST.conf "TEST_ALERT_OST"
-run_test 600h test_alerts Alert_ExtendedAttribute.conf "extAttributes" 0 "TEST_ALERT_EXTENDED_ATTRIBUT"
-run_test 600i test_alerts Alert_Dircount.conf "dircount" 0 "TEST_ALERT_DIRCOUNT"
+run_test 600a test_alerts alert.conf "file1" 0 "TEST_ALERT_PATH_NAME"
+run_test 600b test_alerts alert.conf "type_file" 0 "TEST_ALERT_TYPE"
+run_test 600c test_alerts alert.conf "root_owner" 0 "TEST_ALERT_OWNER"
+run_test 600d test_alerts alert.conf "size10k" 0 "TEST_ALERT_SIZE"
+run_test 600e test_alerts alert.conf "last_access_1min" 60 "TEST_ALERT_LAST_ACCESS"
+run_test 600f test_alerts alert.conf "last_mod_1min" 60 "TEST_ALERT_LAST_MODIFICATION"
+run_test 600g test_alerts_OST alert.conf "ost1" "TEST_ALERT_OST"
+run_test 600h test_alerts alert.conf "extended_attribute" 0 "TEST_ALERT_EXTENDED_ATTRIBUT"
+run_test 600i test_alerts alert.conf "nonempty_dir" 0 "TEST_ALERT_DIRCOUNT"
 
 run_test 601a test_migration MigrationStd_Path_Name.conf 0 3 "file.6;file.7;file.8" "--run=migration --target=all" "TEST_test_migration_PATH_NAME"
 run_test 601b test_migration MigrationStd_Type.conf 0 8 "file.1;file.2;file.3;file.4;file.5;file.6;file.7;file.8" "--run=migration --target=all" "TEST_MIGRATION_STD_TYPE"
