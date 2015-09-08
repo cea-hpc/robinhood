@@ -842,7 +842,10 @@ static int process_one_entry(thread_scan_info_t *p_info,
     else
     {
         entry_proc_op_t * op;
+
+#ifdef _LUSTRE
 push:
+#endif
 
         op = EntryProcessor_Get( );
         if (!op) {

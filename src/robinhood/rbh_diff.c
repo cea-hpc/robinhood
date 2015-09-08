@@ -180,17 +180,6 @@ static inline void display_version(const char *bin_name)
     printf("\n");
     printf("Compilation switches:\n");
 
-/* purpose of this daemon */
-#ifdef _LUSTRE_HSM
-    printf("    Lustre-HSM Policy Engine\n");
-#elif defined(_TMP_FS_MGR)
-    printf("    Temporary filesystem manager\n");
-#elif defined(_HSM_LITE)
-    printf("    Basic HSM binding\n");
-#else
-#error "No purpose was specified"
-#endif
-
 /* Access by Fid ? */
 #ifdef _HAVE_FID
     printf("    Address entries by FID\n");

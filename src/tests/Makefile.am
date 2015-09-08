@@ -6,8 +6,11 @@ AM_LDFLAGS= -lpthread -static
 #VALGRIND_SUPPRESSIONS_FILES = my-project.supp
 #EXTRA_DIST = my-project.supp
 
-check_PROGRAMS=create_nostripe test_forcestripe test_uidgidcache test_params \
+check_PROGRAMS=test_uidgidcache test_params \
     test_confparam test_parse
+if LUSTRE
+check_PROGRAMS+=create_nostripe test_forcestripe
+endif
 TESTS=test_parsing.sh test_uidgidcache test_params test_confparam
 
 noinst_PROGRAMS=$(check_PROGRAMS)

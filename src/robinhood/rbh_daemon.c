@@ -1323,6 +1323,7 @@ static int targetopt2policyopt(char *opt_string, double tgt_level, policy_opt_t 
         opt->target = TGT_CLASS;
         opt->optarg_u.name = next;
     }
+#ifdef _LUSTRE
     else if (!strcasecmp(c, "ost"))
     {
         char extra_chr[1024];
@@ -1340,6 +1341,7 @@ static int targetopt2policyopt(char *opt_string, double tgt_level, policy_opt_t 
         opt->optarg_u.name = next;
         opt->target_value_u.usage_pct = tgt_level;
     }
+#endif
     else
     {
         fprintf(stderr, "Invalid target type '%s'. "TGT_HELP"\n", c);

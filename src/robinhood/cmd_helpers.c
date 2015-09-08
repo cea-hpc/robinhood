@@ -1085,7 +1085,7 @@ void display_report(const report_field_descr_t *descr, unsigned int field_count,
 /** initialize internal resources (glib, llapi, internal resources...) */
 int rbh_init_internals(void)
 {
-    int rc;
+    int rc = 0;
 
 #if !(GLIB_CHECK_VERSION(2, 32, 0))
     g_thread_init(NULL);
@@ -1107,5 +1107,5 @@ int rbh_init_internals(void)
         return 1;
     }
 
-    return 0;
+    return rc;
 }

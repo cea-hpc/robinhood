@@ -1721,10 +1721,16 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     return rc;
 }
 
-#ifndef _HAVE_FID               /* if entries are accessed by FID, we can always get their status */
-inline static int invalidate_entry(lmgr_t * lmgr, entry_id_t * p_entry_id)
+#ifndef _HAVE_FID
+/* If entries are accessed by FID, we can always get their status.
+ * This is not the case for POSIX, because they may have moved.
+ * In this case, the entry is tagged as 'invalid' in the DB
+ * until we find it again during a next scan.
+ */
+inline static int invalidate_entry(const policy_info_t *pol, lmgr_t *lmgr,
+                                   entry_id_t *p_entry_id)
 {
-    attr_set_t     new_attr_set = {0};
+    attr_set_t     new_attr_set = ATTR_SET_INIT;
     int            rc;
 
     ATTR_MASK_INIT(&new_attr_set);
@@ -1734,8 +1740,8 @@ inline static int invalidate_entry(lmgr_t * lmgr, entry_id_t * p_entry_id)
     /* update the entry */
     rc = ListMgr_Update(lmgr, p_entry_id, &new_attr_set);
     if (rc)
-        DisplayLog(LVL_CRIT, PURGE_TAG, "Error %d tagging entry as invalid in database.", rc);
-
+        DisplayLog(LVL_CRIT, tag(pol),
+                   "Error %d tagging entry as invalid in database.", rc);
     return rc;
 }
 #endif
@@ -1770,7 +1776,8 @@ inline static int update_entry(lmgr_t *lmgr, const entry_id_t *p_entry_id,
  * Check that entry still exists
  * @param fill entry MD if entry is valid
  */
-static int check_entry(policy_info_t *policy, lmgr_t *lmgr, queue_item_t *p_item, attr_set_t *new_attr_set)
+static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
+                       queue_item_t *p_item, attr_set_t *new_attr_set)
 {
     char           fid_path[RBH_PATH_MAX];
     struct stat    entry_md;
@@ -1858,58 +1865,44 @@ static int check_entry(policy_info_t *policy, lmgr_t *lmgr, queue_item_t *p_item
  * Check that entry exists with the good path and its id is consistent.
  * @param fill entry MD if entry is valid
  */
-static int check_entry(lmgr_t * lmgr, purge_item_t * p_item, attr_set_t * new_attr_set)
+static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
+                       queue_item_t *p_item, attr_set_t *new_attr_set)
 {
-#error "TODO: new check_entry prototype"
     struct stat    entry_md;
     char * stat_path;
-#ifdef _HAVE_FID
-    char fid_path[1024];
-#endif
 
-#ifndef _HAVE_FID
     /* 1) Check if fullpath is set (if no fid support) */
     if (!ATTR_MASK_TEST(&p_item->entry_attr, fullpath))
     {
-        DisplayLog(LVL_DEBUG, PURGE_TAG, "Warning: entry fullpath is not set. Tagging it invalid.");
-        invalidate_entry(lmgr, &p_item->entry_id);
+        DisplayLog(LVL_DEBUG, tag(policy), "Warning: entry fullpath is not set. Tagging it invalid.");
+        invalidate_entry(policy, lmgr, &p_item->entry_id);
 
         /* not enough metadata */
-        return PURGE_PARTIAL_MD;
+        return AS_MISSING_MD;
     }
     stat_path = ATTR(&p_item->entry_attr, fullpath);
-#else
-    BuildFidPath(&p_item->entry_id, fid_path);
-    stat_path = fid_path;
-#endif
 
 if (ATTR_MASK_TEST(&p_item->entry_attr, fullpath))
-    DisplayLog(LVL_FULL, PURGE_TAG, "Considering entry %s", ATTR(&p_item->entry_attr, fullpath));
-#ifdef _HAVE_FID
-else
-    DisplayLog(LVL_FULL, PURGE_TAG, "Considering entry with fid="DFID, PFID(&p_item->entry_id));
-#endif
+    DisplayLog(LVL_FULL, tag(policy), "Considering entry %s", ATTR(&p_item->entry_attr, fullpath));
 
     /* 2) Perform lstat on entry */
-
     if (lstat(stat_path, &entry_md) != 0)
     {
         /* If lstat returns an error, invalidate the entry */
-        DisplayLog(LVL_DEBUG, PURGE_TAG, "lstat() failed on %s. Tagging it invalid.",
+        DisplayLog(LVL_DEBUG, tag(policy), "lstat() failed on %s. Tagging it invalid.",
                     stat_path);
-        invalidate_entry(lmgr, &p_item->entry_id);
+        invalidate_entry(policy, lmgr, &p_item->entry_id);
 
         /* This entry has been processed and has probably moved */
-        return PURGE_ENTRY_MOVED;
+        return AS_MOVED;
     }
 
     /* 3) check entry id and fskey */
-
     if ((entry_md.st_ino != p_item->entry_id.inode)
          || (get_fskey() != p_item->entry_id.fs_key))
     {
         /* If it has changed, invalidate the entry (fullpath does not match entry_id, it will be updated or removed at next FS scan). */
-        DisplayLog(LVL_DEBUG, PURGE_TAG, "Inode of %s changed: old=<%llu,%llu>, "
+        DisplayLog(LVL_DEBUG, tag(policy), "Inode of %s changed: old=<%llu,%llu>, "
                     "new=<%llu,%llu>. Tagging it invalid.",
                     ATTR(&p_item->entry_attr, fullpath),
                     (unsigned long long) p_item->entry_id.inode,
@@ -1917,10 +1910,10 @@ else
                     (unsigned long long) entry_md.st_ino,
                     (unsigned long long) get_fskey());
 
-        invalidate_entry(lmgr, &p_item->entry_id);
+        invalidate_entry(policy, lmgr, &p_item->entry_id);
 
         /* This entry has been processed and has probably moved */
-        return PURGE_ENTRY_MOVED;
+        return AS_MOVED;
     }
 
     /* convert posix attributes to attr structure */
@@ -1931,7 +1924,7 @@ else
     ATTR(new_attr_set, md_update) = time(NULL);
 
     /* entry is valid */
-    return PURGE_OK;
+    return AS_OK;
 }
 #endif
 

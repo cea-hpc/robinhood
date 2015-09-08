@@ -31,7 +31,6 @@ typedef int (*sm_status_func_t)(struct sm_instance *smi,
                              const entry_id_t *id, const attr_set_t *attrs,
                              attr_set_t *refreshed_attrs);
 
-#ifdef HAVE_CHANGELOGS
 /** changelog callback can indicate an  action for the record or the related entry.
  * actions are ordered by priority (if a policy returns a higher value
  * than others, this corresponding action is undertaken).
@@ -43,6 +42,7 @@ typedef enum {
     PROC_ACT_SOFTRM_ALWAYS,    /* insert into SOFTRM even if it was not in DB */
 } proc_action_e;
 
+#ifdef HAVE_CHANGELOGS
 /** function prototype for changelog callback */
 typedef int (*sm_cl_cb_func_t)(struct sm_instance *smi,
                                const CL_REC_TYPE *logrec,
@@ -315,6 +315,7 @@ int run_all_cl_cb(const CL_REC_TYPE *logrec,
                   attr_mask_t       *status_need,
                   uint32_t           status_mask,
                   proc_action_e     *post_action);
+#endif
 
 /** When an entry is deleted, this function indicates what action is to be taken
  * by querying all status manager (remove from DB, move to softrm, ...)
@@ -322,7 +323,6 @@ int run_all_cl_cb(const CL_REC_TYPE *logrec,
 proc_action_e match_all_softrm_filters(const entry_id_t *id,
                                        const attr_set_t *attrs);
 
-#endif
 
 /** return a mask with n bits 1 starting from offset.
  * e.g. bit_range(5,3) = 011100000

@@ -361,9 +361,9 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 #else
                     /* For non-lustre filesystems, inodes may be recycled, so re-read link even if it is is DB */
                     if (ATTR_MASK_TEST(&p_op->fs_attrs, link))
-                        p_op->fs_attr_need &= ~ATTR_MASK_link;
+                        attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_link);
                     else
-                        p_op->fs_attr_need |= ATTR_MASK_link;
+                        attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_link);
 #endif
                 }
             }

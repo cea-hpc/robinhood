@@ -30,6 +30,7 @@
 #include "db_types.h"
 #include "rbh_const.h"
 #include "config_parsing.h"
+#include "assert.h"
 
 /* error codes */
 #define DB_SUCCESS              0

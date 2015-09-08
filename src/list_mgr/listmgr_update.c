@@ -120,6 +120,7 @@ retry:
         }
     }
 
+#ifdef _LUSTRE
     if (ATTR_MASK_TEST(p_update_set, stripe_info))
     {
 #ifdef HAVE_LLAPI_FSWAP_LAYOUTS
@@ -140,6 +141,7 @@ retry:
         else if (rc)
             goto rollback;
     }
+#endif
 
     rc = lmgr_commit(p_mgr);
     if (lmgr_delayed_retry(p_mgr, rc))
