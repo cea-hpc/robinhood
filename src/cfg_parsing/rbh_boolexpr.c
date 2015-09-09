@@ -106,18 +106,17 @@ static int process_any_level_condition( char * regexpr, char *err_msg )
         }
     }
 
-#if 0 /* FIXME leave single '*' (unfortunately, they will be interpreted like '**') */
-    for ( curr = strchr(regexpr, '*'); curr != NULL; curr = strchr(curr+2,'*') )
+    for (curr = strchr(regexpr, '*'); curr != NULL; curr = strchr(curr+2,'*'))
     {
-        if ( curr[1] != '*' )
+        if (curr[1] != '*')
         {
-                sprintf( err_msg,
+                sprintf(err_msg,
                         "Single wildcard '*' cannot be used in the same expression as double wildcard '**' in '%s'",
-                         regexpr );
+                        regexpr);
                 return EINVAL;
         }
     }
-#endif
+
     /* non escaped '?' must be replaced by '[!/]'
      * '**' must be replaced by '*'
      */
