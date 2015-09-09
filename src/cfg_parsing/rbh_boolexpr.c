@@ -590,16 +590,17 @@ static int build_bool_expr(type_bool_expr *p_in_bool_expr,
     return ENOMEM;
 
   freecondition:
-    free( p_out_node->content_u.condition );
+    free(p_out_node->content_u.condition);
+    p_out_node->content_u.condition = NULL;
     return rc;
 
   free_expr2:
-    free( p_out_node->content_u.bool_expr.expr2 );
+    free(p_out_node->content_u.bool_expr.expr2);
+    p_out_node->content_u.bool_expr.expr2 = NULL;
   free_expr1:
-    free( p_out_node->content_u.bool_expr.expr1 );
+    free(p_out_node->content_u.bool_expr.expr1);
+    p_out_node->content_u.bool_expr.expr1 = NULL;
     return rc;
-
-
 }
 
 
