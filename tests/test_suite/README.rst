@@ -46,7 +46,7 @@ Setup the test environment
 
 As root, run::
 
-  ./1-test_setup.sh
+  ./1-test_setup_lustre.sh
 
 This will initialize the SQL database, create the changelog client,
 start the Lustre posix copytool, and enable the HSM coordinator.
@@ -92,3 +92,31 @@ its VALGRIND_OPTS::
 By default, the output in the log files include a suppression rule for
 each error. These suppressions can be added to `valgrind.supp` to
 suppress the corresponding warning(s) in a subsequent run.
+
+How to run the tests for non-lustre POSIX filesystem
+----------------------------------------------------
+
+Set environment variables
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For POSIX tests, set the following environment variables:
+
+* unset PURPOSE, or set PURPOSE=TMP_FS_MGR
+
+* set POSIX_MODE=1
+
+* set NOLOG=1
+
+Setup the test environment
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+As root, run::
+
+  ./1-test_setup_posix.sh
+
+This will initialize the SQL database, create and mount a loopback filesystem in /tmp.
+
+Run the tests
+~~~~~~~~~~~~~
+
+Run the test as previously described in the Lustre section.
