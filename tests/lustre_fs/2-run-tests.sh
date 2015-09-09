@@ -5,14 +5,24 @@
 [ -z "$LFS" ] && LFS=lfs
 [ -z "$TESTOPEN" ] && TESTOPEN=/usr/lib64/lustre/tests/openfile
 
-ROOT="/mnt/lustre"
+if [ -z "$POSIX_MODE" ]; then
+    export ROOT="/mnt/lustre"
+    export FS_TYPE=lustre
+    export DB=robinhood_lustre
+    echo "Lustre test mode"
+else
+    export ROOT="/tmp/mnt.rbh"
+    export FS_TYPE=ext3
+    export DB=robinhood_test
+    echo "POSIX test mode"
+fi
+
+BKROOT="/tmp/backend"
+RBH_OPT=""
 
 #RBH_BINDIR="/usr/sbin"
 RBH_BINDIR="../../src/robinhood"
 RBH_MODDIR=$(readlink -m "../../src/modules/.libs")
-
-BKROOT="/tmp/backend"
-RBH_OPT=""
 
 XML="test_report.xml"
 TMPXML_PREFIX="/tmp/report.xml.$$"
@@ -151,8 +161,10 @@ function wait_stable_df
     done
 }
 
-
-lustre_major=$(cat /proc/fs/lustre/version | grep "lustre:" | awk '{print $2}' | cut -d '.' -f 1)
+lustre_major=0
+if [ -z "$POSIX_MODE" ]; then
+    lustre_major=$(cat /proc/fs/lustre/version | grep "lustre:" | awk '{print $2}' | cut -d '.' -f 1)
+fi
 
 if [[ -z "$NOLOG" || $NOLOG = "0" ]]; then
 	no_log=0
@@ -289,7 +301,7 @@ function clean_fs
 
 	sleep 1
 	[ "$DEBUG" = "1" ] && echo "Cleaning robinhood's DB..."
-	$CFG_SCRIPT empty_db robinhood_lustre > /dev/null
+	$CFG_SCRIPT empty_db $DB > /dev/null
 
 	[ "$DEBUG" = "1" ] && echo "Cleaning changelogs..."
 	if (( $no_log==0 )); then
@@ -355,6 +367,7 @@ function check_db_error
 function get_id
 {
     local p="$1"
+
     if (( $lustre_major >= 2 )); then
          $LFS path2fid "$p" | tr -d '[]'
     else
@@ -689,13 +702,14 @@ function test_rmdir
 
     clean_logs
 
-    # initial scan
-    $RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
-       check_db_error rh_chglogs.log
-
     EMPTY=empty
     NONEMPTY=smthg
     RECURSE=remove_me
+    export MATCH_PATH="$ROOT/$RECURSE.*"
+
+    # initial scan
+    $RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+       check_db_error rh_chglogs.log
 
     echo "Create test directories"
 
@@ -1616,7 +1630,11 @@ function test_custom_purge
 	echo "Sleeping $sleep_time seconds..."
 	sleep $sleep_time
 
-    fsname=$(df $ROOT/. | xargs | awk '{print $(NF-5)}' | awk -F '/' '{print $(NF)}')
+    if [ -z "$POSIX_MODE" ]; then
+        fsname=$(df $ROOT/. | xargs | awk '{print $(NF-5)}' | awk -F '/' '{print $(NF)}')
+    else
+        fsname=$(df $ROOT/. | xargs | awk '{print $(NF-5)}')
+    fi
 	if (( $no_log == 0 )); then
 		# get fids of entries
 		fids=()
@@ -2026,15 +2044,22 @@ function test_rh_report
 
 	echo "3.Checking reports..."
 	for i in `seq 1 $dircount`; do
+	    # posix FS do some block preallocation, so we don't know the exact space used:
+    	# compare with 'du' return instead.
+        if [ -n "$POSIX_MODE" ]; then
+		    real=`du -B 512 -c $ROOT/dir.$i/* | grep total | awk '{print $1}'`
+    		real=`echo "$real*512" | bc -l`
+        else
+            real=$(($i*1024*1024))
+        fi
 		$REPORT -f ./cfg/$config_file -l MAJOR --csv -U 1 -P "$ROOT/dir.$i/*" > rh_report.log
 		used=`tail -n 1 rh_report.log | cut -d "," -f 3`
-		if (( $used != $i*1024*1024 )); then
-			error ": $used != " $(($i*1024*1024))
+		if (( $used != $real )); then
+			error ": $used != $real"
 		else
-			echo "OK: $i MB in $ROOT/dir.$i"
-		fi
+			echo "OK: space used by files in $ROOT/dir.$i is $real bytes"
+        fi
 	done
-
 }
 
 #test report using accounting table
@@ -3571,6 +3596,12 @@ function test_ost_order
 	policy_str="$2"
 	clean_logs
 
+    if [ -n "$POSIX_MODE" ]; then
+		echo "No OST support for POSIX mode"
+        set_skipped
+        return 1
+    fi
+
     # reset df values
     wait_stable_df
 
@@ -4345,7 +4376,7 @@ function partial_paths
     id=$(get_id $ROOT/dir1/dir2)
     [ -z $id ] && error "could not get id"
     # FIXEME only for Lustre 2.x
-    mysql robinhood_lustre -e "DELETE FROM NAMES WHERE id='$id'" || error "DELETE request"
+    mysql $DB -e "DELETE FROM NAMES WHERE id='$id'" || error "DELETE request"
 
 	if (( $is_hsmlite + $is_lhsm > 0 )); then
         # check how a child entry is archived
@@ -4771,10 +4802,12 @@ function test_diff
 
     # is swap layout feature available?
     has_swap=0
-    $LFS help | grep swap_layout > /dev/null && has_swap=1
-    # if so invert stripe for e and f
-    if [ $has_swap -eq 1 ]; then
-        $LFS swap_layouts $ROOT/dir.2/e  $ROOT/dir.2/f || error "lfs swap_layouts"
+    if [ -z "$POSIX_MODE" ]; then
+        $LFS help | grep swap_layout > /dev/null && has_swap=1
+        # if so invert stripe for e and f
+        if [ $has_swap -eq 1 ]; then
+            $LFS swap_layouts $ROOT/dir.2/e  $ROOT/dir.2/f || error "lfs swap_layouts"
+        fi
     fi
 
     # need 1s difference for md and name GC
@@ -4807,8 +4840,8 @@ function test_diff
     # dir2/d -> dir1/d
     old_parent=$(grep "^-[^ ]*"$(get_id "$ROOT/dir.1/d") report.out | sed -e "s/.*parent=\[\([^]]*\).*/\1/" )
     new_parent=$(grep "^+[^ ]*"$(get_id "$ROOT/dir.1/d") report.out | sed -e "s/.*parent=\[\([^]]*\).*/\1/" )
-    [ -z $old_parent ] && error "cannot get old parent of $ROOT/dir.1/d"
-    [ -z $new_parent ] && error "cannot get new parent of $ROOT/dir.1/d"
+    [ -z "$old_parent" ] && error "cannot get old parent of $ROOT/dir.1/d"
+    [ -z "$new_parent" ] && error "cannot get new parent of $ROOT/dir.1/d"
     [ $old_parent = $new_parent ] && error "$ROOT/dir.1/d still has the same parent"
 
     # file -> fname
@@ -5416,6 +5449,12 @@ function stripe_update
     :> rh.out
     :> rh.log
 
+	if [ -n "$POSIX_MODE" ]; then
+        echo "No stripe information in POSIX mode"
+        set_skipped
+        return 1
+    fi
+
     has_swap=0
     $LFS help | grep swap_layout > /dev/null && has_swap=1
     getstripe=1 # allow getstripe
@@ -5526,6 +5565,13 @@ function stripe_no_update
 
     :> rh.out
     :> rh.log
+
+	if [ -n "$POSIX_MODE" ]; then
+        echo "No stripe information in POSIX mode"
+        set_skipped
+        return 1
+    fi
+
     has_swap=0
     $LFS help | grep swap_layout > /dev/null && has_swap=1
     getstripe=1 # allow getstripe
@@ -5935,6 +5981,12 @@ function test_pools
 	sleep_time=$2
 	policy_str="$3"
 
+    if [ -n "$POSIX_MODE" ]; then
+        echo "No pools support in POSIX mode"
+        set_skipped
+        return 1
+    fi
+        
 	create_pools
 
 	clean_logs
@@ -6782,7 +6834,7 @@ function test_tokudb
     }
 
     # TokuDB must be available too
-    mysql robinhood_lustre -e "show engines" | grep TokuDB || {
+    mysql $DB -e "show engines" | grep TokuDB || {
         echo "TokuDB not enabled: skipped"
         set_skipped
         return 1
@@ -6793,23 +6845,23 @@ function test_tokudb
     # Create the tables with various compression schemes.
 
     echo "Test without default compression, i.e. none"
-    $CFG_SCRIPT empty_db robinhood_lustre > /dev/null
+    $CFG_SCRIPT empty_db $DB > /dev/null
     $RH -f ./cfg/tokudb1.conf --scan -l DEBUG -L rh_scan.log --once || error ""
-    mysql robinhood_lustre -e "show create table ENTRIES;" |
+    mysql $DB -e "show create table ENTRIES;" |
         grep "ENGINE=TokuDB .*\`COMPRESSION\`=tokudb_uncompressed" ||
         error "invalid engine/compression"
 
     echo "Tests with valid compression names"
     for COMPRESS in tokudb_uncompressed tokudb_zlib tokudb_lzma ; do
-        $CFG_SCRIPT empty_db robinhood_lustre > /dev/null
+        $CFG_SCRIPT empty_db $DB > /dev/null
         RBH_TOKU_COMPRESS=$COMPRESS $RH -f ./cfg/tokudb2.conf --scan -l DEBUG -L rh_scan.log --once || error ""
-        mysql robinhood_lustre -e "show create table ENTRIES;" |
+        mysql $DB -e "show create table ENTRIES;" |
             grep "ENGINE=TokuDB .*\`COMPRESSION\`=${COMPRESS}" ||
             error "invalid engine/compression"
     done
 
     echo "Test with invalid compression name"
-    $CFG_SCRIPT empty_db robinhood_lustre > /dev/null
+    $CFG_SCRIPT empty_db $DB > /dev/null
     RBH_TOKU_COMPRESS=some_non_existent_compression $RH -f ./cfg/tokudb2.conf --scan -l DEBUG -L rh_scan.log --once &&
         error "should have failed"
     grep "Error: Incorrect value 'some_non_existent_compression' for option 'compression'" rh_scan.log ||
@@ -7096,7 +7148,9 @@ function test_find
 	clean_logs
 
     # by default stripe all files on 0 and 1
-	$LFS setstripe -c 2 -i 0 $ROOT || echo "error setting stripe on root"
+    if [ -z "$POSIX_MODE" ]; then
+	    $LFS setstripe -c 2 -i 0 $ROOT || echo "error setting stripe on root"
+    fi
     # 1) create a FS tree with several levels:
     #   root
     #       file.1
@@ -7115,11 +7169,19 @@ function test_find
     mkdir $ROOT/dir.1 || error "creating dir"
     mkdir $ROOT/dir.2 || error "creating dir"
     dd if=/dev/zero of=$ROOT/dir.2/file.1 bs=1k count=10 2>/dev/null || error "creating file"
-	$LFS setstripe -c 1 -i 1 $ROOT/dir.2/file.2 || error "creating file with stripe"
+    if [ -z "$POSIX_MODE" ]; then
+	    $LFS setstripe -c 1 -i 1 $ROOT/dir.2/file.2 || error "creating file with stripe"
+    else
+        touch $ROOT/dir.2/file.2 || error "creating file"
+    fi
     mkdir $ROOT/dir.2/dir.1 || error "creating dir"
     mkdir $ROOT/dir.2/dir.2 || error "creating dir"
     dd if=/dev/zero of=$ROOT/dir.2/dir.2/file.1 bs=1M count=1 2>/dev/null || error "creating file"
-	$LFS setstripe -c 1 -i 0 $ROOT/dir.2/dir.2/file.2 || error "creating file with stripe"
+    if [ -z "$POSIX_MODE" ]; then
+	    $LFS setstripe -c 1 -i 0 $ROOT/dir.2/dir.2/file.2 || error "creating file with stripe"
+    else
+        touch $ROOT/dir.2/dir.2/file.2 || error "creating file"
+    fi
     mkdir $ROOT/dir.2/dir.2/dir.1 || error "creating dir"
 
     # scan FS content
@@ -7183,12 +7245,14 @@ function test_find
     check_find $ROOT "-f $cfg -type f -size -1M" 5
     check_find $ROOT "-f $cfg -type f -size -10k" 4
 
-    echo "testing ost filter..."
-    check_find "" "-f $cfg -ost 0" 5 # all files but 1
-    check_find "" "-f $cfg -ost 0 -b" 5 # all files but 1
-    check_find $ROOT "-f $cfg -ost 0" 5 # all files but 1
-    check_find $ROOT "-f $cfg -ost 1" 5 # all files but 1
-    check_find $ROOT/dir.2/dir.2 "-f $cfg -ost 1" 1  # all files in dir.2 but 1
+    if [ -z "$POSIX_MODE" ]; then
+        echo "testing ost filter..."
+        check_find "" "-f $cfg -ost 0" 5 # all files but 1
+        check_find "" "-f $cfg -ost 0 -b" 5 # all files but 1
+        check_find $ROOT "-f $cfg -ost 0" 5 # all files but 1
+        check_find $ROOT "-f $cfg -ost 1" 5 # all files but 1
+        check_find $ROOT/dir.2/dir.2 "-f $cfg -ost 1" 1  # all files in dir.2 but 1
+    fi
 
     echo "testing mtime filter..."
     check_find "" "-f $cfg -mtime +1d" 0  #none
@@ -7212,7 +7276,9 @@ function test_find
     check_find $ROOT "-f $cfg -mmin -120" 12 #all
 
     # restore default striping
-    $LFS setstripe -c 2 -i -1 $ROOT
+    if [ -z "$POSIX_MODE" ]; then
+        $LFS setstripe -c 2 -i -1 $ROOT
+    fi
 }
 
 function test_du
@@ -7655,6 +7721,12 @@ function test_alerts_OST
 
 	# get input parameters ....................
 	config_file=$1
+
+    if [ -n "$POSIX_MODE" ]; then
+        echo "No OST support for POSIX mode"
+        set_skipped
+        return 1
+    fi
 
 	clean_logs
 
@@ -8304,6 +8376,15 @@ function migration_file_OST
 ############# End Migration Functions #############
 ###################################################
 
+function fs_usage
+{
+    if [ -z "$POSIX_MODE" ]; then
+	    $LFS df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'
+    else
+        df $ROOT | xargs | awk '{ print $(NF-1) }' | sed 's/%//'
+    fi
+}
+
 ###########################################################
 ############### Purge Trigger Functions ###################
 ###########################################################
@@ -8325,10 +8406,12 @@ function trigger_purge_QUOTA_EXCEEDED
 
 	clean_logs
 
-    $LFS setstripe -c 2 $ROOT || echo "error setting stripe count=2"
+    if [ -z "$POSIX_MODE" ]; then
+        $LFS setstripe -c 2 $ROOT || echo "error setting stripe count=2"
+    fi
+    elem=$(fs_usage)
 
 	echo "1-Create Files ..."
-	elem=`$LFS df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
 	limit=80
     limit_init=$limit
 	indice=1
@@ -8345,8 +8428,7 @@ function trigger_purge_QUOTA_EXCEEDED
             limit=$limit_init
         fi
 
-        unset elem
-	    elem=`$LFS df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+        elem=$(fs_usage)
         ((indice++))
     done
 
@@ -8369,6 +8451,12 @@ function trigger_purge_OST_QUOTA_EXCEEDED
 	# config_file == config file name
 
 	config_file=$1
+
+    if [ -n "$POSIX_MODE" ]; then
+        echo "No OST support for POSIX mode"
+        set_skipped
+        return 1
+    fi
 
     if (( ($is_hsmlite != 0) && ($shook == 0) )); then
 		echo "No Purge trigger for this purpose: skipped"
@@ -8435,7 +8523,8 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
 
         # force df update
         while (( 1 )); do
-                elem=`$LFS df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+                elem=$(fs_usage)
+
                 if (( $elem > 20 )); then
                         echo "filesystem is still ${elem}% full. waiting for df update..."
         		clean_caches
@@ -8470,10 +8559,9 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
             ((last++))
         fi
 
-	# force df update
-	clean_caches
-	unset elem
-	elem=`$LFS df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+    	# force df update
+        clean_caches
+        elem=$(fs_usage)
         ((indice++))
     done
     (($dd_err_count > 0)) && echo "WARNING: $dd_err_count errors writing $ROOT/file.*: first error: $one_error"
@@ -8572,6 +8660,10 @@ function test_purge
 		set_skipped
 		return 1
 	fi
+
+    # adapt the test for any root
+    export MATCH_PATH2="$ROOT/dir2/*"
+    export MATCH_PATH1="$ROOT/dir1/*"
 
 	needPurge=0
 	((needPurge=10-countFinal))
@@ -8713,6 +8805,12 @@ function purge_OST
 	purge_list=$3
     purge_arr=$(echo $purge_list | tr ";" "\n")
     purgeOpt=$4
+
+    if [ -n "$POSIX_MODE" ]; then
+        echo "No OST support for POSIX mode"
+        set_skipped
+        return 1
+    fi
 
     if (( ($is_hsmlite != 0) && ($shook == 0) )); then
 		echo "No Purge for this purpose: skipped"
@@ -8909,6 +9007,8 @@ function test_rmdir_mix
 
     #  clean logs
     clean_logs
+
+    export NO_RM_TREE="$ROOT/no_rm"
 
     # prepare data
     echo "1-Preparing Filesystem..."
