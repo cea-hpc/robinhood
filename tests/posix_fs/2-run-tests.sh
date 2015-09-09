@@ -18,26 +18,21 @@ TMPERR_FILE="/tmp/err_str.$$"
 
 TEMPLATE_DIR='../../doc/templates'
 
-if [[ -z "$PURPOSE" || $PURPOSE = "TMP_FS_MGR" ]]; then
-	is_hsmlite=0
-	RH="$RBH_BINDIR/robinhood $RBH_OPT"
-	REPORT="$RBH_BINDIR/rbh-report $RBH_OPT"
-	FIND=$RBH_BINDIR/rbh-find
-	DU=$RBH_BINDIR/rbh-du
-    DIFF=$RBH_BINDIR/rbh-diff
-	CMD=robinhood
-	PURPOSE="TMP_FS_MGR"
-	REL_STR="Purged"
+PURGE_OPT="--run=purge --target=all --usage-target=0"
 
-elif [[ $PURPOSE = "HSM_LITE" ]]; then
-	is_hsmlite=1
-	RH="$RBH_BINDIR/rbh-hsmlite $RBH_OPT"
-	REPORT="$RBH_BINDIR/rbh-hsmlite-report $RBH_OPT"
-	FIND=$RBH_BINDIR/rbh-hsmlite-find
-	DU=$RBH_BINDIR/rbh-hsmlite-du
-    DIFF=$RBH_BINDIR/rbh-hsmlite-diff
-	CMD=rbh-hsmlite
-fi
+cp -f ../../doc/templates_v3/includes/tmpfs.inc ./cfg/test_policies.inc || exit 1
+# change policy names to the test framework names
+sed -e "s/cleanup/purge/" -i ./cfg/test_policies.inc
+
+is_hsmlite=0
+RH="$RBH_BINDIR/robinhood $RBH_OPT"
+REPORT="$RBH_BINDIR/rbh-report $RBH_OPT"
+FIND=$RBH_BINDIR/rbh-find
+DU=$RBH_BINDIR/rbh-du
+DIFF=$RBH_BINDIR/rbh-diff
+CMD=robinhood
+PURPOSE="TMP_FS_MGR"
+REL_STR="purge success for"
 
 PROC=$CMD
 CFG_SCRIPT="../../scripts/rbh-config"
@@ -443,9 +438,9 @@ function purge_test
 
 	echo "3-Applying purge policy ($policy_str)..."
 	# no purge expected here
-	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || error "purging files"
+    $RH -f ./cfg/$config_file $PURGE_OPT --once -l DEBUG  -L rh_purge.log || error "purging files"
 
-    nb_purge=`grep "Purged" rh_purge.log | wc -l`
+    nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
 
     if (($nb_purge != 0)); then
             error "********** TEST FAILED: No release actions expected, $nb_purge done"
@@ -457,9 +452,9 @@ function purge_test
 	sleep $sleep_time
 
 	echo "5-Applying purge policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || error "purging files"
+    $RH -f ./cfg/$config_file $PURGE_OPT --once -l DEBUG  -L rh_purge.log || error "purging files"
 
-    nb_purge=`grep "Purged" rh_purge.log | wc -l`
+    nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
 
     if (($nb_purge != $expected_purge)); then
             error "********** TEST FAILED: $expected_purge release actions expected, $nb_purge done"
@@ -505,10 +500,10 @@ function test_custom_purge
 
 	echo "Applying purge policy ($policy_str)..."
 	# no purge expected here
-	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || error "purging files"
+    $RH -f ./cfg/$config_file $PURGE_OPT --once -l DEBUG  -L rh_purge.log || error "purging files"
 	check_db_error rh_purge.log
 
-	nb_purge=`grep "Purged" rh_purge.log | wc -l`
+	nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
 	if (($nb_purge != 13)); then
 		error "********** TEST FAILED: 13 purge actions expected, $nb_purge done"
 	else
@@ -576,11 +571,11 @@ function purge_size_filesets
 
 	echo "4-Applying purge policy ($policy_str)..."
 	# no purge expected here
-	$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG -L rh_purge.log --once || error "purging files"
+    $RH -f ./cfg/$config_file $PURGE_OPT --once -l DEBUG  -L rh_purge.log || error "purging files"
 
 	# counting each matching policy $count of each
 	for policy in very_small mid_file default; do
-	        nb_purge=`grep 'using policy' rh_purge.log | grep $policy | wc -l`
+        nb_purge=`grep 'matching rule' rh_purge.log | grep $policy | wc -l`
 		if (($nb_purge != $count)); then
 			error "********** TEST FAILED: $count release actions expected using policy $policy, $nb_purge done"
 		else
@@ -1284,7 +1279,7 @@ function periodic_class_match_purge
     	check_db_error rh_scan.log
 
 	# now apply policies
-	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || error "purging files"
+    $RH -f ./cfg/$config_file $PURGE_OPT --dry-run --once -l FULL  -L rh_purge.log || error "purging files"
 
 	already=0
 
@@ -1307,7 +1302,7 @@ function periodic_class_match_purge
 	echo "Waiting $update_period sec..."
 	sleep $update_period
 
-	$RH -f ./cfg/$config_file --purge-fs=0 --dry-run -l FULL -L rh_purge.log --once || error "purging files"
+    $RH -f ./cfg/$config_file $PURGE_OPT --dry-run --once -l FULL  -L rh_purge.log || error "purging files"
 
 	# TMP_FS_MGR:  whitelisted status is always checked at scan time
 	# 	2 entries are new (default and to_be_released)
@@ -1359,7 +1354,7 @@ function test_cnt_trigger
 	# apply purge trigger
 	$RH -f ./cfg/$config_file --purge --once -l FULL -L rh_purge.log
 
-	nb_release=`grep "Purged" rh_purge.log | wc -l`
+	nb_release=`grep "$REL_STR" rh_purge.log | wc -l`
 
 	if (($nb_release == $exp_purge_count)); then
 		echo "OK: $nb_release files released"
@@ -1436,7 +1431,7 @@ function test_trigger_check
 
 	echo "over trigger limits: $expect_count entries, $expect_vol_fs MB, $expect_vol_user MB for user root, $expect_count_user entries for user root"
 
-	nb_release=`grep "Purged" rh_purge.log | wc -l`
+	nb_release=`grep "$REL_STR" rh_purge.log | wc -l`
 
 	count_trig=`grep " entries must be purged in Filesystem" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
 	[ -n "$count_trig" ] || count_trig=0
@@ -1901,7 +1896,6 @@ function test_mnt_point
     done
 }
 
-
 function test_completion
 {
 	config_file=$1
@@ -1912,7 +1906,31 @@ function test_completion
     # clean existing "out.*" files
     rm -f out.1 out.2
 
-    # flavors: OK or KO
+    done_str="Executing scan completion command"
+    fail_str="Invalid scan completion command"
+
+    # flavors:
+    case "$flavor" in
+        OK)
+            export TEST_CMD="../completion.sh {cfg} {fspath} out"
+            ;;
+        unmatched)
+            export TEST_CMD="../completion.sh {cfg"
+            err="ERROR: unmatched '{' in scan completion command"
+            ;;
+        invalid_ctx_id)
+            export TEST_CMD="../completion.sh {fid}"
+            err="fid is not available in this context"
+            ;;
+        invalid_ctx_attr)
+            export TEST_CMD="../completion.sh {fullpath}"
+            err="entry attributes are not available in this context"
+            ;;
+        invalid_attr)
+            export TEST_CMD="../completion.sh {foo}"
+            err="unexpected variable 'foo' in scan completion command"
+            ;;
+    esac
 
     # populate filesystem
     for i in `seq 1 10`; do
@@ -1925,6 +1943,8 @@ function test_completion
 
     # if flavor is OK: completion command must have been called
     if [ "$flavor" = "OK" ]; then
+        grep "$done_str" rh_scan.log || error "Completion command not executed"
+
         [ -f out.1 ] || error "file out.1 not found"
         [ -f out.2 ] || error "file out.2 not found"
         # out.1 contains cfg
@@ -1932,8 +1952,8 @@ function test_completion
         # out.2 contains fspath
         grep $ROOT out.2 || error "out.2 has unexpected content: $(cat out.2)"
     else
-        # matching: CmdParams | ERROR: unmatched '{' in command parameters '../completion.sh {cfg'
-        grep "ERROR: unmatched '{' in command parameters" rh_scan.log || error "unreported cmd error"
+        grep "$fail_str" rh_scan.log || error "Completion command should fail"
+        grep "$err" rh_scan.log || error "unreported cmd error"
     fi
 
     rm -f out.1 out.2
@@ -2487,9 +2507,9 @@ function test_logs
 		rm -f $log $report $alert
 
 		if (( $stdio )); then
-			$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG --dry-run >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error "purging files"
+            $RH -f ./cfg/$config_file $PURGE_OPT --dry-run --once -l DEBUG >/tmp/rbh.stdout 2>/tmp/rbh.stderr -L rh_purge.log || error "purging files"
 		else
-			$RH -f ./cfg/$config_file --purge-fs=0 -l DEBUG --dry-run || error "purging files"
+			$RH -f ./cfg/$config_file $PURGE_OPT --once -l DEBUG --dry-run || error "purging files"
 		fi
 
 		# extract new syslog messages
@@ -3452,7 +3472,7 @@ function test_purge
 	$RH -f ./cfg/$config_file --scan  $purgeOpt --once -l DEBUG -L rh_purge.log
 
 	nbError=0
-	nb_purge=`grep $REL_STR rh_purge.log | wc -l`
+	nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
 	if (( $nb_purge != $needPurge )); then
 	    error "********** TEST FAILED (Log): $nb_purge files purged, but $needPurge expected"
         ((nbError++))
@@ -3532,7 +3552,7 @@ function test_purge_tmp_fs_mgr
 	$RH -f ./cfg/$config_file --scan  $purgeOpt --once -l DEBUG -L rh_purge.log
 
 	nbError=0
-	nb_purge=`grep $REL_STR rh_purge.log | wc -l`
+	nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
 	if (( $nb_purge != $needPurge )); then
 	    error "********** TEST FAILED (Log): $nb_purge files purged, but $needPurge expected"
         ((nbError++))
@@ -4130,7 +4150,7 @@ function TEST_OTHER_PARAMETERS_1
 	sleep 5
 
 	echo "Count purged files number"
-	nb_purge=`grep $REL_STR rh_purge.log | wc -l`
+	nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
 	if (( $nb_purge != 0 )); then
 	    error "********** TEST FAILED (Log): $nb_purge files purged, but 0 expected"
         ((nbError++))
@@ -4143,7 +4163,7 @@ function TEST_OTHER_PARAMETERS_1
 	wait
 
 	echo "Count purged files number"
-	nb_purge2=`grep $REL_STR rh_purge.log | wc -l`
+	nb_purge2=`grep "$REL_STR" rh_purge.log | wc -l`
 	((nb_purge2=nb_purge2-nb_purge))
 
 	if (( $nb_purge2 != 10 )); then
@@ -4267,8 +4287,11 @@ run_test 103c    test_acct_table acct.conf 5 "no" "Acct table and triggers creat
 run_test 106a    test_diff info_collect2.conf "diff" "rbh-diff"
 run_test 106b    test_diff info_collect2.conf "diffapply" "rbh-diff --apply"
 run_test 106c    test_diff info_collect2.conf "scan" "robinhood --scan --diff"
-run_test 107a    test_completion test_completion.conf OK "scan completion command"
-run_test 107b    test_completion test_completion_KO.conf KO "bad scan completion command"
+run_test 107a    test_completion test_completion.conf OK        "scan completion command"
+run_test 107b    test_completion test_completion.conf unmatched "wrong completion command (syntax error)"
+run_test 107c    test_completion test_completion.conf invalid_ctx_id "wrong completion command (using id)"
+run_test 107d    test_completion test_completion.conf invalid_ctx_attr "wrong completion command (using attr)"
+run_test 107e    test_completion test_completion.conf invalid_attr "wrong completion command (unknown var)"
 run_test 108a    test_rename info_collect.conf scan "rename cases (scan)"
 run_test 108c    test_rename info_collect.conf partial "rename cases (partial scans)"
 run_test 108d    test_rename info_collect.conf diff "rename cases (diff+apply)"
@@ -4289,7 +4312,7 @@ run_test 202	migration_test test2.conf 5  31 "last_mod>30s and name == \"*[0-5]\
 run_test 203	migration_test test3.conf 5  16 "complex policy with filesets"
 run_test 204	migration_test test3.conf 10 31 "complex policy with filesets"
 run_test 205	xattr_test test_xattr.conf 5 "xattr-based fileclass definition"
-run_test 206	purge_test test_purge.conf 11 41 "last_access > 40s"
+run_test 206	purge_test test_purge.conf 11 16 "last_access > 15s"
 run_test 207	purge_size_filesets test_purge2.conf 2 3 "purge policies using size-based filesets"
 run_test 208	periodic_class_match_migr test_updt.conf 10 "periodic fileclass matching (migration)"
 run_test 209	periodic_class_match_purge test_updt.conf 10 "periodic fileclass matching (purge)"
