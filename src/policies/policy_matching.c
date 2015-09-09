@@ -82,8 +82,8 @@ static bool TestPathRegexp(const char *regexp, const char *to_be_tested,
     char full_path[RBH_PATH_MAX];
     const char * full_regexp = regexp;
 
-    int any_level = (flags & PATHREGEXP_ANY_LEVEL)?1:0;
-    int is_child =  (flags & PATHREGEXP_IS_CHILD)?1:0;
+    bool any_level = (flags & PATHREGEXP_ANY_LEVEL);
+    bool is_child =  (flags & PATHREGEXP_IS_CHILD);
 
     /* is the regexp relative ?
      * (don't add the root path if expression starts with '**').
