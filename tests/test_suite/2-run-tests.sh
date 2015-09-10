@@ -6,14 +6,14 @@
 [ -z "$TESTOPEN" ] && TESTOPEN=/usr/lib64/lustre/tests/openfile
 
 if [ -z "$POSIX_MODE" ]; then
-    export ROOT="/mnt/lustre"
+    export RH_ROOT="/mnt/lustre"
     export FS_TYPE=lustre
-    export DB=robinhood_lustre
+    export RH_DB=robinhood_lustre
     echo "Lustre test mode"
 else
-    export ROOT="/tmp/mnt.rbh"
+    export RH_ROOT="/tmp/mnt.rbh"
     export FS_TYPE=ext3
-    export DB=robinhood_test
+    export RH_DB=robinhood_test
     echo "POSIX test mode"
 fi
 
@@ -30,11 +30,11 @@ TMPERR_FILE="/tmp/err_str.$$"
 
 TEMPLATE_DIR='../../doc/templates'
 
-if [[ ! -d $ROOT ]]; then
-	echo "Creating directory $ROOT"
-	mkdir -p "$ROOT"
+if [[ ! -d $RH_ROOT ]]; then
+	echo "Creating directory $RH_ROOT"
+	mkdir -p "$RH_ROOT"
 else
-	echo "Creating directory $ROOT"
+	echo "Creating directory $RH_ROOT"
 fi
 
 SYNC_OPT="--run=migration --target=all --force-all"
@@ -151,10 +151,10 @@ function wait_stable_df
     sync
     clean_caches
 
-    $LFS df $ROOT > /tmp/lfsdf.1
+    $LFS df $RH_ROOT > /tmp/lfsdf.1
     while (( 1 )); do
         sleep 5
-        $LFS df $ROOT > /tmp/lfsdf.2
+        $LFS df $RH_ROOT > /tmp/lfsdf.2
         diff /tmp/lfsdf.1 /tmp/lfsdf.2 > /dev/null && break
         echo "waiting for df update..."
         mv -f /tmp/lfsdf.2 /tmp/lfsdf.1
@@ -278,8 +278,8 @@ function clean_fs
 	fi
 
     [ "$DEBUG" = "1" ] && echo "Cleaning filesystem..."
-	if [[ -n "$ROOT" ]]; then
-		 find "$ROOT" -mindepth 1 -delete 2>/dev/null
+	if [[ -n "$RH_ROOT" ]]; then
+		 find "$RH_ROOT" -mindepth 1 -delete 2>/dev/null
 	fi
 
 	if (( $is_hsmlite + $is_lhsm != 0 )); then
@@ -301,7 +301,7 @@ function clean_fs
 
 	sleep 1
 	[ "$DEBUG" = "1" ] && echo "Cleaning robinhood's DB..."
-	$CFG_SCRIPT empty_db $DB > /dev/null
+	$CFG_SCRIPT empty_db $RH_DB > /dev/null
 
 	[ "$DEBUG" = "1" ] && echo "Cleaning changelogs..."
 	if (( $no_log==0 )); then
@@ -405,7 +405,7 @@ function migration_test
 
 	echo "1-Modifing files..."
 	for i in a `seq 1 10`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
 	done
 
 	echo "2-Reading changelogs..."
@@ -486,14 +486,14 @@ function migration_test_single
 
 	echo "1-Modifing files..."
 	for i in a `seq 1 10`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
 	done
 
 	count=0
 	echo "2-Trying to migrate files before we know them..."
 	for i in a `seq 1 10`; do
-		$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/file.$i -L rh_migr.log -l DEBUG 2>/dev/null
-		grep "$ROOT/file.$i" rh_migr.log | grep "not known in database" && count=$(($count+1))
+		$RH -f ./cfg/$config_file --run=migration --target=file:$RH_ROOT/file.$i -L rh_migr.log -l DEBUG 2>/dev/null
+		grep "$RH_ROOT/file.$i" rh_migr.log | grep "not known in database" && count=$(($count+1))
 	done
 
 	if (( $count == $expected_migr )); then
@@ -519,8 +519,8 @@ function migration_test_single
 	echo "4-Applying migration policy ($policy_str)..."
 	# files should not be migrated this time: do not match policy
 	for i in a `seq 1 10`; do
-		$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/file.$i -l DEBUG -L rh_migr.log 2>/dev/null
-		grep "$ROOT/file.$i" rh_migr.log | grep "doesn't match condition for policy rule" && count=$(($count+1))
+		$RH -f ./cfg/$config_file --run=migration --target=file:$RH_ROOT/file.$i -l DEBUG -L rh_migr.log 2>/dev/null
+		grep "$RH_ROOT/file.$i" rh_migr.log | grep "doesn't match condition for policy rule" && count=$(($count+1))
 	done
 
 	if (( $count == $expected_migr )); then
@@ -543,8 +543,8 @@ function migration_test_single
 	count=0
 	echo "5-Applying migration policy again ($policy_str)..."
 	for i in a `seq 1 10`; do
-		$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/file.$i -l DEBUG -L rh_migr.log 2>/dev/null
-		grep "$ROOT/file.$i" rh_migr.log | grep "$ARCH_STR" && count=$(($count+1))
+		$RH -f ./cfg/$config_file --run=migration --target=file:$RH_ROOT/file.$i -l DEBUG -L rh_migr.log 2>/dev/null
+		grep "$RH_ROOT/file.$i" rh_migr.log | grep "$ARCH_STR" && count=$(($count+1))
 	done
 
 	if (( $count == $expected_migr )); then
@@ -581,7 +581,7 @@ function migrate_symlink
 	# create a symlink
 
 	echo "1-Create a symlink"
-	ln -s "this is a symlink" "$ROOT/link.1" || error "creating symlink"
+	ln -s "this is a symlink" "$RH_ROOT/link.1" || error "creating symlink"
 
 	echo "2-Reading changelogs..."
 	# read changelogs
@@ -595,8 +595,8 @@ function migrate_symlink
 	count=0
 	echo "3-Applying migration policy ($policy_str)..."
 	# files should not be migrated this time: do not match policy
-	$RH -f ./cfg/$config_file  --run=migration --target=file:$ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
-	grep "$ROOT/link.1" rh_migr.log | grep "whitelisted" && count=$(($count+1))
+	$RH -f ./cfg/$config_file  --run=migration --target=file:$RH_ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
+	grep "$RH_ROOT/link.1" rh_migr.log | grep "whitelisted" && count=$(($count+1))
 
 	if (( $count == 1 )); then
 		echo "OK: symlink not eligible for migration"
@@ -617,8 +617,8 @@ function migrate_symlink
 
 	count=0
 	echo "5-Applying migration policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
-	grep "$ROOT/link.1" rh_migr.log | grep "successful" && count=$(($count+1))
+	$RH -f ./cfg/$config_file --run=migration --target=file:$RH_ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
+	grep "$RH_ROOT/link.1" rh_migr.log | grep "successful" && count=$(($count+1))
 
 	if (( $count == 1 )); then
 		echo "OK: symlink has been migrated successfully"
@@ -646,9 +646,9 @@ function migrate_symlink
 
 	cp /dev/null rh_migr.log
 	echo "7-Applying migration policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --run=migration --target=$ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
+	$RH -f ./cfg/$config_file --run=migration --target=$RH_ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
 
-	count=`grep "$ROOT/link.1" rh_migr.log | grep "skipping entry" | wc -l`
+	count=`grep "$RH_ROOT/link.1" rh_migr.log | grep "skipping entry" | wc -l`
 
 	if (( $count == 1 )); then
 		echo "OK: symlink already migrated"
@@ -705,7 +705,7 @@ function test_rmdir
     EMPTY=empty
     NONEMPTY=smthg
     RECURSE=remove_me
-    export MATCH_PATH="$ROOT/$RECURSE.*"
+    export MATCH_PATH="$RH_ROOT/$RECURSE.*"
 
     # initial scan
     $RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
@@ -714,14 +714,14 @@ function test_rmdir
     echo "Create test directories"
 
     # create 3 empty directories
-    mkdir "$ROOT/$EMPTY.1" "$ROOT/$EMPTY.2" "$ROOT/$EMPTY.3" || error "creating empty directories"
+    mkdir "$RH_ROOT/$EMPTY.1" "$RH_ROOT/$EMPTY.2" "$RH_ROOT/$EMPTY.3" || error "creating empty directories"
     # create non-empty directories
-    mkdir "$ROOT/$NONEMPTY.1" "$ROOT/$NONEMPTY.2" "$ROOT/$NONEMPTY.3" || error "creating directories"
-    touch "$ROOT/$NONEMPTY.1/f" "$ROOT/$NONEMPTY.2/f" "$ROOT/$NONEMPTY.3/f" || error "populating directories"
+    mkdir "$RH_ROOT/$NONEMPTY.1" "$RH_ROOT/$NONEMPTY.2" "$RH_ROOT/$NONEMPTY.3" || error "creating directories"
+    touch "$RH_ROOT/$NONEMPTY.1/f" "$RH_ROOT/$NONEMPTY.2/f" "$RH_ROOT/$NONEMPTY.3/f" || error "populating directories"
     # create "deep" directories for testing recurse rmdir
-    mkdir "$ROOT/$RECURSE.1"  "$ROOT/$RECURSE.2" || error "creating directories"
-    mkdir "$ROOT/$RECURSE.1/subdir.1" "$ROOT/$RECURSE.1/subdir.2" || error "creating directories"
-    touch "$ROOT/$RECURSE.1/subdir.1/file.1" "$ROOT/$RECURSE.1/subdir.1/file.2" "$ROOT/$RECURSE.1/subdir.2/file" || error "populating directories"
+    mkdir "$RH_ROOT/$RECURSE.1"  "$RH_ROOT/$RECURSE.2" || error "creating directories"
+    mkdir "$RH_ROOT/$RECURSE.1/subdir.1" "$RH_ROOT/$RECURSE.1/subdir.2" || error "creating directories"
+    touch "$RH_ROOT/$RECURSE.1/subdir.1/file.1" "$RH_ROOT/$RECURSE.1/subdir.1/file.2" "$RH_ROOT/$RECURSE.1/subdir.2/file" || error "populating directories"
 
     echo "Reading changelogs..."
     # read changelogs
@@ -780,27 +780,27 @@ function test_lru_policy
     # creation times
 	echo -n "  Creating files 0 1 2 3, "
 	for i in {0..3}; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
 	done
 	echo "sleeping $cr_sleep seconds..."
     sleep $cr_sleep
 	echo -n "  Creating files 4 5 6 7 8 9, "
 	for i in {4..9}; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
 	done
 	echo "sleeping $cr_sleep seconds..."
     sleep $cr_sleep
     # modification times
 	echo -n "  Modifying files 2 3 4 6 7, "
 	for i in 2 3 4 6 7; do
-	    echo "data" > $ROOT/file.$i || error "modifying file.$i"
+	    echo "data" > $RH_ROOT/file.$i || error "modifying file.$i"
 	done
 	echo "sleeping $cr_sleep seconds..."
     sleep $cr_sleep
     # update last access times
 	echo -n "  Reading files 1 4 5 7, "
     for i in 1 4 5 7; do
- 	    cat $ROOT/file.$i >/dev/null || error "reading file.$i"
+ 	    cat $RH_ROOT/file.$i >/dev/null || error "reading file.$i"
     done
 	echo "sleeping $cr_sleep seconds..."
     sleep $cr_sleep
@@ -882,13 +882,13 @@ function test_purge_lru
 
     # create 6 files
   	for i in {1..6}; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
         sleep 1
 	done
 
     # access 4 files
   	for i in {1..4}; do
-		dd if=$ROOT/file.$i of=/dev/null bs=1M count=1 >/dev/null 2>/dev/null || error "reading file.$i"
+		dd if=$RH_ROOT/file.$i of=/dev/null bs=1M count=1 >/dev/null 2>/dev/null || error "reading file.$i"
         sleep 1
 	done
 
@@ -925,7 +925,7 @@ function test_purge_lru
     if [[ $SORT_PARAM != "none" ]]; then
       	for i in {1..6}; do
             idx=$(($i-1))
-            rank=$(lru_order_of rh_purge.log $ROOT/file.$i)
+            rank=$(lru_order_of rh_purge.log $RH_ROOT/file.$i)
             echo "file.$i purge rank #${exp_rank[$idx]}"
             [[ $rank == ${exp_rank[$idx]} ]] || error "file.$i should have been purged in #${exp_rank[$idx]} (got $rank)"
         done
@@ -966,11 +966,11 @@ function test_suspend_on_error
     # and reach this condition before the whole migration is finished
 	echo "1-Creating test files..."
 	for i in $(seq 1 ${nb_files_ok}); do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
 	done
     sleep 1
 	for i in $(seq 1 ${nb_files_error}); do
-		dd if=/dev/zero of=$ROOT/file.$i.fail bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i.fail"
+		dd if=/dev/zero of=$RH_ROOT/file.$i.fail bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i.fail"
 	done
 
     # read fs content
@@ -989,7 +989,7 @@ function test_suspend_on_error
     # make the archive fail
 	if (( $is_lhsm != 0 )); then
         for i in $(seq 1 ${nb_files_error}); do
-            $LFS hsm_set --noarchive $ROOT/file.$i.fail
+            $LFS hsm_set --noarchive $RH_ROOT/file.$i.fail
         done
     fi
 
@@ -1030,15 +1030,15 @@ function xattr_test
 	# create and fill 10 files
 	echo "1-Modifing files..."
 	for i in `seq 1 3`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
 	done
 
 	echo "2-Setting xattrs..."
-	echo "$ROOT/file.1: xattr.user.foo=1"
-	setfattr -n user.foo -v 1 $ROOT/file.1
-	echo "$ROOT/file.2: xattr.user.bar=1"
-	setfattr -n user.bar -v 1 $ROOT/file.2
-	echo "$ROOT/file.3: none"
+	echo "$RH_ROOT/file.1: xattr.user.foo=1"
+	setfattr -n user.foo -v 1 $RH_ROOT/file.1
+	echo "$RH_ROOT/file.2: xattr.user.bar=1"
+	setfattr -n user.bar -v 1 $RH_ROOT/file.2
+	echo "$RH_ROOT/file.3: none"
 
 	# read changelogs
 	if (( $no_log )); then
@@ -1129,14 +1129,14 @@ function link_unlink_remove_test
 
 	# write file.1 and force immediate migration
 	echo "2-Writing data to file.1..."
-	dd if=/dev/zero of=$ROOT/file.1 bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.1"
+	dd if=/dev/zero of=$RH_ROOT/file.1 bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.1"
 
 	sleep $cl_delay
 
 	if (( $is_lhsm != 0 )); then
 		echo "3-Archiving file....1"
 		flush_data
-		$LFS hsm_archive $ROOT/file.1 || error "executing lfs hsm_archive"
+		$LFS hsm_archive $RH_ROOT/file.1 || error "executing lfs hsm_archive"
 
 		echo "3bis-Waiting for end of data migration..."
 		wait_done 60 || error "Migration timeout"
@@ -1145,15 +1145,15 @@ function link_unlink_remove_test
 	fi
 
 	# create links on file.1 files
-	echo "4-Creating hard links to $ROOT/file.1..."
-	ln $ROOT/file.1 $ROOT/link.1 || error "ln"
-	ln $ROOT/file.1 $ROOT/link.2 || error "ln"
+	echo "4-Creating hard links to $RH_ROOT/file.1..."
+	ln $RH_ROOT/file.1 $RH_ROOT/link.1 || error "ln"
+	ln $RH_ROOT/file.1 $RH_ROOT/link.2 || error "ln"
 
 	sleep 1
 
 	# removing all files
         echo "5-Removing all links to file.1..."
-	rm -f $ROOT/link.* $ROOT/file.1
+	rm -f $RH_ROOT/link.* $RH_ROOT/file.1
 
 	sleep $cl_delay
 
@@ -1163,7 +1163,7 @@ function link_unlink_remove_test
 	if (( $nb_ent != $expected_rm )); then
 		error "Wrong number of deferred rm reported: $nb_ent"
 	fi
-	grep "$ROOT/file.1" rh_report.log > /dev/null || error "$ROOT/file.1 not found in deferred rm list"
+	grep "$RH_ROOT/file.1" rh_report.log > /dev/null || error "$RH_ROOT/file.1 not found in deferred rm list"
 
 	# deferred remove delay is not reached: nothing should be removed
 	echo "6-Performing HSM remove requests (before delay expiration)..."
@@ -1219,7 +1219,7 @@ function test_hsm_remove
     # write 2 x expected_rm
     echo "Writing $nb_files files..."
     for i in $(seq 1 $nb_files); do
-        dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+        dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
     done
 
     # initial scan (files are known as 'new')
@@ -1228,28 +1228,28 @@ function test_hsm_remove
 
     # create 2 more files that robinhood won't know before their removal
     # (1 archived, 1 not archived)
-    dd if=/dev/zero of=$ROOT/file.a bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.a"
-    dd if=/dev/zero of=$ROOT/file.b bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.b"
+    dd if=/dev/zero of=$RH_ROOT/file.a bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.a"
+    dd if=/dev/zero of=$RH_ROOT/file.b bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.b"
 
     # archive them all
     if (( $is_lhsm != 0 )); then
         echo "Archiving $expected_rm files..."
         flush_data
         for i in $(seq 1 $expected_rm) a; do
-            $LFS hsm_archive $ROOT/file.$i || error "executing lfs hsm_archive"
+            $LFS hsm_archive $RH_ROOT/file.$i || error "executing lfs hsm_archive"
         done
 
         echo "Waiting for end of data migration..."
         wait_done 60 || error "Migration timeout"
     elif (( $is_hsmlite != 0 )); then
         for i in $(seq 1 $expected_rm) a; do
-            $RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/file.$i --ignore-conditions -l DEBUG  -L rh_migr.log || error "migrating $ROOT/file.$i"
+            $RH -f ./cfg/$config_file --run=migration --target=file:$RH_ROOT/file.$i --ignore-conditions -l DEBUG  -L rh_migr.log || error "migrating $RH_ROOT/file.$i"
         done
     fi
 
     # removing all files
     echo "Removing all files"
-    rm -f $ROOT/file.*
+    rm -f $RH_ROOT/file.*
 
     # make sure rm operations are in the changelog
     sleep 1
@@ -1265,11 +1265,11 @@ function test_hsm_remove
         error "Wrong number of deferred rm reported: $nb_ent"
     fi
     for i in $(seq 1 $expected_rm) a; do
-        grep "$ROOT/file.$i" rh_report.log || error "$ROOT/file.$i not found in deferred rm list"
+        grep "$RH_ROOT/file.$i" rh_report.log || error "$RH_ROOT/file.$i not found in deferred rm list"
     done
 
     for i in $(seq $(($expected_rm+1)) $nb_files) b; do
-        grep "$ROOT/file.$i" rh_report.log && error "$ROOT/file.$i shouldn't be in deferred rm list"
+        grep "$RH_ROOT/file.$i" rh_report.log && error "$RH_ROOT/file.$i shouldn't be in deferred rm list"
     done
 
     # deferred remove delay is not reached: nothing should be removed
@@ -1329,9 +1329,9 @@ function test_lhsm_remove
     name=()
     echo "Writing files..."
     for i in $(seq 1 $nb_archive) no_opt 0 x ; do
-        dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+        dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
         name+=( "$i" )
-        id+=( "$(get_id "$ROOT/file.$i")" )
+        id+=( "$(get_id "$RH_ROOT/file.$i")" )
     done
 
     # initial scan (files are known as 'new')
@@ -1342,10 +1342,10 @@ function test_lhsm_remove
     echo "Archiving files..."
     flush_data
     for i in $(seq 1 $nb_archive); do
-        $LFS hsm_archive -a $i $ROOT/file.$i || error "executing lfs hsm_archive"
+        $LFS hsm_archive -a $i $RH_ROOT/file.$i || error "executing lfs hsm_archive"
     done
-    $LFS hsm_archive $ROOT/file.no_opt || error "executing lfs hsm_archive"
-    $LFS hsm_archive -a 0 $ROOT/file.0 || error "executing lfs hsm_archive"
+    $LFS hsm_archive $RH_ROOT/file.no_opt || error "executing lfs hsm_archive"
+    $LFS hsm_archive -a 0 $RH_ROOT/file.0 || error "executing lfs hsm_archive"
 
     echo "Waiting for end of data migration..."
     wait_done 60 || error "Migration timeout"
@@ -1358,12 +1358,12 @@ function test_lhsm_remove
     check_db_error rh_chglogs.log
 
     # now archive and remove the last file
-    $LFS hsm_archive -a 2 $ROOT/file.x || error "executing lfs hsm_archive"
+    $LFS hsm_archive -a 2 $RH_ROOT/file.x || error "executing lfs hsm_archive"
     echo "Waiting for end of data migration..."
     wait_done 60 || error "Migration timeout"
 
     echo "Removing all files"
-    rm -f $ROOT/file.*
+    rm -f $RH_ROOT/file.*
 
     # make sure rm operations are in the changelog
     sleep 1
@@ -1384,7 +1384,7 @@ function test_lhsm_remove
     for i in $(seq 1 ${#id[@]}); do
         n=${name[$((i-1))]}
         fid=${id[$((i-1))]}
-        grep "$fid" rh_report.log | grep $ROOT/file.$n || error "$ROOT/file.$n ($fid) not found in deferred rm list"
+        grep "$fid" rh_report.log | grep $RH_ROOT/file.$n || error "$RH_ROOT/file.$n ($fid) not found in deferred rm list"
     done
 
     echo "Applying deferred remove operations"
@@ -1399,16 +1399,16 @@ function test_lhsm_remove
         if [[ "$n" == "0" ]] || [[ "$n" == "no_opt" ]]; then
             # robinhood should know the entry was in default archive
             grep "action REMOVE" rh_rm.log | grep $fid | grep "archive_id=$default_archive" ||
-                error "REMOVE action for $ROOT/file.$n ($fid) should be sent to default archive $default_archive"
+                error "REMOVE action for $RH_ROOT/file.$n ($fid) should be sent to default archive $default_archive"
         elif [[ "$n" == "x" ]]; then
             # robinhood doesn't know in was archive was the entry
             # send to archive 0 (must be interpreted by coordinator as a broadcast to all archives)
             grep "action REMOVE" rh_rm.log | grep $fid | grep "archive_id=0" ||
-                error "REMOVE action for $ROOT/file.$n ($fid) should be sent to archive 0 (broadcast)"
+                error "REMOVE action for $RH_ROOT/file.$n ($fid) should be sent to archive 0 (broadcast)"
         else
             # should be send to archive $i
             grep "action REMOVE" rh_rm.log | grep "$fid" | grep "archive_id=$i" ||
-                error "REMOVE action for $ROOT/file.$n ($fid) should be sent to archive_id $i"
+                error "REMOVE action for $RH_ROOT/file.$n ($fid) should be sent to archive_id $i"
         fi
     done
 
@@ -1443,13 +1443,13 @@ function mass_softrm
 	for i in `seq 1 $entries`; do
 		((dir_c=$i % 10))
 		((subdir_c=$i % 100))
-		dir=$ROOT/dir.$dir_c/subdir.$subdir_c
+		dir=$RH_ROOT/dir.$dir_c/subdir.$subdir_c
 		mkdir -p $dir || error "creating directory $dir"
 		echo "file.$i" > $dir/file.$i || error "creating file $dir/file.$i"
 	done
 
 	# how many subdirs in dir.1?
-	nbsubdirs=$( ls $ROOT/dir.1 | grep subdir | wc -l )
+	nbsubdirs=$( ls $RH_ROOT/dir.1 | grep subdir | wc -l )
 
 	echo "2-Initial scan..."
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning filesystem"
@@ -1490,8 +1490,8 @@ function mass_softrm
 	rm -f fsinfo.1 deferred.1
 
 	# removing some files
-        echo "4-Removing files in $ROOT/dir.1..."
-	rm -rf "$ROOT/dir.1" || error "removing files in $ROOT/dir.1"
+        echo "4-Removing files in $RH_ROOT/dir.1..."
+	rm -rf "$RH_ROOT/dir.1" || error "removing files in $RH_ROOT/dir.1"
 
 	# at least 1 second must be enlapsed since last entry change (sync)
 	sleep 1
@@ -1542,11 +1542,11 @@ function purge_test
 
 	echo "1-Modifing files..."
 	for i in a `seq 1 10`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "$? writing file.$i"
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "$? writing file.$i"
 
 		if (( $is_lhsm != 0 )); then
 			flush_data
-			$LFS hsm_archive $ROOT/file.$i || error "lfs hsm_archive"
+			$LFS hsm_archive $RH_ROOT/file.$i || error "lfs hsm_archive"
 		fi
 	done
 	if (( $is_lhsm != 0 )); then
@@ -1616,12 +1616,12 @@ function test_custom_purge
 	# initial scan
 	echo "Populating filesystem..."
 	for i in `seq 1 10`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
 	done
     # create malicious file names to test vulnerability
-    touch "$ROOT/foo1 \`pkill -9 $CMD\`" || error "couldn't create file"
-    touch "$ROOT/foo2 ; exit 1" || error "couldn't create file"
-    touch "$ROOT/foo3' ';' 'exit' '1'" || error "couldn't create file"
+    touch "$RH_ROOT/foo1 \`pkill -9 $CMD\`" || error "couldn't create file"
+    touch "$RH_ROOT/foo2 ; exit 1" || error "couldn't create file"
+    touch "$RH_ROOT/foo3' ';' 'exit' '1'" || error "couldn't create file"
 
 	echo "Inital scan..."
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log
@@ -1631,18 +1631,18 @@ function test_custom_purge
 	sleep $sleep_time
 
     if [ -z "$POSIX_MODE" ]; then
-        fsname=$(df $ROOT/. | xargs | awk '{print $(NF-5)}' | awk -F '/' '{print $(NF)}')
+        fsname=$(df $RH_ROOT/. | xargs | awk '{print $(NF-5)}' | awk -F '/' '{print $(NF)}')
     else
-        fsname=$(df $ROOT/. | xargs | awk '{print $(NF-5)}')
+        fsname=$(df $RH_ROOT/. | xargs | awk '{print $(NF-5)}')
     fi
 	if (( $no_log == 0 )); then
 		# get fids of entries
 		fids=()
 		for i in `seq 1 10`; do
-			fids[$i]=$(get_id "$ROOT/file.$i")
+			fids[$i]=$(get_id "$RH_ROOT/file.$i")
         done
         i=11
-        for f in  "$ROOT/foo1 \`pkill -9 $CMD\`" "$ROOT/foo2 ; exit 1" "$ROOT/foo3' ';' 'exit' '1'" ; do
+        for f in  "$RH_ROOT/foo1 \`pkill -9 $CMD\`" "$RH_ROOT/foo2 ; exit 1" "$RH_ROOT/foo3' ';' 'exit' '1'" ; do
 			fids[$i]=$(get_id "$f")
             ((i=$i+1))
         done
@@ -1662,9 +1662,9 @@ function test_custom_purge
 
 	# checking that the custom command was called for each file
 	for  i in `seq 1 10`; do
-		line=$(grep "Executing " rh_purge.log | grep 'rm_script' | grep $ROOT/file.$i)
+		line=$(grep "Executing " rh_purge.log | grep 'rm_script' | grep $RH_ROOT/file.$i)
         if [ -z "$line" ]; then
-            error "No action found on $ROOT/file.$i"
+            error "No action found on $RH_ROOT/file.$i"
             continue
         fi
         # split args
@@ -1679,14 +1679,14 @@ function test_custom_purge
         if (( $no_log == 0 )); then
             [ $id = ${fids[$i]} ] || error "invalid fid $id != ${fids[$i]}"
         fi
-        [ $p = $ROOT/file.$i ] || error "invalid path $p != $ROOT/file.$i"
+        [ $p = $RH_ROOT/file.$i ] || error "invalid path $p != $RH_ROOT/file.$i"
 
-        [ -f $ROOT/file.$i ] && error "$ROOT/file.$i still exists after purge command"
+        [ -f $RH_ROOT/file.$i ] && error "$RH_ROOT/file.$i still exists after purge command"
 	done
 
     # same test for special file names
     i=11
-    for f in  "$ROOT/foo1 \`pkill -9 $CMD\`" "$ROOT/foo2 ; exit 1" "$ROOT/foo3' ';' 'exit' '1'" ; do
+    for f in  "$RH_ROOT/foo1 \`pkill -9 $CMD\`" "$RH_ROOT/foo2 ; exit 1" "$RH_ROOT/foo3' ';' 'exit' '1'" ; do
         f0=$(echo "$f" | awk '{print $1}')
 		line=$(grep "Executing " rh_purge.log | grep 'rm_script' | grep "$f0")
         if [ -z "$line" ]; then
@@ -1732,7 +1732,7 @@ function test_default
     #   Z*        m
     for pre in X Y Z; do
         for suf in A B C; do
-            touch $ROOT/$pre.$suf || error "touch $ROOT/$pre.$suf"
+            touch $RH_ROOT/$pre.$suf || error "touch $RH_ROOT/$pre.$suf"
         done
     done
 
@@ -1749,8 +1749,8 @@ function test_default
 
         # check archived files
         # *.B files must be archived. other files should be.
-        nb_b=$(grep "$ARCH_STR" rh_migr.log | grep -E "$ROOT/[XYZ]\.B"| wc -l)
-        nb_ac=$(grep "$ARCH_STR" rh_migr.log | grep -E "$ROOT/[XYZ]\.[AC]"| wc -l)
+        nb_b=$(grep "$ARCH_STR" rh_migr.log | grep -E "$RH_ROOT/[XYZ]\.B"| wc -l)
+        nb_ac=$(grep "$ARCH_STR" rh_migr.log | grep -E "$RH_ROOT/[XYZ]\.[AC]"| wc -l)
 
         [ "$DEBUG" = "1" ] && grep "$ARCH_STR" rh_migr.log
 
@@ -1787,8 +1787,8 @@ function test_default
         fi
         other=$(( 9 - $nb_purge ))
 
-        nbp=$(grep "$REL_STR" rh_purge.log | grep -E "$ROOT/$purge_pat"| wc -l)
-        nbnp=$(grep "$REL_STR" rh_purge.log | grep -vE "$ROOT/$purge_pat" | wc -l)
+        nbp=$(grep "$REL_STR" rh_purge.log | grep -E "$RH_ROOT/$purge_pat"| wc -l)
+        nbnp=$(grep "$REL_STR" rh_purge.log | grep -vE "$RH_ROOT/$purge_pat" | wc -l)
 
         [ "$DEBUG" = "1" ] && grep "$REL_STR" rh_purge.log
 
@@ -1814,12 +1814,12 @@ function test_undelete
 		return 1
     fi
 
-    FILES="$ROOT/dir1/file1 $ROOT/dir1/file2 $ROOT/dir2/file1 $ROOT/dir2/file2"
+    FILES="$RH_ROOT/dir1/file1 $RH_ROOT/dir1/file2 $RH_ROOT/dir2/file1 $RH_ROOT/dir2/file2"
 
-    mkdir -p $ROOT/dir1 || error "mkdir"
-    mkdir -p $ROOT/dir2 || error "mkdir"
+    mkdir -p $RH_ROOT/dir1 || error "mkdir"
+    mkdir -p $RH_ROOT/dir2 || error "mkdir"
     for f in $FILES ; do echo 123 > $f || error "write"; done
-    sz1=$(stat -c '%s' $ROOT/dir2/file1)
+    sz1=$(stat -c '%s' $RH_ROOT/dir2/file1)
 
     # initial scan + archive all
     $RH -f ./cfg/$config_file --scan --once $SYNC_OPT -l DEBUG -L rh_chglogs.log || error "Initial scan and sync"
@@ -1830,28 +1830,28 @@ function test_undelete
 	fi
 
     # remove all and read the changelog
-    rm -rf $ROOT/dir1 $ROOT/dir2
+    rm -rf $RH_ROOT/dir1 $RH_ROOT/dir2
     start=$(date +%s)
     $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "Reading changelog"
     check_db_error rh_chglogs.log
 
     # list all deleted entries
-	$UNDELETE -f ./cfg/$config_file -L $ROOT | grep "Last known path" | awk '{print $(NF)}' > rh_report.log
+	$UNDELETE -f ./cfg/$config_file -L $RH_ROOT | grep "Last known path" | awk '{print $(NF)}' > rh_report.log
     (( $(wc -l rh_report.log | awk '{print $1}') == 4 )) || error "invalid file count in undelete list"
     for f in $FILES; do grep $f rh_report.log || error "missing $f in undelete list"; done
     # list all deleted entried from dir1
-	$UNDELETE -f ./cfg/$config_file -L $ROOT/dir1 | grep "Last known path" | awk '{print $(NF)}' > rh_report.log
+	$UNDELETE -f ./cfg/$config_file -L $RH_ROOT/dir1 | grep "Last known path" | awk '{print $(NF)}' > rh_report.log
     (( $(wc -l rh_report.log | awk '{print $1}') == 2 )) || error "invalid file count in undelete list"
     for f in dir1/file1 dir1/file2; do grep $f rh_report.log || error "missing $f in undelete list"; done
     # recover all deleted entries from dir2
-	$UNDELETE -f ./cfg/$config_file -R $ROOT/dir2 | grep Restoring | cut -d "'" -f 2 > rh_report.log
+	$UNDELETE -f ./cfg/$config_file -R $RH_ROOT/dir2 | grep Restoring | cut -d "'" -f 2 > rh_report.log
     (( $(wc -l rh_report.log | awk '{print $1}') == 2 )) || error "invalid undeleted file count"
     for f in dir2/file1 dir2/file2; do grep $f rh_report.log || error "missing $f in undelete list"; done
-    [ ! -f $ROOT/dir2/file1 ] && error "Missing $ROOT/dir2/file1 in FS after undelete"
-    [ ! -f $ROOT/dir2/file2 ] && error "Missing $ROOT/dir2/file2 in FS after undelete"
+    [ ! -f $RH_ROOT/dir2/file1 ] && error "Missing $RH_ROOT/dir2/file1 in FS after undelete"
+    [ ! -f $RH_ROOT/dir2/file2 ] && error "Missing $RH_ROOT/dir2/file2 in FS after undelete"
 
     # check final size
-    sz2=$(stat -c '%s' $ROOT/dir2/file1)
+    sz2=$(stat -c '%s' $RH_ROOT/dir2/file1)
     (( $sz1 == $sz2 )) || error "final size $sz2 doesn't match $sz1"
 }
 
@@ -1884,11 +1884,11 @@ function purge_size_filesets
 		echo "1.$j-Writing files of size " $(( $size*10 )) "kB..."
 		((j=$j+1))
 		for i in `seq 1 $count`; do
-			dd if=/dev/zero of=$ROOT/file.$size.$i bs=10k count=$size >/dev/null 2>/dev/null || error "writing file.$size.$i"
+			dd if=/dev/zero of=$RH_ROOT/file.$size.$i bs=10k count=$size >/dev/null 2>/dev/null || error "writing file.$size.$i"
 
 			if (( $is_lhsm != 0 )); then
 				flush_data
-				$LFS hsm_archive $ROOT/file.$size.$i || error "lfs hsm_archive"
+				$LFS hsm_archive $RH_ROOT/file.$size.$i || error "lfs hsm_archive"
 				wait_done 60 || error "Copy timeout"
 			fi
 		done
@@ -1948,7 +1948,7 @@ function test_maint_mode
 	# writing data
 	echo "1-Writing files..."
 	for i in `seq 1 4`; do
-		echo "file.$i" > $ROOT/file.$i || error "creating file $ROOT/file.$i"
+		echo "file.$i" > $RH_ROOT/file.$i || error "creating file $RH_ROOT/file.$i"
 	done
 	t0=`date +%s`
 
@@ -2022,11 +2022,11 @@ function test_rh_report
 	clean_logs
 
 	for i in `seq 1 $dircount`; do
-		mkdir $ROOT/dir.$i
-		echo "1.$i-Writing files to $ROOT/dir.$i..."
+		mkdir $RH_ROOT/dir.$i
+		echo "1.$i-Writing files to $RH_ROOT/dir.$i..."
 		# write i MB to each directory
 		for j in `seq 1 $i`; do
-			dd if=/dev/zero of=$ROOT/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || error "writing $ROOT/dir.$i/file.$j"
+			dd if=/dev/zero of=$RH_ROOT/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || error "writing $RH_ROOT/dir.$i/file.$j"
 		done
 	done
 
@@ -2047,17 +2047,17 @@ function test_rh_report
 	    # posix FS do some block preallocation, so we don't know the exact space used:
     	# compare with 'du' return instead.
         if [ -n "$POSIX_MODE" ]; then
-		    real=`du -B 512 -c $ROOT/dir.$i/* | grep total | awk '{print $1}'`
+		    real=`du -B 512 -c $RH_ROOT/dir.$i/* | grep total | awk '{print $1}'`
     		real=`echo "$real*512" | bc -l`
         else
             real=$(($i*1024*1024))
         fi
-		$REPORT -f ./cfg/$config_file -l MAJOR --csv -U 1 -P "$ROOT/dir.$i/*" > rh_report.log
+		$REPORT -f ./cfg/$config_file -l MAJOR --csv -U 1 -P "$RH_ROOT/dir.$i/*" > rh_report.log
 		used=`tail -n 1 rh_report.log | cut -d "," -f 3`
 		if (( $used != $real )); then
 			error ": $used != $real"
 		else
-			echo "OK: space used by files in $ROOT/dir.$i is $real bytes"
+			echo "OK: space used by files in $RH_ROOT/dir.$i is $real bytes"
         fi
 	done
 }
@@ -2074,11 +2074,11 @@ function test_rh_acct_report
         clean_logs
 
         for i in `seq 1 $dircount`; do
-                mkdir $ROOT/dir.$i
-                echo "1.$i-Writing files to $ROOT/dir.$i..."
+                mkdir $RH_ROOT/dir.$i
+                echo "1.$i-Writing files to $RH_ROOT/dir.$i..."
                 # write i MB to each directory
                 for j in `seq 1 $i`; do
-                        dd if=/dev/zero of=$ROOT/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $ROOT/dir.$i/file.$j"
+                        dd if=/dev/zero of=$RH_ROOT/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $RH_ROOT/dir.$i/file.$j"
                 done
         done
 
@@ -2124,11 +2124,11 @@ function test_rh_report_split_user_group
         clean_logs
 
         for i in `seq 1 $dircount`; do
-                mkdir $ROOT/dir.$i || error "creating directory $ROOT/dir.$i"
-                echo "1.$i-Writing files to $ROOT/dir.$i..."
+                mkdir $RH_ROOT/dir.$i || error "creating directory $RH_ROOT/dir.$i"
+                echo "1.$i-Writing files to $RH_ROOT/dir.$i..."
                 # write i MB to each directory
                 for j in `seq 1 $i`; do
-                        dd if=/dev/zero of=$ROOT/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || error "writing $ROOT/dir.$i/file.$j"
+                        dd if=/dev/zero of=$RH_ROOT/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || error "writing $RH_ROOT/dir.$i/file.$j"
                 done
         done
 
@@ -2203,11 +2203,11 @@ function test_acct_table
         clean_logs
 
         for i in `seq 1 $dircount`; do
-	        mkdir $ROOT/dir.$i
-                echo "1.$i-Writing files to $ROOT/dir.$i..."
+	        mkdir $RH_ROOT/dir.$i
+                echo "1.$i-Writing files to $RH_ROOT/dir.$i..."
                 # write i MB to each directory
                 for j in `seq 1 $i`; do
-                        dd if=/dev/zero of=$ROOT/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || error "writing $ROOT/dir.$i/file.$j"
+                        dd if=/dev/zero of=$RH_ROOT/dir.$i/file.$j bs=1M count=1 >/dev/null 2>/dev/null || error "writing $RH_ROOT/dir.$i/file.$j"
                 done
         done
 
@@ -2252,19 +2252,19 @@ function test_dircount_report
     match_empty1=0
     match_dir1=0
 	for i in `seq 1 $dircount`; do
-                mkdir $ROOT/dir.$i
+                mkdir $RH_ROOT/dir.$i
                 [[ $i == 1* ]] && ((match_dir1++))
-                echo "1.$i-Creating files in $ROOT/dir.$i..."
+                echo "1.$i-Creating files in $RH_ROOT/dir.$i..."
                 # write i MB to each directory
                 for j in `seq 1 $((10*$i))`; do
-                        dd if=/dev/zero of=$ROOT/dir.$i/file.$j bs=1 count=$i 2>/dev/null || error "creating $ROOT/dir.$i/file.$j"
+                        dd if=/dev/zero of=$RH_ROOT/dir.$i/file.$j bs=1 count=$i 2>/dev/null || error "creating $RH_ROOT/dir.$i/file.$j"
                 done
         done
 
     echo "1bis. Creating empty directories..."
     # create 5 empty dirs
     for i in `seq 1 $emptydir`; do
-        mkdir $ROOT/empty.$i
+        mkdir $RH_ROOT/empty.$i
         [[ $i == 1* ]] && ((match_empty1++))
     done
 
@@ -2280,28 +2280,28 @@ function test_dircount_report
 	check_db_error rh_chglogs.log
 
 	echo "3.Checking dircount report..."
-	# dircount+1 because $ROOT may be returned
+	# dircount+1 because $RH_ROOT may be returned
 	$REPORT -f ./cfg/$config_file --topdirs=$((dircount+1)) --csv > report.out
 
     [ "$DEBUG" = "1" ] && cat report.out
 
 	# check that dircount is right for each dir
 
-	# check if $ROOT is in topdirs. If so, check its position
+	# check if $RH_ROOT is in topdirs. If so, check its position
 	is_root=0
-	line=`grep "$ROOT," report.out`
+	line=`grep "$RH_ROOT," report.out`
 	[[ -n $line ]] && is_root=1
 	if (( ! $is_root )); then
-		id=`stat -c "%D/%i" $ROOT/. | tr '[:lower:]' '[:upper:]'`
+		id=`stat -c "%D/%i" $RH_ROOT/. | tr '[:lower:]' '[:upper:]'`
 		line=`grep "$id," report.out`
 		[[ -n $line ]] && is_root=1
 	fi
 	if (( $is_root )); then
 		root_rank=`echo $line | cut -d ',' -f 1 | tr -d ' '`
-		echo "FS root $ROOT was returned in top dircount (rank=$root_rank)"
+		echo "FS root $RH_ROOT was returned in top dircount (rank=$root_rank)"
 	fi
 	for i in `seq 1 $dircount`; do
-		line=`grep "$ROOT/dir.$i," report.out` || error "$ROOT/dir.$i not found in report"
+		line=`grep "$RH_ROOT/dir.$i," report.out` || error "$RH_ROOT/dir.$i not found in report"
 		rank=`echo $line | cut -d ',' -f 1 | tr -d ' '`
 		count=`echo $line | cut -d ',' -f 3 | tr -d ' '`
 		avg=`echo $line | cut -d ',' -f 4 | tr -d ' '`
@@ -2314,14 +2314,14 @@ function test_dircount_report
 	done
 
     echo "3b. Checking topdirs + filterpath"
-	$REPORT -f ./cfg/$config_file --topdirs=$((dircount+1)) --filter-path="$ROOT/dir.1" --csv -q > report.out
+	$REPORT -f ./cfg/$config_file --topdirs=$((dircount+1)) --filter-path="$RH_ROOT/dir.1" --csv -q > report.out
     [ "$DEBUG" = "1" ] && echo && cat report.out
     # only one line expected
     lines=$(wc -l report.out | awk '{print $1}')
     (( $lines == 1 )) || error "1 single dir expected in output (found $lines)"
-    line=`grep "$ROOT/dir.1," report.out` || error "$ROOT/dir.1 not found in report"
+    line=`grep "$RH_ROOT/dir.1," report.out` || error "$RH_ROOT/dir.1 not found in report"
 
-    $REPORT -f ./cfg/$config_file --topdirs=$((dircount+1)) --filter-path="$ROOT/dir.1*" --csv -q > report.out
+    $REPORT -f ./cfg/$config_file --topdirs=$((dircount+1)) --filter-path="$RH_ROOT/dir.1*" --csv -q > report.out
     [ "$DEBUG" = "1" ] && echo && cat report.out
     lines=$(wc -l report.out | awk '{print $1}')
     (( $lines == $match_dir1 )) || error "$match_dir1 expected in output (found $lines)"
@@ -2331,18 +2331,18 @@ function test_dircount_report
     $REPORT -f ./cfg/$config_file --oldest-empty-dirs --csv > report.out
     [ "$DEBUG" = "1" ] && echo && cat report.out
     for i in `seq 1 $emptydir`; do
-        grep "$ROOT/empty.$i" report.out > /dev/null || error "$ROOT/empty.$i not found in empty dirs"
+        grep "$RH_ROOT/empty.$i" report.out > /dev/null || error "$RH_ROOT/empty.$i not found in empty dirs"
     done
 
     # test with filterpath
-    $REPORT -f ./cfg/$config_file --oldest-empty-dirs --csv -q --filter-path="$ROOT/empty.1" > report.out
+    $REPORT -f ./cfg/$config_file --oldest-empty-dirs --csv -q --filter-path="$RH_ROOT/empty.1" > report.out
     [ "$DEBUG" = "1" ] && echo && cat report.out
     # only one line expected
     lines=$(wc -l report.out | awk '{print $1}')
     (( $lines == 1 )) || error "1 single dir expected in output (found $lines)"
-    line=`grep "$ROOT/empty.1," report.out` || error "$ROOT/empty.1 not found in report"
+    line=`grep "$RH_ROOT/empty.1," report.out` || error "$RH_ROOT/empty.1 not found in report"
 
-    $REPORT -f ./cfg/$config_file --oldest-empty-dirs --csv -q --filter-path="$ROOT/empty.1*" > report.out
+    $REPORT -f ./cfg/$config_file --oldest-empty-dirs --csv -q --filter-path="$RH_ROOT/empty.1*" > report.out
     [ "$DEBUG" = "1" ] && echo && cat report.out
     lines=$(wc -l report.out | awk '{print $1}')
     (( $lines == $match_empty1 )) || error "$match_empty1 expected in output (found $lines)"
@@ -2367,24 +2367,24 @@ function    test_sort_report
     # populate the filesystem with data of these users
     for i in `seq 0 2`; do
         u=${users[$i]}
-        mkdir $ROOT/dir.$u || error "creating directory  $ROOT/dir.$u"
+        mkdir $RH_ROOT/dir.$u || error "creating directory  $RH_ROOT/dir.$u"
         if (( $i == 0 )); then
             # first user:  20 files of size 1k to 20k
             for f in `seq 1 20`; do
-                dd if=/dev/zero of=$ROOT/dir.$u/file.$f bs=1k count=$f 2>/dev/null || error "writing $f KB to $ROOT/dir.$u/file.$f"
+                dd if=/dev/zero of=$RH_ROOT/dir.$u/file.$f bs=1k count=$f 2>/dev/null || error "writing $f KB to $RH_ROOT/dir.$u/file.$f"
             done
         elif (( $i == 1 )); then
             # second user: 10 files of size 10k to 100k
             for f in `seq 1 10`; do
-                dd if=/dev/zero of=$ROOT/dir.$u/file.$f bs=10k count=$f 2>/dev/null || error "writing $f x10 KB to $ROOT/dir.$u/file.$f"
+                dd if=/dev/zero of=$RH_ROOT/dir.$u/file.$f bs=10k count=$f 2>/dev/null || error "writing $f x10 KB to $RH_ROOT/dir.$u/file.$f"
             done
         else
             # 3rd user:    5 files of size 100k to 500k
             for f in `seq 1 5`; do
-                dd if=/dev/zero of=$ROOT/dir.$u/file.$f bs=100k count=$f 2>/dev/null || error "writing $f x100 KB to $ROOT/dir.$u/file.$f"
+                dd if=/dev/zero of=$RH_ROOT/dir.$u/file.$f bs=100k count=$f 2>/dev/null || error "writing $f x100 KB to $RH_ROOT/dir.$u/file.$f"
             done
         fi
-        chown -R $u $ROOT/dir.$u || error "changing owner of $ROOT/dir.$u"
+        chown -R $u $RH_ROOT/dir.$u || error "changing owner of $RH_ROOT/dir.$u"
     done
 
     # flush data to OSTs
@@ -2473,109 +2473,109 @@ function path_test
 
 	# create test tree
 
-	mkdir -p $ROOT/dir1
-	mkdir -p $ROOT/dir1/subdir1
-	mkdir -p $ROOT/dir1/subdir2
-	mkdir -p $ROOT/dir1/subdir3/subdir4
+	mkdir -p $RH_ROOT/dir1
+	mkdir -p $RH_ROOT/dir1/subdir1
+	mkdir -p $RH_ROOT/dir1/subdir2
+	mkdir -p $RH_ROOT/dir1/subdir3/subdir4
 	# 2 matching files for fileclass absolute_path
-	echo "data" > $ROOT/dir1/subdir1/A
-	echo "data" > $ROOT/dir1/subdir2/A
+	echo "data" > $RH_ROOT/dir1/subdir1/A
+	echo "data" > $RH_ROOT/dir1/subdir2/A
 	# 2 unmatching
-	echo "data" > $ROOT/dir1/A
-	echo "data" > $ROOT/dir1/subdir3/subdir4/A
+	echo "data" > $RH_ROOT/dir1/A
+	echo "data" > $RH_ROOT/dir1/subdir3/subdir4/A
 
-	mkdir -p $ROOT/dir2
-	mkdir -p $ROOT/dir2/subdir1
+	mkdir -p $RH_ROOT/dir2
+	mkdir -p $RH_ROOT/dir2/subdir1
 	# 2 matching files for fileclass absolute_tree
-	echo "data" > $ROOT/dir2/X
-	echo "data" > $ROOT/dir2/subdir1/X
+	echo "data" > $RH_ROOT/dir2/X
+	echo "data" > $RH_ROOT/dir2/subdir1/X
 
-	mkdir -p $ROOT/one_dir/dir3
-	mkdir -p $ROOT/other_dir/dir3
-	mkdir -p $ROOT/yetanother_dir
-	mkdir -p $ROOT/dir3
-	mkdir -p $ROOT/one_dir/one_dir/dir3
+	mkdir -p $RH_ROOT/one_dir/dir3
+	mkdir -p $RH_ROOT/other_dir/dir3
+	mkdir -p $RH_ROOT/yetanother_dir
+	mkdir -p $RH_ROOT/dir3
+	mkdir -p $RH_ROOT/one_dir/one_dir/dir3
 	# 2 matching files for fileclass path_depth2
-	echo "data" > $ROOT/one_dir/dir3/X
-	echo "data" > $ROOT/other_dir/dir3/Y
+	echo "data" > $RH_ROOT/one_dir/dir3/X
+	echo "data" > $RH_ROOT/other_dir/dir3/Y
 	# 2 unmatching files for fileclass path_depth2
-	echo "data" > $ROOT/dir3/X
-	echo "data" > $ROOT/one_dir/one_dir/dir3/X
+	echo "data" > $RH_ROOT/dir3/X
+	echo "data" > $RH_ROOT/one_dir/one_dir/dir3/X
 
-	mkdir -p $ROOT/one_dir/dir4/subdir1
-	mkdir -p $ROOT/other_dir/dir4/subdir1
-	mkdir -p $ROOT/dir4
-	mkdir -p $ROOT/one_dir/one_dir/dir4
+	mkdir -p $RH_ROOT/one_dir/dir4/subdir1
+	mkdir -p $RH_ROOT/other_dir/dir4/subdir1
+	mkdir -p $RH_ROOT/dir4
+	mkdir -p $RH_ROOT/one_dir/one_dir/dir4
 	# 3 matching files for fileclass tree_depth2
-	echo "data" > $ROOT/one_dir/dir4/subdir1/X
-	echo "data" > $ROOT/other_dir/dir4/subdir1/X
-    echo "data" > $ROOT/yetanother_dir/dir4 # tree root should match too!
+	echo "data" > $RH_ROOT/one_dir/dir4/subdir1/X
+	echo "data" > $RH_ROOT/other_dir/dir4/subdir1/X
+    echo "data" > $RH_ROOT/yetanother_dir/dir4 # tree root should match too!
 	# unmatching files for fileclass tree_depth2
-	echo "data" > $ROOT/dir4/X
-	echo "data" > $ROOT/one_dir/one_dir/dir4/X
+	echo "data" > $RH_ROOT/dir4/X
+	echo "data" > $RH_ROOT/one_dir/one_dir/dir4/X
 
-	mkdir -p $ROOT/dir5
-	mkdir -p $ROOT/subdir/dir5
+	mkdir -p $RH_ROOT/dir5
+	mkdir -p $RH_ROOT/subdir/dir5
 	# 2 matching files for fileclass relative_path
-	echo "data" > $ROOT/dir5/A
-	echo "data" > $ROOT/dir5/B
+	echo "data" > $RH_ROOT/dir5/A
+	echo "data" > $RH_ROOT/dir5/B
 	# 2 unmatching files for fileclass relative_path
-	echo "data" > $ROOT/subdir/dir5/A
-	echo "data" > $ROOT/subdir/dir5/B
+	echo "data" > $RH_ROOT/subdir/dir5/A
+	echo "data" > $RH_ROOT/subdir/dir5/B
 
-	mkdir -p $ROOT/dir6/subdir
-	mkdir -p $ROOT/subdir/dir6
+	mkdir -p $RH_ROOT/dir6/subdir
+	mkdir -p $RH_ROOT/subdir/dir6
 	# 3 matching files for fileclass relative_tree
-	echo "data" > $ROOT/dir6/A
-	echo "data" > $ROOT/dir6/subdir/A
-    echo "data" > $ROOT/file.6 # tree root should match too!
+	echo "data" > $RH_ROOT/dir6/A
+	echo "data" > $RH_ROOT/dir6/subdir/A
+    echo "data" > $RH_ROOT/file.6 # tree root should match too!
 	# 2 unmatching files for fileclass relative_tree
-	echo "data" > $ROOT/subdir/dir6/A
-	echo "data" > $ROOT/subdir/dir6/B
+	echo "data" > $RH_ROOT/subdir/dir6/A
+	echo "data" > $RH_ROOT/subdir/dir6/B
 
 
-	mkdir -p $ROOT/dir7/subdir
-	mkdir -p $ROOT/dir71/subdir
-	mkdir -p $ROOT/subdir/subdir/dir7
-	mkdir -p $ROOT/subdir/subdir/dir72
+	mkdir -p $RH_ROOT/dir7/subdir
+	mkdir -p $RH_ROOT/dir71/subdir
+	mkdir -p $RH_ROOT/subdir/subdir/dir7
+	mkdir -p $RH_ROOT/subdir/subdir/dir72
 	# 3 matching files for fileclass any_root_tree
-	echo "data" > $ROOT/dir7/subdir/file
-	echo "data" > $ROOT/subdir/subdir/dir7/file
-    echo "data" > $ROOT/yetanother_dir/dir7 # tree root should match too!
+	echo "data" > $RH_ROOT/dir7/subdir/file
+	echo "data" > $RH_ROOT/subdir/subdir/dir7/file
+    echo "data" > $RH_ROOT/yetanother_dir/dir7 # tree root should match too!
 	# 2 unmatching files for fileclass any_root_tree
-	echo "data" > $ROOT/dir71/subdir/file
-	echo "data" > $ROOT/subdir/subdir/dir72/file
+	echo "data" > $RH_ROOT/dir71/subdir/file
+	echo "data" > $RH_ROOT/subdir/subdir/dir72/file
 
-	mkdir -p $ROOT/dir8
-	mkdir -p $ROOT/dir81/subdir
-	mkdir -p $ROOT/subdir/subdir/dir8
+	mkdir -p $RH_ROOT/dir8
+	mkdir -p $RH_ROOT/dir81/subdir
+	mkdir -p $RH_ROOT/subdir/subdir/dir8
 	# 2 matching files for fileclass any_root_path
-	echo "data" > $ROOT/dir8/file.1
-	echo "data" > $ROOT/subdir/subdir/dir8/file.1
+	echo "data" > $RH_ROOT/dir8/file.1
+	echo "data" > $RH_ROOT/subdir/subdir/dir8/file.1
 	# 3 unmatching files for fileclass any_root_path
-	echo "data" > $ROOT/dir8/file.2
-	echo "data" > $ROOT/dir81/file.1
-	echo "data" > $ROOT/subdir/subdir/dir8/file.2
+	echo "data" > $RH_ROOT/dir8/file.2
+	echo "data" > $RH_ROOT/dir81/file.1
+	echo "data" > $RH_ROOT/subdir/subdir/dir8/file.2
 
-	mkdir -p $ROOT/dir9/subdir/dir10/subdir
-	mkdir -p $ROOT/dir9/subdir/dir10x/subdir
-	mkdir -p $ROOT/dir91/subdir/dir10
+	mkdir -p $RH_ROOT/dir9/subdir/dir10/subdir
+	mkdir -p $RH_ROOT/dir9/subdir/dir10x/subdir
+	mkdir -p $RH_ROOT/dir91/subdir/dir10
 	# 3 matching files for fileclass any_level_tree
-	echo "data" > $ROOT/dir9/subdir/dir10/file
-	echo "data" > $ROOT/dir9/subdir/dir10/subdir/file
-	echo "data" > $ROOT/dir9/subdir/dir10x/dir10  # tree root should match too!
+	echo "data" > $RH_ROOT/dir9/subdir/dir10/file
+	echo "data" > $RH_ROOT/dir9/subdir/dir10/subdir/file
+	echo "data" > $RH_ROOT/dir9/subdir/dir10x/dir10  # tree root should match too!
 	# 2 unmatching files for fileclass any_level_tree
-	echo "data" > $ROOT/dir9/subdir/dir10x/subdir/file
-	echo "data" > $ROOT/dir91/subdir/dir10/file
+	echo "data" > $RH_ROOT/dir9/subdir/dir10x/subdir/file
+	echo "data" > $RH_ROOT/dir91/subdir/dir10/file
 
-	mkdir -p $ROOT/dir11/subdir/subdir
-	mkdir -p $ROOT/dir11x/subdir
+	mkdir -p $RH_ROOT/dir11/subdir/subdir
+	mkdir -p $RH_ROOT/dir11x/subdir
 	# 2 matching files for fileclass any_level_path
-	echo "data" > $ROOT/dir11/subdir/file
-	echo "data" > $ROOT/dir11/subdir/subdir/file
+	echo "data" > $RH_ROOT/dir11/subdir/file
+	echo "data" > $RH_ROOT/dir11/subdir/subdir/file
 	# 2 unmatching files for fileclass any_level_path
-	echo "data" > $ROOT/dir11/subdir/file.x
-	echo "data" > $ROOT/dir11x/subdir/file
+	echo "data" > $RH_ROOT/dir11/subdir/file.x
+	echo "data" > $RH_ROOT/dir11x/subdir/file
 
 
 	echo "1bis-Sleeping $sleep_time seconds..."
@@ -2660,7 +2660,7 @@ function update_test
 		# generate a lot of MTIME events within 'event_updt_min'
 		# => must only update once
 		while (( `date "+%s"` - $start < $event_updt_min - 2 )); do
-			touch $ROOT/file
+			touch $RH_ROOT/file
 			usleep 10000
 		done
 
@@ -2706,9 +2706,9 @@ function update_test
 		# generate a lot of TIME events within 'event_updt_min'
 		# => must only update once
 		while (( `date "+%s"` - $start < $event_updt_min - 2 )); do
-			mv $ROOT/file $ROOT/file.2
+			mv $RH_ROOT/file $RH_ROOT/file.2
 			usleep 10000
-			mv $ROOT/file.2 $ROOT/file
+			mv $RH_ROOT/file.2 $RH_ROOT/file
 			usleep 10000
 		done
 
@@ -2740,9 +2740,9 @@ function update_test
 
 	if (( $is_lhsm != 0 )); then
 		# chg something different that path or POSIX attributes
-		$LFS hsm_set --noarchive $ROOT/file
+		$LFS hsm_set --noarchive $RH_ROOT/file
 	else
-		touch $ROOT/file
+		touch $RH_ROOT/file
 	fi
 
 	# force flushing log
@@ -2784,10 +2784,10 @@ function periodic_class_match_migr
 	clean_logs
 
 	#create test tree
-	touch $ROOT/ignore1
-	touch $ROOT/whitelist1
-	touch $ROOT/migrate1
-	touch $ROOT/default1
+	touch $RH_ROOT/ignore1
+	touch $RH_ROOT/whitelist1
+	touch $RH_ROOT/migrate1
+	touch $RH_ROOT/default1
 
 	# scan
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
@@ -2843,10 +2843,10 @@ function policy_check_migr
 	clean_logs
 
 	#create test tree
-	touch $ROOT/ignore1
-	touch $ROOT/whitelist1
-	touch $ROOT/migrate1
-	touch $ROOT/default1
+	touch $RH_ROOT/ignore1
+	touch $RH_ROOT/whitelist1
+	touch $RH_ROOT/migrate1
+	touch $RH_ROOT/default1
 
     echo "1. scan..."
 	# scan
@@ -2933,10 +2933,10 @@ function policy_check_purge
     clean_logs
 
     #create test tree
-    touch $ROOT/ignore1
-    touch $ROOT/whitelist1
-    touch $ROOT/purge1
-    touch $ROOT/default1
+    touch $RH_ROOT/ignore1
+    touch $RH_ROOT/whitelist1
+    touch $RH_ROOT/purge1
+    touch $RH_ROOT/default1
 
     echo "1. scan..."
     # scan
@@ -3040,8 +3040,8 @@ function policy_check_purge
         grep purge1 report.out && error "purge1 should have been removed from DB"
         grep default1 report.out && error "default1 should have been removed from DB"
 
-        [ -f $ROOT/purge1 ] && error "purge1 should have been removed from filesystem"
-        [ -f $ROOT/default1 ] && error "default1 should have been removed from filesystem"
+        [ -f $RH_ROOT/purge1 ] && error "purge1 should have been removed from filesystem"
+        [ -f $RH_ROOT/default1 ] && error "default1 should have been removed from filesystem"
     fi
 
     rm -f report.out
@@ -3068,11 +3068,11 @@ function periodic_class_match_purge
 	echo "Writing and archiving files..."
 	#create test tree of archived files
 	for file in ignore1 whitelist1 purge1 default1 ; do
-		touch $ROOT/$file
+		touch $RH_ROOT/$file
 
 		if (( $is_lhsm != 0 )); then
 			flush_data
-			$LFS hsm_archive $ROOT/$file
+			$LFS hsm_archive $RH_ROOT/$file
 		fi
 	done
 	if (( $is_lhsm != 0 )); then
@@ -3156,15 +3156,15 @@ function test_size_updt
     sleep 1
 
     # create a small file and write it (20 bytes, incl \n)
-    echo "qqslmdkqslmdkqlmsdk" > $ROOT/file
+    echo "qqslmdkqslmdkqlmsdk" > $RH_ROOT/file
     sleep 1
 
-    [ "$DEBUG" = "1" ] && $FIND $ROOT/file -f ./cfg/$config_file -ls
-    size=$($FIND $ROOT/file -f ./cfg/$config_file -ls | awk '{print $(NF-3)}')
+    [ "$DEBUG" = "1" ] && $FIND $RH_ROOT/file -f ./cfg/$config_file -ls
+    size=$($FIND $RH_ROOT/file -f ./cfg/$config_file -ls | awk '{print $(NF-3)}')
     if [ -z "$size" ]; then
        echo "db not yet updated, waiting changelog processing delay ($cl_delay sec)..."
        sleep $cl_delay
-       size=$($FIND $ROOT/file -f ./cfg/$config_file -ls | awk '{print $(NF-3)}')
+       size=$($FIND $RH_ROOT/file -f ./cfg/$config_file -ls | awk '{print $(NF-3)}')
     fi
 
     if (( $size != 20 )); then
@@ -3172,15 +3172,15 @@ function test_size_updt
     fi
 
     # now appending the file (+20 bytes, incl \n)
-    echo "qqslmdkqslmdkqlmsdk" >> $ROOT/file
+    echo "qqslmdkqslmdkqlmsdk" >> $RH_ROOT/file
     sleep 1
 
-    [ "$DEBUG" = "1" ] && $FIND $ROOT/file -f ./cfg/$config_file -ls
-    size=$($FIND $ROOT/file -f ./cfg/$config_file -ls | awk '{print $(NF-3)}')
+    [ "$DEBUG" = "1" ] && $FIND $RH_ROOT/file -f ./cfg/$config_file -ls
+    size=$($FIND $RH_ROOT/file -f ./cfg/$config_file -ls | awk '{print $(NF-3)}')
     if [ -z "$size" ]; then
        echo "db not yet updated, waiting one more second..."
        sleep 1
-       size=$($FIND $ROOT/file -f ./cfg/$config_file -ls | awk '{print $(NF-3)}')
+       size=$($FIND $RH_ROOT/file -f ./cfg/$config_file -ls | awk '{print $(NF-3)}')
     fi
 
     if (( $size != 40 )); then
@@ -3267,17 +3267,17 @@ function test_action_params
     fi
 
     # create 1 file in each class + default
-    touch $ROOT/file.1a
-    touch $ROOT/file.1b
-    touch $ROOT/file.2
-    touch $ROOT/file.3
-    touch $ROOT/file.4
+    touch $RH_ROOT/file.1a
+    touch $RH_ROOT/file.1b
+    touch $RH_ROOT/file.2
+    touch $RH_ROOT/file.3
+    touch $RH_ROOT/file.4
 
-    id1a=$(get_id $ROOT/file.1a)
-    id1b=$(get_id $ROOT/file.1b)
-    id2=$(get_id $ROOT/file.2)
-    id3=$(get_id $ROOT/file.3)
-    id4=$(get_id $ROOT/file.4)
+    id1a=$(get_id $RH_ROOT/file.1a)
+    id1b=$(get_id $RH_ROOT/file.1b)
+    id2=$(get_id $RH_ROOT/file.2)
+    id3=$(get_id $RH_ROOT/file.3)
+    id4=$(get_id $RH_ROOT/file.4)
 
 	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scan error"
     check_db_error rh_scan.log
@@ -3309,8 +3309,8 @@ function test_action_params
     check_action_param rh_migr.log $id1a cos 2
     check_action_param rh_migr.log $id1a archive_id 1
     check_action_param rh_migr.log $id1a mode trigger
-    check_rule_and_class rh_migr.log $ROOT/file.1a "migr1" "class1a"
-    check_action_patterns rh_migr.log $id1a "-a 1" "$ROOT/file.1a" "cos=2" "class=class1a"
+    check_rule_and_class rh_migr.log $RH_ROOT/file.1a "migr1" "class1a"
+    check_action_patterns rh_migr.log $id1a "-a 1" "$RH_ROOT/file.1a" "cos=2" "class=class1a"
 
     # file.1b (class1b, rule migr1)
     #   'prio = 5' from fileclass
@@ -3321,8 +3321,8 @@ function test_action_params
     check_action_param rh_migr.log $id1b cos 2
     check_action_param rh_migr.log $id1b archive_id 1
     check_action_param rh_migr.log $id1b mode trigger
-    check_rule_and_class rh_migr.log $ROOT/file.1b "migr1" "class1b"
-    check_action_patterns rh_migr.log $id1b "-a 1" "$ROOT/file.1b" "cos=2" "class=class1b"
+    check_rule_and_class rh_migr.log $RH_ROOT/file.1b "migr1" "class1b"
+    check_action_patterns rh_migr.log $id1b "-a 1" "$RH_ROOT/file.1b" "cos=2" "class=class1b"
 
     # file.2 (class2, rule migr2)
     #   'cos = 4' from fileclass (override 'cos = 3' from rule).
@@ -3332,7 +3332,7 @@ function test_action_params
     check_action_param rh_migr.log $id2 cos 4
     check_action_param rh_migr.log $id2 archive_id 1
     check_action_param rh_migr.log $id2 mode trigger
-    check_rule_and_class rh_migr.log $ROOT/file.2 "migr2" "class2"
+    check_rule_and_class rh_migr.log $RH_ROOT/file.2 "migr2" "class2"
     check_action_function rh_migr.log "$id2" "lhsm.archive"
 
     # file.3 (class3, rule migr3)
@@ -3343,7 +3343,7 @@ function test_action_params
     check_action_param rh_migr.log $id3 cos 1
     check_action_param rh_migr.log $id3 archive_id 2
     check_action_param rh_migr.log $id3 mode over1
-    check_action_patterns rh_migr.log $id3 "-a 2" "$ROOT/.lustre/fid/$id3" "cos=1"
+    check_action_patterns rh_migr.log $id3 "-a 2" "$RH_ROOT/.lustre/fid/$id3" "cos=1"
 
     # file.4 (no class, rule default)
     #   'archive_id = 1' (policy default)
@@ -3352,8 +3352,8 @@ function test_action_params
     check_action_param rh_migr.log $id4 cos 1
     check_action_param rh_migr.log $id4 archive_id 1
     check_action_param rh_migr.log $id4 mode over2
-    check_rule_and_class rh_migr.log $ROOT/file.4 "default" ""
-    check_action_patterns rh_migr.log $id4 "-a 1" "$ROOT/.lustre/fid/$id4" "cos=1"
+    check_rule_and_class rh_migr.log $RH_ROOT/file.4 "default" ""
+    check_action_patterns rh_migr.log $id4 "-a 1" "$RH_ROOT/.lustre/fid/$id4" "cos=1"
 
     if (($is_lhsm != 0)); then
 		wait_done 60 || error "Copy timeout"
@@ -3380,21 +3380,21 @@ function test_action_params
     #   'arg = 2' from rule
     # action: rm -f {fullpath}
     check_action_param rh_purge.log $id1a arg 2
-    check_rule_and_class rh_purge.log $ROOT/file.1a "purge1" "class1a"
-    check_action_patterns rh_purge.log $id1a "rm -f" "$ROOT/file.1a"
+    check_rule_and_class rh_purge.log $RH_ROOT/file.1a "purge1" "class1a"
+    check_action_patterns rh_purge.log $id1a "rm -f" "$RH_ROOT/file.1a"
 
     # file.1b (class1b, rule purge1)
     #   'arg = 55' from fileclass
     # action: rm -f {fullpath}
     check_action_param rh_purge.log $id1b arg 55
-    check_rule_and_class rh_purge.log $ROOT/file.1b "purge1" "class1b"
-    check_action_patterns rh_purge.log $id1b "rm -f" "$ROOT/file.1b"
+    check_rule_and_class rh_purge.log $RH_ROOT/file.1b "purge1" "class1b"
+    check_action_patterns rh_purge.log $id1b "rm -f" "$RH_ROOT/file.1b"
 
     # file.2 (class2, rule purge2)
     #   'arg = 3' from rule
     # action: echo '{fid}' '{rule}' '{arg}'  >> /tmp/purge.log
     check_action_param rh_purge.log $id2 arg 3
-    check_rule_and_class rh_purge.log $ROOT/file.2 "purge2" "class2"
+    check_rule_and_class rh_purge.log $RH_ROOT/file.2 "purge2" "class2"
     check_action_patterns rh_purge.log $id2 "echo" "$id2" "purge2" "3"
     # FIXME grep the line in /tmp/purge.log
 
@@ -3402,14 +3402,14 @@ function test_action_params
     #   'arg = 1' from policy
     # action: lhsm.release (policy definition default)
     check_action_param rh_purge.log $id3 arg 1
-    check_rule_and_class rh_purge.log $ROOT/file.3 "purge3" "class3"
+    check_rule_and_class rh_purge.log $RH_ROOT/file.3 "purge3" "class3"
     check_action_function rh_purge.log "$id3" "lhsm.release"
 
     # file.4 (rule default)
     #   'arg = 4' from rule
     # action: lhsm.release (policy definition default)
     check_action_param rh_purge.log $id4 arg 4
-    check_rule_and_class rh_purge.log $ROOT/file.4 "default" ""
+    check_rule_and_class rh_purge.log $RH_ROOT/file.4 "default" ""
     check_action_patterns rh_purge.log $id4 "echo" "$id4" "default" "4"
 }
 
@@ -3436,7 +3436,7 @@ function test_cnt_trigger
     fi
 
 	# initial inode count
-	empty_count=`df -i $ROOT/ | grep "$ROOT" | xargs | awk '{print $(NF-3)}'`
+	empty_count=`df -i $RH_ROOT/ | grep "$RH_ROOT" | xargs | awk '{print $(NF-3)}'`
     export high_cnt=$((file_count + $empty_count))
     export low_cnt=$(($high_cnt - $exp_purge_count))
 
@@ -3444,10 +3444,10 @@ function test_cnt_trigger
 
 	#create test tree of archived files (1M each)
 	for i in `seq 1 $file_count`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing $ROOT/file.$i"
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing $RH_ROOT/file.$i"
 
 		if (( $is_lhsm != 0 )); then
-			$LFS hsm_archive $ROOT/file.$i
+			$LFS hsm_archive $RH_ROOT/file.$i
 		fi
 	done
 
@@ -3501,7 +3501,7 @@ function test_ost_trigger
     # reset df values
     wait_stable_df
 
-	empty_vol=`$LFS df $ROOT | grep OST0000 | awk '{print $3}'`
+	empty_vol=`$LFS df $RH_ROOT | grep OST0000 | awk '{print $3}'`
 	empty_vol=$(($empty_vol/1024))
 
     if (($empty_vol >= $mb_h_threshold)); then
@@ -3511,16 +3511,16 @@ function test_ost_trigger
 
     [ "$DEBUG" = "1" ] && echo "empty_vol OST0000: $empty_vol MB, HW: $mb_h_threshold MB"
 
-	$LFS setstripe -c 2 -i 0 $LFS_SS_SZ_OPT 1m $ROOT || echo "error setting stripe_count=2"
+	$LFS setstripe -c 2 -i 0 $LFS_SS_SZ_OPT 1m $RH_ROOT || echo "error setting stripe_count=2"
 
 	#create test tree of archived files (2M each=1MB/ost) until we reach high threshold
 	((count=$mb_h_threshold - $empty_vol + 1))
 	for i in `seq $empty_vol $mb_h_threshold`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=2  >/dev/null 2>/dev/null || error "writing $ROOT/file.$i"
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=2  >/dev/null 2>/dev/null || error "writing $RH_ROOT/file.$i"
 
 		if (( $is_lhsm != 0 )); then
 			flush_data
-			$LFS hsm_archive $ROOT/file.$i
+			$LFS hsm_archive $RH_ROOT/file.$i
 		fi
 	done
 	if (( $is_lhsm != 0 )); then
@@ -3535,11 +3535,11 @@ function test_ost_trigger
     wait_stable_df
 
 	if (( $is_lhsm != 0 )); then
-		arch_count=`$LFS hsm_state $ROOT/file.* | grep "exists archived" | wc -l`
+		arch_count=`$LFS hsm_state $RH_ROOT/file.* | grep "exists archived" | wc -l`
 		(( $arch_count == $count )) || error "File count $count != archived count $arch_count"
 	fi
 
-	full_vol=`$LFS df  $ROOT | grep OST0000 | awk '{print $3}'`
+	full_vol=`$LFS df  $RH_ROOT | grep OST0000 | awk '{print $3}'`
 	full_vol=$(($full_vol/1024))
 	delta=$(($full_vol-$empty_vol))
 	echo "OST#0 usage increased of $delta MB (total usage = $full_vol MB)"
@@ -3574,7 +3574,7 @@ function test_ost_trigger
     # sync df values before checking df return
     wait_stable_df
 
-	full_vol1=`$LFS df $ROOT | grep OST0001 | awk '{print $3}'`
+	full_vol1=`$LFS df $RH_ROOT | grep OST0001 | awk '{print $3}'`
 	full_vol1=$(($full_vol1/1024))
 	purge_ost1=`grep summary rh_purge.log | grep "OST#1" | wc -l`
 
@@ -3587,7 +3587,7 @@ function test_ost_trigger
 	fi
 
 	# restore default striping
-	$LFS setstripe -c 2 -i -1 $ROOT
+	$LFS setstripe -c 2 -i -1 $RH_ROOT
 }
 
 function test_ost_order
@@ -3612,13 +3612,13 @@ function test_ost_order
 	fi
 
     # nb OSTs?
-    nbost=`$LFS df $ROOT | grep OST | wc -l`
+    nbost=`$LFS df $RH_ROOT | grep OST | wc -l`
     maxidx=$((nbost -1))
 
     # get low watermark = max current OST usage
     local min_kb=0
     for i in $(seq 0 $maxidx); do
-    	empty_vol=`$LFS df $ROOT | grep OST000$i | awk '{print $3}'`
+    	empty_vol=`$LFS df $RH_ROOT | grep OST000$i | awk '{print $3}'`
         (( $empty_vol > $min_kb )) && min_kb=$empty_vol
     done
 
@@ -3626,7 +3626,7 @@ function test_ost_order
     local trig_kb=$(($min_kb + 1024 )) # low thresh. +1MB
     export ost_high_vol="${trig_kb}KB"
 
-    [ "$DEBUG" = "1" ] && $LFS df $ROOT
+    [ "$DEBUG" = "1" ] && $LFS df $RH_ROOT
     echo "setting low threshold = $ost_low_vol, high_threshold = $ost_high_vol"
 
     # create nothing on OST0000 (should not be purged)
@@ -3634,12 +3634,12 @@ function test_ost_order
     # ensure OST2 usage is trig_kb + 2M
     # etc...
     for i in $(seq 1 $maxidx); do
-        vol=`$LFS df $ROOT | grep OST000$i | awk '{print $3}'`
+        vol=`$LFS df $RH_ROOT | grep OST000$i | awk '{print $3}'`
         nbkb=$(($trig_kb + 1024*$i - $vol))
         nbmb=$(($nbkb/1024+1))
         for f in $(seq 1 $nbmb); do
-            $LFS setstripe -c 1 -i $i $ROOT/test_ost_order.ost_$i.$f || error "lfs setstripe"
-            dd if=/dev/zero of=$ROOT/test_ost_order.ost_$i.$f bs=1M count=$nbmb || error "dd"
+            $LFS setstripe -c 1 -i $i $RH_ROOT/test_ost_order.ost_$i.$f || error "lfs setstripe"
+            dd if=/dev/zero of=$RH_ROOT/test_ost_order.ost_$i.$f bs=1M count=$nbmb || error "dd"
         done
     done
 
@@ -3704,14 +3704,14 @@ function test_trigger_check
 	# - root quota  > user_quota
 
 	# initial inode count
-	empty_count=`df -i $ROOT/ | xargs | awk '{print $(NF-3)}'`
+	empty_count=`df -i $RH_ROOT/ | xargs | awk '{print $(NF-3)}'`
     empty_count_user=0
 
 #	((file_count=$max_count-$empty_count))
 	file_count=$max_count
 
 	# compute file size to exceed max vol and user quota
-	empty_vol=`df -k $ROOT  | xargs | awk '{print $(NF-3)}'`
+	empty_vol=`df -k $RH_ROOT  | xargs | awk '{print $(NF-3)}'`
 	((empty_vol=$empty_vol/1024))
 
 	if (( $empty_vol < $max_vol_mb )); then
@@ -3731,11 +3731,11 @@ function test_trigger_check
 
 	#create test tree of archived files (file_size MB each)
 	for i in `seq 1 $file_count`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=$file_size  >/dev/null 2>/dev/null || error "writing $ROOT/file.$i"
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=$file_size  >/dev/null 2>/dev/null || error "writing $RH_ROOT/file.$i"
 
 		if (( $is_lhsm != 0 )); then
 			flush_data
-			$LFS hsm_archive $ROOT/file.$i
+			$LFS hsm_archive $RH_ROOT/file.$i
 		fi
 	done
 
@@ -3836,13 +3836,13 @@ function test_periodic_trigger
 	# create 3 files of each type
 	# (*.1, *.2, *.3, *.4)
 	for i in `seq 1 4`; do
-		dd if=/dev/zero of=$ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $ROOT/file.$i"
-		dd if=/dev/zero of=$ROOT/foo.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $ROOT/foo.$i"
-		dd if=/dev/zero of=$ROOT/bar.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $ROOT/bar.$i"
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $RH_ROOT/file.$i"
+		dd if=/dev/zero of=$RH_ROOT/foo.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $RH_ROOT/foo.$i"
+		dd if=/dev/zero of=$RH_ROOT/bar.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $RH_ROOT/bar.$i"
 
     	flush_data
 		if (( $is_lhsm != 0 )); then
-			$LFS hsm_archive $ROOT/file.$i $ROOT/foo.$i $ROOT/bar.$i
+			$LFS hsm_archive $RH_ROOT/file.$i $RH_ROOT/foo.$i $RH_ROOT/bar.$i
 		fi
 	done
 
@@ -3875,12 +3875,12 @@ function test_periodic_trigger
 
     clean_caches # blocks is cached
 	# it first must have purged *.1 files (not others)
-	check_released "$ROOT/file.1" || error "$ROOT/file.1 should have been released after $delta s"
-	check_released "$ROOT/foo.1"  || error "$ROOT/foo.1 should have been released after $delta s"
-	check_released "$ROOT/bar.1"  || error "$ROOT/bar.1 should have been released after $delta s"
-	check_released "$ROOT/file.2" && error "$ROOT/file.2 shouldn't have been released after $delta s"
-	check_released "$ROOT/foo.2"  && error "$ROOT/foo.2 shouldn't have been released after $delta s"
-	check_released "$ROOT/bar.2"  && error "$ROOT/bar.2 shouldn't have been released after $delta s"
+	check_released "$RH_ROOT/file.1" || error "$RH_ROOT/file.1 should have been released after $delta s"
+	check_released "$RH_ROOT/foo.1"  || error "$RH_ROOT/foo.1 should have been released after $delta s"
+	check_released "$RH_ROOT/bar.1"  || error "$RH_ROOT/bar.1 should have been released after $delta s"
+	check_released "$RH_ROOT/file.2" && error "$RH_ROOT/file.2 shouldn't have been released after $delta s"
+	check_released "$RH_ROOT/foo.2"  && error "$RH_ROOT/foo.2 shouldn't have been released after $delta s"
+	check_released "$RH_ROOT/bar.2"  && error "$RH_ROOT/bar.2 shouldn't have been released after $delta s"
 
 	((sleep_time=$sleep_time-$delta))
 	sleep $(( $sleep_time + 2 ))
@@ -3891,12 +3891,12 @@ function test_periodic_trigger
 	((delta=$t2 - $t0))
 
     clean_caches # blocks is cached
-	check_released "$ROOT/file.2" || error "$ROOT/file.2 should have been released after $delta s"
-	check_released "$ROOT/foo.2" || error "$ROOT/foo.2 should have been released after $delta s"
-	check_released "$ROOT/bar.2" || error "$ROOT/bar.2 should have been released after $delta s"
-	check_released "$ROOT/file.3" && error "$ROOT/file.3 shouldn't have been released after $delta s"
-	check_released "$ROOT/foo.3"  && error "$ROOT/foo.3 shouldn't have been released after $delta s"
-	check_released "$ROOT/bar.3" && error "$ROOT/bar.3 shouldn't have been released after $delta s"
+	check_released "$RH_ROOT/file.2" || error "$RH_ROOT/file.2 should have been released after $delta s"
+	check_released "$RH_ROOT/foo.2" || error "$RH_ROOT/foo.2 should have been released after $delta s"
+	check_released "$RH_ROOT/bar.2" || error "$RH_ROOT/bar.2 should have been released after $delta s"
+	check_released "$RH_ROOT/file.3" && error "$RH_ROOT/file.3 shouldn't have been released after $delta s"
+	check_released "$RH_ROOT/foo.3"  && error "$RH_ROOT/foo.3 shouldn't have been released after $delta s"
+	check_released "$RH_ROOT/bar.3" && error "$RH_ROOT/bar.3 shouldn't have been released after $delta s"
 
 	# wait 20 more secs (so another purge policy is applied)
 	sleep 20
@@ -3908,12 +3908,12 @@ function test_periodic_trigger
 	((delta=$t3 - $t0))
 
     clean_caches # blocks is cached
-	check_released "$ROOT/file.3" || error "$ROOT/file.3 should have been released after $delta s"
-	check_released "$ROOT/foo.3"  || error "$ROOT/foo.3 should have been released after $delta s"
-	check_released "$ROOT/bar.3"  || error "$ROOT/bar.3 should have been released after $delta s"
-	check_released "$ROOT/file.4" && error "$ROOT/file.4 shouldn't have been released after $delta s"
-	check_released "$ROOT/foo.4"  && error "$ROOT/foo.4 shouldn't have been released after $delta s"
-	check_released "$ROOT/bar.4"  && error "$ROOT/bar.4 shouldn't have been released after $delta s"
+	check_released "$RH_ROOT/file.3" || error "$RH_ROOT/file.3 should have been released after $delta s"
+	check_released "$RH_ROOT/foo.3"  || error "$RH_ROOT/foo.3 should have been released after $delta s"
+	check_released "$RH_ROOT/bar.3"  || error "$RH_ROOT/bar.3 should have been released after $delta s"
+	check_released "$RH_ROOT/file.4" && error "$RH_ROOT/file.4 shouldn't have been released after $delta s"
+	check_released "$RH_ROOT/foo.4"  && error "$RH_ROOT/foo.4 shouldn't have been released after $delta s"
+	check_released "$RH_ROOT/bar.4"  && error "$RH_ROOT/bar.4 shouldn't have been released after $delta s"
 
 	# final check: 3x "Policy run summary: [...] 3 successful actions"
     nb_pass=$(grep -c "Policy run summary:.* 3 successful actions" rh_purge.log)
@@ -3947,9 +3947,9 @@ function fileclass_test
 
 	# create test tree
 
-	mkdir -p $ROOT/dir_A # odd or A
-	mkdir -p $ROOT/dir_B # none
-	mkdir -p $ROOT/dir_C # none
+	mkdir -p $RH_ROOT/dir_A # odd or A
+	mkdir -p $RH_ROOT/dir_B # none
+	mkdir -p $RH_ROOT/dir_C # none
 
 	# classes are:
 	# 1) even_and_B
@@ -3957,24 +3957,24 @@ function fileclass_test
 	# 3) odd_or_A
 	# 4) none
 
-	echo "data" > $ROOT/dir_A/file.0 #2+3
-	echo "data" > $ROOT/dir_A/file.1 #3
-	echo "data" > $ROOT/dir_A/file.2 #2+3
-	echo "data" > $ROOT/dir_A/file.3 #3
-	echo "data" > $ROOT/dir_A/file.x #3
-	echo "data" > $ROOT/dir_A/file.y #3
+	echo "data" > $RH_ROOT/dir_A/file.0 #2+3
+	echo "data" > $RH_ROOT/dir_A/file.1 #3
+	echo "data" > $RH_ROOT/dir_A/file.2 #2+3
+	echo "data" > $RH_ROOT/dir_A/file.3 #3
+	echo "data" > $RH_ROOT/dir_A/file.x #3
+	echo "data" > $RH_ROOT/dir_A/file.y #3
 
-	echo "data" > $ROOT/dir_B/file.0 #1
-	echo "data" > $ROOT/dir_B/file.1 #3
-	echo "data" > $ROOT/dir_B/file.2 #1
-	echo "data" > $ROOT/dir_B/file.3 #3
+	echo "data" > $RH_ROOT/dir_B/file.0 #1
+	echo "data" > $RH_ROOT/dir_B/file.1 #3
+	echo "data" > $RH_ROOT/dir_B/file.2 #1
+	echo "data" > $RH_ROOT/dir_B/file.3 #3
 
-	echo "data" > $ROOT/dir_C/file.0 #2
-	echo "data" > $ROOT/dir_C/file.1 #3
-	echo "data" > $ROOT/dir_C/file.2 #2
-	echo "data" > $ROOT/dir_C/file.3 #3
-	echo "data" > $ROOT/dir_C/file.x #4
-	echo "data" > $ROOT/dir_C/file.y #4
+	echo "data" > $RH_ROOT/dir_C/file.0 #2
+	echo "data" > $RH_ROOT/dir_C/file.1 #3
+	echo "data" > $RH_ROOT/dir_C/file.2 #2
+	echo "data" > $RH_ROOT/dir_C/file.3 #3
+	echo "data" > $RH_ROOT/dir_C/file.x #4
+	echo "data" > $RH_ROOT/dir_C/file.y #4
 
 	# policies => 2x 1), 4x 2), 8x 3), 2x 4)
 	# matching => 2x 1), 2x 2) 2x 2+3) 9x3) 4x 4)
@@ -4044,14 +4044,14 @@ function test_info_collect
 	clean_logs
 
 	# test reading changelogs or scanning with strange names, etc...
-	mkdir $ROOT'/dir with blanks'
-	mkdir $ROOT'/dir with "quotes"'
-	mkdir "$ROOT/dir with 'quotes'"
+	mkdir $RH_ROOT'/dir with blanks'
+	mkdir $RH_ROOT'/dir with "quotes"'
+	mkdir "$RH_ROOT/dir with 'quotes'"
 
-	touch $ROOT'/dir with blanks/file 1'
-	touch $ROOT'/dir with blanks/file with "double" quotes'
-	touch $ROOT'/dir with "quotes"/file with blanks'
-	touch "$ROOT/dir with 'quotes'/file with 1 quote: '"
+	touch $RH_ROOT'/dir with blanks/file 1'
+	touch $RH_ROOT'/dir with blanks/file with "double" quotes'
+	touch $RH_ROOT'/dir with "quotes"/file with blanks'
+	touch "$RH_ROOT/dir with 'quotes'/file with 1 quote: '"
 
 	sleep $sleep_time1
 
@@ -4170,8 +4170,8 @@ function check_fcount
 
 function empty_fs
 {
-    	if [[ -n "$ROOT" ]]; then
-	    	 find "$ROOT" -mindepth 1 -delete 2>/dev/null
+    	if [[ -n "$RH_ROOT" ]]; then
+	    	 find "$RH_ROOT" -mindepth 1 -delete 2>/dev/null
     	fi
 }
 
@@ -4190,7 +4190,7 @@ function test_info_collect2
 	fi
 
 	# create 10k entries
-	../fill_fs.sh $ROOT 10000 >/dev/null
+	../fill_fs.sh $RH_ROOT 10000 >/dev/null
 
 	# flavor 1: scan only x3
 	# flavor 2: mixed (readlog/scan/readlog/scan)
@@ -4212,7 +4212,7 @@ function test_info_collect2
 		scan_chk    $config_file
         check_fcount 10000
 		# touch entries before reading log
-		../fill_fs.sh $ROOT 10000 >/dev/null
+		../fill_fs.sh $RH_ROOT 10000 >/dev/null
 		readlog_chk $config_file
         check_fcount 10000
         empty_fs
@@ -4222,7 +4222,7 @@ function test_info_collect2
 		readlog_chk $config_file
         check_fcount 10000
 		# touch entries before reading log again
-		../fill_fs.sh $ROOT 10000 >/dev/null
+		../fill_fs.sh $RH_ROOT 10000 >/dev/null
 		readlog_chk $config_file
         check_fcount 10000
 		scan_chk    $config_file
@@ -4273,31 +4273,31 @@ function test_root_changelog
     fi
 
     # create a directory and a file
-    local d=$ROOT/subdir
-    local f=$ROOT/subdir/file
+    local d=$RH_ROOT/subdir
+    local f=$RH_ROOT/subdir/file
     mkdir $d || error "creating directory $d"
     id1=$(get_id $d)
     touch $f || error "creating file $f"
     id2=$(get_id $f)
-    idr=$(get_id $ROOT/.)
+    idr=$(get_id $RH_ROOT/.)
 
-    [ "$DEBUG" = "1" ] && echo -e "$ROOT: $idr\n$d: $id1\n$f: $id2"
+    [ "$DEBUG" = "1" ] && echo -e "$RH_ROOT: $idr\n$d: $id1\n$f: $id2"
 
     # read the changelog
     readlog_chk $config_file
 
-    # check the id, path and parent for $ROOT, $d and $f
+    # check the id, path and parent for $RH_ROOT, $d and $f
     idrb=$(get_db_info $config_file id $idr | tr -d '[]')
     [ "$idr" = "$idrb" ] || error "id doesn't match: $idr != $idrb"
     pathr=$(get_db_info $config_file path $idr)
-    # path must be empty or match $ROOT
-    [ "$pathr" = "" ] || [ "$pathr" = "$ROOT" ] || error "path doesn't match: $ROOT != $pathr"
+    # path must be empty or match $RH_ROOT
+    [ "$pathr" = "" ] || [ "$pathr" = "$RH_ROOT" ] || error "path doesn't match: $RH_ROOT != $pathr"
 
     # name and parent are supposed to be empty for ROOT
     nr=$(get_db_info $config_file name $idr)
-    [ "$nr" = "" ] || error "name for $ROOT is not empty: '$nr'"
+    [ "$nr" = "" ] || error "name for $RH_ROOT is not empty: '$nr'"
     pr=$(get_db_info $config_file parent_id $idr)
-    [ "$pr" = "" ] || error "parent_id for $ROOT is not empty: '$pr'"
+    [ "$pr" = "" ] || error "parent_id for $RH_ROOT is not empty: '$pr'"
 
     id1b=$(get_db_info $config_file id $id1 | tr -d '[]')
     [ "$id1" = "$id1b" ] || error "id doesn't match: '$id1' != '$id1b'"
@@ -4317,24 +4317,24 @@ function test_root_changelog
     [ "$DEBUG" = "1" ] && echo "$f: parent=$parent2"
     [ "$parent2" = "$id1" ] || error "parent doesn't match: $id1 != $parent2"
 
-    # generate an event on $ROOT and do the checks again
-    touch $ROOT/.
+    # generate an event on $RH_ROOT and do the checks again
+    touch $RH_ROOT/.
     sleep 1
     # read the changelog
     readlog_chk $config_file
 
-    # check the id, path and parent for $ROOT, $d and $f
+    # check the id, path and parent for $RH_ROOT, $d and $f
     idrb=$(get_db_info $config_file id $idr | tr -d '[]')
     [ "$idr" = "$idrb" ] || error "id doesn't match: $idr != $idrb"
     pathr=$(get_db_info $config_file path $idr)
-    # path must be empty or match $ROOT
-    [ "$pathr" = "" ] || [ "$pathr" = "$ROOT" ] || error "path doesn't match: $ROOT != $pathr"
+    # path must be empty or match $RH_ROOT
+    [ "$pathr" = "" ] || [ "$pathr" = "$RH_ROOT" ] || error "path doesn't match: $RH_ROOT != $pathr"
 
     # name and parent are supposed to be empty for ROOT
     nr=$(get_db_info $config_file name $idr)
-    [ "$nr" = "" ] || error "name for $ROOT is not empty: '$nr'"
+    [ "$nr" = "" ] || error "name for $RH_ROOT is not empty: '$nr'"
     pr=$(get_db_info $config_file parent_id $idr)
-    [ "$pr" = "" ] || error "parent_id for $ROOT is not empty: '$pr'"
+    [ "$pr" = "" ] || error "parent_id for $RH_ROOT is not empty: '$pr'"
 
     id1b=$(get_db_info $config_file id $id1 | tr -d '[]')
     [ "$id1" = "$id1b" ] || error "id doesn't match: '$id1' != '$id1b'"
@@ -4361,22 +4361,22 @@ function partial_paths
 	clean_logs
 
     # create a tree
-    mkdir -p $ROOT/dir1/dir2
-    mkdir -p $ROOT/dir3
-    touch $ROOT/file1
-    touch $ROOT/dir1/file2
-    touch $ROOT/dir1/dir2/file3
-    touch $ROOT/dir3/file4
+    mkdir -p $RH_ROOT/dir1/dir2
+    mkdir -p $RH_ROOT/dir3
+    touch $RH_ROOT/file1
+    touch $RH_ROOT/dir1/file2
+    touch $RH_ROOT/dir1/dir2/file3
+    touch $RH_ROOT/dir3/file4
 
     # initial scan
     $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
     check_db_error rh_scan.log
 
     # remove a path component from the DB
-    id=$(get_id $ROOT/dir1/dir2)
+    id=$(get_id $RH_ROOT/dir1/dir2)
     [ -z $id ] && error "could not get id"
     # FIXEME only for Lustre 2.x
-    mysql $DB -e "DELETE FROM NAMES WHERE id='$id'" || error "DELETE request"
+    mysql $RH_DB -e "DELETE FROM NAMES WHERE id='$id'" || error "DELETE request"
 
 	if (( $is_hsmlite + $is_lhsm > 0 )); then
         # check how a child entry is archived
@@ -4395,42 +4395,42 @@ function partial_paths
     # check what --dump reports
     f3=$($REPORT -f ./cfg/$config_file --dump --csv -q | grep "file3" | awk '{print $(NF)}')
     echo "file3 reported with path $f3"
-    [[ $f3 = /* ]] && [[ $f3 != $ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
+    [[ $f3 = /* ]] && [[ $f3 != $RH_ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
 
     # check filter path behavior
     # should report at least file2 (and optionnally file3 : must check its path is valid)
-    f2=$($REPORT -f ./cfg/$config_file --dump --csv -q -P "$ROOT/dir1" | grep file2 | awk '{print $(NF)}')
+    f2=$($REPORT -f ./cfg/$config_file --dump --csv -q -P "$RH_ROOT/dir1" | grep file2 | awk '{print $(NF)}')
     [[ -n $f2 ]] && echo "file2 reported with path $f2"
-    [[ $f2 != $ROOT/dir1/file2 ]] && error "wrong path reported for file2: $f2"
+    [[ $f2 != $RH_ROOT/dir1/file2 ]] && error "wrong path reported for file2: $f2"
 
-    f3=$($REPORT -f ./cfg/$config_file --dump --csv -q -P "$ROOT/dir1" | grep file3 | awk '{print $(NF)}')
+    f3=$($REPORT -f ./cfg/$config_file --dump --csv -q -P "$RH_ROOT/dir1" | grep file3 | awk '{print $(NF)}')
     [[ -n $f3 ]] && echo "file3 reported with path $f3"
-    [[ $f3 = /* ]] && [[ $f3 != $ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
+    [[ $f3 = /* ]] && [[ $f3 != $RH_ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
 
-    f3=$($REPORT -f ./cfg/$config_file --dump --csv -q -P "$ROOT/dir1/dir2" | grep file)
+    f3=$($REPORT -f ./cfg/$config_file --dump --csv -q -P "$RH_ROOT/dir1/dir2" | grep file)
     [[ -n $f3 ]] && echo "file3 reported with path $f3"
-    [[ $f3 = /* ]] && [[ $f3 != $ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
+    [[ $f3 = /* ]] && [[ $f3 != $RH_ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
 
     # check find behavior
     # find cannot go into dir2
-    $FIND -f ./cfg/$config_file $ROOT/dir1 | grep dir2 && echo "$ROOT/dir1/dir2 reported?!"
+    $FIND -f ./cfg/$config_file $RH_ROOT/dir1 | grep dir2 && echo "$RH_ROOT/dir1/dir2 reported?!"
     # starting from dir2 fid, it can list file3 in it
-    f3=$($FIND -f ./cfg/$config_file $ROOT/dir1/dir2 | grep file3)
+    f3=$($FIND -f ./cfg/$config_file $RH_ROOT/dir1/dir2 | grep file3)
     echo "find: $f3"
-    [[ $f3 = $ROOT/dir1/dir2/file3 ]] || error "$f3 : invalid fullpath"
+    [[ $f3 = $RH_ROOT/dir1/dir2/file3 ]] || error "$f3 : invalid fullpath"
 
     # like find, should count file3
-    fc=$($DU -d -f ./cfg/$config_file $ROOT/dir1/dir2 | grep "file count" | cut -d ':' -f 2 | cut -d ',' -f 1)
-    [[ $fc = 1 ]] || error "expected filecount in $ROOT/dir1/dir2: 1 (got $fc)"
+    fc=$($DU -d -f ./cfg/$config_file $RH_ROOT/dir1/dir2 | grep "file count" | cut -d ':' -f 2 | cut -d ',' -f 1)
+    [[ $fc = 1 ]] || error "expected filecount in $RH_ROOT/dir1/dir2: 1 (got $fc)"
 
     # check -e report
     # dir2 should be in DB, even with no path
-    $REPORT -f ./cfg/$config_file --csv -e "$ROOT/dir1/dir2" | grep "md updt" || error "$ROOT/dir1/dir2 should have a DB entry"
+    $REPORT -f ./cfg/$config_file --csv -e "$RH_ROOT/dir1/dir2" | grep "md updt" || error "$RH_ROOT/dir1/dir2 should have a DB entry"
 
-    $REPORT -f ./cfg/$config_file --csv -e "$ROOT/dir1/dir2/file3"  > report.log || error "report error for $ROOT/dir1/dir2/file3"
-    grep "md updt" report.log || error "$ROOT/dir1/dir2/file3 should have a DB entry"
+    $REPORT -f ./cfg/$config_file --csv -e "$RH_ROOT/dir1/dir2/file3"  > report.log || error "report error for $RH_ROOT/dir1/dir2/file3"
+    grep "md updt" report.log || error "$RH_ROOT/dir1/dir2/file3 should have a DB entry"
     f3=$(egrep "^path," report.log)
-    [[ $f3 = /* ]] && [[ $f3 != $ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
+    [[ $f3 = /* ]] && [[ $f3 != $RH_ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
 	if (( $is_hsmlite > 0 )); then
         b3=$(grep "backend_path," report.log | cut -d ',' -f 2)
         # b3 should be in 'dir2' or in '__unknown_path'
@@ -4441,7 +4441,7 @@ function partial_paths
 	if (( $no_log==0 )); then
 	   $LFS changelog_clear lustre-MDT0000 cl1 0
 
-        rm -f $ROOT/dir1/dir2/file3
+        rm -f $RH_ROOT/dir1/dir2/file3
         readlog_chk $config_file
 
 	    if (( $is_lhsm + $is_hsmlite > 0 )); then
@@ -4450,7 +4450,7 @@ function partial_paths
             nb=$(cat report.log | grep file3 | wc -l)
             (($nb == 1)) || error "file3 not reported in remove-pending list"
             f3=$(cut -d "," -f 3 report.log)
-            [[ $f3 = /* ]] && [[ $f3 != $ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
+            [[ $f3 = /* ]] && [[ $f3 != $RH_ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
         fi
 
         if (( $is_hsmlite > 0 )); then
@@ -4461,7 +4461,7 @@ function partial_paths
             echo $b3 | egrep "dir1/dir2|unknown_path" || error "unexpected backend path $b3"
 
             $UNDELETE -f ./cfg/$config_file -R '*/file3' -l DEBUG || error "undeleting file3"
-            find $ROOT -name "file3" -ls | tee report.log
+            find $RH_ROOT -name "file3" -ls | tee report.log
             (( $(wc -l report.log | awk '{print $1}') == 1 )) || error "file3 not restored"
         fi
 	fi
@@ -4476,7 +4476,7 @@ function test_mnt_point
 	config_file=$1
 	clean_logs
 
-    export fs_path=$ROOT/subdir # retrieved from env when parsing config file
+    export fs_path=$RH_ROOT/subdir # retrieved from env when parsing config file
 
     local dir_rel="dir1 dir2"
     local file_rel="dir1/file.1 dir1/file.2 dir2/file.3 file.4"
@@ -4554,10 +4554,10 @@ function test_compress
 
     # populate the filesystem
     for d in $dir_rel; do
-        mkdir -p $ROOT/$d || error mkdir
+        mkdir -p $RH_ROOT/$d || error mkdir
     done
     for f in $file_rel; do
-        /bin/cp $src_file $ROOT/$f || error cp
+        /bin/cp $src_file $RH_ROOT/$f || error cp
     done
 
     # scan the filesystem (compress=no)
@@ -4593,10 +4593,10 @@ function test_compress
 
     # modify some files, create new files
     for f in $file_rel_mod; do
-        cat $src_file >> $ROOT/$f || error "appending $f"
+        cat $src_file >> $RH_ROOT/$f || error "appending $f"
     done
     for f in $file_rel_new; do
-        /bin/cp $src_file $ROOT/$f || error "creating $f"
+        /bin/cp $src_file $RH_ROOT/$f || error "creating $f"
     done
 
     # scan the file system and check file status
@@ -4633,7 +4633,7 @@ function test_compress
 
     # turn compression off compression, make some changes and check status again
     for f in $file_rel_mod; do
-        cat $src_file >> $ROOT/$f || error "appending $f"
+        cat $src_file >> $RH_ROOT/$f || error "appending $f"
     done
 
     export compress=no
@@ -4671,17 +4671,17 @@ function test_compress
     local after=/tmp/after.$$
     local diff=/tmp/diff.$$
     # shots before disaster (time is only significant for files)
-    find $ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > $before
-    find $ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> $before
-    find $ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> $before
+    find $RH_ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > $before
+    find $RH_ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> $before
+    find $RH_ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> $before
 
     # perform 2 disaster recovery with compress=yes and compress=no
     for c in yes no; do
         export compress=$c
         # FS disaster
-        if [[ -n "$ROOT" ]]; then
+        if [[ -n "$RH_ROOT" ]]; then
             echo "Disaster: all FS content is lost"
-            rm  -rf $ROOT/*
+            rm  -rf $RH_ROOT/*
         fi
 
         # perform the recovery
@@ -4691,15 +4691,15 @@ function test_compress
         $RECOV -f ./cfg/$config_file --resume -l DEBUG >> recov.log 2>&1 || error "Error performing recovery"
         $RECOV -f ./cfg/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
 
-        find $ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > $after
-        find $ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> $after
-        find $ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> $after
+        find $RH_ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > $after
+        find $RH_ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> $after
+        find $RH_ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> $after
 
         diff  $before $after > /tmp/diff.$$ || error "unexpected differences between initial and final state"
         [ "$DEBUG" = "1" ] && cat /tmp/diff.$$
 
         # check that no file in Lustre is restored as compressed file
-        lucomp=$(find $ROOT -type f -exec file {} \; | grep "gzip compressed data" | wc -l)
+        lucomp=$(find $RH_ROOT -type f -exec file {} \; | grep "gzip compressed data" | wc -l)
         (( $lucomp == 0 )) || error "No compressed file expected in Lustre"
 
         # check backend files
@@ -4737,10 +4737,10 @@ function test_enoent
 
 	echo "2-create/unlink sequence"
     for i in $(seq 1 1000); do
-        touch $ROOT/file.$i
-        rm -f $ROOT/file.$i
-        touch $ROOT/file.$i
-        rm -f $ROOT/file.$i
+        touch $RH_ROOT/file.$i
+        rm -f $RH_ROOT/file.$i
+        touch $RH_ROOT/file.$i
+        rm -f $RH_ROOT/file.$i
     done
 
     # wait for consumer to read all records
@@ -4772,33 +4772,33 @@ function test_diff
     # scan: scan with diff option (various)
 
     # populate filesystem
-    mkdir $ROOT/dir.1 || error "mkdir"
-    chmod 0750 $ROOT/dir.1 || error "chmod"
-    mkdir $ROOT/dir.2 || error "mkdir"
-    mkdir $ROOT/dir.3 || error "mkdir"
-    touch $ROOT/dir.1/a $ROOT/dir.1/b $ROOT/dir.1/c || error "touch"
-    touch $ROOT/dir.2/d $ROOT/dir.2/e $ROOT/dir.2/f || error "touch"
-    touch $ROOT/file || error "touch"
+    mkdir $RH_ROOT/dir.1 || error "mkdir"
+    chmod 0750 $RH_ROOT/dir.1 || error "chmod"
+    mkdir $RH_ROOT/dir.2 || error "mkdir"
+    mkdir $RH_ROOT/dir.3 || error "mkdir"
+    touch $RH_ROOT/dir.1/a $RH_ROOT/dir.1/b $RH_ROOT/dir.1/c || error "touch"
+    touch $RH_ROOT/dir.2/d $RH_ROOT/dir.2/e $RH_ROOT/dir.2/f || error "touch"
+    touch $RH_ROOT/file || error "touch"
 
     # initial scan
     echo "1-Initial scan..."
     $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
 
     # new entry (file & dir)
-    touch $ROOT/dir.1/file.new || error "touch"
-    mkdir $ROOT/dir.new	       || error "mkdir"
+    touch $RH_ROOT/dir.1/file.new || error "touch"
+    mkdir $RH_ROOT/dir.new	       || error "mkdir"
 
     # rm'd entry (file & dir)
-    rm -f $ROOT/dir.1/b	|| error "rm"
-    rmdir $ROOT/dir.3	|| error "rmdir"
+    rm -f $RH_ROOT/dir.1/b	|| error "rm"
+    rmdir $RH_ROOT/dir.3	|| error "rmdir"
 
     # apply various changes
-    chmod 0700 $ROOT/dir.1 		|| error "chmod"
-    chown testuser $ROOT/dir.2		|| error "chown"
-    chgrp testgroup $ROOT/dir.1/a	|| error "chgrp"
-    echo "zqhjkqshdjkqshdjh" >>  $ROOT/dir.1/c || error "append"
-    mv $ROOT/dir.2/d  $ROOT/dir.1/d     || error "mv"
-    mv $ROOT/file $ROOT/fname           || error "rename"
+    chmod 0700 $RH_ROOT/dir.1 		|| error "chmod"
+    chown testuser $RH_ROOT/dir.2		|| error "chown"
+    chgrp testgroup $RH_ROOT/dir.1/a	|| error "chgrp"
+    echo "zqhjkqshdjkqshdjh" >>  $RH_ROOT/dir.1/c || error "append"
+    mv $RH_ROOT/dir.2/d  $RH_ROOT/dir.1/d     || error "mv"
+    mv $RH_ROOT/file $RH_ROOT/fname           || error "rename"
 
     # is swap layout feature available?
     has_swap=0
@@ -4806,7 +4806,7 @@ function test_diff
         $LFS help | grep swap_layout > /dev/null && has_swap=1
         # if so invert stripe for e and f
         if [ $has_swap -eq 1 ]; then
-            $LFS swap_layouts $ROOT/dir.2/e  $ROOT/dir.2/f || error "lfs swap_layouts"
+            $LFS swap_layouts $RH_ROOT/dir.2/e  $RH_ROOT/dir.2/f || error "lfs swap_layouts"
         fi
     fi
 
@@ -4826,34 +4826,34 @@ function test_diff
 
     # must get:
     # new entries dir.1/file.new and dir.new
-    egrep '^++' report.out | grep -v '+++' | grep -E "name='file.new'|path='$ROOT/dir.1/file.new'" | grep type=file || error "missing create dir.1/file.new"
-    egrep '^++' report.out | grep -v '+++' | grep -E "name='dir.new'|path='$ROOT/dir.new'" | grep type=dir || error "missing create dir.new"
+    egrep '^++' report.out | grep -v '+++' | grep -E "name='file.new'|path='$RH_ROOT/dir.1/file.new'" | grep type=file || error "missing create dir.1/file.new"
+    egrep '^++' report.out | grep -v '+++' | grep -E "name='dir.new'|path='$RH_ROOT/dir.new'" | grep type=dir || error "missing create dir.new"
     # rmd entries dir.1/b and dir.3
     nbrm=$(egrep -e '^--' report.out | grep -v -- '---' | wc -l)
     [ $nbrm  -eq 2 ] || error "$nbrm/2 removal"
     # changes
-    grep "^+[^ ]*"$(get_id "$ROOT/dir.1") report.out  | grep mode= || error "missing chmod $ROOT/dir.1"
-    grep "^+[^ ]*"$(get_id "$ROOT/dir.2") report.out | grep owner=testuser || error "missing chown $ROOT/dir.2"
-    grep "^+[^ ]*"$(get_id "$ROOT/dir.1/a") report.out  | grep group=testgroup || error "missing chgrp $ROOT/dir.1/a"
-    grep "^+[^ ]*"$(get_id "$ROOT/dir.1/c") report.out | grep size= || error "missing size change $ROOT/dir.1/c"
+    grep "^+[^ ]*"$(get_id "$RH_ROOT/dir.1") report.out  | grep mode= || error "missing chmod $RH_ROOT/dir.1"
+    grep "^+[^ ]*"$(get_id "$RH_ROOT/dir.2") report.out | grep owner=testuser || error "missing chown $RH_ROOT/dir.2"
+    grep "^+[^ ]*"$(get_id "$RH_ROOT/dir.1/a") report.out  | grep group=testgroup || error "missing chgrp $RH_ROOT/dir.1/a"
+    grep "^+[^ ]*"$(get_id "$RH_ROOT/dir.1/c") report.out | grep size= || error "missing size change $RH_ROOT/dir.1/c"
 
     # dir2/d -> dir1/d
-    old_parent=$(grep "^-[^ ]*"$(get_id "$ROOT/dir.1/d") report.out | sed -e "s/.*parent=\[\([^]]*\).*/\1/" )
-    new_parent=$(grep "^+[^ ]*"$(get_id "$ROOT/dir.1/d") report.out | sed -e "s/.*parent=\[\([^]]*\).*/\1/" )
-    [ -z "$old_parent" ] && error "cannot get old parent of $ROOT/dir.1/d"
-    [ -z "$new_parent" ] && error "cannot get new parent of $ROOT/dir.1/d"
-    [ $old_parent = $new_parent ] && error "$ROOT/dir.1/d still has the same parent"
+    old_parent=$(grep "^-[^ ]*"$(get_id "$RH_ROOT/dir.1/d") report.out | sed -e "s/.*parent=\[\([^]]*\).*/\1/" )
+    new_parent=$(grep "^+[^ ]*"$(get_id "$RH_ROOT/dir.1/d") report.out | sed -e "s/.*parent=\[\([^]]*\).*/\1/" )
+    [ -z "$old_parent" ] && error "cannot get old parent of $RH_ROOT/dir.1/d"
+    [ -z "$new_parent" ] && error "cannot get new parent of $RH_ROOT/dir.1/d"
+    [ $old_parent = $new_parent ] && error "$RH_ROOT/dir.1/d still has the same parent"
 
     # file -> fname
-    file_fid=$(get_id "$ROOT/fname")
+    file_fid=$(get_id "$RH_ROOT/fname")
     old_file=$(grep "^-[^ ]*${file_fid}.*name='file'" report.out)
     new_file=$(grep "^+[^ ]*${file_fid}.*name='fname'" report.out)
-    [ -z old_file ] && error "missing path change $ROOT/fname"
-    [ -z new_file ] && error "missing path change $ROOT/fname"
+    [ -z old_file ] && error "missing path change $RH_ROOT/fname"
+    [ -z new_file ] && error "missing path change $RH_ROOT/fname"
 
     if [ $has_swap -eq 1 ]; then
-        grep "^+[^ ]*"$(get_id "$ROOT/dir.2/e") report.out | grep stripe || error "missing stripe change $ROOT/dir.2/e"
-        grep "^+[^ ]*"$(get_id "$ROOT/dir.2/f") report.out | grep stripe || error "missing stripe change $ROOT/dir.2/f"
+        grep "^+[^ ]*"$(get_id "$RH_ROOT/dir.2/e") report.out | grep stripe || error "missing stripe change $RH_ROOT/dir.2/e"
+        grep "^+[^ ]*"$(get_id "$RH_ROOT/dir.2/f") report.out | grep stripe || error "missing stripe change $RH_ROOT/dir.2/f"
     fi
 
     # TODO check the content of the DB for scan and diff --apply
@@ -4871,20 +4871,20 @@ function test_diff_apply_fs # test diff --apply=fs in particular for entry recov
 
     # copy 2 instances /bin in the filesystem
     echo "Populating filesystem..."
-    $LFS setstripe -c 2 $ROOT/.
-    cp -ar /bin $ROOT/bin.1 || error "copy failed"
-    cp -ar /bin $ROOT/bin.2 || error "copy failed"
+    $LFS setstripe -c 2 $RH_ROOT/.
+    cp -ar /bin $RH_ROOT/bin.1 || error "copy failed"
+    cp -ar /bin $RH_ROOT/bin.2 || error "copy failed"
 
     # run initial scan
     echo "Initial scan..."
     $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
 
     # save contents of bin.1
-    find $ROOT/bin.1 -printf "%n %y %m %T@ %g %u %p %l\n" > find.out || error "find error"
+    find $RH_ROOT/bin.1 -printf "%n %y %m %T@ %g %u %p %l\n" > find.out || error "find error"
 
     # remove it
     echo "removing objects"
-    rm -rf "$ROOT/bin.1"
+    rm -rf "$RH_ROOT/bin.1"
 
     # cause 1 sec bw initial creation and recovery
     # to check robinhood restore the original date
@@ -4913,7 +4913,7 @@ function test_diff_apply_fs # test diff --apply=fs in particular for entry recov
         echo "OK: $cr1 objects created"
     fi
 
-    find $ROOT/bin.1 -printf "%n %y %m %T@ %g %u %p %l\n" > find2.out || error "find error"
+    find $RH_ROOT/bin.1 -printf "%n %y %m %T@ %g %u %p %l\n" > find2.out || error "find error"
 
     if (($rmhl == 1)); then
         # remove file hardlinks from diff as their are erroneous
@@ -4997,7 +4997,7 @@ function test_completion
 
     # populate filesystem
     for i in `seq 1 10`; do
-        touch $ROOT/file.$i || error "creating entry"
+        touch $RH_ROOT/file.$i || error "creating entry"
     done
 
     # do the scan
@@ -5013,7 +5013,7 @@ function test_completion
         # out.1 contains cfg
         grep $config_file out.1 || error "out.1 has unexpected content: $(cat out.1)"
         # out.2 contains fspath
-        grep $ROOT out.2 || error "out.2 has unexpected content: $(cat out.2)"
+        grep $RH_ROOT out.2 || error "out.2 has unexpected content: $(cat out.2)"
     else
         grep "$fail_str" rh_scan.log || error "Completion command should fail"
         grep "$err" rh_scan.log || error "unreported cmd error"
@@ -5036,14 +5036,14 @@ function test_rename
             return 1
     fi
 
-    dirs="$ROOT/dir.1 $ROOT/dir.2 $ROOT/dir.3 $ROOT/dir.3/subdir"
-    files="$ROOT/dir.1/file.1  $ROOT/dir.1/file.2  $ROOT/dir.2/file.1 $ROOT/dir.2/file.2 $ROOT/dir.2/file.4 $ROOT/dir.3/subdir/file.1"
-    hlink_ref="$ROOT/dir.2/file.3"
-    hlink="$ROOT/dir.2/link_file" # initially points to file.3, then file.4
+    dirs="$RH_ROOT/dir.1 $RH_ROOT/dir.2 $RH_ROOT/dir.3 $RH_ROOT/dir.3/subdir"
+    files="$RH_ROOT/dir.1/file.1  $RH_ROOT/dir.1/file.2  $RH_ROOT/dir.2/file.1 $RH_ROOT/dir.2/file.2 $RH_ROOT/dir.2/file.4 $RH_ROOT/dir.3/subdir/file.1"
+    hlink_ref="$RH_ROOT/dir.2/file.3"
+    hlink="$RH_ROOT/dir.2/link_file" # initially points to file.3, then file.4
 
-    dirs_tgt="$ROOT/dir.1 $ROOT/dir.2 $ROOT/dir.3 $ROOT/dir.3/subdir.rnm"
-    files_tgt="$ROOT/dir.1/file.1.rnm  $ROOT/dir.2/file.2.rnm  $ROOT/dir.2/file.2  $ROOT/dir.2/file.3  $ROOT/dir.2/link_file $ROOT/dir.3/subdir.rnm/file.1"
-    deleted="$ROOT/dir.2/file.2"
+    dirs_tgt="$RH_ROOT/dir.1 $RH_ROOT/dir.2 $RH_ROOT/dir.3 $RH_ROOT/dir.3/subdir.rnm"
+    files_tgt="$RH_ROOT/dir.1/file.1.rnm  $RH_ROOT/dir.2/file.2.rnm  $RH_ROOT/dir.2/file.2  $RH_ROOT/dir.2/file.3  $RH_ROOT/dir.2/link_file $RH_ROOT/dir.3/subdir.rnm/file.1"
+    deleted="$RH_ROOT/dir.2/file.2"
 
     # create several files/dirs
     echo "1. Creating initial objects..."
@@ -5081,7 +5081,7 @@ function test_rename
     $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
 
-    $FIND -f ./cfg/$config_file $ROOT -ls -nobulk > find.out || error "$FIND"
+    $FIND -f ./cfg/$config_file $RH_ROOT -ls -nobulk > find.out || error "$FIND"
     [ "$DEBUG" = "1" ] && cat find.out
 
     # checking all objects in reports
@@ -5103,33 +5103,33 @@ function test_rename
     name_from=(dir.1/file.1 dir.1/file.2 dir.2/file.1 dir.3/subdir dir.2/file.4)
     id_from=()
     for f in ${name_from[*]}; do
-        id_from+=( "$(get_id $ROOT/$f)" )
+        id_from+=( "$(get_id $RH_ROOT/$f)" )
     done
 
     name_unlnk=(dir.2/file.2 dir.2/link_file)
     id_unlnk=()
     for f in ${name_unlnk[*]}; do
-        id_unlnk+=( "$(get_id $ROOT/$f)" )
+        id_unlnk+=( "$(get_id $RH_ROOT/$f)" )
     done
 
     # rename entries
     echo "3. Renaming objects..."
     # 1) simple file rename
-    mv $ROOT/dir.1/file.1 $ROOT/dir.1/file.1.rnm
+    mv $RH_ROOT/dir.1/file.1 $RH_ROOT/dir.1/file.1.rnm
     # 2) cross directory file rename
-    mv $ROOT/dir.1/file.2 $ROOT/dir.2/file.2.rnm
+    mv $RH_ROOT/dir.1/file.2 $RH_ROOT/dir.2/file.2.rnm
     # 3) rename that deletes the target
-    mv -f $ROOT/dir.2/file.1 $ROOT/dir.2/file.2
+    mv -f $RH_ROOT/dir.2/file.1 $RH_ROOT/dir.2/file.2
     # 4) upper level directory rename
-    mv $ROOT/dir.3/subdir $ROOT/dir.3/subdir.rnm
+    mv $RH_ROOT/dir.3/subdir $RH_ROOT/dir.3/subdir.rnm
     # 5) overwritting a hardlink
-    mv -f $ROOT/dir.2/file.4 $hlink
+    mv -f $RH_ROOT/dir.2/file.4 $hlink
 
     # get target fids
     name_to=(dir.1/file.1.rnm dir.2/file.2.rnm dir.2/file.2 dir.3/subdir.rnm dir.3/subdir.rnm dir.2/link_file)
     id_to=()
     for f in ${name_to[*]}; do
-        id_to+=( "$(get_id $ROOT/$f)" )
+        id_to+=( "$(get_id $RH_ROOT/$f)" )
     done
 
     # namespace GC needs 1s difference
@@ -5192,7 +5192,7 @@ function test_rename
     $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
 
-    $FIND -f ./cfg/$config_file $ROOT -nobulk -ls > find.out || error "$FIND"
+    $FIND -f ./cfg/$config_file $RH_ROOT -nobulk -ls > find.out || error "$FIND"
     [ "$DEBUG" = "1" ] && cat find.out
 
     # checking all objects in reports
@@ -5246,42 +5246,42 @@ function test_unlink
     fi
 
 	# Create one file and a hardlink
-    touch "$ROOT/foo1"
-	ln "$ROOT/foo1" "$ROOT/foo2"
+    touch "$RH_ROOT/foo1"
+	ln "$RH_ROOT/foo1" "$RH_ROOT/foo2"
 
 	# Check nlink == 2
     $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
-	$FIND -f ./cfg/$config_file $ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
+	$FIND -f ./cfg/$config_file $RH_ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
 	nlink=$( cat report.out | awk '{ print $4; }' )
 	(( $nlink == 2 )) || error "nlink should be 2 instead of $nlink"
 
 	# Remove one file and check nlink == 1
-	rm "$ROOT/foo2"
+	rm "$RH_ROOT/foo2"
     $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
-	$FIND -f ./cfg/$config_file $ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
+	$FIND -f ./cfg/$config_file $RH_ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
 	nlink=$( cat report.out | awk '{ print $4; }' )
 	(( $nlink == 1 )) || error "nlink should be 1 instead of $nlink"
 
 	# Add a new hard link and check nlink == 2
-	ln "$ROOT/foo1" "$ROOT/foo3"
+	ln "$RH_ROOT/foo1" "$RH_ROOT/foo3"
     $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
-	$FIND -f ./cfg/$config_file $ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
+	$FIND -f ./cfg/$config_file $RH_ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
 	nlink=$( cat report.out | awk '{ print $4; }' )
 	(( $nlink == 2 )) || error "nlink should be 1 instead of $nlink"
 
 	# Remove one file and check nlink == 1
-	rm "$ROOT/foo3"
+	rm "$RH_ROOT/foo3"
     $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
-	$FIND -f ./cfg/$config_file $ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
+	$FIND -f ./cfg/$config_file $RH_ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
 	nlink=$( cat report.out | awk '{ print $4; }' )
 	(( $nlink == 1 )) || error "nlink should be 1 instead of $nlink"
 
     # Now create one hardlink, then remove it, but do not run RH in between.
-	ln "$ROOT/foo1" "$ROOT/foo2"
-	rm "$ROOT/foo2"
+	ln "$RH_ROOT/foo1" "$RH_ROOT/foo2"
+	rm "$RH_ROOT/foo2"
 	# check nlink == 1
 	$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
-	$FIND -f ./cfg/$config_file $ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
+	$FIND -f ./cfg/$config_file $RH_ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
 	nlink=$( cat report.out | awk '{ print $4; }' )
 	(( $nlink == 1 )) || error "nlink should be 1 instead of $nlink"
 
@@ -5311,7 +5311,7 @@ function test_layout
     fi
 
     # Create a file and change its layout.
-    DSTFILE="$ROOT/foo1"
+    DSTFILE="$RH_ROOT/foo1"
     $LFS setstripe -c 1 $DSTFILE
     dd if=/dev/zero of=$DSTFILE bs=1M count=10
     $LFS migrate -c 2 $DSTFILE
@@ -5472,45 +5472,45 @@ function stripe_update
 
     # only diff1 and 3 should display stripe changes
     [[ $flavor = *"diff"* ]] && [[ $flavor != *"2" ]] && diff=1
-    rm -f $ROOT/file.*
+    rm -f $RH_ROOT/file.*
 
     echo "test setup: checking diff=$diff, getstripe allowed=$getstripe, has_swap=$has_swap"
 
     echo "- non-striped file"
     # case 1 (all Lustre versions): create an unstriped file, then stripe it
-    create_nostripe $ROOT/file.1 || error "creating unstriped file"
+    create_nostripe $RH_ROOT/file.1 || error "creating unstriped file"
     run_scan_cmd $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "" "stripe_count=0" 1
-    check_stripe $config_file $ROOT/file.1 "none"
+    check_stripe $config_file $RH_ROOT/file.1 "none"
 
     # no update expected for second run
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe" "stripe" 0 # no stripe change expected
-    check_stripe $config_file $ROOT/file.1 "none"
+    check_stripe $config_file $RH_ROOT/file.1 "none"
 
     # check if "getstripe -g" exists
     has_gen=0
-    $LFS getstripe -g $ROOT/ 2>/dev/null && has_gen=1
+    $LFS getstripe -g $RH_ROOT/ 2>/dev/null && has_gen=1
 
     # stripe it
     echo "- stripe file"
-    $LFS setstripe -c 1 $ROOT/file.1 || error "setting file stripe"
-    idx=$($LFS getstripe -i $ROOT/file.1)
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: ost$idx"
-    [ "$DEBUG" = "1" ] && [ "$has_gen" = "1" ] && echo "$ROOT/file.1: gen $($LFS getstripe -g $ROOT/file.1)"
+    $LFS setstripe -c 1 $RH_ROOT/file.1 || error "setting file stripe"
+    idx=$($LFS getstripe -i $RH_ROOT/file.1)
+    [ "$DEBUG" = "1" ] && echo "$RH_ROOT/file.1: ost$idx"
+    [ "$DEBUG" = "1" ] && [ "$has_gen" = "1" ] && echo "$RH_ROOT/file.1: gen $($LFS getstripe -g $RH_ROOT/file.1)"
     run_scan_cmd $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe_count=0" "stripe_count=1" 1
-    check_stripe $config_file $ROOT/file.1 "ost#$idx"
+    check_stripe $config_file $RH_ROOT/file.1 "ost#$idx"
 
     # no update expected for second run
-    [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$ROOT/file.1: gen $($LFS getstripe -g $ROOT/file.1)"
+    [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$RH_ROOT/file.1: gen $($LFS getstripe -g $RH_ROOT/file.1)"
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe" "stripe" 0 # no stripe change expected
-    check_stripe $config_file $ROOT/file.1 "ost#$idx"
+    check_stripe $config_file $RH_ROOT/file.1 "ost#$idx"
 
     # other cases: play with layout_swap (skip for Lustre < 2.4)
     if (( $has_swap == 0 )); then
@@ -5519,39 +5519,39 @@ function stripe_update
     fi
 
     # swap with another striped file
-    $LFS setstripe -c 1 $ROOT/file.2 || error "creating striped file"
-    idx2=$($LFS getstripe -i $ROOT/file.2)
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.2: ost$idx2"
+    $LFS setstripe -c 1 $RH_ROOT/file.2 || error "creating striped file"
+    idx2=$($LFS getstripe -i $RH_ROOT/file.2)
+    [ "$DEBUG" = "1" ] && echo "$RH_ROOT/file.2: ost$idx2"
     echo "- swap it with striped file"
-    $LFS swap_layouts $ROOT/file.1 $ROOT/file.2 || error "swapping file layouts"
-    [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$ROOT/file.1: gen $($LFS getstripe -g $ROOT/file.1)"
+    $LFS swap_layouts $RH_ROOT/file.1 $RH_ROOT/file.2 || error "swapping file layouts"
+    [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$RH_ROOT/file.1: gen $($LFS getstripe -g $RH_ROOT/file.1)"
     run_scan_cmd $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripes={ost#$idx" "stripes={ost#$idx2" 1
-    check_stripe $config_file $ROOT/file.1 "ost#$idx2"
+    check_stripe $config_file $RH_ROOT/file.1 "ost#$idx2"
 
     # no update expected for second run
-    [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$ROOT/file.1: gen $($LFS getstripe -g $ROOT/file.1)"
+    [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$RH_ROOT/file.1: gen $($LFS getstripe -g $RH_ROOT/file.1)"
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe" "stripe" 0 # no stripe change expected
-    check_stripe $config_file $ROOT/file.1 "ost#$idx2"
+    check_stripe $config_file $RH_ROOT/file.1 "ost#$idx2"
 
     # swap with non-striped file
-    create_nostripe $ROOT/file.3 || error "creating unstriped file"
+    create_nostripe $RH_ROOT/file.3 || error "creating unstriped file"
     echo "- swap it with non-striped file"
-    $LFS swap_layouts $ROOT/file.1 $ROOT/file.3 || error "swapping file layouts"
-    [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$ROOT/file.1: gen $($LFS getstripe -g $ROOT/file.1)"
+    $LFS swap_layouts $RH_ROOT/file.1 $RH_ROOT/file.3 || error "swapping file layouts"
+    [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$RH_ROOT/file.1: gen $($LFS getstripe -g $RH_ROOT/file.1)"
     run_scan_cmd $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe_count=1" "stripe_count=0" 1
-    check_stripe $config_file $ROOT/file.1 "none"
+    check_stripe $config_file $RH_ROOT/file.1 "none"
 
-    [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$ROOT/file.1: gen $($LFS getstripe -g $ROOT/file.1)"
+    [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$RH_ROOT/file.1: gen $($LFS getstripe -g $RH_ROOT/file.1)"
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe" "stripe" 0 # no stripe change expected
-    check_stripe $config_file $ROOT/file.1 "none"
+    check_stripe $config_file $RH_ROOT/file.1 "none"
 
     return 0
 }
@@ -5586,7 +5586,7 @@ function stripe_no_update
         return 1
     fi
 
-    rm -f $ROOT/file.*
+    rm -f $RH_ROOT/file.*
 
     echo "test setup: checking diff=$diff, getstripe allowed=$getstripe, has_swap=$has_swap"
 
@@ -5595,30 +5595,30 @@ function stripe_no_update
 
     echo "- non-striped file"
     # case 1 (all Lustre versions): create an unstriped file, then stripe it
-    create_nostripe $ROOT/file.1 || error "creating unstriped file"
+    create_nostripe $RH_ROOT/file.1 || error "creating unstriped file"
     # no update expected for the given specified run
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "" "stripe_count=0" 1
     # update db contents
     run_scan_cmd $config_file "scan"
-    check_stripe $config_file $ROOT/file.1 "none"
+    check_stripe $config_file $RH_ROOT/file.1 "none"
 
     # check if "getstripe -g" exists
     has_gen=0
-    $LFS getstripe -g $ROOT/ 2>/dev/null && has_gen=1
+    $LFS getstripe -g $RH_ROOT/ 2>/dev/null && has_gen=1
 
     # stripe it
     echo "- stripe file"
-    $LFS setstripe -c 1 $ROOT/file.1 || error "setting file stripe"
-    idx=$($LFS getstripe -i $ROOT/file.1)
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.1: ost$idx"
-    [ "$DEBUG" = "1" ] && [ "$has_gen" = "1" ] && echo "$ROOT/file.1: gen $($LFS getstripe -g $ROOT/file.1)"
+    $LFS setstripe -c 1 $RH_ROOT/file.1 || error "setting file stripe"
+    idx=$($LFS getstripe -i $RH_ROOT/file.1)
+    [ "$DEBUG" = "1" ] && echo "$RH_ROOT/file.1: ost$idx"
+    [ "$DEBUG" = "1" ] && [ "$has_gen" = "1" ] && echo "$RH_ROOT/file.1: gen $($LFS getstripe -g $RH_ROOT/file.1)"
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe_count=0" "stripe_count=1" 1
     run_scan_cmd $config_file "scan"
-    check_stripe $config_file $ROOT/file.1 "ost#$idx"
+    check_stripe $config_file $RH_ROOT/file.1 "ost#$idx"
 
     # other cases: play with layout_swap (skip for Lustre < 2.4)
 
@@ -5628,28 +5628,28 @@ function stripe_no_update
     fi
 
     # swap with another striped file
-    $LFS setstripe -c 1 $ROOT/file.2 || error "creating striped file"
-    idx2=$($LFS getstripe -i $ROOT/file.2)
-    [ "$DEBUG" = "1" ] && echo "$ROOT/file.2: ost$idx2"
+    $LFS setstripe -c 1 $RH_ROOT/file.2 || error "creating striped file"
+    idx2=$($LFS getstripe -i $RH_ROOT/file.2)
+    [ "$DEBUG" = "1" ] && echo "$RH_ROOT/file.2: ost$idx2"
     echo "- swap it with striped file"
-    $LFS swap_layouts $ROOT/file.1 $ROOT/file.2 || error "swapping file layouts"
-    [ "$DEBUG" = "1" ] && [ "$has_gen" = "1" ] && echo "$ROOT/file.1: gen $($LFS getstripe -g $ROOT/file.1)"
+    $LFS swap_layouts $RH_ROOT/file.1 $RH_ROOT/file.2 || error "swapping file layouts"
+    [ "$DEBUG" = "1" ] && [ "$has_gen" = "1" ] && echo "$RH_ROOT/file.1: gen $($LFS getstripe -g $RH_ROOT/file.1)"
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripes={ost#$idx" "stripes={ost#$idx2" 1
     run_scan_cmd $config_file "scan"
-    check_stripe $config_file $ROOT/file.1 "ost#$idx2"
+    check_stripe $config_file $RH_ROOT/file.1 "ost#$idx2"
 
     # swap with non-striped file
-    create_nostripe $ROOT/file.3 || error "creating unstriped file"
+    create_nostripe $RH_ROOT/file.3 || error "creating unstriped file"
     echo "- swap it with non-striped file"
-    $LFS swap_layouts $ROOT/file.1 $ROOT/file.3 || error "swapping file layouts"
-    [ "$DEBUG" = "1" ] && [ "$has_gen" = "1" ] && echo "$ROOT/file.1: gen $($LFS getstripe -g $ROOT/file.1)"
+    $LFS swap_layouts $RH_ROOT/file.1 $RH_ROOT/file.3 || error "swapping file layouts"
+    [ "$DEBUG" = "1" ] && [ "$has_gen" = "1" ] && echo "$RH_ROOT/file.1: gen $($LFS getstripe -g $RH_ROOT/file.1)"
     scan_check_no_update $config_file $flavor
     [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe_count=1" "stripe_count=0" 1
     run_scan_cmd $config_file "scan"
-    check_stripe $config_file $ROOT/file.1 "none"
+    check_stripe $config_file $RH_ROOT/file.1 "none"
 
     return 0
 }
@@ -5670,19 +5670,19 @@ function test_hardlinks
             return 1
     fi
 
-    dirs="$ROOT/dir.1 $ROOT/dir.2 $ROOT/dir.3 $ROOT/dir.3/subdir $ROOT/dir.4"
-    files="$ROOT/dir.1/file.1  $ROOT/dir.1/file.2  $ROOT/dir.2/file.1 $ROOT/dir.2/file.2 $ROOT/dir.2/file.4 $ROOT/dir.3/subdir/file.1 $ROOT/dir.4/file.3"
-    hlink_refs=("$ROOT/dir.2/file.3" "$ROOT/dir.4/file.1" "$ROOT/dir.4/file.2")
-    hlinks=("$ROOT/dir.2/link_file" "$ROOT/dir.1/link.1 $ROOT/dir.2/link.1" "$ROOT/dir.2/link.2")
-    #[0] file.4 will over write it, [1] one more link will be created, [2]previous path ($ROOT/dir.4/file.2) will be removed
+    dirs="$RH_ROOT/dir.1 $RH_ROOT/dir.2 $RH_ROOT/dir.3 $RH_ROOT/dir.3/subdir $RH_ROOT/dir.4"
+    files="$RH_ROOT/dir.1/file.1  $RH_ROOT/dir.1/file.2  $RH_ROOT/dir.2/file.1 $RH_ROOT/dir.2/file.2 $RH_ROOT/dir.2/file.4 $RH_ROOT/dir.3/subdir/file.1 $RH_ROOT/dir.4/file.3"
+    hlink_refs=("$RH_ROOT/dir.2/file.3" "$RH_ROOT/dir.4/file.1" "$RH_ROOT/dir.4/file.2")
+    hlinks=("$RH_ROOT/dir.2/link_file" "$RH_ROOT/dir.1/link.1 $RH_ROOT/dir.2/link.1" "$RH_ROOT/dir.2/link.2")
+    #[0] file.4 will over write it, [1] one more link will be created, [2]previous path ($RH_ROOT/dir.4/file.2) will be removed
 
-    dirs_tgt="$ROOT/dir.1 $ROOT/dir.2 $ROOT/dir.3 $ROOT/dir.3/subdir.rnm $ROOT/dir.4"
-    files_tgt="$ROOT/dir.1/file.1.rnm  $ROOT/dir.2/file.2.rnm  $ROOT/dir.2/file.2  $ROOT/dir.2/file.3  $ROOT/dir.2/link_file $ROOT/dir.3/subdir.rnm/file.1 $ROOT/dir.2/link.2 $ROOT/dir.1/new"
-    hlink_refs_tgt=("$ROOT/dir.4/file.1" "$ROOT/dir.2/new")
-    hlinks_tgt=("$ROOT/dir.1/link.1 $ROOT/dir.2/link.1 $ROOT/dir.4/link.1" "$ROOT/dir.4/link.new")
+    dirs_tgt="$RH_ROOT/dir.1 $RH_ROOT/dir.2 $RH_ROOT/dir.3 $RH_ROOT/dir.3/subdir.rnm $RH_ROOT/dir.4"
+    files_tgt="$RH_ROOT/dir.1/file.1.rnm  $RH_ROOT/dir.2/file.2.rnm  $RH_ROOT/dir.2/file.2  $RH_ROOT/dir.2/file.3  $RH_ROOT/dir.2/link_file $RH_ROOT/dir.3/subdir.rnm/file.1 $RH_ROOT/dir.2/link.2 $RH_ROOT/dir.1/new"
+    hlink_refs_tgt=("$RH_ROOT/dir.4/file.1" "$RH_ROOT/dir.2/new")
+    hlinks_tgt=("$RH_ROOT/dir.1/link.1 $RH_ROOT/dir.2/link.1 $RH_ROOT/dir.4/link.1" "$RH_ROOT/dir.4/link.new")
         # only previous [1] remaining as [0], [1] is a new link
 
-    deleted="$ROOT/dir.2/file.2 $ROOT/dir.4/file.3"
+    deleted="$RH_ROOT/dir.2/file.2 $RH_ROOT/dir.4/file.3"
 
     # create several files/dirs
     echo "1. Creating initial objects..."
@@ -5732,7 +5732,7 @@ function test_hardlinks
     $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
 
-    $FIND -f ./cfg/$config_file $ROOT -nobulk -ls > find.out || error "$FIND"
+    $FIND -f ./cfg/$config_file $RH_ROOT -nobulk -ls > find.out || error "$FIND"
     [ "$DEBUG" = "1" ] && cat find.out
 
     # checking all objects in reports
@@ -5756,36 +5756,36 @@ function test_hardlinks
     done
 
     count_nb_init=$(wc -l report.out | awk '{print $1}')
-    count_path_init=$(grep -v "$ROOT$" find.out | wc -l)
+    count_path_init=$(grep -v "$RH_ROOT$" find.out | wc -l)
     echo "nbr_inodes=$count_nb_init, nb_paths=$count_path_init, nb_ln=$nb_ln"
     (( $count_path_init == $count_nb_init + $nb_ln )) || error "nb path != nb_inode + nb_ln"
 
     # rename entries
     echo "3. Linking/unlinking/renaming objects..."
     # 1) simple file rename
-    mv $ROOT/dir.1/file.1 $ROOT/dir.1/file.1.rnm
+    mv $RH_ROOT/dir.1/file.1 $RH_ROOT/dir.1/file.1.rnm
     # 2) cross directory file rename
-    mv $ROOT/dir.1/file.2 $ROOT/dir.2/file.2.rnm
+    mv $RH_ROOT/dir.1/file.2 $RH_ROOT/dir.2/file.2.rnm
     # 3) rename that deletes the target
-    mv -f $ROOT/dir.2/file.1 $ROOT/dir.2/file.2
+    mv -f $RH_ROOT/dir.2/file.1 $RH_ROOT/dir.2/file.2
     # 4) upper level directory rename
-    mv $ROOT/dir.3/subdir $ROOT/dir.3/subdir.rnm
+    mv $RH_ROOT/dir.3/subdir $RH_ROOT/dir.3/subdir.rnm
     # 5) overwritting a hardlink
-    mv -f $ROOT/dir.2/file.4 ${hlinks[0]}
+    mv -f $RH_ROOT/dir.2/file.4 ${hlinks[0]}
     ((nb_ln--))
     # 6) creating new link to "dir.4/file.1"
-    ln "$ROOT/dir.4/file.1" "$ROOT/dir.4/link.1"
+    ln "$RH_ROOT/dir.4/file.1" "$RH_ROOT/dir.4/link.1"
     ((nb_ln++))
     # 7) removing 1 link (dir.2/link.2 remains)
-    rm "$ROOT/dir.4/file.2"
+    rm "$RH_ROOT/dir.4/file.2"
     ((nb_ln--))
     # 8) removing 1 file
-    rm "$ROOT/dir.4/file.3"
+    rm "$RH_ROOT/dir.4/file.3"
     # 9) creating 1 file
-    touch "$ROOT/dir.1/new"
+    touch "$RH_ROOT/dir.1/new"
     # 10) creating 1 file with hardlink
-    touch "$ROOT/dir.2/new"
-    ln "$ROOT/dir.2/new" "$ROOT/dir.4/link.new"
+    touch "$RH_ROOT/dir.2/new"
+    ln "$RH_ROOT/dir.2/new" "$RH_ROOT/dir.4/link.new"
     ((nb_ln++))
 
     # namespace GC needs 1s difference
@@ -5824,7 +5824,7 @@ function test_hardlinks
     $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
 
-    $FIND -f ./cfg/$config_file $ROOT -nobulk -ls > find.out || error "$FIND"
+    $FIND -f ./cfg/$config_file $RH_ROOT -nobulk -ls > find.out || error "$FIND"
     [ "$DEBUG" = "1" ] && cat find.out
 
 
@@ -5881,7 +5881,7 @@ function test_hardlinks
         ((i++))
     done
     [ -z "$count_nb_final" ] && count_nb_final=$(wc -l report.out | awk '{print $1}')
-    count_path_final=$(grep -v "$ROOT$" find.out | wc -l)
+    count_path_final=$(grep -v "$RH_ROOT$" find.out | wc -l)
 
     echo "nbr_inodes=$count_nb_final, nb_paths=$count_path_final, nb_ln=$nb_ln"
     (( $count_nb_final == $count_nb_init)) || error "same entry count ($count_nb_init) expected (2 deleted, 2 created)"
@@ -5900,14 +5900,14 @@ function test_hl_count
     # populate file system with simple files
 
     for d in $(seq 1 $dcount); do
-        mkdir $ROOT/dir.$d || error "cannot create $ROOT/dir.$d"
+        mkdir $RH_ROOT/dir.$d || error "cannot create $RH_ROOT/dir.$d"
     for f in $(seq 1 $fcount); do
-        touch $ROOT/dir.$d/file.$f || error "cannot create $ROOT/dir.$d/file.$f"
+        touch $RH_ROOT/dir.$d/file.$f || error "cannot create $RH_ROOT/dir.$d/file.$f"
     done
     done
 
     # scan
-   	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning $ROOT"
+   	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning $RH_ROOT"
 
     ino=$(( $dcount * $fcount + $dcount ))
     ino_subdir=$(($fcount + 1))
@@ -5916,11 +5916,11 @@ function test_hl_count
     #   dump report (9 entries, no root)
     (($($REPORT -f ./cfg/$config_file -D -q | wc -l) == $ino )) || error "wrong count in 'rbh-report -D' output"
     #   dump report with path filter (3 entries)
-    (($($REPORT -f ./cfg/$config_file -D -q -P $ROOT/dir.1 | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-report -D -P <path>' output"
+    (($($REPORT -f ./cfg/$config_file -D -q -P $RH_ROOT/dir.1 | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-report -D -P <path>' output"
     #   dump find output (whole FS) (10 entries, incl. root)
     (($($FIND -f ./cfg/$config_file -nobulk | wc -l) == $ino + 1))  || error "wrong count in 'rbh-find' output"
     #   dump find output (subdir: 3 entries)
-    (($($FIND -f ./cfg/$config_file $ROOT/dir.1 -nobulk | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-find <path>' output"
+    (($($FIND -f ./cfg/$config_file $RH_ROOT/dir.1 -nobulk | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-find <path>' output"
 
     #   dump summary (9 entries)
     $REPORT -f ./cfg/$config_file -icq > report.out
@@ -5932,7 +5932,7 @@ function test_hl_count
 	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i' output"
 
     #   dump summary with path filter (3 entries)
-    $REPORT -f ./cfg/$config_file -iq -P $ROOT/dir.1 > report.out
+    $REPORT -f ./cfg/$config_file -iq -P $RH_ROOT/dir.1 > report.out
     [ "$DEBUG" = "1" ] && cat report.out
   	countValues="1;$fcount"
 	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i -P <path>' output"
@@ -5940,12 +5940,12 @@ function test_hl_count
     # create 1 hardlink per file and recheck
     for d in $(seq 1 $dcount); do
     for f in $(seq 1 $fcount); do
-        ln $ROOT/dir.$d/file.$f $ROOT/dir.$d/link.$f || error "cannot create hardlink $ROOT/dir.$d/link.$f -> $ROOT/dir.$d/file.$f"
+        ln $RH_ROOT/dir.$d/file.$f $RH_ROOT/dir.$d/link.$f || error "cannot create hardlink $RH_ROOT/dir.$d/link.$f -> $RH_ROOT/dir.$d/file.$f"
     done
     done
 
     # rescan
-   	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning $ROOT"
+   	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning $RH_ROOT"
 
     paths=$(( $dcount * $fcount * 2 + $dcount ))
     paths_subdir=$(($fcount * 2 + 1))
@@ -5953,11 +5953,11 @@ function test_hl_count
     #   dump report (still 9 entries, no root)
     (($($REPORT -f ./cfg/$config_file -D -q | wc -l) == $ino )) || error "wrong count in 'rbh-report -D' output"
     #   dump report with path filter (still 3 entries)
-    (($($REPORT -f ./cfg/$config_file -D -q -P $ROOT/dir.1 | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-report -D -P <path>' output"
+    (($($REPORT -f ./cfg/$config_file -D -q -P $RH_ROOT/dir.1 | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-report -D -P <path>' output"
     #   dump find output (whole FS) (
     (($($FIND -f ./cfg/$config_file -nobulk | wc -l) == $paths + 1 ))  || error "wrong count in 'rbh-find' output"
     #   dump find output (subdir: 3 entries)
-    (($($FIND -f ./cfg/$config_file $ROOT/dir.1 -nobulk | wc -l) == $paths_subdir )) || error "wrong count in 'rbh-find <path>' output"
+    (($($FIND -f ./cfg/$config_file $RH_ROOT/dir.1 -nobulk | wc -l) == $paths_subdir )) || error "wrong count in 'rbh-find <path>' output"
 
     #   dump summary (9 entries)
     $REPORT -f ./cfg/$config_file -icq > report.out
@@ -5966,7 +5966,7 @@ function test_hl_count
 	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i' output"
 
     #   dump summary with path filter (3 entries)
-    $REPORT -f ./cfg/$config_file -iq -P $ROOT/dir.1 > report.out
+    $REPORT -f ./cfg/$config_file -iq -P $RH_ROOT/dir.1 > report.out
     [ "$DEBUG" = "1" ] && cat report.out
   	countValues="1;$fcount"
 	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i -P <path>' output"
@@ -5992,12 +5992,12 @@ function test_pools
 	clean_logs
 
 	# create files in different pools (or not)
-	touch $ROOT/no_pool.1 || error "creating file"
-	touch $ROOT/no_pool.2 || error "creating file"
-	$LFS setstripe -p lustre.$POOL1 $ROOT/in_pool_1.a || error "creating file in $POOL1"
-	$LFS setstripe -p lustre.$POOL1 $ROOT/in_pool_1.b || error "creating file in $POOL1"
-	$LFS setstripe -p lustre.$POOL2 $ROOT/in_pool_2.a || error "creating file in $POOL2"
-	$LFS setstripe -p lustre.$POOL2 $ROOT/in_pool_2.b || error "creating file in $POOL2"
+	touch $RH_ROOT/no_pool.1 || error "creating file"
+	touch $RH_ROOT/no_pool.2 || error "creating file"
+	$LFS setstripe -p lustre.$POOL1 $RH_ROOT/in_pool_1.a || error "creating file in $POOL1"
+	$LFS setstripe -p lustre.$POOL1 $RH_ROOT/in_pool_1.b || error "creating file in $POOL1"
+	$LFS setstripe -p lustre.$POOL2 $RH_ROOT/in_pool_2.a || error "creating file in $POOL2"
+	$LFS setstripe -p lustre.$POOL2 $RH_ROOT/in_pool_2.b || error "creating file in $POOL2"
 
 	sleep $sleep_time
 
@@ -6023,13 +6023,13 @@ function test_pools
     pf=5
 
 	for i in 1 2; do
-        ( [ "`grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '`" = "" ] || error "bad fileclass for no_pool.$i" )
+        ( [ "`grep "$RH_ROOT/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '`" = "" ] || error "bad fileclass for no_pool.$i" )
 	done
 
 	for i in a b; do
-	    ( [ "`grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f $pf  | tr -d ' '`" = "pool_1" ] || error "bad fileclass for in_pool_1.$i" )
+	    ( [ "`grep "$RH_ROOT/in_pool_1.$i" report.out | cut -d ',' -f $pf  | tr -d ' '`" = "pool_1" ] || error "bad fileclass for in_pool_1.$i" )
 
-		( [ "`grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '`" = "pool_2" ] || error "bad fileclass for in_pool_2.$i" )
+		( [ "`grep "$RH_ROOT/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '`" = "pool_2" ] || error "bad fileclass for in_pool_2.$i" )
 	done
 
 	# rematch and recheck
@@ -6043,13 +6043,13 @@ function test_pools
 	cat report.out
 
 	for i in 1 2; do
-        ( [ "`grep "$ROOT/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '`" = "" ] || error "bad fileclass for no_pool.$i" )
+        ( [ "`grep "$RH_ROOT/no_pool.$i" report.out | cut -d ',' -f $pf | tr -d ' '`" = "" ] || error "bad fileclass for no_pool.$i" )
 	done
 
 	for i in a b; do
-	    ( [ "`grep "$ROOT/in_pool_1.$i" report.out | cut -d ',' -f $pf  | tr -d ' '`" = "pool_1" ] || error "bad fileclass for in_pool_1.$i" )
+	    ( [ "`grep "$RH_ROOT/in_pool_1.$i" report.out | cut -d ',' -f $pf  | tr -d ' '`" = "pool_1" ] || error "bad fileclass for in_pool_1.$i" )
 
-		( [ "`grep "$ROOT/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '`" = "pool_2" ] || error "bad fileclass for in_pool_2.$i" )
+		( [ "`grep "$RH_ROOT/in_pool_2.$i" report.out  | cut -d ',' -f $pf | tr -d ' '`" = "pool_2" ] || error "bad fileclass for in_pool_2.$i" )
 	done
 
 
@@ -6088,14 +6088,14 @@ function test_logs
 	echo "Test parameters: files=$files, syslog=$syslog, stdio=$stdio, batch=$batch"
 
 	# create files
-	touch $ROOT/file.1 || error "creating file"
-	touch $ROOT/file.2 || error "creating file"
-	touch $ROOT/file.3 || error "creating file"
-	touch $ROOT/file.4 || error "creating file"
+	touch $RH_ROOT/file.1 || error "creating file"
+	touch $RH_ROOT/file.2 || error "creating file"
+	touch $RH_ROOT/file.3 || error "creating file"
+	touch $RH_ROOT/file.4 || error "creating file"
 
 	if (( $is_lhsm != 0 )); then
 		flush_data
-		$LFS hsm_archive $ROOT/file.*
+		$LFS hsm_archive $RH_ROOT/file.*
 		wait_done 60 || error "Copy timeout"
 	fi
 
@@ -6465,26 +6465,26 @@ function recovery_test
     echo "1.1-creating files..."
 
     for i in `seq 1 $total`; do
-        mkdir "$ROOT/dir.$i" || error "$? creating directory $ROOT/dir.$i"
+        mkdir "$RH_ROOT/dir.$i" || error "$? creating directory $RH_ROOT/dir.$i"
         if (( $i % 3 == 0 )); then
-            chmod 755 "$ROOT/dir.$i" || error "$? setting mode of $ROOT/dir.$i"
+            chmod 755 "$RH_ROOT/dir.$i" || error "$? setting mode of $RH_ROOT/dir.$i"
         elif (( $i % 3 == 1 )); then
-            chmod 750 "$ROOT/dir.$i" || error "$? setting mode of $ROOT/dir.$i"
+            chmod 750 "$RH_ROOT/dir.$i" || error "$? setting mode of $RH_ROOT/dir.$i"
         elif (( $i % 3 == 2 )); then
-            chmod 700 "$ROOT/dir.$i" || error "$? setting mode of $ROOT/dir.$i"
+            chmod 700 "$RH_ROOT/dir.$i" || error "$? setting mode of $RH_ROOT/dir.$i"
         fi
 
         if (($i > $total - $total_empty)); then
             # last total_empty are empty...
-            touch $ROOT/dir.$i/file.$i || error "$? creating $ROOT/file.$i"
+            touch $RH_ROOT/dir.$i/file.$i || error "$? creating $RH_ROOT/file.$i"
         else
-            dd if=/dev/zero of=$ROOT/dir.$i/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $ROOT/file.$i"
+            dd if=/dev/zero of=$RH_ROOT/dir.$i/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $RH_ROOT/file.$i"
         fi
     done
 
     echo "1.2-creating symlinks..."
     for i in `seq 1 $(( $total - $total_empty))`; do
-        ln -s "symlink_$i" $ROOT/dir.$i/link.$i  >/dev/null 2>/dev/null || error "$? creating symlink $ROOT/dir.$i/link.$"
+        ln -s "symlink_$i" $RH_ROOT/dir.$i/link.$i  >/dev/null 2>/dev/null || error "$? creating symlink $RH_ROOT/dir.$i/link.$"
     done
 
     # read changelogs
@@ -6518,30 +6518,30 @@ function recovery_test
     # archive and modify files
     for i in `seq 1 $total`; do
         if (( $i <= $nb_full )); then
-            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
-                || error "archiving $ROOT/dir.$i/file.$i"
-            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/link.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
-                || error "archiving $ROOT/dir.$i/link.$i"
+            $RH -f ./cfg/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
+                || error "archiving $RH_ROOT/dir.$i/file.$i"
+            $RH -f ./cfg/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/link.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
+                || error "archiving $RH_ROOT/dir.$i/link.$i"
             if (( $arch_slink == 0 )); then
-                grep "$ROOT/dir.$i/link.$i" rh_migr.log | grep "bad type for migration" > /dev/null 2> /dev/null \
-                    || error "$ROOT/dir.$i/link.$i should not have been migrated"
+                grep "$RH_ROOT/dir.$i/link.$i" rh_migr.log | grep "bad type for migration" > /dev/null 2> /dev/null \
+                    || error "$RH_ROOT/dir.$i/link.$i should not have been migrated"
             fi
         elif (( $i <= $(($nb_full+$nb_rename)) )); then
-            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
-                || error "archiving $ROOT/dir.$i/file.$i"
-            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/link.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
-                || error "archiving $ROOT/dir.$i/link.$i"
+            $RH -f ./cfg/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
+                || error "archiving $RH_ROOT/dir.$i/file.$i"
+            $RH -f ./cfg/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/link.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
+                || error "archiving $RH_ROOT/dir.$i/link.$i"
             if (( $arch_slink == 0 )); then
-                grep "$ROOT/dir.$i/link.$i" rh_migr.log | grep "bad type for migration" > /dev/null 2> /dev/null \
-                    || error "$ROOT/dir.$i/link.$i should not have been migrated"
+                grep "$RH_ROOT/dir.$i/link.$i" rh_migr.log | grep "bad type for migration" > /dev/null 2> /dev/null \
+                    || error "$RH_ROOT/dir.$i/link.$i should not have been migrated"
             fi
-            mv "$ROOT/dir.$i/file.$i" "$ROOT/dir.$i/file_new.$i" || error "renaming file"
-            mv "$ROOT/dir.$i/link.$i" "$ROOT/dir.$i/link_new.$i" || error "renaming link"
-            mv "$ROOT/dir.$i" "$ROOT/dir.new_$i" || error "renaming dir"
+            mv "$RH_ROOT/dir.$i/file.$i" "$RH_ROOT/dir.$i/file_new.$i" || error "renaming file"
+            mv "$RH_ROOT/dir.$i/link.$i" "$RH_ROOT/dir.$i/link_new.$i" || error "renaming link"
+            mv "$RH_ROOT/dir.$i" "$RH_ROOT/dir.new_$i" || error "renaming dir"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
-            $RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
-                || error "archiving $ROOT/dir.$i/file.$i"
-            touch "$ROOT/dir.$i/file.$i"
+            $RH -f ./cfg/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
+                || error "archiving $RH_ROOT/dir.$i/file.$i"
+            touch "$RH_ROOT/dir.$i/file.$i"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
             # no backup
             :
@@ -6550,8 +6550,8 @@ function recovery_test
             :
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp+$nb_empty+$nb_empty_rename)) )); then
             # no backup, just rename
-            mv "$ROOT/dir.$i/file.$i" "$ROOT/dir.$i/file_new.$i" || error "renaming file"
-            mv "$ROOT/dir.$i" "$ROOT/dir.new_$i" || error "renaming dir"
+            mv "$RH_ROOT/dir.$i/file.$i" "$RH_ROOT/dir.$i/file_new.$i" || error "renaming file"
+            mv "$RH_ROOT/dir.$i" "$RH_ROOT/dir.new_$i" || error "renaming dir"
         fi
     done
 
@@ -6595,14 +6595,14 @@ function recovery_test
 
 
     # shots before disaster (time is only significant for files)
-    find $ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/before.$$
-    find $ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/before.$$
-    find $ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/before.$$
+    find $RH_ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/before.$$
+    find $RH_ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/before.$$
+    find $RH_ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/before.$$
 
     # FS disaster
-    if [[ -n "$ROOT" ]]; then
+    if [[ -n "$RH_ROOT" ]]; then
         echo "3-Disaster: all FS content is lost"
-        rm  -rf $ROOT/*
+        rm  -rf $RH_ROOT/*
     fi
 
     # perform the recovery
@@ -6614,9 +6614,9 @@ function recovery_test
 
     $RECOV -f ./cfg/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
 
-    find $ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/after.$$
-    find $ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
-    find $ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
+    find $RH_ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/after.$$
+    find $RH_ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
+    find $RH_ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
 
     diff  /tmp/before.$$ /tmp/after.$$ > /tmp/diff.$$
     [ "$DEBUG" = "1" ] && cat  /tmp/diff.$$
@@ -6624,31 +6624,31 @@ function recovery_test
     # checking status and diff result
     for i in `seq 1 $total`; do
         if (( $i <= $nb_full )); then
-            check_recov_status recov.log "$ROOT/dir.$i/file.$i" "OK\$"
-            grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ && error "$ROOT/dir.$i/file.$i NOT expected to differ"
-            check_recov_status recov.log "$ROOT/dir.$i/link.$i" "OK \(non-file\)"
+            check_recov_status recov.log "$RH_ROOT/dir.$i/file.$i" "OK\$"
+            grep "$RH_ROOT/dir.$i/file.$i" /tmp/diff.$$ && error "$RH_ROOT/dir.$i/file.$i NOT expected to differ"
+            check_recov_status recov.log "$RH_ROOT/dir.$i/link.$i" "OK \(non-file\)"
         elif (( $i <= $(($nb_full+$nb_rename)) )); then
-            check_recov_status recov.log "$ROOT/dir.new_$i/file_new.$i" "OK\$"
-            grep "$ROOT/dir.new$i/link_new.$i" /tmp/diff.$$ && error "$ROOT/dir_new.$i/link_new.$i NOT expected to differ"
-            check_recov_status recov.log "$ROOT/dir.new_$i/link_new.$i" "OK \(non-file\)"
+            check_recov_status recov.log "$RH_ROOT/dir.new_$i/file_new.$i" "OK\$"
+            grep "$RH_ROOT/dir.new$i/link_new.$i" /tmp/diff.$$ && error "$RH_ROOT/dir_new.$i/link_new.$i NOT expected to differ"
+            check_recov_status recov.log "$RH_ROOT/dir.new_$i/link_new.$i" "OK \(non-file\)"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
-            check_recov_status recov.log "$ROOT/dir.$i/file.$i" "OK \(old version\)"
-            grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
+            check_recov_status recov.log "$RH_ROOT/dir.$i/file.$i" "OK \(old version\)"
+            grep "$RH_ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$RH_ROOT/dir.$i/file.$i is expected to differ"
             # links are never expected to differ as they are stored in the database
-            grep "$ROOT/dir.$i/link.$i" /tmp/diff.$$ >/dev/null && error "$ROOT/dir.$i/link.$i NOT expected to differ"
-            check_recov_status recov.log "$ROOT/dir.$i/link.$i" "OK \(non-file\)"
+            grep "$RH_ROOT/dir.$i/link.$i" /tmp/diff.$$ >/dev/null && error "$RH_ROOT/dir.$i/link.$i NOT expected to differ"
+            check_recov_status recov.log "$RH_ROOT/dir.$i/link.$i" "OK \(non-file\)"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
-            check_recov_status recov.log "$ROOT/dir.$i/file.$i" "No backup"
-            grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
+            check_recov_status recov.log "$RH_ROOT/dir.$i/file.$i" "No backup"
+            grep "$RH_ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$RH_ROOT/dir.$i/file.$i is expected to differ"
             # links are never expected to differ as they are stored in the database
-            grep "$ROOT/dir.$i/link.$i" /tmp/diff.$$ >/dev/null && error "$ROOT/dir.$i/link.$i NOT expected to differ"
-            check_recov_status recov.log "$ROOT/dir.$i/link.$i" "OK \(non-file\)"
+            grep "$RH_ROOT/dir.$i/link.$i" /tmp/diff.$$ >/dev/null && error "$RH_ROOT/dir.$i/link.$i NOT expected to differ"
+            check_recov_status recov.log "$RH_ROOT/dir.$i/link.$i" "OK \(non-file\)"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp+$nb_empty)) )); then
-            check_recov_status recov.log "$ROOT/dir.$i/file.$i" "OK \(empty file\)"
-            grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null && error "$ROOT/dir.$i/file.$i is NOT expected to differ"
+            check_recov_status recov.log "$RH_ROOT/dir.$i/file.$i" "OK \(empty file\)"
+            grep "$RH_ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null && error "$RH_ROOT/dir.$i/file.$i is NOT expected to differ"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp+$nb_empty+$nb_empty_rename)) )); then
-            check_recov_status recov.log "$ROOT/dir.new_$i/file_new.$i" "OK \(empty file\)"
-            grep "$ROOT/dir.new_$i/file_new.$i" /tmp/diff.$$ >/dev/null && error "$ROOT/dir.$i/file.$i is NOT expected to differ"
+            check_recov_status recov.log "$RH_ROOT/dir.new_$i/file_new.$i" "OK \(empty file\)"
+            grep "$RH_ROOT/dir.new_$i/file_new.$i" /tmp/diff.$$ >/dev/null && error "$RH_ROOT/dir.$i/file.$i is NOT expected to differ"
         fi
     done
 
@@ -6677,24 +6677,24 @@ function recov_filters
     echo "populating filesystem"
     # create one of each recov status matching or not matching the filter
     # (full, delta, empty, rename, empty_new, empty_rename, nobkp, slink, slink_new)
-    mkdir $ROOT/dir.match $ROOT/dir.nomatch || error "mkdir failed"
+    mkdir $RH_ROOT/dir.match $RH_ROOT/dir.nomatch || error "mkdir failed"
 
     for f in full delta rename empty empty_rnm; do
         if [[ $flavor != since ]]; then
-            $LFS setstripe -c 1 -i 0 $ROOT/dir.match/$f || error "setstripe failed"
+            $LFS setstripe -c 1 -i 0 $RH_ROOT/dir.match/$f || error "setstripe failed"
         fi
-        $LFS setstripe -c 1 -i 1 $ROOT/dir.nomatch/$f || error "setstripe failed"
+        $LFS setstripe -c 1 -i 1 $RH_ROOT/dir.nomatch/$f || error "setstripe failed"
     done
     # write data to full and delta
     for f in full delta rename; do
         if [[ $flavor != since ]]; then
-            dd if=/dev/zero of=$ROOT/dir.match/$f bs=1M count=5  || error "writing data to $f"
+            dd if=/dev/zero of=$RH_ROOT/dir.match/$f bs=1M count=5  || error "writing data to $f"
         fi
-        dd if=/dev/zero of=$ROOT/dir.nomatch/$f bs=1M count=5  || error "writing data to $f"
+        dd if=/dev/zero of=$RH_ROOT/dir.nomatch/$f bs=1M count=5  || error "writing data to $f"
     done
-    ln -s "this is an initial symlink" $ROOT/dir.nomatch/slink || error "creating symlink"
+    ln -s "this is an initial symlink" $RH_ROOT/dir.nomatch/slink || error "creating symlink"
     if [[ $flavor != ost ]] && [[ $flavor != since ]]; then
-        ln -s "this is an initial symlink" $ROOT/dir.match/slink || error "creating symlink slink_new"
+        ln -s "this is an initial symlink" $RH_ROOT/dir.match/slink || error "creating symlink slink_new"
     fi
 
     echo "scan and archive"
@@ -6708,13 +6708,13 @@ function recov_filters
         since=$(date +'%Y%m%d%H%M%S')
 
         for f in full delta rename empty empty_rnm; do
-            $LFS setstripe -c 1 -i 0 $ROOT/dir.match/$f || error "setstripe failed"
+            $LFS setstripe -c 1 -i 0 $RH_ROOT/dir.match/$f || error "setstripe failed"
         done
         # write data to full and delta
         for f in full delta rename; do
-            dd if=/dev/zero of=$ROOT/dir.match/$f bs=1M count=5  || error "writing data to $f"
+            dd if=/dev/zero of=$RH_ROOT/dir.match/$f bs=1M count=5  || error "writing data to $f"
         done
-        ln -s "this is an initial symlink" $ROOT/dir.match/slink || error "creating symlink slink_new"
+        ln -s "this is an initial symlink" $RH_ROOT/dir.match/slink || error "creating symlink slink_new"
 
         # don't update non-modified objects, migrate other candidates
         $RH -f ./cfg/$config_file --readlog $SYNC_OPT -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "reading changelogs"
@@ -6722,24 +6722,24 @@ function recov_filters
 
     echo "making deltas"
     for f in empty_new nobkp; do
-        $LFS setstripe -c 1 -i 0 $ROOT/dir.match/$f
-        [[ $flavor != since ]] && $LFS setstripe -c 1 -i 1 $ROOT/dir.nomatch/$f
+        $LFS setstripe -c 1 -i 0 $RH_ROOT/dir.match/$f
+        [[ $flavor != since ]] && $LFS setstripe -c 1 -i 1 $RH_ROOT/dir.nomatch/$f
     done
     for d in match nomatch ; do
         # skip no match if flavor is 'since'
         [[ $flavor == since ]] && [[ $d == nomatch ]] && continue
-        echo "sqdlqsldsqmdl" >> $ROOT/dir.$d/delta || error "appending dir.$d/delta"
+        echo "sqdlqsldsqmdl" >> $RH_ROOT/dir.$d/delta || error "appending dir.$d/delta"
         # force modification (in case Lustre don't report small data changes)
-        touch $ROOT/dir.$d/delta || error "touching dir.$d/delta"
-        echo "qsldjkqlsdkqs" >> $ROOT/dir.$d/nobkp || error "writting to dir.$d/nobkp"
-        mv $ROOT/dir.$d/rename $ROOT/dir.$d/rename.mv || error "renaming 'rename'"
-        mv $ROOT/dir.$d/empty_rnm $ROOT/dir.$d/empty_rnm.mv || error "renaming 'empty_rnm'"
+        touch $RH_ROOT/dir.$d/delta || error "touching dir.$d/delta"
+        echo "qsldjkqlsdkqs" >> $RH_ROOT/dir.$d/nobkp || error "writting to dir.$d/nobkp"
+        mv $RH_ROOT/dir.$d/rename $RH_ROOT/dir.$d/rename.mv || error "renaming 'rename'"
+        mv $RH_ROOT/dir.$d/empty_rnm $RH_ROOT/dir.$d/empty_rnm.mv || error "renaming 'empty_rnm'"
     done
     if [[ $flavor != since ]]; then
-        ln -s "this is a new symlink" $ROOT/dir.nomatch/slink_new || error "creating symlink"
+        ln -s "this is a new symlink" $RH_ROOT/dir.nomatch/slink_new || error "creating symlink"
     fi
     if [[ $flavor != ost ]]; then
-        ln -s "this is a new symlink" $ROOT/dir.match/slink_new || error "creating symlink"
+        ln -s "this is a new symlink" $RH_ROOT/dir.match/slink_new || error "creating symlink"
     fi
 
     if [[ $flavor == since ]]; then
@@ -6776,9 +6776,9 @@ function recov_filters
         (( $new_cnt  == 2 )) || error "Nbr of new files doesn't match: $new_cnt != 2"
     fi
     # FS disaster
-    if [[ -n "$ROOT" ]]; then
+    if [[ -n "$RH_ROOT" ]]; then
         echo "3-Disaster: all FS content is lost"
-        rm  -rf $ROOT/*
+        rm  -rf $RH_ROOT/*
     fi
 
     # perform the recovery
@@ -6800,7 +6800,7 @@ function recov_filters
             ;;
         dir)
             start_option=""
-            resume_option="--dir=$ROOT/dir.match"
+            resume_option="--dir=$RH_ROOT/dir.match"
             matching=(full delta empty empty_rnm.mv empty_new rename.mv nobkp slink slink_new)
             status=("OK" "OK \(old version\)" "OK" "OK" "OK \(empty file\)" "OK" "No backup" "OK \(non-file \)" "OK \(non-file \)")
             ;;
@@ -6817,7 +6817,7 @@ function recov_filters
     for i in $(seq 1 ${#matching[@]}); do
         f=${matching[$i]}
         s=${status[$i]}
-        check_recov_status recov.log $ROOT/dir.match/$f $s
+        check_recov_status recov.log $RH_ROOT/dir.match/$f $s
     done
     (( $(grep Restoring recov.log | wc -l) == ${#matching[@]} )) || error "Too many files restored"
 
@@ -6834,7 +6834,7 @@ function test_tokudb
     }
 
     # TokuDB must be available too
-    mysql $DB -e "show engines" | grep TokuDB || {
+    mysql $RH_DB -e "show engines" | grep TokuDB || {
         echo "TokuDB not enabled: skipped"
         set_skipped
         return 1
@@ -6845,23 +6845,23 @@ function test_tokudb
     # Create the tables with various compression schemes.
 
     echo "Test without default compression, i.e. none"
-    $CFG_SCRIPT empty_db $DB > /dev/null
+    $CFG_SCRIPT empty_db $RH_DB > /dev/null
     $RH -f ./cfg/tokudb1.conf --scan -l DEBUG -L rh_scan.log --once || error ""
-    mysql $DB -e "show create table ENTRIES;" |
+    mysql $RH_DB -e "show create table ENTRIES;" |
         grep "ENGINE=TokuDB .*\`COMPRESSION\`=tokudb_uncompressed" ||
         error "invalid engine/compression"
 
     echo "Tests with valid compression names"
     for COMPRESS in tokudb_uncompressed tokudb_zlib tokudb_lzma ; do
-        $CFG_SCRIPT empty_db $DB > /dev/null
+        $CFG_SCRIPT empty_db $RH_DB > /dev/null
         RBH_TOKU_COMPRESS=$COMPRESS $RH -f ./cfg/tokudb2.conf --scan -l DEBUG -L rh_scan.log --once || error ""
-        mysql $DB -e "show create table ENTRIES;" |
+        mysql $RH_DB -e "show create table ENTRIES;" |
             grep "ENGINE=TokuDB .*\`COMPRESSION\`=${COMPRESS}" ||
             error "invalid engine/compression"
     done
 
     echo "Test with invalid compression name"
-    $CFG_SCRIPT empty_db $DB > /dev/null
+    $CFG_SCRIPT empty_db $RH_DB > /dev/null
     RBH_TOKU_COMPRESS=some_non_existent_compression $RH -f ./cfg/tokudb2.conf --scan -l DEBUG -L rh_scan.log --once &&
         error "should have failed"
     grep "Error: Incorrect value 'some_non_existent_compression' for option 'compression'" rh_scan.log ||
@@ -6951,8 +6951,8 @@ function import_test
     expect_cnt=11
 
 	# perform the import
-    echo "2- import to $ROOT..."
-    $IMPORT -l DEBUG -f ./cfg/$config_file $BKROOT/import  $ROOT/dest > recov.log 2>&1 || error "importing data from backend"
+    echo "2- import to $RH_ROOT..."
+    $IMPORT -l DEBUG -f ./cfg/$config_file $BKROOT/import  $RH_ROOT/dest > recov.log 2>&1 || error "importing data from backend"
 
     [ "$DEBUG" = "1" ] && cat recov.log
 
@@ -6965,7 +6965,7 @@ function import_test
     # check that every dir has been imported to Lustre
     echo "3.1-checking dirs..."
     while read i m u g s t p; do
-        newp=$(echo $p | sed -e "s#$BKROOT/import#$ROOT/dest#")
+        newp=$(echo $p | sed -e "s#$BKROOT/import#$RH_ROOT/dest#")
 	[[ -d $newp ]] || error "Missing dir $newp"
         read pi pm pu pg ps pt < <(stat --format "%i %A %U %G %s %Y" $newp || error "Missing dir $newp")
         [[ $pm == $m ]] || error "$newp has bad rights $pm<>$m"
@@ -6977,7 +6977,7 @@ function import_test
     # TODO and it has been moved in backed
     echo "3.2-checking files..."
     while read i m u g s t p; do
-        newp=$(echo $p | sed -e "s#$BKROOT/import#$ROOT/dest#")
+        newp=$(echo $p | sed -e "s#$BKROOT/import#$RH_ROOT/dest#")
 	[[ -f $newp ]] || error "Missing file $newp"
         read pi pm pu pg ps pt < <(stat --format "%i %A %U %G %s %Y" $newp || error "Missing file $newp")
         # /!\ on some OS, mtime is retruned as "<epoch>.0000000"
@@ -6997,7 +6997,7 @@ function import_test
     # TODO and it has been moved in backed
     echo "3.3-checking symlinks..."
     while read i m u g s t p; do
-        newp=$(echo $p | sed -e "s#$BKROOT/import#$ROOT/dest#")
+        newp=$(echo $p | sed -e "s#$BKROOT/import#$RH_ROOT/dest#")
 	[[ -L $newp ]] || error "Missing symlink $newp"
         read pi pm pu pg ps pt < <(stat --format "%i %A %U %G %s %Y" $newp || error "Missing symlink $newp")
         t=$(echo "$t" | sed -e "s/\.0000000000//")
@@ -7036,17 +7036,17 @@ function import_test
 	# archive and modify files
 	for i in `seq 1 $total`; do
 		if (( $i <= $nb_full )); then
-			$RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
-				|| error "archiving $ROOT/dir.$i/file.$i"
+			$RH -f ./cfg/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
+				|| error "archiving $RH_ROOT/dir.$i/file.$i"
 		elif (( $i <= $(($nb_full+$nb_rename)) )); then
-			$RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
-				|| error "archiving $ROOT/dir.$i/file.$i"
-			mv "$ROOT/dir.$i/file.$i" "$ROOT/dir.$i/file_new.$i" || error "renaming file"
-			mv "$ROOT/dir.$i" "$ROOT/dir.new_$i" || error "renaming dir"
+			$RH -f ./cfg/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
+				|| error "archiving $RH_ROOT/dir.$i/file.$i"
+			mv "$RH_ROOT/dir.$i/file.$i" "$RH_ROOT/dir.$i/file_new.$i" || error "renaming file"
+			mv "$RH_ROOT/dir.$i" "$RH_ROOT/dir.new_$i" || error "renaming dir"
 		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
-			$RH -f ./cfg/$config_file --run=migration --target=file:"$ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
-				|| error "archiving $ROOT/dir.$i/file.$i"
-			touch "$ROOT/dir.$i/file.$i"
+			$RH -f ./cfg/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
+				|| error "archiving $RH_ROOT/dir.$i/file.$i"
+			touch "$RH_ROOT/dir.$i/file.$i"
 		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
 			# no backup
 			:
@@ -7075,14 +7075,14 @@ function import_test
 	(( $new_cnt == $nb_nobkp )) || error "Nbr of new files doesn't match: $new_cnt != $nb_nobkp"
 
 	# shots before disaster (time is only significant for files)
-	find $ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/before.$$
-	find $ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/before.$$
-	find $ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/before.$$
+	find $RH_ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/before.$$
+	find $RH_ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/before.$$
+	find $RH_ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/before.$$
 
 	# FS disaster
-	if [[ -n "$ROOT" ]]; then
+	if [[ -n "$RH_ROOT" ]]; then
 		echo "3-Disaster: all FS content is lost"
-		rm  -rf $ROOT/*
+		rm  -rf $RH_ROOT/*
 	fi
 
 	# perform the recovery
@@ -7094,26 +7094,26 @@ function import_test
 
 	$RECOV -f ./cfg/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
 
-	find $ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/after.$$
-	find $ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
-	find $ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
+	find $RH_ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/after.$$
+	find $RH_ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
+	find $RH_ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
 
 	diff  /tmp/before.$$ /tmp/after.$$ > /tmp/diff.$$
 
 	# checking status and diff result
 	for i in `seq 1 $total`; do
 		if (( $i <= $nb_full )); then
-			grep "Restoring $ROOT/dir.$i/file.$i" recov.log | egrep -e "OK\$" >/dev/null || error "Bad status (OK expected)"
-			grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ && error "$ROOT/dir.$i/file.$i NOT expected to differ"
+			grep "Restoring $RH_ROOT/dir.$i/file.$i" recov.log | egrep -e "OK\$" >/dev/null || error "Bad status (OK expected)"
+			grep "$RH_ROOT/dir.$i/file.$i" /tmp/diff.$$ && error "$RH_ROOT/dir.$i/file.$i NOT expected to differ"
 		elif (( $i <= $(($nb_full+$nb_rename)) )); then
-			grep "Restoring $ROOT/dir.new_$i/file_new.$i" recov.log	| egrep -e "OK\$" >/dev/null || error "Bad status (OK expected)"
-			grep "$ROOT/dir.new_$i/file_new.$i" /tmp/diff.$$ && error "$ROOT/dir.new_$i/file_new.$i NOT expected to differ"
+			grep "Restoring $RH_ROOT/dir.new_$i/file_new.$i" recov.log	| egrep -e "OK\$" >/dev/null || error "Bad status (OK expected)"
+			grep "$RH_ROOT/dir.new_$i/file_new.$i" /tmp/diff.$$ && error "$RH_ROOT/dir.new_$i/file_new.$i NOT expected to differ"
 		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
-			grep "Restoring $ROOT/dir.$i/file.$i" recov.log	| grep "OK (old version)" >/dev/null || error "Bad status (old version expected)"
-			grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
+			grep "Restoring $RH_ROOT/dir.$i/file.$i" recov.log	| grep "OK (old version)" >/dev/null || error "Bad status (old version expected)"
+			grep "$RH_ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$RH_ROOT/dir.$i/file.$i is expected to differ"
 		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
-			grep -A 1 "Restoring $ROOT/dir.$i/file.$i" recov.log | grep "No backup" >/dev/null || error "Bad status (no backup expected)"
-			grep "$ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$ROOT/dir.$i/file.$i is expected to differ"
+			grep -A 1 "Restoring $RH_ROOT/dir.$i/file.$i" recov.log | grep "No backup" >/dev/null || error "Bad status (no backup expected)"
+			grep "$RH_ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$RH_ROOT/dir.$i/file.$i is expected to differ"
 		fi
 	done
 
@@ -7149,7 +7149,7 @@ function test_find
 
     # by default stripe all files on 0 and 1
     if [ -z "$POSIX_MODE" ]; then
-	    $LFS setstripe -c 2 -i 0 $ROOT || echo "error setting stripe on root"
+	    $LFS setstripe -c 2 -i 0 $RH_ROOT || echo "error setting stripe on root"
     fi
     # 1) create a FS tree with several levels:
     #   root
@@ -7164,25 +7164,25 @@ function test_find
     #               file.1
     #               file.2
     #               dir.1
-    touch $ROOT/file.1 || error "creating file"
-    touch $ROOT/file.2 || error "creating file"
-    mkdir $ROOT/dir.1 || error "creating dir"
-    mkdir $ROOT/dir.2 || error "creating dir"
-    dd if=/dev/zero of=$ROOT/dir.2/file.1 bs=1k count=10 2>/dev/null || error "creating file"
+    touch $RH_ROOT/file.1 || error "creating file"
+    touch $RH_ROOT/file.2 || error "creating file"
+    mkdir $RH_ROOT/dir.1 || error "creating dir"
+    mkdir $RH_ROOT/dir.2 || error "creating dir"
+    dd if=/dev/zero of=$RH_ROOT/dir.2/file.1 bs=1k count=10 2>/dev/null || error "creating file"
     if [ -z "$POSIX_MODE" ]; then
-	    $LFS setstripe -c 1 -i 1 $ROOT/dir.2/file.2 || error "creating file with stripe"
+	    $LFS setstripe -c 1 -i 1 $RH_ROOT/dir.2/file.2 || error "creating file with stripe"
     else
-        touch $ROOT/dir.2/file.2 || error "creating file"
+        touch $RH_ROOT/dir.2/file.2 || error "creating file"
     fi
-    mkdir $ROOT/dir.2/dir.1 || error "creating dir"
-    mkdir $ROOT/dir.2/dir.2 || error "creating dir"
-    dd if=/dev/zero of=$ROOT/dir.2/dir.2/file.1 bs=1M count=1 2>/dev/null || error "creating file"
+    mkdir $RH_ROOT/dir.2/dir.1 || error "creating dir"
+    mkdir $RH_ROOT/dir.2/dir.2 || error "creating dir"
+    dd if=/dev/zero of=$RH_ROOT/dir.2/dir.2/file.1 bs=1M count=1 2>/dev/null || error "creating file"
     if [ -z "$POSIX_MODE" ]; then
-	    $LFS setstripe -c 1 -i 0 $ROOT/dir.2/dir.2/file.2 || error "creating file with stripe"
+	    $LFS setstripe -c 1 -i 0 $RH_ROOT/dir.2/dir.2/file.2 || error "creating file with stripe"
     else
-        touch $ROOT/dir.2/dir.2/file.2 || error "creating file"
+        touch $RH_ROOT/dir.2/dir.2/file.2 || error "creating file"
     fi
-    mkdir $ROOT/dir.2/dir.2/dir.1 || error "creating dir"
+    mkdir $RH_ROOT/dir.2/dir.2/dir.1 || error "creating dir"
 
     # scan FS content
     $RH -f $cfg --scan -l DEBUG -L rh_scan.log --once 2>/dev/null || error "scanning"
@@ -7191,67 +7191,67 @@ function test_find
     echo "checking find list at all levels..."
     check_find "" "-f $cfg" 12 # should return all (including root)
     check_find "" "-f $cfg -b" 12 # should return all (including root)
-    check_find $ROOT "-f $cfg" 12 # should return all (including root)
-    check_find $ROOT/file.1 "-f $cfg" 1 # should return only the file
-    check_find $ROOT/dir.1 "-f $cfg" 1  # should return dir.1
-    check_find $ROOT/dir.2 "-f $cfg" 8  # should return dir.2 + its content
-    check_find $ROOT/dir.2/file.2 "-f $cfg" 1  # should return dir.2/file.2
-    check_find $ROOT/dir.2/dir.1 "-f $cfg" 1  # should return dir2/dir.1
-    check_find $ROOT/dir.2/dir.2 "-f $cfg" 4  # should return dir.2/dir.2 + its content
-    check_find $ROOT/dir.2/dir.2/file.1 "-f $cfg" 1  # should return dir.2/dir.2/file.1
-    check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg" 1 # should return dir.2/dir.2/dir.1
+    check_find $RH_ROOT "-f $cfg" 12 # should return all (including root)
+    check_find $RH_ROOT/file.1 "-f $cfg" 1 # should return only the file
+    check_find $RH_ROOT/dir.1 "-f $cfg" 1  # should return dir.1
+    check_find $RH_ROOT/dir.2 "-f $cfg" 8  # should return dir.2 + its content
+    check_find $RH_ROOT/dir.2/file.2 "-f $cfg" 1  # should return dir.2/file.2
+    check_find $RH_ROOT/dir.2/dir.1 "-f $cfg" 1  # should return dir2/dir.1
+    check_find $RH_ROOT/dir.2/dir.2 "-f $cfg" 4  # should return dir.2/dir.2 + its content
+    check_find $RH_ROOT/dir.2/dir.2/file.1 "-f $cfg" 1  # should return dir.2/dir.2/file.1
+    check_find $RH_ROOT/dir.2/dir.2/dir.1 "-f $cfg" 1 # should return dir.2/dir.2/dir.1
 
     # 3) test -td / -tf
     echo "testing type filter (-type d)..."
     check_find "" "-f $cfg -type d" 6 # should return all (including root)
     check_find "" "-f $cfg -type d -b" 6 # should return all (including root)
-    check_find $ROOT "-f $cfg -type d" 6 # 6 including root
-    check_find $ROOT/dir.2 "-f $cfg -type d" 4 # 4 including dir.2
-    check_find $ROOT/dir.2/dir.2 "-f $cfg -type d" 2 # 2 including dir.2/dir.2
-    check_find $ROOT/dir.1 "-f $cfg -type d" 1
-    check_find $ROOT/dir.2/dir.1 "-f $cfg -type d" 1
-    check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg -type d" 1
+    check_find $RH_ROOT "-f $cfg -type d" 6 # 6 including root
+    check_find $RH_ROOT/dir.2 "-f $cfg -type d" 4 # 4 including dir.2
+    check_find $RH_ROOT/dir.2/dir.2 "-f $cfg -type d" 2 # 2 including dir.2/dir.2
+    check_find $RH_ROOT/dir.1 "-f $cfg -type d" 1
+    check_find $RH_ROOT/dir.2/dir.1 "-f $cfg -type d" 1
+    check_find $RH_ROOT/dir.2/dir.2/dir.1 "-f $cfg -type d" 1
 
     echo "testing type filter (-type f)..."
     check_find "" "-f $cfg -type f" 6
     check_find "" "-f $cfg -type f -b" 6
-    check_find $ROOT "-f $cfg -type f" 6
-    check_find $ROOT/dir.2 "-f $cfg -type f" 4
-    check_find $ROOT/dir.2/dir.2 "-f $cfg -type f" 2
-    check_find $ROOT/dir.1 "-f $cfg -type f" 0
-    check_find $ROOT/dir.2/dir.1 "-f $cfg -type f" 0
-    check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg -type f" 0
-    check_find $ROOT/file.1 "-f $cfg -type f" 1
-    check_find $ROOT/dir.2/file.1 "-f $cfg -type f" 1
+    check_find $RH_ROOT "-f $cfg -type f" 6
+    check_find $RH_ROOT/dir.2 "-f $cfg -type f" 4
+    check_find $RH_ROOT/dir.2/dir.2 "-f $cfg -type f" 2
+    check_find $RH_ROOT/dir.1 "-f $cfg -type f" 0
+    check_find $RH_ROOT/dir.2/dir.1 "-f $cfg -type f" 0
+    check_find $RH_ROOT/dir.2/dir.2/dir.1 "-f $cfg -type f" 0
+    check_find $RH_ROOT/file.1 "-f $cfg -type f" 1
+    check_find $RH_ROOT/dir.2/file.1 "-f $cfg -type f" 1
 
     echo "testing name filter..."
     check_find "" "-f $cfg -name dir.*" 5 # 5
     check_find "" "-f $cfg -name dir.* -b" 5 # 5
-    check_find $ROOT "-f $cfg -name dir.*" 5 # 5
-    check_find $ROOT/dir.2 "-f $cfg -name dir.*" 4 # 4 including dir.2
-    check_find $ROOT/dir.2/dir.2 "-f $cfg -name dir.*" 2 # 2 including dir.2/dir.2
-    check_find $ROOT/dir.1 "-f $cfg -name dir.*" 1
-    check_find $ROOT/dir.2/dir.1 "-f $cfg -name dir.*" 1
-    check_find $ROOT/dir.2/dir.2/dir.1 "-f $cfg -name dir.*" 1
+    check_find $RH_ROOT "-f $cfg -name dir.*" 5 # 5
+    check_find $RH_ROOT/dir.2 "-f $cfg -name dir.*" 4 # 4 including dir.2
+    check_find $RH_ROOT/dir.2/dir.2 "-f $cfg -name dir.*" 2 # 2 including dir.2/dir.2
+    check_find $RH_ROOT/dir.1 "-f $cfg -name dir.*" 1
+    check_find $RH_ROOT/dir.2/dir.1 "-f $cfg -name dir.*" 1
+    check_find $RH_ROOT/dir.2/dir.2/dir.1 "-f $cfg -name dir.*" 1
 
     echo "testing size filter..."
     check_find "" "-f $cfg -type f -size +2k" 2
     check_find "" "-f $cfg -type f -size +2k -b" 2
-    check_find $ROOT "-f $cfg -type f -size +2k" 2
-    check_find $ROOT "-f $cfg -type f -size +11k" 1
-    check_find $ROOT "-f $cfg -type f -size +1M" 0
-    check_find $ROOT "-f $cfg -type f -size 1M" 1
-    check_find $ROOT "-f $cfg -type f -size 10k" 1
-    check_find $ROOT "-f $cfg -type f -size -1M" 5
-    check_find $ROOT "-f $cfg -type f -size -10k" 4
+    check_find $RH_ROOT "-f $cfg -type f -size +2k" 2
+    check_find $RH_ROOT "-f $cfg -type f -size +11k" 1
+    check_find $RH_ROOT "-f $cfg -type f -size +1M" 0
+    check_find $RH_ROOT "-f $cfg -type f -size 1M" 1
+    check_find $RH_ROOT "-f $cfg -type f -size 10k" 1
+    check_find $RH_ROOT "-f $cfg -type f -size -1M" 5
+    check_find $RH_ROOT "-f $cfg -type f -size -10k" 4
 
     if [ -z "$POSIX_MODE" ]; then
         echo "testing ost filter..."
         check_find "" "-f $cfg -ost 0" 5 # all files but 1
         check_find "" "-f $cfg -ost 0 -b" 5 # all files but 1
-        check_find $ROOT "-f $cfg -ost 0" 5 # all files but 1
-        check_find $ROOT "-f $cfg -ost 1" 5 # all files but 1
-        check_find $ROOT/dir.2/dir.2 "-f $cfg -ost 1" 1  # all files in dir.2 but 1
+        check_find $RH_ROOT "-f $cfg -ost 0" 5 # all files but 1
+        check_find $RH_ROOT "-f $cfg -ost 1" 5 # all files but 1
+        check_find $RH_ROOT/dir.2/dir.2 "-f $cfg -ost 1" 1  # all files in dir.2 but 1
     fi
 
     echo "testing mtime filter..."
@@ -7260,24 +7260,24 @@ function test_find
     check_find "" "-f $cfg -mtime +1d -b" 0  #none
     check_find "" "-f $cfg -mtime -1d -b" 12 #all
     # change last day
-    check_find $ROOT "-f $cfg -mtime +1d" 0  #none
-    check_find $ROOT "-f $cfg -mtime -1d" 12 #all
+    check_find $RH_ROOT "-f $cfg -mtime +1d" 0  #none
+    check_find $RH_ROOT "-f $cfg -mtime -1d" 12 #all
     # the same with another syntax
-    check_find $ROOT "-f $cfg -mtime +1" 0  #none
-    check_find $ROOT "-f $cfg -mtime -1" 12 #all
+    check_find $RH_ROOT "-f $cfg -mtime +1" 0  #none
+    check_find $RH_ROOT "-f $cfg -mtime -1" 12 #all
     # without 2 hour
-    check_find $ROOT "-f $cfg -mtime +2h" 0  #none
-    check_find $ROOT "-f $cfg -mtime -2h" 12 #all
+    check_find $RH_ROOT "-f $cfg -mtime +2h" 0  #none
+    check_find $RH_ROOT "-f $cfg -mtime -2h" 12 #all
     # the same with another syntax
-    check_find $ROOT "-f $cfg -mtime +120m" 0  #none
-    check_find $ROOT "-f $cfg -mtime -120m" 12 #all
+    check_find $RH_ROOT "-f $cfg -mtime +120m" 0  #none
+    check_find $RH_ROOT "-f $cfg -mtime -120m" 12 #all
     # the same with another syntax
-    check_find $ROOT "-f $cfg -mmin +120" 0  #none
-    check_find $ROOT "-f $cfg -mmin -120" 12 #all
+    check_find $RH_ROOT "-f $cfg -mmin +120" 0  #none
+    check_find $RH_ROOT "-f $cfg -mmin -120" 12 #all
 
     # restore default striping
     if [ -z "$POSIX_MODE" ]; then
-        $LFS setstripe -c 2 -i -1 $ROOT
+        $LFS setstripe -c 2 -i -1 $RH_ROOT
     fi
 }
 
@@ -7306,23 +7306,23 @@ function test_du
     #               file.1 0
     #               file.2 0
     #               dir.1
-    dd if=/dev/zero of=$ROOT/file.1 bs=1M count=1 2>/dev/null || error "creating file"
-    dd if=/dev/zero of=$ROOT/file.2 bs=1k count=1 2>/dev/null || error "creating file"
+    dd if=/dev/zero of=$RH_ROOT/file.1 bs=1M count=1 2>/dev/null || error "creating file"
+    dd if=/dev/zero of=$RH_ROOT/file.2 bs=1k count=1 2>/dev/null || error "creating file"
 
-    mkdir $ROOT/dir.1 || error "creating dir"
-    dd if=/dev/zero of=$ROOT/dir.1/file.1 bs=1k count=2 2>/dev/null || error "creating file"
-    dd if=/dev/zero of=$ROOT/dir.1/file.2 bs=10k count=1 2>/dev/null || error "creating file"
-    ln -s "content1" $ROOT/dir.1/link.1 || error "creating symlink"
+    mkdir $RH_ROOT/dir.1 || error "creating dir"
+    dd if=/dev/zero of=$RH_ROOT/dir.1/file.1 bs=1k count=2 2>/dev/null || error "creating file"
+    dd if=/dev/zero of=$RH_ROOT/dir.1/file.2 bs=10k count=1 2>/dev/null || error "creating file"
+    ln -s "content1" $RH_ROOT/dir.1/link.1 || error "creating symlink"
 
-    mkdir $ROOT/dir.2 || error "creating dir"
-    dd if=/dev/zero of=$ROOT/dir.2/file.1 bs=1M count=1 2>/dev/null || error "creating file"
-	dd if=/dev/zero of=$ROOT/dir.2/file.2 bs=1 count=1 2>/dev/null || error "creating file"
-    ln -s "content2" $ROOT/dir.2/link.1 || error "creating symlink"
-    mkdir $ROOT/dir.2/dir.1 || error "creating dir"
-    mkdir $ROOT/dir.2/dir.2 || error "creating dir"
-    touch $ROOT/dir.2/dir.2/file.1 || error "creating file"
-	touch $ROOT/dir.2/dir.2/file.2 || error "creating file"
-    mkdir $ROOT/dir.2/dir.2/dir.1 || error "creating dir"
+    mkdir $RH_ROOT/dir.2 || error "creating dir"
+    dd if=/dev/zero of=$RH_ROOT/dir.2/file.1 bs=1M count=1 2>/dev/null || error "creating file"
+	dd if=/dev/zero of=$RH_ROOT/dir.2/file.2 bs=1 count=1 2>/dev/null || error "creating file"
+    ln -s "content2" $RH_ROOT/dir.2/link.1 || error "creating symlink"
+    mkdir $RH_ROOT/dir.2/dir.1 || error "creating dir"
+    mkdir $RH_ROOT/dir.2/dir.2 || error "creating dir"
+    touch $RH_ROOT/dir.2/dir.2/file.1 || error "creating file"
+	touch $RH_ROOT/dir.2/dir.2/file.2 || error "creating file"
+    mkdir $RH_ROOT/dir.2/dir.2/dir.1 || error "creating dir"
 
     # write blocks to disk
     sync
@@ -7331,26 +7331,26 @@ function test_du
     $RH -f $cfg --scan -l DEBUG -L rh_scan.log --once 2>/dev/null || error "scanning"
 
     # test byte display on root
-    size=$($DU -f $cfg -t f -b $ROOT | awk '{print $1}')
+    size=$($DU -f $cfg -t f -b $RH_ROOT | awk '{print $1}')
     [ $size = "2110465" ] || error "bad returned size $size: 2110465 expected"
 
     # test on subdirs
-    size=$($DU -f $cfg -t f -b $ROOT/dir.1 | awk '{print $1}')
+    size=$($DU -f $cfg -t f -b $RH_ROOT/dir.1 | awk '{print $1}')
     [ $size = "12288" ] || error "bad returned size $size: 12288 expected"
 
     # block count is hard to predict (due to ext3 prealloc)
     # only test 1st digit
-    kb=$($DU -f $cfg -t f -k $ROOT | awk '{print $1}')
+    kb=$($DU -f $cfg -t f -k $RH_ROOT | awk '{print $1}')
     [[ $kb = 2??? ]] || error "nb 1K block should be about 2k+smthg (got $kb)"
 
     # 2 (for 2MB) + 1 for small files
-    mb=$($DU -f $cfg -t f -m $ROOT | awk '{print $1}')
+    mb=$($DU -f $cfg -t f -m $RH_ROOT | awk '{print $1}')
     [[ $mb = 3 ]] || error "nb 1M block should be 3 (got $mb)"
 
     # count are real
-    nb_file=$($DU -f $cfg -t f -c $ROOT | awk '{print $1}')
-    nb_link=$($DU -f $cfg -t l -c $ROOT | awk '{print $1}')
-    nb_dir=$($DU -f $cfg -t d -c $ROOT | awk '{print $1}')
+    nb_file=$($DU -f $cfg -t f -c $RH_ROOT | awk '{print $1}')
+    nb_link=$($DU -f $cfg -t l -c $RH_ROOT | awk '{print $1}')
+    nb_dir=$($DU -f $cfg -t d -c $RH_ROOT | awk '{print $1}')
     [[ $nb_file = 8 ]] || error "found $nb_file files/8"
     [[ $nb_dir = 6 ]] || error "found $nb_dir dirs/6"
     [[ $nb_link = 2 ]] || error "found $nb_link links/2"
@@ -7615,27 +7615,27 @@ function test_alerts
 	echo "1-Preparing Filesystem..."
 	if [ $testKey == "extAttributes" ]; then
 		echo " is for extended attributes"
-		echo "data" > $ROOT/file.1
-		echo "data" > $ROOT/file.2
-		echo "data" > $ROOT/file.3
-		echo "data" > $ROOT/file.4
-		setfattr -n user.foo -v "abc.1.log" $ROOT/file.1
-		setfattr -n user.foo -v "abc.6.log" $ROOT/file.3
-		setfattr -n user.bar -v "abc.3.log" $ROOT/file.4
+		echo "data" > $RH_ROOT/file.1
+		echo "data" > $RH_ROOT/file.2
+		echo "data" > $RH_ROOT/file.3
+		echo "data" > $RH_ROOT/file.4
+		setfattr -n user.foo -v "abc.1.log" $RH_ROOT/file.1
+		setfattr -n user.foo -v "abc.6.log" $RH_ROOT/file.3
+		setfattr -n user.bar -v "abc.3.log" $RH_ROOT/file.4
 	else
-		mkdir -p $ROOT/dir1
-		dd if=/dev/zero of=$ROOT/dir1/file.1 bs=1k count=11 >/dev/null 2>/dev/null || error "writing file.1"
+		mkdir -p $RH_ROOT/dir1
+		dd if=/dev/zero of=$RH_ROOT/dir1/file.1 bs=1k count=11 >/dev/null 2>/dev/null || error "writing file.1"
 
-		mkdir -p $ROOT/dir2
-		dd if=/dev/zero of=$ROOT/dir2/file.2 bs=1k count=10 >/dev/null 2>/dev/null || error "writing file.2"
-  		chown testuser $ROOT/dir2/file.2 || error "invalid chown on user 'testuser' for $ROOT/dir2/file.2"
-		dd if=/dev/zero of=$ROOT/dir2/file.3 bs=1k count=1 >/dev/null 2>/dev/null || error "writing file.3"
-		ln -s $ROOT/dir1/file.1 $ROOT/dir1/link.1 || error "creating hardlink $ROOT/dir1/link.1"
+		mkdir -p $RH_ROOT/dir2
+		dd if=/dev/zero of=$RH_ROOT/dir2/file.2 bs=1k count=10 >/dev/null 2>/dev/null || error "writing file.2"
+  		chown testuser $RH_ROOT/dir2/file.2 || error "invalid chown on user 'testuser' for $RH_ROOT/dir2/file.2"
+		dd if=/dev/zero of=$RH_ROOT/dir2/file.3 bs=1k count=1 >/dev/null 2>/dev/null || error "writing file.3"
+		ln -s $RH_ROOT/dir1/file.1 $RH_ROOT/dir1/link.1 || error "creating hardlink $RH_ROOT/dir1/link.1"
 
 		if  [ $testKey == "dircount" ]; then
 			# add a folder with one file
-			mkdir -p $ROOT/dir3
-		    dd if=/dev/zero of=$ROOT/dir3/file.4 bs=1k count=1 >/dev/null 2>/dev/null || error "writing file.4"
+			mkdir -p $RH_ROOT/dir3
+		    dd if=/dev/zero of=$RH_ROOT/dir3/file.4 bs=1k count=1 >/dev/null 2>/dev/null || error "writing file.4"
 		fi
 	fi
 	# optional sleep process ......................
@@ -7645,9 +7645,9 @@ function test_alerts
 	fi
 	# specific optional action after sleep process ..........
 	if [ $testKey == "lastAccess" ]; then
-		head $ROOT/dir1/file.1 > /dev/null || error "opening $ROOT/dir1/file.1"
+		head $RH_ROOT/dir1/file.1 > /dev/null || error "opening $RH_ROOT/dir1/file.1"
 	elif [ $testKey == "lastModif" ]; then
-		echo "data" > $ROOT/dir1/file.1 || error "writing in $ROOT/dir1/file.1"
+		echo "data" > $RH_ROOT/dir1/file.1 || error "writing in $RH_ROOT/dir1/file.1"
 	fi
 
 	echo "2-Scanning filesystem..."
@@ -7735,11 +7735,11 @@ function test_alerts_OST
 
 	echo "2-Create Files ..."
     for i in `seq 1 2`; do
-		$LFS setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL1 $RH_ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 
     for i in `seq 3 5`; do
-		$LFS setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL2 $RH_ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 
 	echo "2-Scanning filesystem..."
@@ -7823,25 +7823,25 @@ function create_files_migration
 	# create all directory and files for migration tests
 	#  create_files_migration
 
-	mkdir $ROOT/dir1
-	mkdir $ROOT/dir2
+	mkdir $RH_ROOT/dir1
+	mkdir $RH_ROOT/dir2
 
 	for i in `seq 1 5` ; do
-		dd if=/dev/zero of=$ROOT/dir1/file.$i bs=1K count=1 >/dev/null 2>/dev/null || error "writing dir1/file.$i"
+		dd if=/dev/zero of=$RH_ROOT/dir1/file.$i bs=1K count=1 >/dev/null 2>/dev/null || error "writing dir1/file.$i"
 	done
 
-	ln -s $ROOT/dir1/file.1 $ROOT/dir1/link.1
-	ln -s $ROOT/dir1/file.1 $ROOT/dir1/link.2
+	ln -s $RH_ROOT/dir1/file.1 $RH_ROOT/dir1/link.1
+	ln -s $RH_ROOT/dir1/file.1 $RH_ROOT/dir1/link.2
 
-	chown root:testgroup $ROOT/dir1/file.2
-	chown testuser:testgroup $ROOT/dir1/file.3
+	chown root:testgroup $RH_ROOT/dir1/file.2
+	chown testuser:testgroup $RH_ROOT/dir1/file.3
 
-	setfattr -n user.foo -v 1 $ROOT/dir1/file.4
-	setfattr -n user.bar -v 1 $ROOT/dir1/file.5
+	setfattr -n user.foo -v 1 $RH_ROOT/dir1/file.4
+	setfattr -n user.bar -v 1 $RH_ROOT/dir1/file.5
 
-	dd if=/dev/zero of=$ROOT/dir2/file.6 bs=1K count=10 >/dev/null 2>/dev/null || error "writing dir2/file.6"
-	dd if=/dev/zero of=$ROOT/dir2/file.7 bs=1K count=11 >/dev/null 2>/dev/null || error "writing dir2/file.7"
-	dd if=/dev/zero of=$ROOT/dir2/file.8 bs=1K count=1 >/dev/null 2>/dev/null || error "writing dir2/file.8"
+	dd if=/dev/zero of=$RH_ROOT/dir2/file.6 bs=1K count=10 >/dev/null 2>/dev/null || error "writing dir2/file.6"
+	dd if=/dev/zero of=$RH_ROOT/dir2/file.7 bs=1K count=11 >/dev/null 2>/dev/null || error "writing dir2/file.7"
+	dd if=/dev/zero of=$RH_ROOT/dir2/file.8 bs=1K count=1 >/dev/null 2>/dev/null || error "writing dir2/file.8"
 }
 
 function update_files_migration
@@ -7850,9 +7850,9 @@ function update_files_migration
 	# 	update_files_migration
 
     for i in `seq 1 500`; do
-		echo "aaaaaaaaaaaaaaaaaaaa" >> $ROOT/dir2/file.8
+		echo "aaaaaaaaaaaaaaaaaaaa" >> $RH_ROOT/dir2/file.8
 	done
-    dd if=/dev/zero of=$ROOT/dir2/file.9 bs=1K count=1 >/dev/null 2>/dev/null || error "writing dir2/file.9"
+    dd if=/dev/zero of=$RH_ROOT/dir2/file.9 bs=1K count=1 >/dev/null 2>/dev/null || error "writing dir2/file.9"
 }
 
 # return an error count
@@ -7866,7 +7866,7 @@ function check_migrate_arr
 
         # lustre/HSM: search in backend by fid
         if (( $is_lhsm > 0 )); then
-            x=$(find $ROOT -name "$n" | xargs -n 1 -r $LFS path2fid | tr -d '[]')
+            x=$(find $RH_ROOT -name "$n" | xargs -n 1 -r $LFS path2fid | tr -d '[]')
         else
             x="$n"
         fi
@@ -7994,7 +7994,7 @@ function migration_file_type
     fi
 
 	echo "Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/link.1 -l DEBUG -L rh_migr.log
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$RH_ROOT/dir1/link.1 -l DEBUG -L rh_migr.log
 
     nbError=0
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -8009,7 +8009,7 @@ function migration_file_type
     ((nbError+=$?))
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
+	$RH -f ./cfg/$config_file --run=migration --target=file:$RH_ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -8066,7 +8066,7 @@ function migration_file_owner
     fi
 
 	echo "Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$RH_ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     nbError=0
@@ -8079,7 +8079,7 @@ function migration_file_owner
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/dir1/file.3 -l DEBUG -L rh_migr.log
+	$RH -f ./cfg/$config_file --run=migration --target=file:$RH_ROOT/dir1/file.3 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -8128,7 +8128,7 @@ function migration_file_Last
 	create_files_migration
 
 	echo "Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$RH_ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
 	nbError=0
@@ -8149,7 +8149,7 @@ function migration_file_Last
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
+	$RH -f ./cfg/$config_file --run=migration --target=file:$RH_ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -8198,7 +8198,7 @@ function migration_file_ExtendedAttribut
 	create_files_migration
 
 	echo "Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.4 -l DEBUG -L rh_migr.log
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$RH_ROOT/dir1/file.4 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
 	nbError=0
@@ -8211,7 +8211,7 @@ function migration_file_ExtendedAttribut
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.5 -l DEBUG -L rh_migr.log
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$RH_ROOT/dir1/file.5 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -8223,7 +8223,7 @@ function migration_file_ExtendedAttribut
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$RH_ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -8273,11 +8273,11 @@ function migration_OST
 
 	echo "2-Create Files ..."
     for i in `seq 1 2`; do
-		$LFS setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL1 $RH_ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 
     for i in `seq 3 4`; do
-		$LFS setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL2 $RH_ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 
 	echo "Applying migration policy..."
@@ -8330,15 +8330,15 @@ function migration_file_OST
 
 	echo "2-Create Files ..."
     for i in `seq 1 2`; do
-		$LFS setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL1 $RH_ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 
     for i in `seq 3 4`; do
-		$LFS setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL2 $RH_ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 
 	echo "3-Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/file.2 -l DEBUG -L rh_migr.log
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$RH_ROOT/file.2 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     nbError=0
@@ -8351,7 +8351,7 @@ function migration_file_OST
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$ROOT/file.3 -l DEBUG -L rh_migr.log
+	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$RH_ROOT/file.3 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -8379,9 +8379,9 @@ function migration_file_OST
 function fs_usage
 {
     if [ -z "$POSIX_MODE" ]; then
-	    $LFS df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'
+	    $LFS df $RH_ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'
     else
-        df $ROOT | xargs | awk '{ print $(NF-1) }' | sed 's/%//'
+        df $RH_ROOT | xargs | awk '{ print $(NF-1) }' | sed 's/%//'
     fi
 }
 
@@ -8407,7 +8407,7 @@ function trigger_purge_QUOTA_EXCEEDED
 	clean_logs
 
     if [ -z "$POSIX_MODE" ]; then
-        $LFS setstripe -c 2 $ROOT || echo "error setting stripe count=2"
+        $LFS setstripe -c 2 $RH_ROOT || echo "error setting stripe count=2"
     fi
     elem=$(fs_usage)
 
@@ -8418,9 +8418,9 @@ function trigger_purge_QUOTA_EXCEEDED
     while [ $elem -lt $limit ]
     do
         # write 2M to fullfill 2 stripes
-        dd if=/dev/zero of=$ROOT/file.$indice bs=2M count=1 conv=sync >/dev/null 2>/dev/null
+        dd if=/dev/zero of=$RH_ROOT/file.$indice bs=2M count=1 conv=sync >/dev/null 2>/dev/null
         if (( $? != 0 )); then
-            echo "WARNING: failed to write $ROOT/file.$indice"
+            echo "WARNING: failed to write $RH_ROOT/file.$indice"
             # give it a chance to end the loop
             ((limit=$limit-1))
         else
@@ -8476,18 +8476,18 @@ function trigger_purge_OST_QUOTA_EXCEEDED
     done
 
 	echo "2-Create Files ..."
-	elem=`$LFS df $ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
+	elem=`$LFS df $RH_ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
 	limit=80
 	indice=1
     while [ $elem -lt $limit ]
     do
-        $LFS setstripe -p lustre.$POOL1 $ROOT/file.$indice -c 1 >/dev/null 2>/dev/null
+        $LFS setstripe -p lustre.$POOL1 $RH_ROOT/file.$indice -c 1 >/dev/null 2>/dev/null
         for i in `seq 0 200`; do
-		    echo "$aaa$aaa$aaa" >> $ROOT/file.$indice
+		    echo "$aaa$aaa$aaa" >> $RH_ROOT/file.$indice
             sync
 	    done
         unset elem
-	    elem=`$LFS df $ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
+	    elem=`$LFS df $RH_ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
         ((indice++))
     done
 
@@ -8545,9 +8545,9 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
     while [ $elem -lt $limit ]
     do
         # write 2M to fullfill 2 stripes
-        dd if=/dev/zero of=$ROOT/file.$indice bs=2M count=1 conv=sync >/dev/null 2>$dd_out
+        dd if=/dev/zero of=$RH_ROOT/file.$indice bs=2M count=1 conv=sync >/dev/null 2>$dd_out
         if (( $? != 0 )); then
-            [[ -z "$one_error" ]] && one_error="failed to write $ROOT/file.$indice: $(cat $dd_out)"
+            [[ -z "$one_error" ]] && one_error="failed to write $RH_ROOT/file.$indice: $(cat $dd_out)"
             ((dd_err_count++))
             ((limit=$limit-1))
         else
@@ -8555,7 +8555,7 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
             limit=$limit_init
         fi
 
-        if [[ -s $ROOT/file.$indice ]]; then
+        if [[ -s $RH_ROOT/file.$indice ]]; then
             ((last++))
         fi
 
@@ -8564,7 +8564,7 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
         elem=$(fs_usage)
         ((indice++))
     done
-    (($dd_err_count > 0)) && echo "WARNING: $dd_err_count errors writing $ROOT/file.*: first error: $one_error"
+    (($dd_err_count > 0)) && echo "WARNING: $dd_err_count errors writing $RH_ROOT/file.*: first error: $one_error"
 
     rm -f $dd_out
 
@@ -8572,11 +8572,11 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
     ((limit=$last/2))
     ((limit=$limit-1))
     echo "$last files created, changing $limit files to testuser:testgroup"
-    df -h $ROOT
+    df -h $RH_ROOT
     ((indice=1))
     while [ $indice -lt $limit ]
     do
-        chown testuser:testgroup $ROOT/file.$indice
+        chown testuser:testgroup $RH_ROOT/file.$indice
         ((indice++))
     done
 
@@ -8605,25 +8605,25 @@ function create_files_Purge
 	# create all directory and files for purge tests
 	#  create_files_Purge
 
-    mkdir $ROOT/dir1
-    mkdir $ROOT/dir2
+    mkdir $RH_ROOT/dir1
+    mkdir $RH_ROOT/dir2
 
     for i in `seq 1 5` ; do
-    	dd if=/dev/zero of=$ROOT/dir1/file.$i bs=1K count=1 >/dev/null 2>/dev/null || error "writing dir1/file.$i"
+    	dd if=/dev/zero of=$RH_ROOT/dir1/file.$i bs=1K count=1 >/dev/null 2>/dev/null || error "writing dir1/file.$i"
 	done
 
-	ln -s $ROOT/dir1/file.1 $ROOT/dir1/link.1
-	ln -s $ROOT/dir1/file.1 $ROOT/dir1/link.2
+	ln -s $RH_ROOT/dir1/file.1 $RH_ROOT/dir1/link.1
+	ln -s $RH_ROOT/dir1/file.1 $RH_ROOT/dir1/link.2
 
-	chown root:testgroup $ROOT/dir1/file.2
-    chown testuser:testgroup $ROOT/dir1/file.3
+	chown root:testgroup $RH_ROOT/dir1/file.2
+    chown testuser:testgroup $RH_ROOT/dir1/file.3
 
-	setfattr -n user.foo -v 1 $ROOT/dir1/file.4
-	setfattr -n user.bar -v 1 $ROOT/dir1/file.5
+	setfattr -n user.foo -v 1 $RH_ROOT/dir1/file.4
+	setfattr -n user.bar -v 1 $RH_ROOT/dir1/file.5
 
-    dd if=/dev/zero of=$ROOT/dir2/file.6 bs=1K count=10 >/dev/null 2>/dev/null || error "writing dir2/file.6"
-    dd if=/dev/zero of=$ROOT/dir2/file.7 bs=1K count=11 >/dev/null 2>/dev/null || error "writing dir2/file.7"
-    dd if=/dev/zero of=$ROOT/dir2/file.8 bs=1K count=1 >/dev/null 2>/dev/null || error "writing dir2/file.8"
+    dd if=/dev/zero of=$RH_ROOT/dir2/file.6 bs=1K count=10 >/dev/null 2>/dev/null || error "writing dir2/file.6"
+    dd if=/dev/zero of=$RH_ROOT/dir2/file.7 bs=1K count=11 >/dev/null 2>/dev/null || error "writing dir2/file.7"
+    dd if=/dev/zero of=$RH_ROOT/dir2/file.8 bs=1K count=1 >/dev/null 2>/dev/null || error "writing dir2/file.8"
 }
 
 function update_files_Purge
@@ -8632,9 +8632,9 @@ function update_files_Purge
 	#  update_files_migration
 
     for i in `seq 1 500`; do
-		echo "aaaaaaaaaaaaaaaaaaaa" >> $ROOT/dir2/file.8
+		echo "aaaaaaaaaaaaaaaaaaaa" >> $RH_ROOT/dir2/file.8
     done
-	cat $ROOT/dir2/file.8 >/dev/null 2>/dev/null
+	cat $RH_ROOT/dir2/file.8 >/dev/null 2>/dev/null
 }
 
 function test_purge
@@ -8662,8 +8662,8 @@ function test_purge
 	fi
 
     # adapt the test for any root
-    export MATCH_PATH2="$ROOT/dir2/*"
-    export MATCH_PATH1="$ROOT/dir1/*"
+    export MATCH_PATH2="$RH_ROOT/dir2/*"
+    export MATCH_PATH1="$RH_ROOT/dir1/*"
 
 	needPurge=0
 	((needPurge=10-countFinal))
@@ -8766,9 +8766,9 @@ function test_purge_tmp_fs_mgr
         ((nbError++))
 	fi
 
-    countFileDir1=`find $ROOT/dir1 -type f | wc -l`
-    countFileDir2=`find $ROOT/dir2 -type f | wc -l`
-    countLink=`find $ROOT/dir1 -type l | wc -l`
+    countFileDir1=`find $RH_ROOT/dir1 -type f | wc -l`
+    countFileDir2=`find $RH_ROOT/dir2 -type f | wc -l`
+    countLink=`find $RH_ROOT/dir1 -type l | wc -l`
     count=$(($countFileDir1+$countFileDir2+$countLink))
     if (($count != $countFinal)); then
         error "********** TEST FAILED (File System): $count files stayed in filesystem, but $countFinal expected"
@@ -8777,7 +8777,7 @@ function test_purge_tmp_fs_mgr
 
     for x in $purge_arr
     do
-        if [ -e "$ROOT/dir1/$x" -o -e "$ROOT/dir2/$x" ]; then
+        if [ -e "$RH_ROOT/dir1/$x" -o -e "$RH_ROOT/dir2/$x" ]; then
 	        error "********** TEST FAILED (File System): $x is not purged"
             ((nbError++))
         fi
@@ -8828,11 +8828,11 @@ function purge_OST
 
 	echo "2-Create Files ..."
     for i in `seq 1 2`; do
-		$LFS setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL1 $RH_ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 
     for i in `seq 3 4`; do
-		$LFS setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL2 $RH_ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 
 	sleep 1
@@ -8890,9 +8890,9 @@ function test_removing
 
 	# prepare data..............................
 	echo "1-Preparing Filesystem..."
-	mkdir -p $ROOT/dir1
-	mkdir -p $ROOT/dir5
-	echo "data" > $ROOT/dir5/file.5
+	mkdir -p $RH_ROOT/dir1
+	mkdir -p $RH_ROOT/dir5
+	echo "data" > $RH_ROOT/dir5/file.5
 
 	if [ $testKey == "emptyDir" ]; then
 		# wait and write more data
@@ -8901,31 +8901,31 @@ function test_removing
 			sleep $sleepTime || error "sleep time"
 		fi
 		sleepTime=0
-		mkdir -p $ROOT/dir6
-		mkdir -p $ROOT/dir7
-		echo "data" > $ROOT/dir7/file.7
+		mkdir -p $RH_ROOT/dir6
+		mkdir -p $RH_ROOT/dir7
+		echo "data" > $RH_ROOT/dir7/file.7
 
 	else
 		# in dir1: manage folder owner and attributes
-		chown testuser $ROOT/dir1 || error "invalid chown on user 'testuser' for $ROOT/dir1 "  #change owner
-		setfattr -n user.foo -v "abc.1.test" $ROOT/dir1
-		echo "data" > $ROOT/dir1/file.1
-		mkdir -p $ROOT/dir1/dir2
-		echo "data" > $ROOT/dir1/dir2/file.2
-		mkdir -p $ROOT/dir1/dir3
-		echo "data" > $ROOT/dir1/dir3/file.3
-	 	mkdir -p $ROOT/dir1/dir4
-		chown testuser $ROOT/dir1/dir4 || error "invalid chown on user 'testuser' for $ROOT/dir4" #change owner
-		echo "data" > $ROOT/dir1/dir4/file.41
-		echo "data" > $ROOT/dir1/dir4/file.42
+		chown testuser $RH_ROOT/dir1 || error "invalid chown on user 'testuser' for $RH_ROOT/dir1 "  #change owner
+		setfattr -n user.foo -v "abc.1.test" $RH_ROOT/dir1
+		echo "data" > $RH_ROOT/dir1/file.1
+		mkdir -p $RH_ROOT/dir1/dir2
+		echo "data" > $RH_ROOT/dir1/dir2/file.2
+		mkdir -p $RH_ROOT/dir1/dir3
+		echo "data" > $RH_ROOT/dir1/dir3/file.3
+	 	mkdir -p $RH_ROOT/dir1/dir4
+		chown testuser $RH_ROOT/dir1/dir4 || error "invalid chown on user 'testuser' for $RH_ROOT/dir4" #change owner
+		echo "data" > $RH_ROOT/dir1/dir4/file.41
+		echo "data" > $RH_ROOT/dir1/dir4/file.42
 
 		# in dir5:
-		setfattr -n user.bar -v "abc.1.test" $ROOT/dir5
-		echo "data" > $ROOT/dir5/file.5
+		setfattr -n user.bar -v "abc.1.test" $RH_ROOT/dir5
+		echo "data" > $RH_ROOT/dir5/file.5
 
 		# in dir6:
-		mkdir -p $ROOT/dir6
-		chown testuser $ROOT/dir6 || error "invalid chown on user 'testuser' for $ROOT/dir6" #change owner
+		mkdir -p $RH_ROOT/dir6
+		chown testuser $RH_ROOT/dir6 || error "invalid chown on user 'testuser' for $RH_ROOT/dir6" #change owner
 	fi
 
 	# launch the scan ..........................
@@ -8939,10 +8939,10 @@ function test_removing
 	fi
 	# specific optional action after sleep process ..........
 	if [ $testKey == "lastAccess" ]; then
-	#	ls -R $ROOT/dir1 || error "scaning $ROOT/dir1"
-		touch $ROOT/dir1/file.touched || error "touching file in $ROOT/dir1"
+	#	ls -R $RH_ROOT/dir1 || error "scaning $RH_ROOT/dir1"
+		touch $RH_ROOT/dir1/file.touched || error "touching file in $RH_ROOT/dir1"
 	elif [ $testKey == "lastModif" ]; then
-		echo "data" > $ROOT/dir1/file.12 || error "writing in $ROOT/dir1/file.12"
+		echo "data" > $RH_ROOT/dir1/file.12 || error "writing in $RH_ROOT/dir1/file.12"
 	fi
 
 	# launch the rmdir ..........................
@@ -8958,32 +8958,32 @@ function test_removing
 	logFile=/tmp/rh_alert.log
 	case "$testKey" in
 		pathName)
-			existedDirs="$ROOT/dir5;$ROOT/dir6"
-			notExistedDirs="$ROOT/dir1"
+			existedDirs="$RH_ROOT/dir5;$RH_ROOT/dir6"
+			notExistedDirs="$RH_ROOT/dir1"
 			;;
 		emptyDir)
-			existedDirs="$ROOT/dir6;$ROOT/dir5;$ROOT/dir7"
-			notExistedDirs="$ROOT/dir1"
+			existedDirs="$RH_ROOT/dir6;$RH_ROOT/dir5;$RH_ROOT/dir7"
+			notExistedDirs="$RH_ROOT/dir1"
 			;;
 		owner)
-			existedDirs="$ROOT/dir5"
-			notExistedDirs="$ROOT/dir1;$ROOT/dir6"
+			existedDirs="$RH_ROOT/dir5"
+			notExistedDirs="$RH_ROOT/dir1;$RH_ROOT/dir6"
 			;;
 		lastAccess)
-			existedDirs="$ROOT/dir1"
-			notExistedDirs="$ROOT/dir5;$ROOT/dir6"
+			existedDirs="$RH_ROOT/dir1"
+			notExistedDirs="$RH_ROOT/dir5;$RH_ROOT/dir6"
 			;;
 		lastModif)
-			existedDirs="$ROOT/dir1"
-			notExistedDirs="$ROOT/dir5;$ROOT/dir6"
+			existedDirs="$RH_ROOT/dir1"
+			notExistedDirs="$RH_ROOT/dir5;$RH_ROOT/dir6"
 			;;
 		dircount)
-			existedDirs="$ROOT/dir5;$ROOT/dir6"
-			notExistedDirs="$ROOT/dir1"
+			existedDirs="$RH_ROOT/dir5;$RH_ROOT/dir6"
+			notExistedDirs="$RH_ROOT/dir1"
 			;;
 		extAttributes)
-			existedDirs="$ROOT/dir5;$ROOT/dir6"
-			notExistedDirs="$ROOT/dir1"
+			existedDirs="$RH_ROOT/dir5;$RH_ROOT/dir6"
+			notExistedDirs="$RH_ROOT/dir1"
 			;;
 		*)
 			error "unexpected testKey $testKey"
@@ -9008,26 +9008,26 @@ function test_rmdir_mix
     #  clean logs
     clean_logs
 
-    export NO_RM_TREE="$ROOT/no_rm"
+    export NO_RM_TREE="$RH_ROOT/no_rm"
 
     # prepare data
     echo "1-Preparing Filesystem..."
     # old dirempty
-    mkdir -p $ROOT/no_rm/dirempty
-    mkdir -p $ROOT/dirempty
+    mkdir -p $RH_ROOT/no_rm/dirempty
+    mkdir -p $RH_ROOT/dirempty
     sleep $sleepTime
 
     # new dirs
-    mkdir -p $ROOT/no_rm/dir1
-    mkdir -p $ROOT/no_rm/dir2
-    mkdir -p $ROOT/no_rm/dirempty_new
-    mkdir -p $ROOT/dir1
-    mkdir -p $ROOT/dir2
-    mkdir -p $ROOT/dirempty_new
-    echo "data" >  $ROOT/no_rm/dir1/file
-    echo "data" >  $ROOT/no_rm/dir2/file
-    echo "data" >  $ROOT/dir1/file
-    echo "data" >  $ROOT/dir2/file
+    mkdir -p $RH_ROOT/no_rm/dir1
+    mkdir -p $RH_ROOT/no_rm/dir2
+    mkdir -p $RH_ROOT/no_rm/dirempty_new
+    mkdir -p $RH_ROOT/dir1
+    mkdir -p $RH_ROOT/dir2
+    mkdir -p $RH_ROOT/dirempty_new
+    echo "data" >  $RH_ROOT/no_rm/dir1/file
+    echo "data" >  $RH_ROOT/no_rm/dir2/file
+    echo "data" >  $RH_ROOT/dir1/file
+    echo "data" >  $RH_ROOT/dir2/file
 
     # launch the scan ..........................
     echo "2-Scanning directories in filesystem ..."
@@ -9039,21 +9039,21 @@ function test_rmdir_mix
     # must report empty dirs
     grep "no_rm/dirempty," report.out || error "no_rm/dirempty not in empty dir report"
     grep "no_rm/dirempty_new," report.out || error "no_rm/dirempty_new not in empty dir report"
-    grep "$ROOT/dirempty," report.out || error "$ROOT/dirempty not in empty dir report"
-    grep "$ROOT/dirempty_new," report.out || error "$ROOT/dirempty_new not in empty dir report"
+    grep "$RH_ROOT/dirempty," report.out || error "$RH_ROOT/dirempty not in empty dir report"
+    grep "$RH_ROOT/dirempty_new," report.out || error "$RH_ROOT/dirempty_new not in empty dir report"
     # must no report other dirs
     grep "no_rm/dir1," report.out && error "no_rm/dir1 in empty dir report"
     grep "no_rm/dir1," report.out && error "no_rm/dir2 in empty dir report"
-    grep "$ROOT/dir2," report.out && error "$ROOT/dir1 in empty dir report"
-    grep "$ROOT/dir2," report.out && error "$ROOT/dir2 in empty dir report"
+    grep "$RH_ROOT/dir2," report.out && error "$RH_ROOT/dir1 in empty dir report"
+    grep "$RH_ROOT/dir2," report.out && error "$RH_ROOT/dir2 in empty dir report"
 
     # launch the rmdir ..........................
     echo "4-Removing directories in filesystem ..."
     $RH -f ./cfg/$config_file --run=rmdir --target=all -l DEBUG -L rh_rmdir.log --once || error "performing rmdir"
 
     echo "5-Checking results ..."
-    exist="$ROOT/no_rm/dirempty;$ROOT/no_rm/dir1;$ROOT/no_rm/dir2;$ROOT/no_rm/dirempty_new;$ROOT/dir2;$ROOT/dirempty_new"
-    noexist="$ROOT/dir1;$ROOT/dirempty"
+    exist="$RH_ROOT/no_rm/dirempty;$RH_ROOT/no_rm/dir1;$RH_ROOT/no_rm/dir2;$RH_ROOT/no_rm/dirempty_new;$RH_ROOT/dir2;$RH_ROOT/dirempty_new"
+    noexist="$RH_ROOT/dir1;$RH_ROOT/dirempty"
 
     # launch the validation for all remove process
     exist_dirs_or_not $exist $noexist
@@ -9087,20 +9087,20 @@ function test_removing_ost
 	create_pools
 
 	echo "Create Files ..."
-	mkdir $ROOT/dir1
+	mkdir $RH_ROOT/dir1
 
-	$LFS setstripe  -p lustre.$POOL1 $ROOT/dir1 >/dev/null 2>/dev/null
+	$LFS setstripe  -p lustre.$POOL1 $RH_ROOT/dir1 >/dev/null 2>/dev/null
 
-	$LFS setstripe  -p lustre.$POOL1 $ROOT/dir1/file.1 -c 1 >/dev/null 2>/dev/null
-	$LFS setstripe  -p lustre.$POOL1 $ROOT/dir1/file.2 -c 1 >/dev/null 2>/dev/null
-	$LFS setstripe  -p lustre.$POOL1 $ROOT/dir1/file.3 -c 1 >/dev/null 2>/dev/null
+	$LFS setstripe  -p lustre.$POOL1 $RH_ROOT/dir1/file.1 -c 1 >/dev/null 2>/dev/null
+	$LFS setstripe  -p lustre.$POOL1 $RH_ROOT/dir1/file.2 -c 1 >/dev/null 2>/dev/null
+	$LFS setstripe  -p lustre.$POOL1 $RH_ROOT/dir1/file.3 -c 1 >/dev/null 2>/dev/null
 
-	mkdir $ROOT/dir2
-	$LFS setstripe  -p lustre.$POOL2 $ROOT/dir2 >/dev/null 2>/dev/null
+	mkdir $RH_ROOT/dir2
+	$LFS setstripe  -p lustre.$POOL2 $RH_ROOT/dir2 >/dev/null 2>/dev/null
 
-    $LFS setstripe  -p lustre.$POOL2 $ROOT/file.1 -c 1 >/dev/null 2>/dev/null
-	$LFS setstripe  -p lustre.$POOL2 $ROOT/dir2/file.2 -c 1 >/dev/null 2>/dev/null
-	$LFS setstripe  -p lustre.$POOL2 $ROOT/dir2/file.3 -c 1 >/dev/null 2>/dev/null
+    $LFS setstripe  -p lustre.$POOL2 $RH_ROOT/file.1 -c 1 >/dev/null 2>/dev/null
+	$LFS setstripe  -p lustre.$POOL2 $RH_ROOT/dir2/file.2 -c 1 >/dev/null 2>/dev/null
+	$LFS setstripe  -p lustre.$POOL2 $RH_ROOT/dir2/file.3 -c 1 >/dev/null 2>/dev/null
 
 	echo "Removing directories in filesystem ..."
 	$RH -f ./cfg/$config_file --scan --run=rmdir_recurse --target=all -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
@@ -9108,8 +9108,8 @@ function test_removing_ost
 	# launch the validation ..........................
 	echo "Checking results ..."
 	logFile=/tmp/rh_alert.log
-	existedDirs="$ROOT/dir1"
-	notExistedDirs="$ROOT/dir2"
+	existedDirs="$RH_ROOT/dir1"
+	notExistedDirs="$RH_ROOT/dir2"
 	# launch the validation for all remove process
 	exist_dirs_or_not $existedDirs $notExistedDirs
 	res=$?
@@ -9118,7 +9118,7 @@ function test_removing_ost
 		error "Test for RemovingDir_ost failed"
 	fi
 
-	test -f $ROOT/file.1
+	test -f $RH_ROOT/file.1
 	res=$?
 
 	if (( $res == 1 )); then
@@ -9134,7 +9134,7 @@ function exist_dirs_or_not
     #If the both conditions are realized, then the function returns 0, otherwise 1.
     # 	exist_dirs_or_not $existedDirs $notExistedDirs
     #=> existedDirs & notExistedDirs list of dirs to check separated by ';'
-    # ex: "$ROOT/dir1;$ROOT/dir5"
+    # ex: "$RH_ROOT/dir1;$RH_ROOT/dir5"
     # ex: Use "/" for giving an empty list
 
     existedDirs=$1
@@ -9163,7 +9163,7 @@ function check_cmd
     # check_cmd $listDirs $commande
     # =>
     # 	$listDirs = list of dirs separated by ';'
-    #	ex: "$ROOT/dir1;$ROOT/dir5"  or "/" to no check command
+    #	ex: "$RH_ROOT/dir1;$RH_ROOT/dir5"  or "/" to no check command
     #	$commande = "-d" or "! -d"
     #	ex: check_cmd $notExistedDirs "-d": checks that all dirs does not exist
 
@@ -9208,61 +9208,61 @@ function test_report_generation_1
 	# prepare data..............................
 	echo -e "\n 1-Preparing Filesystem..."
 	# dir1:
-	mkdir -p $ROOT/dir1/dir2
+	mkdir -p $RH_ROOT/dir1/dir2
 	printf "." ; sleep 1
-	dd if=/dev/zero of=$ROOT/dir1/file.1 bs=1k count=5 >/dev/null 2>/dev/null || error "writing file.1"
+	dd if=/dev/zero of=$RH_ROOT/dir1/file.1 bs=1k count=5 >/dev/null 2>/dev/null || error "writing file.1"
 	printf "." ; sleep 1
-	dd if=/dev/zero of=$ROOT/dir1/file.2 bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.2"
+	dd if=/dev/zero of=$RH_ROOT/dir1/file.2 bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.2"
 	printf "." ; sleep 1
-	dd if=/dev/zero of=$ROOT/dir1/file.3 bs=1k count=15 >/dev/null 2>/dev/null || error "writing file.3"
+	dd if=/dev/zero of=$RH_ROOT/dir1/file.3 bs=1k count=15 >/dev/null 2>/dev/null || error "writing file.3"
 	printf "." ; sleep 1
 	# link from dir1:
-	ln -s $ROOT/dir1/file.1 $ROOT/link.1 || error "creating symbolic link $ROOT/link.1"
+	ln -s $RH_ROOT/dir1/file.1 $RH_ROOT/link.1 || error "creating symbolic link $RH_ROOT/link.1"
 	printf "." ; sleep 1
 	# dir2 inside dir1:
-	ln -s $ROOT/dir1/file.3 $ROOT/dir1/dir2/link.2 || error "creating symbolic link $ROOT/dir1/dir2/link.2"
+	ln -s $RH_ROOT/dir1/file.3 $RH_ROOT/dir1/dir2/link.2 || error "creating symbolic link $RH_ROOT/dir1/dir2/link.2"
 	printf "." ; sleep 1
 	# dir3 inside dir1:
-	mkdir -p $ROOT/dir1/dir3
+	mkdir -p $RH_ROOT/dir1/dir3
 	printf "." ; sleep 1
 	#dir4:
-	mkdir -p $ROOT/dir4
+	mkdir -p $RH_ROOT/dir4
 	printf "." ; sleep 1
 	#dir5:
-	mkdir -p $ROOT/dir5
+	mkdir -p $RH_ROOT/dir5
 	printf "." ; sleep 1
-	dd if=/dev/zero of=$ROOT/dir5/file.4 bs=1k count=10 >/dev/null 2>/dev/null || error "writing file.4"
+	dd if=/dev/zero of=$RH_ROOT/dir5/file.4 bs=1k count=10 >/dev/null 2>/dev/null || error "writing file.4"
 	printf "." ; sleep 1
-	dd if=/dev/zero of=$ROOT/dir5/file.5 bs=1k count=20 >/dev/null 2>/dev/null || error "writing file.5"
+	dd if=/dev/zero of=$RH_ROOT/dir5/file.5 bs=1k count=20 >/dev/null 2>/dev/null || error "writing file.5"
 	printf "." ; sleep 1
-	dd if=/dev/zero of=$ROOT/dir5/file.6 bs=1k count=21 >/dev/null 2>/dev/null || error "writing file.6"
+	dd if=/dev/zero of=$RH_ROOT/dir5/file.6 bs=1k count=21 >/dev/null 2>/dev/null || error "writing file.6"
 	printf "." ; sleep 1
-	ln -s $ROOT/dir1/file.2 $ROOT/dir5/link.3 || error "creating symbolic link $ROOT/dir5/link.3"
+	ln -s $RH_ROOT/dir1/file.2 $RH_ROOT/dir5/link.3 || error "creating symbolic link $RH_ROOT/dir5/link.3"
 	printf "." ; sleep 1
 	#dir6 and dir8 inside dir5:
-	mkdir -p $ROOT/dir5/dir6
+	mkdir -p $RH_ROOT/dir5/dir6
 	printf "." ; sleep 1
-	mkdir -p $ROOT/dir5/dir8
+	mkdir -p $RH_ROOT/dir5/dir8
 	printf "." ; sleep 1
 	# dir7:
-	mkdir -p $ROOT/dir7
+	mkdir -p $RH_ROOT/dir7
 	printf "." ; sleep 1
     #2links in dir.1
-    ln -s $ROOT/dir1 $ROOT/dir1/link.0 || error "creating symbolic link $ROOT/dir1/link.0"
+    ln -s $RH_ROOT/dir1 $RH_ROOT/dir1/link.0 || error "creating symbolic link $RH_ROOT/dir1/link.0"
     printf "." ; sleep 1
-    ln -s $ROOT/dir1 $ROOT/dir1/link.1 || error "creating symbolic link $ROOT/dir1/link.1"
+    ln -s $RH_ROOT/dir1 $RH_ROOT/dir1/link.1 || error "creating symbolic link $RH_ROOT/dir1/link.1"
     printf "." ; sleep 1
 
     # make sure all data is on disk
     sync
 
 	# manage owner and group
-	filesList="$ROOT/link.1 $ROOT/dir1/dir2/link.2"
+	filesList="$RH_ROOT/link.1 $RH_ROOT/dir1/dir2/link.2"
 	chgrp -h testgroup $filesList || error "invalid chgrp on group 'testgroup' for $filesList "
 	chown -h testuser $filesList || error "invalid chown on user 'testuser' for $filesList "
-	filesList="$ROOT/dir1/file.2 $ROOT/dir1/dir2 $ROOT/dir1/dir3 $ROOT/dir5 $ROOT/dir7 $ROOT/dir5/dir6 $ROOT/dir5/dir8"
+	filesList="$RH_ROOT/dir1/file.2 $RH_ROOT/dir1/dir2 $RH_ROOT/dir1/dir3 $RH_ROOT/dir5 $RH_ROOT/dir7 $RH_ROOT/dir5/dir6 $RH_ROOT/dir5/dir8"
 	chown testuser:testgroup $filesList || error "invalid chown on user 'testuser' for $filesList "
-	filesList="$ROOT/dir1/file.1 $ROOT/dir5/file.6"
+	filesList="$RH_ROOT/dir1/file.1 $RH_ROOT/dir5/file.6"
 	chgrp testgroup $filesList || error "invalid chgrp on group 'testgroup' for $filesList "
 
 	# launch the scan ..........................
@@ -9328,8 +9328,8 @@ function test_report_generation_1
 	echo -e "\n 8-Largest directories of Filesystem..."
 	$REPORT -f ./cfg/$config_file --top-dirs=3 --csv > report.out || error "performing Largest folders list (--top-dirs)"
 	# 2 possible orders
-	typeValues="$ROOT/dir1;$ROOT/dir5;$ROOT,"
-	typeValuesAlt="$ROOT/dir1;$ROOT,;$ROOT/dir5"
+	typeValues="$RH_ROOT/dir1;$RH_ROOT/dir5;$RH_ROOT,"
+	typeValuesAlt="$RH_ROOT/dir1;$RH_ROOT,;$RH_ROOT/dir5"
 	countValues="1;2;3"
 	colSearch=1
     [ "$DEBUG" = "1" ] && cat report.out
@@ -9545,11 +9545,11 @@ function report_generation2
 
 	echo "2-Create Files ..."
     for i in `seq 1 2`; do
-		$LFS setstripe  -p lustre.$POOL1 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL1 $RH_ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 
     for i in `seq 3 4`; do
-		$LFS setstripe  -p lustre.$POOL2 $ROOT/file.$i -c 1 >/dev/null 2>/dev/null
+		$LFS setstripe  -p lustre.$POOL2 $RH_ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 
 	sleep 1
@@ -9560,19 +9560,19 @@ function report_generation2
 	$REPORT -f ./cfg/common.conf --dump-ost 1 >> report.out
 
 	nbError=0
-	nb_report=`grep "$ROOT/file." report.out | wc -l`
+	nb_report=`grep "$RH_ROOT/file." report.out | wc -l`
 	if (( $nb_report != 2 )); then
 	    error "********** TEST FAILED (Log): $nb_report files purged, but 2 expected"
         ((nbError++))
 	fi
 
-	nb_report=`grep "$ROOT/file.3" report.out | wc -l`
+	nb_report=`grep "$RH_ROOT/file.3" report.out | wc -l`
 	if (( $nb_report != 1 )); then
 	    error "********** TEST FAILED (Log): No report for file.3"
         ((nbError++))
 	fi
 
-	nb_report=`grep "$ROOT/file.4" report.out | wc -l`
+	nb_report=`grep "$RH_ROOT/file.4" report.out | wc -l`
 	if (( $nb_report != 1 )); then
 	    error "********** TEST FAILED (Log): No report for file.4"
         ((nbError++))
@@ -9608,9 +9608,9 @@ function test_changelog
     # create a single file and do several operations on it
     # This will generate a CREATE+CLOSE+CLOSE+SATTR records
     echo "1. Creating initial objects..."
-    touch $ROOT/file.1 || error "touch file.1"
-	touch $ROOT/file.1 || error "touch file.1"
-	chmod +x $ROOT/file.1 || error "chmod file.1"
+    touch $RH_ROOT/file.1 || error "touch file.1"
+	touch $RH_ROOT/file.1 || error "touch file.1"
+	chmod +x $RH_ROOT/file.1 || error "chmod file.1"
 
     # Reading changelogs
     echo "2. Scanning ..."
@@ -9657,8 +9657,8 @@ function TEST_OTHER_PARAMETERS_1
 
 	echo "Create Files ..."
     for i in `seq 1 10` ; do
-    	dd if=/dev/zero of=$ROOT/file.$i bs=1K count=1 >/dev/null 2>/dev/null || error "writing file.$i"
-	    setfattr -n user.foo -v $i $ROOT/file.$i
+    	dd if=/dev/zero of=$RH_ROOT/file.$i bs=1K count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+	    setfattr -n user.foo -v $i $RH_ROOT/file.$i
 	done
 
 	echo "Scan Filesystem"
@@ -9737,10 +9737,10 @@ function TEST_OTHER_PARAMETERS_2
 
 	echo "Create Files ..."
     for i in `seq 1 5` ; do
-    	dd if=/dev/zero of=$ROOT/file.$i bs=10M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+    	dd if=/dev/zero of=$RH_ROOT/file.$i bs=10M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
 	done
     for i in `seq 6 10` ; do
-    	touch $ROOT/file.$i
+    	touch $RH_ROOT/file.$i
 	done
 
 	sleep 1
@@ -9818,7 +9818,7 @@ function TEST_OTHER_PARAMETERS_3
 
 	echo "Create Files ..."
     for i in `seq 1 5` ; do
-    	dd if=/dev/zero of=$ROOT/file.$i bs=1K count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+    	dd if=/dev/zero of=$RH_ROOT/file.$i bs=1K count=1 >/dev/null 2>/dev/null || error "writing file.$i"
 	done
 
 	echo "Archives files"
@@ -9834,9 +9834,9 @@ function TEST_OTHER_PARAMETERS_3
 
     local rmd=()
     for i in `seq 1 5` ; do
-        local f=$ROOT/file.$i
+        local f=$RH_ROOT/file.$i
         (( $is_lhsm > 0 )) && f=$($LFS path2fid $f | tr -d '[]')
-    	rm -f $ROOT/file.$i && rmd+=($f)
+    	rm -f $RH_ROOT/file.$i && rmd+=($f)
 	done
 
 	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
@@ -9930,7 +9930,7 @@ function TEST_OTHER_PARAMETERS_4
 
 	echo "Create Files ..."
     for i in `seq 1 11` ; do
-    	dd if=/dev/zero of=$ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
+    	dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
 	done
 
 	echo "Migrate files (must fail)"
@@ -10025,19 +10025,19 @@ function TEST_OTHER_PARAMETERS_5
 	sleep 60
 
     echo "Create files"
-	elem=`$LFS df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+	elem=`$LFS df $RH_ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
 	limit=60
 	indice=1
     while (( $elem < $limit ))
     do
-        dd if=/dev/zero of=$ROOT/file.$indice bs=10M count=1 >/dev/null 2>/dev/null
+        dd if=/dev/zero of=$RH_ROOT/file.$indice bs=10M count=1 >/dev/null 2>/dev/null
         if (( $? != 0 )); then
             echo "WARNING: fail writing file.$indice (usage $elem/$limit)"
             # give it a chance to end the loop
             ((limit=$limit-1))
         fi
         unset elem
-        elem=`$LFS df $ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+        elem=`$LFS df $RH_ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
         ((indice++))
     done
 
@@ -10276,15 +10276,15 @@ run_test 601m test_migration MigrationClass_LastModification.conf 11 2 "file.8;f
 run_test 601n test_migration MigrationClass_ExtendedAttribut.conf 0 1 "file.4" "--run=migration --target=all" "TEST_MIGRATION_CLASS_EXTENDED_ATTRIBUT"
 run_test 601o test_migration MigrationUser.conf 0 1 "file.3" "--run=migration --target=user:testuser" "TEST_MIGRATION_USER"
 run_test 601p test_migration MigrationGroup.conf 0 2 "file.2;file.3" "--run=migration --target=group:testgroup" "TEST_MIGRATION_GROUP"
-run_test 601q test_migration MigrationFile_Path_Name.conf 0 1 "file.1" "--run=migration --target=file:$ROOT/dir1/file.1" "TEST_MIGRATION_FILE_PATH_NAME"
-run_test 601r test_migration MigrationFile_Size.conf 1 1 "file.8" "--run=migration --target=file:$ROOT/dir2/file.8" "TEST_MIGRATION_FILE_SIZE"
+run_test 601q test_migration MigrationFile_Path_Name.conf 0 1 "file.1" "--run=migration --target=file:$RH_ROOT/dir1/file.1" "TEST_MIGRATION_FILE_PATH_NAME"
+run_test 601r test_migration MigrationFile_Size.conf 1 1 "file.8" "--run=migration --target=file:$RH_ROOT/dir2/file.8" "TEST_MIGRATION_FILE_SIZE"
 
 run_test 602a migration_OST MigrationStd_OST.conf 2 "file.3;file.4" "--run=migration --target=all" "TEST_MIGRATION_STD_OST"
 run_test 602b migration_OST MigrationOST.conf 2 "file.3;file.4" "--run=migration --target=ost:1" "TEST_MIGRATION_OST"
 run_test 602c migration_OST MigrationClass_OST.conf 2 "file.3;file.4" "--run=migration --target=all" "TEST_MIGRATION_CLASS_OST"
 
 run_test 603 migration_file_type MigrationFile_Type.conf 0 1 "link.1" "TEST_MIGRATION_FILE_TYPE"
-run_test 604 migration_file_owner MigrationFile_Owner.conf 0 1 "file.3" "--run=migration --target=file:$ROOT/dir1/file.3" "TEST_MIGRATION_FILE_OWNER"
+run_test 604 migration_file_owner MigrationFile_Owner.conf 0 1 "file.3" "--run=migration --target=file:$RH_ROOT/dir1/file.3" "TEST_MIGRATION_FILE_OWNER"
 run_test 605 migration_file_Last MigrationFile_LastAccess.conf 12 1 "file.1" "TEST_MIGRATION_FILE_LAST_ACCESS"
 run_test 606 migration_file_Last MigrationFile_LastModification.conf 12 1 "file.1" "TEST_MIGRATION_FILE_LAST_MODIFICATION"
 run_test 607 migration_file_OST MigrationFile_OST.conf 1 "file.3" "TEST_MIGRATION_FILE_OST"
