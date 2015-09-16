@@ -36,7 +36,7 @@ if SHOOK
   rpmbuild_opt += --with shook
 endif
 if HSM_LITE
-  rpmbuild_opt += --with hsm_lite
+  rpmbuild_opt += --with backup
 endif
 
 new: clean all
