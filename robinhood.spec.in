@@ -133,7 +133,9 @@ mkdir -p $RPM_BUILD_ROOT/%{_initrddir}
 mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/ld.so.conf.d
 
 $RPM_BUILD_ROOT/%{_prefix}/sbin/robinhood -T $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates/robinhood_detailed.conf
+%if %{with lhsm}
 install -m 644 doc/templates_v3/includes/lhsm.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes/
+%endif
 install -m 644 doc/templates_v3/includes/tmpfs.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes/
 install -m 644 doc/templates_v3/template.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates/
 
@@ -221,16 +223,17 @@ ldconfig
 %endif
 
 %if %{with backup}
-%{_sbindir}/rbh-import
-%{_sbindir}/rbh-recov
-%{_sbindir}/rbh-rebind
-%{_sbindir}/rbh-undo-rm
+# NOT ADAPTED TO v3 YET
+#%{_sbindir}/rbh-import
+#%{_sbindir}/rbh-recov
+#%{_sbindir}/rbh-rebind
+#%{_sbindir}/rbh-undo-rm
+%{_sbindir}/rbhext_*
 %endif
 
 %{_sbindir}/robinhood
 %{_sbindir}/rbh-report
 %{_sbindir}/rbh-diff
-%{_sbindir}/rbhext_*
 %{_bindir}/rbh-du
 %{_bindir}/rbh-find
 
@@ -249,7 +252,9 @@ ldconfig
 %{_sysconfdir}/ld.so.conf.d/robinhood.conf
 
 %config %{_sysconfdir}/robinhood.d/templates/robinhood_detailed.conf
+%if %{with lhsm}
 %config %{_sysconfdir}/robinhood.d/includes/lhsm.inc
+%endif
 %config %{_sysconfdir}/robinhood.d/includes/tmpfs.inc
 %config %{_sysconfdir}/robinhood.d/templates/template.conf
 
