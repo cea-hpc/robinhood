@@ -25,7 +25,7 @@
 # macro for defining dependencies
 
 %define pkg_dependencies       \
-BuildRequires: glib2-devel     \
+BuildRequires: glib2-devel >= 2.16 \
 BuildRequires: libattr-devel   \
 BuildRequires: mailx \
 %if %{with lustre}             \
