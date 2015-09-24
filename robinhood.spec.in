@@ -22,23 +22,6 @@
 %bcond_with shook
 %bcond_with recovtools
 
-# macro for defining dependencies
-
-%define pkg_dependencies       \
-BuildRequires: glib2-devel     \
-BuildRequires: libattr-devel   \
-BuildRequires: mailx \
-%if %{with lustre}             \
-%if %{defined lpackage}        \
-Requires: %{lpackage} >= %{lversion}         \
-BuildRequires: %{lpackage} >= %{lversion}    \
-%endif \
-%endif \
-%if %{with mysql}                            \
-BuildRequires: /usr/include/mysql/mysql.h    \
-%endif \
-%{nil}
-
 # target install dir for web gui
 %define installdir_www  /var/www/html
 
@@ -73,6 +56,19 @@ Source0: @PACKAGE@-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Summary: Accounting, reporting and purge tool for large filesystems
 Group: Applications/System
+BuildRequires: glib2-devel
+BuildRequires: libattr-devel
+BuildRequires: mailx
+%if %{with lustre}
+%if %{defined lpackage}
+Requires: %{lpackage} >= %{lversion}
+BuildRequires: %{lpackage} >= %{lversion}
+%endif
+%endif
+%if %{with mysql}
+BuildRequires: /usr/include/mysql/mysql.h
+%endif
+
 
 %description
 Robinhood is a tool for monitoring and purging file systems. It is designed to
@@ -108,7 +104,6 @@ This uses robinhood database to display misc. user and group stats.
 %package recov-tools
 Summary: Tools for MDS recovery.
 Group: Applications/System
-BuildRequires: libattr-devel
 
 %description recov-tools
 Tools for MDS recovery.
