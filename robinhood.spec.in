@@ -71,7 +71,7 @@ BuildRequires: /usr/include/mysql/mysql.h
 
 %description
 Robinhood is a tool for monitoring and purging file systems. It is designed to
-process all its tasks in parallel, so it is particulary adapted for managing
+process all its tasks in parallel, so it is particularly adapted for managing
 large file systems with millions of entries and petabytes of data.
 
 With support for: %{?with_lustre:Lustre} %{?with_backup:Backup} %{?with_shook:shook}
