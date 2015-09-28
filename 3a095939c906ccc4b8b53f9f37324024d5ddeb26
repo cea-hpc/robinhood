@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "1ae5cdf2_1de1549a",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 1
+      },
+      "lineNbr": 51,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2015-09-28T19:39:10Z",
+      "side": 1,
+      "message": "\"Purge\" is a restrictive vision of robinhood capabilities. I\u0027d prefer we keep \"Policy engine\" as the main point in this summary. What about \"Policy engine and reporting tool for large filesystems\"?",
+      "range": {
+        "startLine": 51,
+        "startChar": 35,
+        "endLine": 51,
+        "endChar": 40
+      },
+      "revId": "3a095939c906ccc4b8b53f9f37324024d5ddeb26",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
