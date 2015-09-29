@@ -213,7 +213,6 @@ ldconfig
 %exclude %{_sbindir}/rbh-rebind
 %{_sbindir}/rbh-import
 %{_sbindir}/rbh-recov
-%{_sbindir}/rbh-undo-rm
 %endif
 
 %if %{with backup}
@@ -221,13 +220,13 @@ ldconfig
 #%{_sbindir}/rbh-import
 #%{_sbindir}/rbh-recov
 #%{_sbindir}/rbh-rebind
-#%{_sbindir}/rbh-undo-rm
 %{_sbindir}/rbhext_*
 %endif
 
 %{_sbindir}/robinhood
 %{_sbindir}/rbh-report
 %{_sbindir}/rbh-diff
+%{_sbindir}/rbh-undelete
 %{_bindir}/rbh-du
 %{_bindir}/rbh-find
 
