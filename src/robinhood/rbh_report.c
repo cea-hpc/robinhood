@@ -2166,7 +2166,6 @@ static void report_deferred_rm( int flags )
     sort.attr_index = ATTR_INDEX_rm_time;
     sort.order = REVERSE(flags)?SORT_DESC:SORT_ASC;
 
-    /* list all deferred rm, even if non expired */
     rmlist = ListMgr_RmList(&lmgr, is_filter? &filter : NULL, &sort);
 
     lmgr_simple_filter_free(&filter);
