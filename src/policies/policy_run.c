@@ -308,11 +308,10 @@ static int policy_action(policy_info_t *policy,
                 free(descr);
                 if (cmd)
                 {
-                    int rc = 0;
                     /* call custom purge command instead of unlink() */
                     DisplayLog(LVL_DEBUG, tag(policy), DFID": action: cmd(%s)",
                                PFID(id), cmd);
-                    rc =  execute_shell_command(true, cmd, 0);
+                    rc = execute_shell_command(true, cmd, 0);
                     g_free(cmd);
                     /* @TODO handle other hardlinks to the same entry */
                 }
