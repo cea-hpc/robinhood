@@ -209,11 +209,11 @@ retry:
  */
 static int listmgr_softrm_all(lmgr_t *p_mgr, time_t rm_time)
 {
-    int      rc, nbannex = 0;
+    int rc;
     GString *req, *annex_fields;
     attr_mask_t mask_tmp = softrm_attr_set;
 
-    /* manage fullpath independantly to make sure it is the first attribute
+    /* manage fullpath independently to make sure it is the first attribute
      * as we will set it to "one_path(id)". */
     attr_mask_unset_index(&mask_tmp, ATTR_INDEX_fullpath);
 
@@ -221,8 +221,8 @@ static int listmgr_softrm_all(lmgr_t *p_mgr, time_t rm_time)
     attrmask2fieldlist(req, mask_tmp, T_SOFTRM, true,  false, "","");
 
     annex_fields = g_string_new(NULL);
-    nbannex = attrmask2fieldlist(annex_fields, softrm_attr_set, T_ANNEX, true,  false,
-                                 ANNEX_TABLE".", "");
+    attrmask2fieldlist(annex_fields, softrm_attr_set, T_ANNEX, true,  false,
+                       ANNEX_TABLE".", "");
     rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
 
     g_string_free(annex_fields, TRUE);
