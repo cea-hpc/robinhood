@@ -25,7 +25,7 @@
 #endif
 
     int yylex(void);
-    void yyerror(char*);
+    void yyerror(const char *);
     extern int yylineno;
     extern char * yytext;
 
@@ -183,18 +183,24 @@ subblock:
 
 %%
 
-    void yyerror(char *s){
-    		if ( local_errormsg[0] && s[0] )
-			snprintf(extern_errormsg,1024,"%s (%s) at '%s' line %d in '%s'",local_errormsg,s, (yytext?yytext:"???"), yylineno, current_file);
-		else if (local_errormsg[0])
-			snprintf(extern_errormsg,1024,"%s at '%s' line %d in '%s'",local_errormsg, (yytext?yytext:"???"), yylineno, current_file);
-		else if (s[0])
-			snprintf(extern_errormsg,1024,"%s at '%s' line %d in '%s'",s, (yytext?yytext:"???"), yylineno, current_file);
-		else
-			snprintf(extern_errormsg,1024,"Syntax error at '%s' line %d in '%s'",(yytext?yytext:"???"), yylineno, current_file);
-    }
+void yyerror(const char *s)
+{
+	if (local_errormsg[0] && s[0])
+		snprintf(extern_errormsg, 1024, "%s (%s) at '%s' line %d in '%s'",
+				 local_errormsg, s, (yytext?yytext:"???"), yylineno,
+				 current_file);
+	else if (local_errormsg[0])
+		snprintf(extern_errormsg, 1024, "%s at '%s' line %d in '%s'",
+				 local_errormsg, (yytext?yytext:"???"), yylineno, current_file);
+	else if (s[0])
+		snprintf(extern_errormsg, 1024, "%s at '%s' line %d in '%s'",
+				 s, (yytext?yytext:"???"), yylineno, current_file);
+	else
+		snprintf(extern_errormsg, 1024, "Syntax error at '%s' line %d in '%s'",
+				 (yytext?yytext:"???"), yylineno, current_file);
+}
 
-
-    void set_error(char * s){
-        rh_strncpy(local_errormsg, s, 1024);
-    }
+void set_error(const char * s)
+{
+	rh_strncpy(local_errormsg, s, 1024);
+}

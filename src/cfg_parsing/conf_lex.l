@@ -36,7 +36,7 @@ int accolades;
 int parenthesis;
 
 /* Traitement des messages d'erreur */
-void set_error(char * s);
+void set_error(const char *s);
 
 #define ERRLEN 1024
 char err_str[ERRLEN]="";
