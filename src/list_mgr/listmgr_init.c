@@ -219,6 +219,7 @@ static int check_field_name(const char *name, int *curr_field_index,
     return -1;
 }
 
+#ifdef _LUSTRE
 static void drop_chars(char *str, int start_off, int end_off)
 {
     /* drop len chars */
@@ -320,7 +321,7 @@ static int check_field_name_type(const char *name, const char *type, int *curr_f
     (*curr_field_index)++;
     return 0;
 }
-
+#endif
 
 static inline int check_field(int i, int * curr_field_index, char *table, char **fieldtab)
 {
