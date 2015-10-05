@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <libgen.h>
+#include <glib.h>
 
 #if HAVE_STRING_H
 #   include <string.h>
@@ -43,46 +44,45 @@ char err_str[ERRLEN]="";
 
 /* Stockage des chaines
 */
-char YY_PARSED_STRING[MAXSTRLEN];
+GString *YY_PARSED_STRING;
 
-void YY_BUFFER_APPEND(char * s){
-    strncat(YY_PARSED_STRING,s, MAXSTRLEN-1);
+void YY_BUFFER_APPEND(const char *s) {
+    g_string_append(YY_PARSED_STRING, s);
 }
 
-void YY_BUFFER_RESET(void){
-    int i;
-    for (i=0;i<MAXSTRLEN;i++){
-        YY_PARSED_STRING[i]='\0';
-    }
+void YY_BUFFER_RESET(void) {
+    g_string_set_size(YY_PARSED_STRING, 0);
 }
 
 /* includes management */
 #define FILE_LEN 1024
-char current_file[FILE_LEN] = "";
+GString *current_file;
 
 #define MAX_INCLUDE_DEPTH  10
 YY_BUFFER_STATE include_stack[MAX_INCLUDE_DEPTH];
 
 /* keep track of filenames and line numbers */
-unsigned int    lines_stack[MAX_INCLUDE_DEPTH];
-char            files_stack[MAX_INCLUDE_DEPTH][FILE_LEN];
+unsigned int lines_stack[MAX_INCLUDE_DEPTH];
+GString *files_stack[MAX_INCLUDE_DEPTH];
 
 int include_stack_index = 0;
 
 
 /* initialisation du parser */
-
 #define YY_USER_INIT {          \
     unsigned int i;             \
     yylineno = 1;               \
     accolades = 0;              \
     parenthesis = 0;            \
     include_stack_index = 0;    \
-    for ( i=0; i<MAX_INCLUDE_DEPTH; i++) {\
-        lines_stack[i]=0;       \
-        files_stack[i][0]='\0'; \
-    }\
-    BEGIN YY_INIT;\
+    for (i = 0; i < MAX_INCLUDE_DEPTH; i++) { \
+        lines_stack[i] = 0;     \
+        if (files_stack[i] == NULL) \
+            files_stack[i] = g_string_sized_new(FILE_LEN); \
+    }                           \
+    if (YY_PARSED_STRING == NULL) YY_PARSED_STRING = g_string_sized_new(MAXSTRLEN); \
+    if (current_file == NULL) current_file = g_string_sized_new(FILE_LEN); \
+    BEGIN YY_INIT; \
 }
 
 #ifdef _DEBUG_PARSING
@@ -129,97 +129,103 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
 
 <INCL_STRING>"\""   { /* include file read */
                         unsigned int i;
-                        char new_file_path[FILE_LEN];
+                        GString *new_file_path;
                         DEBUG_LEX(">");
 
                         if ( include_stack_index >= MAX_INCLUDE_DEPTH )
                         {
                            /* error */
-                           snprintf(err_str,ERRLEN,"in \"%s\", line %d: includes nested too deeply",current_file, yylineno);
+                           snprintf(err_str,ERRLEN,"in \"%s\", line %d: includes nested too deeply",current_file->str, yylineno);
                            set_error(err_str);
                            return _ERROR_;
                         }
 
                         /* replace environment variables */
-                        if (YY_PARSED_STRING[0] == '$')
+                        if (YY_PARSED_STRING->str[0] == '$')
                         {
                             /* included file is an environment variable */
-                            char *val = getenv(YY_PARSED_STRING + 1); /* skip '$' */
+                            char *val = getenv(YY_PARSED_STRING->str + 1); /* skip '$' */
                             if (val == NULL)
                             {
                                snprintf(err_str, ERRLEN, "in \"%s\", line %d: environment variable '%s' is not set",
-                                        current_file, yylineno, YY_PARSED_STRING + 1);
+                                        current_file->str, yylineno, YY_PARSED_STRING->str + 1);
                                set_error(err_str);
                                return _ERROR_;
                             }
-                            else if (strlen(val) >= sizeof(YY_PARSED_STRING))
+                            else if (strlen(val) >= MAXSTRLEN)
                             {
                                snprintf(err_str, ERRLEN, "in \"%s\", line %d: "
                                         "file name too long in include statement",
-                                        current_file, yylineno);
+                                        current_file->str, yylineno);
                                set_error(err_str);
                                return _ERROR_;
                             }
-                            rh_strncpy(YY_PARSED_STRING, val, MAXSTRLEN);
+                            g_string_assign(YY_PARSED_STRING, val);
                         }
 
                         include_stack[include_stack_index] = YY_CURRENT_BUFFER;
                         lines_stack[include_stack_index] = yylineno;
-                        rh_strncpy(files_stack[include_stack_index], current_file, FILE_LEN);
+                        g_string_assign(files_stack[include_stack_index], current_file->str);
 
                         /* relative path management */
+                        new_file_path = g_string_sized_new(FILE_LEN);
 
                         /* 1) if the new path is absolute, nothing to do
                          * 2) if there was no '/' in previous dir, the new path
                          *  is relative to the current dir.
                          */
-                        if ((YY_PARSED_STRING[0] == '/')
-                            || (strchr( current_file, '/') == NULL))
+                        if ((YY_PARSED_STRING->str[0] == '/')
+                            || (strchr(current_file->str, '/') == NULL))
                         {
-                            rh_strncpy(new_file_path, YY_PARSED_STRING, FILE_LEN);
+                            g_string_assign(new_file_path, YY_PARSED_STRING->str);
                         }
                         else
                         {
                             /* in any other case, path is relative to the current config file
                              * directory */
+                            GString *tmp_buf;
+                            char *path;
 
-                            char tmp_buf[FILE_LEN];
-                            char * path;
+                            tmp_buf = g_string_new(current_file->str);
 
-                            rh_strncpy(tmp_buf, current_file, FILE_LEN);
+                            path = dirname(tmp_buf->str);
 
-                            path = dirname( tmp_buf );
-
-                            snprintf( new_file_path, FILE_LEN, "%s/%s", path, YY_PARSED_STRING );
+                            g_string_printf(new_file_path, "%s/%s", path, YY_PARSED_STRING->str);
+                            g_string_free(tmp_buf, TRUE);
                         }
 
                         /* loop detection */
 
                         for ( i = 0; i <= include_stack_index; i++ )
                         {
-                            if (!strncmp(files_stack[i], new_file_path, FILE_LEN))
+                            if (!strcmp(files_stack[i]->str, new_file_path->str))
                             {
-                               snprintf(err_str,ERRLEN,"in \"%s\", line %d: include loop detected: \"%s\" already parsed",current_file, yylineno, new_file_path );
+                               snprintf(err_str,ERRLEN,"in \"%s\", line %d: include loop detected: \"%s\" already parsed",
+                                        current_file->str, yylineno, new_file_path->str);
                                set_error(err_str);
+                               g_string_free(new_file_path, TRUE);
                                return _ERROR_;
                             }
                         }
 
                         include_stack_index ++;
 
-                        yyin = fopen( new_file_path, "r" );
+                        yyin = fopen(new_file_path->str, "r");
 
                         if ( yyin == NULL )
                         {
                            /* error */
-                           snprintf(err_str,ERRLEN,"in \"%s\", line %d: error %d opening file \"%s\": %s",current_file,yylineno,
-                                    errno, new_file_path, strerror(errno) );
+                           snprintf(err_str, ERRLEN, "in \"%s\", line %d: error %d opening file \"%s\": %s",
+                                    current_file->str, yylineno,
+                                    errno, new_file_path->str, strerror(errno));
                            set_error(err_str);
+                           g_string_free(new_file_path, TRUE);
                            return _ERROR_;
                         }
 
                         yylineno = 1;
-                        rh_strncpy(current_file, new_file_path, FILE_LEN);
+                        g_string_assign(current_file, new_file_path->str);
+                        g_string_free(new_file_path, TRUE);
 
                         /* change current buffer */
                         yy_switch_to_buffer( yy_create_buffer( yyin, YY_BUF_SIZE ) );
@@ -231,7 +237,7 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
 
 
 <INCL_STRING>\n      {
-                            snprintf(err_str,ERRLEN,"in \"%s\", line %d: missing closing quote.",current_file, yylineno);
+                            snprintf(err_str,ERRLEN,"in \"%s\", line %d: missing closing quote.",current_file->str, yylineno);
                             set_error(err_str);
                             yylineno++;
                             return _ERROR_;
@@ -260,7 +266,7 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
                 yy_delete_buffer( YY_CURRENT_BUFFER );
 
                 yylineno = lines_stack[include_stack_index];
-                rh_strncpy(current_file, files_stack[include_stack_index], FILE_LEN);
+                g_string_assign(current_file, files_stack[include_stack_index]->str);
 
                 yy_switch_to_buffer( include_stack[include_stack_index] );
             }
@@ -294,7 +300,7 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
                 if ( parenthesis <= 0 )
                     {
                        /* error */
-                       snprintf(err_str,ERRLEN,"in \"%s\", line %d: '%c' too much closing parenthesis",current_file,yylineno,*yytext);
+                       snprintf(err_str,ERRLEN,"in \"%s\", line %d: '%c' too much closing parenthesis",current_file->str,yylineno,*yytext);
                        set_error(err_str);
                        return _ERROR_;
                     }
@@ -330,7 +336,7 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
                     if ( accolades <= 0 )
                     {
                        /* error */
-                       snprintf(err_str,ERRLEN,"in \"%s\", line %d: '%c' closing bracket outside a block",current_file,yylineno,*yytext);
+                       snprintf(err_str,ERRLEN,"in \"%s\", line %d: '%c' closing bracket outside a block",current_file->str,yylineno,*yytext);
                        set_error(err_str);
                        return _ERROR_;
                     }
@@ -380,15 +386,15 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
 
 
 <STRING1>\\     {BEGIN ESC1;}
-<STRING1>"\""   {DEBUG_LEX(">");rh_strncpy(yylval.str_val,YY_PARSED_STRING,MAXSTRLEN);BEGIN INBLOC;/* chaine finie */ return NON_IDENTIFIER_VALUE; }
-<STRING1>\n      {snprintf(err_str,ERRLEN,"in \"%s\", line %d: missing closing quote.",current_file,yylineno); set_error(err_str);yylineno++;return _ERROR_;}
+<STRING1>"\""   {DEBUG_LEX(">");rh_strncpy(yylval.str_val,YY_PARSED_STRING->str,MAXSTRLEN);BEGIN INBLOC;/* chaine finie */ return NON_IDENTIFIER_VALUE; }
+<STRING1>\n      {snprintf(err_str,ERRLEN,"in \"%s\", line %d: missing closing quote.",current_file->str,yylineno); set_error(err_str);yylineno++;return _ERROR_;}
 <STRING1>.      {YY_BUFFER_APPEND(yytext); DEBUG_LEX("%c",*yytext);/* caractere de la chaine */}
 
 <ESC1>\n        {BEGIN STRING1;yylineno++;}/* ignore un saut de ligne echappe*/
 <ESC1>.         {DEBUG_LEX("%c",*yytext);YY_BUFFER_APPEND(yytext);BEGIN STRING1;/* caractere de la chaine */}
 
-<STRING2>"'"    {DEBUG_LEX(">");rh_strncpy(yylval.str_val,YY_PARSED_STRING,MAXSTRLEN);BEGIN INBLOC ;/* chaine finie */ return NON_IDENTIFIER_VALUE;}
-<STRING2>\n     {snprintf(err_str,ERRLEN,"in \"%s\", line %d: closing quote missing.",current_file,yylineno); set_error(err_str);yylineno++;return _ERROR_;}
+<STRING2>"'"    {DEBUG_LEX(">");rh_strncpy(yylval.str_val,YY_PARSED_STRING->str,MAXSTRLEN);BEGIN INBLOC ;/* chaine finie */ return NON_IDENTIFIER_VALUE;}
+<STRING2>\n     {snprintf(err_str,ERRLEN,"in \"%s\", line %d: closing quote missing.",current_file->str,yylineno); set_error(err_str);yylineno++;return _ERROR_;}
 <STRING2>.      {YY_BUFFER_APPEND(yytext);DEBUG_LEX("%c",*yytext);/* caractere de la chaine */}
 
 {COMMENT}  ;/* ignore */
@@ -396,7 +402,7 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
 {SPACE}        ;/* ignore */
 {NL}           yylineno++;/* ignore */
 
-. { snprintf(err_str,ERRLEN,"in \"%s\", line %d: '%c' unexpected",current_file,yylineno,*yytext); set_error(err_str);return _ERROR_;}
+. { snprintf(err_str,ERRLEN,"in \"%s\", line %d: '%c' unexpected",current_file->str,yylineno,*yytext); set_error(err_str);return _ERROR_;}
 
 %%
 
@@ -409,7 +415,7 @@ void yyreset(void){
     YY_USER_INIT;
 }
 
-void yy_set_current_file( char * file )
+void yy_set_current_file(const char *file)
 {
-    rh_strncpy(current_file, file, FILE_LEN);
+    g_string_assign(current_file, file);
 }
