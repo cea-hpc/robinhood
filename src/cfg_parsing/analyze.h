@@ -27,6 +27,7 @@
 #define CONFPARSER_H
 
 #include <stdio.h>
+#include <glib.h>
 
 #ifndef rh_strncpy
 #define rh_strncpy(_s1, _s2, _sz) do { strncpy(_s1, _s2, _sz-1); if (_sz > 0) (_s1)[_sz-1] = '\0'; } while(0)
@@ -34,7 +35,7 @@
 
 #define MAXSTRLEN   1024
 
-extern char current_file[];
+extern GString *current_file;
 
 
 /* A program consists of several blocks,

@@ -188,16 +188,16 @@ void yyerror(const char *s)
 	if (local_errormsg[0] && s[0])
 		snprintf(extern_errormsg, 1024, "%s (%s) at '%s' line %d in '%s'",
 				 local_errormsg, s, (yytext?yytext:"???"), yylineno,
-				 current_file);
+				 current_file->str);
 	else if (local_errormsg[0])
 		snprintf(extern_errormsg, 1024, "%s at '%s' line %d in '%s'",
-				 local_errormsg, (yytext?yytext:"???"), yylineno, current_file);
+				 local_errormsg, (yytext?yytext:"???"), yylineno, current_file->str);
 	else if (s[0])
 		snprintf(extern_errormsg, 1024, "%s at '%s' line %d in '%s'",
-				 s, (yytext?yytext:"???"), yylineno, current_file);
+				 s, (yytext?yytext:"???"), yylineno, current_file->str);
 	else
 		snprintf(extern_errormsg, 1024, "Syntax error at '%s' line %d in '%s'",
-				 (yytext?yytext:"???"), yylineno, current_file);
+				 (yytext?yytext:"???"), yylineno, current_file->str);
 }
 
 void set_error(const char * s)
