@@ -939,7 +939,6 @@ static int trig_target_next(target_iterator_t *it, target_u *tgt,
             return ENOENT; /* end of list */
 
         /* no limit due to usage level */
-        memset(limit, 0, sizeof(*limit));
         it->info_u.is_checked = 1;
         return 0;
     }
