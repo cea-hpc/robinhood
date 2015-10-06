@@ -92,8 +92,12 @@ static entry_id_t root_id;
 static unsigned int mount_len = 0;
 
 #ifdef _HAVE_FID
+#define DOTLUSTRE   ".lustre"
 #define FIDDIR      "/.lustre/fid/"
 static char *fid_dir;
+static char *dot_lustre_dir;
+static entry_id_t   dot_lustre_fid;
+static entry_id_t   fid_fid;
 #endif
 
 /* used at initialization time, to avoid several modules
@@ -142,28 +146,42 @@ static uint64_t fsidto64(fsid_t fsid)
 /* this set of functions is for retrieving/checking mount point
  * and fs name (once for all threads):
  */
-static void _set_mount_point( char *mntpnt )
+static void _set_mount_point(char *mntpnt)
 {
     char path[RBH_PATH_MAX + 100];
 
     /* cannot change during a run */
     if (mount_len == 0)
     {
-        strcpy(path, mntpnt );
+        strcpy(path, mntpnt);
 
         /* remove final slash, if any */
-        if ( (mount_len > 1) && (path[mount_len-1] == '/') )
+        if ((mount_len > 1) && (path[mount_len-1] == '/'))
         {
             path[mount_len-1] = '\0';
         }
 
-        mount_point = strdup( path );
-        mount_len = strlen( mount_point );
+        mount_point = strdup(path);
+        mount_len = strlen(mount_point);
 
 #ifdef _HAVE_FID
-        /* Now, the .fid directory */
-        strcat(path, FIDDIR);
-        fid_dir = strdup(path);
+        /* build the .lustre directory */
+        if (asprintf(&dot_lustre_dir, "%s/%s", path, DOTLUSTRE) == -1)
+            RBH_BUG("Not enough memory to initialize");
+
+        /* build the .fid directory */
+        if (asprintf(&fid_dir, "%s%s", path, FIDDIR) == -1)
+            RBH_BUG("Not enough memory to initialize");
+
+        /* also get their fid */
+
+        if (path2id(dot_lustre_dir, &dot_lustre_fid, NULL))
+            DisplayLog(LVL_MAJOR, "Error: failed to get FID for special directory <%s>",
+                       dot_lustre_dir);
+
+        if (path2id(fid_dir, &fid_fid, NULL))
+            DisplayLog(LVL_MAJOR, "Error: failed to get FID for special directory <%s>",
+                       fid_dir);
 #endif
     }
 }
@@ -206,7 +224,7 @@ static int set_fs_info(char *name, char *mountp, dev_t dev, fsid_t fsid)
     return rc;
 }
 
-/* retrieve the mount point from any module
+/** retrieve the mount point from any module
  * without final slash.
  */
 const char          *get_mount_point( unsigned int * plen )
@@ -216,10 +234,28 @@ const char          *get_mount_point( unsigned int * plen )
 }
 
 #if _HAVE_FID
-/* Retrieve the .fid directory */
+/** Retrieve the .fid directory */
 const char          *get_fid_dir( void )
 {
     return fid_dir;
+}
+
+/** Retrieve the .lustre directory */
+const char          *get_dot_lustre_dir( void )
+{
+    return dot_lustre_dir;
+}
+
+/** retrieve the fid of "<root>/.lustre" directory */
+const entry_id_t *get_dot_lustre_fid(void)
+{
+    return &dot_lustre_fid;
+}
+
+/** retrieve the fid of "<root>/.lustre/fid" directory */
+const entry_id_t *get_fid_fid(void)
+{
+    return &fid_fid;
 }
 #endif
 

@@ -220,6 +220,26 @@ static bool ignore_entry(char *fullpath, char *name, unsigned int depth, struct 
     unsigned int   i;
     policy_match_t rc = POLICY_NO_MATCH;
 
+#ifdef _HAVE_FID
+    const char *dot_lu = get_dot_lustre_dir();
+
+    if (strncmp(fullpath, dot_lu, strlen(dot_lu) + 1) == 0)
+    {
+        DisplayLog(LVL_DEBUG, FSSCAN_TAG, "Ignoring '%s'", fullpath);
+        return true;
+    }
+
+    /* We are not supposed to scan ".lustre" directory,
+     * but check just in case... */
+    const char *fid_dir = get_fid_dir();
+
+    if (strncmp(fullpath, fid_dir, strlen(fid_dir) + 1) == 0)
+    {
+        DisplayLog(LVL_DEBUG, FSSCAN_TAG, "Ignoring '%s'", fullpath);
+        return true;
+    }
+#endif
+
     /* build temporary attr set for testing ignore condition */
     ATTR_MASK_INIT( &tmpattr );
 
