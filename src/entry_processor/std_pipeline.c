@@ -666,6 +666,54 @@ static void check_fullpath(attr_set_t *attrs, const entry_id_t *id, attr_mask_t 
 #endif
 }
 
+static bool is_lustre_special(const struct entry_proc_op_t *p_op)
+{
+#ifdef _HAVE_FID
+    if (p_op->entry_id_is_set)
+    {
+        /* check if id is the same as '<root>/.lustre' or '<root>/.lustre/fid' */
+        if (entry_id_equal(&p_op->entry_id, get_dot_lustre_fid())
+            || entry_id_equal(&p_op->entry_id, get_fid_fid()))
+        {
+            DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "Ignoring special lustre directory "DFID,
+                       PFID(&p_op->entry_id));
+            return true;
+        }
+    }
+    else /* id is not known, check other criteria (name, path, ...) */
+    {
+        const char       *path;
+        const entry_id_t *root_id;
+
+        root_id = get_root_id();
+
+        /* check if parent_id is root dir and name is '.lustre' */
+        if (root_id != NULL && ATTR_MASK_TEST(&p_op->fs_attrs, parent_id)
+            && ATTR_MASK_TEST(&p_op->fs_attrs, name)
+            && entry_id_equal(root_id, &ATTR(&p_op->fs_attrs, parent_id))
+            && strcmp(ATTR(&p_op->fs_attrs, name), dot_lustre_name) == 0)
+        {
+            DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "Ignoring special lustre directory "DFID"/%s",
+                       PFID(root_id), ATTR(&p_op->fs_attrs, name));
+            return true;
+        }
+
+        path = get_dot_lustre_dir();
+
+        /* check the whole '<mnt_dir>/.lustre' path */
+        if (path != NULL && ATTR_FSorDB_TEST(p_op, fullpath) &&
+            strncmp(ATTR_FSorDB(p_op, fullpath), path, strlen(path) + 1) == 0)
+        {
+            DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "Ignoring special lustre directory <%s>",
+                       ATTR_FSorDB(p_op, fullpath));
+            return true;
+        }
+    }
+#endif
+    return false;
+}
+
+
 /**
  * check if the entry exists in the database and what info
  * must be retrieved.
@@ -687,6 +735,13 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         entry_id_equal(&p_op->entry_id, get_root_id()))
     {
         DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "Ignoring record for root directory");
+        /* drop the entry */
+        next_stage = -1;
+        goto next_step;
+    }
+
+    /* ignore special files */
+    if (is_lustre_special(p_op)) {
         /* drop the entry */
         next_stage = -1;
         goto next_step;
@@ -1366,6 +1421,9 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     }
 
     /** FIXME some special files should be ignored i.e. not inserted in DB. */
+    if (is_lustre_special(p_op))
+        /* drop the entry */
+        return skip_record(p_op);
 
     /* match fileclasses if specified in config */
     /* FIXME: check fileclass update parameters */
