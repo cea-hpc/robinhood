@@ -253,7 +253,9 @@ static int policy_action(policy_info_t *policy,
         /* defaults to default_action from */
         actionp = &policy->config->action;
 
-    DisplayLog(LVL_EVENT, tag(policy),
+    /* log as DEBUG level if 'report_actions' is disabled */
+    DisplayLog(policy->config->report_actions ? LVL_EVENT : LVL_DEBUG,
+               tag(policy),
                "%sExecuting policy action on: " DFID_NOBRACE " (%s)",
                dry_run(policy)?"(dry-run) ":"", PFID(id),
                ATTR(p_attr_set, fullpath));
@@ -2304,13 +2306,14 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
                    strtime, ((time_save > 0) ? " ago" : ""),  strsize,
                    (is_stor ? " stored on " : ""), (is_stor ? strstorage : ""));
 
-        DisplayReport("%s success for '%s', matching rule '%s'%s, %s %s%s | size=%"
-                      PRI_SZ ", %s=%u%s%s",
-                      tag(pol), ATTR(&p_item->entry_attr, fullpath),
-                      rule->rule_id, strfileset, sort_attr_name(pol),
-                      strtime, ((time_save > 0) ? " ago" : ""), ATTR(&attr_sav, size),
-                      sort_attr_name(pol), time_save, (is_stor ? ", stripes=" : ""),
-                      (is_stor ? strstorage : ""));
+        if (pol->config->report_actions)
+            DisplayReport("%s success for '%s', matching rule '%s'%s, %s %s%s | size=%"
+                          PRI_SZ ", %s=%u%s%s",
+                          tag(pol), ATTR(&p_item->entry_attr, fullpath),
+                          rule->rule_id, strfileset, sort_attr_name(pol),
+                          strtime, ((time_save > 0) ? " ago" : ""), ATTR(&attr_sav, size),
+                          sort_attr_name(pol), time_save, (is_stor ? ", stripes=" : ""),
+                          (is_stor ? strstorage : ""));
 
         if (pol->descr->manage_deleted &&
             (after_action == PA_RM_ONE || after_action == PA_RM_ALL))
