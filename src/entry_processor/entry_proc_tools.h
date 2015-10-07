@@ -25,10 +25,6 @@ typedef struct entry_proc_config_t
     unsigned int   max_pending_operations;
     unsigned int   max_batch_size;
 
-    alert_item_t  *alert_list;
-    unsigned int   alert_count;
-    attr_mask_t    alert_attr_mask;
-
     bool           match_classes;
 
     /* fake mtime in the past causes higher

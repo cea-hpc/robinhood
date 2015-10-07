@@ -266,10 +266,6 @@ static void entry_proc_cfg_set_default(void *module_config)
     conf->match_classes = true;
 
     conf->detect_fake_mtime = false;
-
-    conf->alert_list = NULL;
-    conf->alert_count = 0;
-    conf->alert_attr_mask = null_mask;
 }
 
 static void entry_proc_cfg_write_default(FILE *output)
@@ -285,7 +281,6 @@ static void entry_proc_cfg_write_default(FILE *output)
     print_line(output, 1, "max_batch_size         :  1000");
     print_line(output, 1, "match_classes          :  yes");
     print_line(output, 1, "detect_fake_mtime      :  no");
-    print_line(output, 1, "alert                  :  NONE");
     print_end_block(output, 0);
 }
 
@@ -434,7 +429,7 @@ static void set_default_pipeline_config(const pipeline_descr_t *descr,
 
 static int entry_proc_cfg_read(config_file_t config, void *module_config, char *msg_out)
 {
-    int            rc, blc_index, i;
+    int            rc, blc_index;
     entry_proc_config_t *conf = (entry_proc_config_t *)module_config;
     unsigned int next_idx = 0;
     config_item_t entryproc_block;
@@ -443,7 +438,7 @@ static int entry_proc_cfg_read(config_file_t config, void *module_config, char *
     char           *pipeline_names = NULL;
     /* max size is max pipeline steps (<10) + other args (<6) */
 #define MAX_ENTRYPROC_ARGS 16
-    char           *entry_proc_allowed[MAX_ENTRYPROC_ARGS];
+    char           *entry_proc_allowed[MAX_ENTRYPROC_ARGS] = {0};
 
     const cfg_param_t cfg_params[] = {
         {"nb_threads", PT_INT, PFLG_POSITIVE | PFLG_NOT_NULL, &conf->nb_thread, 0},
@@ -494,66 +489,34 @@ static int entry_proc_cfg_read(config_file_t config, void *module_config, char *
 
     /* TODO Check consistency of performance strategy: batching vs. multithread DB operations */
 
-    /* Find and parse "Alert" blocks */
-    for ( blc_index = 0; blc_index < rh_config_GetNbItems( entryproc_block ); blc_index++ )
+    /* Warn about deprecated "Alert" blocks */
+    for (blc_index = 0; blc_index < rh_config_GetNbItems(entryproc_block); blc_index++)
     {
         char          *block_name;
-        config_item_t  curr_item = rh_config_GetItemByIndex( entryproc_block, blc_index );
-        critical_err_check( curr_item, ENTRYPROC_CONFIG_BLOCK );
+        config_item_t  curr_item;
 
-        if ( rh_config_ItemType( curr_item ) != CONFIG_ITEM_BLOCK )
+        curr_item = rh_config_GetItemByIndex(entryproc_block, blc_index);
+        critical_err_check(curr_item, ENTRYPROC_CONFIG_BLOCK);
+
+        if (rh_config_ItemType(curr_item) != CONFIG_ITEM_BLOCK)
             continue;
 
-        block_name = rh_config_GetBlockName( curr_item );
-        critical_err_check( curr_item, ENTRYPROC_CONFIG_BLOCK );
+        block_name = rh_config_GetBlockName(curr_item);
+        critical_err_check(curr_item, ENTRYPROC_CONFIG_BLOCK);
 
-        if ( !strcasecmp( block_name, ALERT_BLOCK ) )
+        if (!strcasecmp(block_name, ALERT_BLOCK))
         {
-            char * alert_title = NULL;
-
-            if ( conf->alert_count == 0 )
-                conf->alert_list = ( alert_item_t * ) malloc( sizeof( alert_item_t ) );
-            else
-                conf->alert_list =
-                    ( alert_item_t * ) realloc( conf->alert_list,
-                                                ( conf->alert_count + 1 )
-                                                * sizeof( alert_item_t ) );
-
-            conf->alert_count++;
-
-            alert_title = rh_config_GetBlockId( curr_item );
-            if ( alert_title != NULL )
-                rh_strncpy(conf->alert_list[conf->alert_count - 1].title,
-                         alert_title, ALERT_TITLE_MAX );
-            else
-                conf->alert_list[conf->alert_count - 1].title[0] = '\0';
-
-            /* analyze boolean expression */
-            rc = GetBoolExpr(curr_item, block_name,
-                             &conf->alert_list[conf->alert_count - 1].boolexpr,
-                             &conf->alert_list[conf->alert_count - 1].attr_mask,
-                             msg_out, NULL);
-
-            if ( rc )
-                return rc;
-
-            conf->alert_attr_mask = attr_mask_or(&conf->alert_attr_mask,
-                                                 &conf->alert_list[conf->alert_count - 1].attr_mask);
+            DisplayLog(LVL_MAJOR, "EntryProc_Config", "WARNING: %s blocks are deprecated. "
+                       "Define an alert check policy instead.", ALERT_BLOCK);
         }
-    }                           /* Loop on subblocks */
+    }
 
-
-    /* prepare the list of allowed variables to display a warning for others */
-    for (i = 0; i < MAX_ENTRYPROC_ARGS; i++)
-        entry_proc_allowed[i] = NULL;
-
-    entry_proc_allowed[0] = "nb_threads";
-    entry_proc_allowed[1] = "max_pending_operations";
-    entry_proc_allowed[2] = "max_batch_size";
-    entry_proc_allowed[3] = "match_classes";
-    entry_proc_allowed[4] = ALERT_BLOCK;
-    entry_proc_allowed[5] = "detect_fake_mtime";
-    next_idx = 6;
+    next_idx = 0;
+    entry_proc_allowed[next_idx++] = "nb_threads";
+    entry_proc_allowed[next_idx++] = "max_pending_operations";
+    entry_proc_allowed[next_idx++] = "max_batch_size";
+    entry_proc_allowed[next_idx++] = "match_classes";
+    entry_proc_allowed[next_idx++] = "detect_fake_mtime";
 
     pipeline_names = malloc(16*256); /* max 16 strings of 256 (oversized) */
     if (!pipeline_names)
@@ -569,63 +532,6 @@ static int entry_proc_cfg_read(config_file_t config, void *module_config, char *
     free(pipeline_names);
 
     return 0;
-}
-
-/** check alert rules and update values */
-static void update_alerts( alert_item_t * old_items, unsigned int old_count,
-                           alert_item_t * new_items, unsigned int new_count,
-                           const char *block_name )
-{
-    unsigned int   i;
-
-    if ( old_count != new_count )
-    {
-        DisplayLog( LVL_MAJOR, "EntryProc_Config",
-                    "Alert rules count changed in block '%s' but cannot be modified dynamically: alert update cancelled",
-                    block_name );
-        return;
-    }
-
-    /* compare alert boolean expression structure */
-    for ( i = 0; i < new_count; i++ )
-    {
-        if ( !attr_mask_equal(&old_items[i].attr_mask, &new_items[i].attr_mask)
-             || compare_boolexpr( &old_items[i].boolexpr, &new_items[i].boolexpr ) )
-        {
-            DisplayLog( LVL_MAJOR, "EntryProc_Config",
-                        "Alert expression #%u changed in block '%s'. Only numerical values can be modified dynamically. Alert update cancelled",
-                        i, block_name );
-            return;
-        }
-    }
-
-    /* if they are all the same, update/check their values */
-
-    for ( i = 0; i < new_count; i++ )
-    {
-        if ( update_boolexpr( &old_items[i].boolexpr, &new_items[i].boolexpr ) )
-        {
-            char           criteriastr[2048];
-            BoolExpr2str( &old_items[i].boolexpr, criteriastr, 2048 );
-            DisplayLog( LVL_EVENT, "EntryProc_Config",
-                        "Alert expression #%u in block '%s' has been updated and is now: %s", i,
-                        block_name, criteriastr );
-        }
-    }
-
-    /* XXX attr_mask is unchanged, since we keep the same expression structures */
-
-}
-
-static void free_alert( alert_item_t * p_items, unsigned int count )
-{
-    unsigned int   i;
-
-    for (i = 0; i < count; i++)
-        FreeBoolExpr(&p_items[i].boolexpr, false);
-
-    if ( ( count > 0 ) && ( p_items != NULL ) )
-        free( p_items );
 }
 
 static int entry_proc_cfg_reload(entry_proc_config_t *conf)
@@ -664,10 +570,6 @@ static int entry_proc_cfg_reload(entry_proc_config_t *conf)
         entry_proc_conf.detect_fake_mtime = conf->detect_fake_mtime;
     }
 
-    /* Check alert rules  */
-    update_alerts(entry_proc_conf.alert_list, entry_proc_conf.alert_count,
-                  conf->alert_list, conf->alert_count, ENTRYPROC_CONFIG_BLOCK);
-
     if (entry_proc_conf.match_classes && (policies.fileset_count == 0))
     {
         DisplayLog(LVL_EVENT, "EntryProc_Config" , "No fileclass defined in configuration, disabling fileclass matching.");
@@ -693,21 +595,6 @@ static void entry_proc_cfg_write_template(FILE *output)
     int            i;
 
     print_begin_block( output, 0, ENTRYPROC_CONFIG_BLOCK, NULL );
-
-    print_line( output, 1, "# Raise alerts for directories with too many entries" );
-    print_begin_block( output, 1, ALERT_BLOCK, "Too_many_entries_in_directory" );
-    print_line( output, 2, "type == directory" );
-    print_line( output, 2, "and" );
-    print_line( output, 2, "dircount > 10000" );
-    print_end_block( output, 1 );
-    fprintf( output, "\n" );
-    print_line( output, 1, "# Raise alerts for large files" );
-    print_begin_block( output, 1, ALERT_BLOCK, "Large_file" );
-    print_line( output, 2, "type == file" );
-    print_line( output, 2, "and" );
-    print_line( output, 2, "size > 100GB" );
-    print_end_block( output, 1 );
-    fprintf( output, "\n" );
 
     print_line( output, 1, "# nbr of worker threads for processing pipeline tasks" );
     print_line( output, 1, "nb_threads = 16 ;" );
@@ -883,15 +770,7 @@ static void *entry_proc_cfg_new(void)
 
 static void entry_proc_cfg_free(void *cfg)
 {
-    if (cfg != NULL)
-    {
-        entry_proc_config_t *conf = (entry_proc_config_t *)cfg;
-
-        if (conf->alert_list != NULL)
-            free_alert(conf->alert_list, conf->alert_count);
-
-        free(cfg);
-    }
+    free(cfg);
 }
 
 /* export config functions */

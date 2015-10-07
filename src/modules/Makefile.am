@@ -7,6 +7,10 @@ librbh_mod_common_la_SOURCES=common.c mod_internal.c mod_internal.h
 librbh_mod_common_la_LDFLAGS=-version-info 0:0:0
 librbh_mod_common_la_LIBADD=-lz
 
+pkglib_LTLIBRARIES+=librbh_mod_alerter.la
+librbh_mod_alerter_la_SOURCES=alerter.c mod_internal.c mod_internal.h
+librbh_mod_alerter_la_LDFLAGS=-version-info 0:0:0
+
 if LUSTRE_HSM
 pkglib_LTLIBRARIES+=librbh_mod_lhsm.la
 librbh_mod_lhsm_la_SOURCES=lhsm.c mod_internal.h

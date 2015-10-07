@@ -39,7 +39,6 @@
 static int  EntryProc_get_fid( struct entry_proc_op_t *, lmgr_t * );
 static int  EntryProc_get_info_db( struct entry_proc_op_t *, lmgr_t * );
 static int  EntryProc_get_info_fs( struct entry_proc_op_t *, lmgr_t * );
-static int  EntryProc_reporting( struct entry_proc_op_t *, lmgr_t * );
 static int  EntryProc_pre_apply(struct entry_proc_op_t *, lmgr_t *);
 static int  EntryProc_db_apply(struct entry_proc_op_t *, lmgr_t *);
 static int  EntryProc_db_batch_apply(struct entry_proc_op_t **, int, lmgr_t *);
@@ -56,7 +55,6 @@ enum {
     STAGE_GET_FID = 0,
     STAGE_GET_INFO_DB,
     STAGE_GET_INFO_FS,
-    STAGE_REPORTING,
     STAGE_PRE_APPLY,
     STAGE_DB_APPLY,
 #ifdef HAVE_CHANGELOGS
@@ -86,8 +84,6 @@ pipeline_stage_t std_pipeline[] = {
      STAGE_FLAG_PARALLEL | STAGE_FLAG_SYNC | STAGE_FLAG_ID_CONSTRAINT, 0},
     {STAGE_GET_INFO_FS, "STAGE_GET_INFO_FS", EntryProc_get_info_fs, NULL, NULL,
      STAGE_FLAG_PARALLEL | STAGE_FLAG_SYNC, 0},
-    {STAGE_REPORTING, "STAGE_REPORTING", EntryProc_reporting, NULL, NULL,
-     STAGE_FLAG_PARALLEL | STAGE_FLAG_ASYNC, 0},
     {STAGE_PRE_APPLY, "STAGE_PRE_APPLY", EntryProc_pre_apply, NULL, NULL,
      STAGE_FLAG_PARALLEL | STAGE_FLAG_SYNC, 0},
     {STAGE_DB_APPLY, "STAGE_DB_APPLY", EntryProc_db_apply,
@@ -799,8 +795,6 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             tmp = attr_mask_and_not(&policies.global_fileset_mask, &p_op->fs_attrs.attr_mask);
             p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
         }
-        tmp = attr_mask_and_not(&entry_proc_conf.alert_attr_mask, &p_op->fs_attrs.attr_mask);
-        p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
 
         /* check if entry is in policies scope */
         add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true, &status_scope);
@@ -915,9 +909,6 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
         /* what must be retrieved from DB: */
         tmp = attr_mask_and_not(&attr_allow_cached, &p_op->fs_attrs.attr_mask);
-        p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
-
-        tmp = attr_mask_and_not(&entry_proc_conf.alert_attr_mask, &p_op->fs_attrs.attr_mask);
         p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
 
         /* no dircount for non-dirs */
@@ -1382,90 +1373,10 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         match_classes(&p_op->entry_id, &p_op->fs_attrs, &p_op->db_attrs);
 
     /* go to next step */
-    rc = EntryProcessor_Acknowledge(p_op, STAGE_REPORTING, false);
+    rc = EntryProcessor_Acknowledge(p_op, STAGE_PRE_APPLY, false);
     if (rc)
         DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.", rc);
     return rc;
-}
-
-
-int EntryProc_reporting( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
-{
-    int            rc, i;
-    const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
-    bool           is_alert = false;
-    char           stralert[2*RBH_PATH_MAX];
-    char           strvalues[2*RBH_PATH_MAX];
-    char           strid[RBH_PATH_MAX];
-    char         * title = NULL;
-
-    /* tmp copy to be merged */
-    attr_set_t  merged_attrs = p_op->fs_attrs;
-    ListMgr_MergeAttrSets(&merged_attrs, &p_op->db_attrs, false);
-
-    /* generate missing fields */
-    ListMgr_GenerateFields(&merged_attrs, entry_proc_conf.alert_attr_mask);
-
-    /* check alert criterias (synchronously) */
-    for ( i = 0; i < entry_proc_conf.alert_count; i++ )
-    {
-        attr_mask_t tmp =  attr_mask_and(&merged_attrs.attr_mask,
-                                  &entry_proc_conf.alert_list[i].attr_mask);
-
-        /* check entry attr mask (else, skip it) */
-        if (attr_mask_is_null(merged_attrs.attr_mask) || !p_op->entry_id_is_set
-             || !attr_mask_equal(&tmp, &entry_proc_conf.alert_list[i].attr_mask))
-            continue;
-
-        if (entry_matches(&p_op->entry_id, &merged_attrs,
-                          &entry_proc_conf.alert_list[i].boolexpr, NULL, NULL)
-            == POLICY_MATCH)
-        {
-            /* build alert string and break */
-            if ( ATTR_MASK_TEST( &merged_attrs, fullpath ) )
-                snprintf( strid, RBH_PATH_MAX, "%s", ATTR(&merged_attrs, fullpath ) );
-            else
-                snprintf( strid, RBH_PATH_MAX, DFID, PFID(&p_op->entry_id));
-
-            rc = BoolExpr2str( &entry_proc_conf.alert_list[i].boolexpr, stralert, 2*RBH_PATH_MAX );
-            if ( rc < 0 )
-                strcpy( stralert, "Error building alert string" );
-
-            PrintAttrs( strvalues, 2*RBH_PATH_MAX, &merged_attrs,
-                        entry_proc_conf.alert_list[i].attr_mask, 0 );
-
-            if ( EMPTY_STRING(entry_proc_conf.alert_list[i].title) )
-                title = NULL;
-            else
-                title = entry_proc_conf.alert_list[i].title;
-
-            is_alert = true;
-            break;
-        }
-    }
-
-    /* acknowledge now if the stage is asynchronous */
-    if (stage_info->stage_flags & STAGE_FLAG_ASYNC)
-    {
-        rc = EntryProcessor_Acknowledge(p_op, STAGE_PRE_APPLY, false);
-        if (rc)
-            DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error acknowledging stage %s",
-                       stage_info->stage_name);
-    }
-
-    if (is_alert)
-        RaiseEntryAlert(title, stralert, strid, strvalues);
-
-    /* acknowledge now if the stage was synchronous */
-    if (!(stage_info->stage_flags & STAGE_FLAG_ASYNC))
-    {
-        rc = EntryProcessor_Acknowledge(p_op, STAGE_PRE_APPLY, false);
-        if (rc)
-            DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error acknowledging stage %s",
-                       stage_info->stage_name);
-    }
-
-    return 0;
 }
 
 static bool dbop_is_batchable(struct entry_proc_op_t *first,
