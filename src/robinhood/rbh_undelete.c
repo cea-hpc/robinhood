@@ -77,7 +77,7 @@ char path_filter[RBH_PATH_MAX] = "";
 #define U_ "[0m"
 
 static const char *help_string =
-    _B "Usage:" B_ " %s [options] <path|fid>\n"
+    _B "Usage:" B_ " %s [options] [<path>|<fid>]\n"
     "\n"
     _B "Actions:" B_ "\n"
     "    " _B "--list" B_ ", " _B "-L" B_ "\n"
@@ -257,7 +257,7 @@ static int list_rm(void)
     int list_cnt = sizeof(list)/sizeof(*list);
 
     unsigned long long total_count = 0;
-    lmgr_filter_t  filter;
+    lmgr_filter_t  filter = {0};
 
     print_attr_list(0, list, list_cnt, NULL, false);
 
@@ -278,15 +278,14 @@ static int list_rm(void)
     }
     else /* list of entries */
     {
-        struct lmgr_rm_list_t * rm_list;
-
-        lmgr_simple_filter_init(&filter);
+        struct lmgr_rm_list_t *rm_list;
+        bool filter_init = false;
 
         /* append global filters */
-        mk_path_filter(&filter, true, NULL);
+        mk_path_filter(&filter, false, &filter_init);
 
         /* list all deferred rm */
-        rm_list = ListMgr_RmList(&lmgr, &filter, NULL);
+        rm_list = ListMgr_RmList(&lmgr, filter_init ? &filter : NULL, NULL);
         if (rm_list == NULL)
         {
             DisplayLog(LVL_CRIT, LOGTAG,
@@ -519,12 +518,13 @@ int main(int argc, char **argv)
     }
 
     /* 1 expected argument: path */
-    if (optind != argc - 1)
+    if (optind < argc - 1)
     {
-        fprintf(stderr, "Error: missing mandatory argument on command line: <path|fid>\n");
+        fprintf(stderr, "Error: too many arguments on command line: expected <path|fid>\n");
         exit(1);
     }
-    rh_strncpy(path_filter, argv[optind], RBH_PATH_MAX);
+    else if (optind == argc - 1)
+        rh_strncpy(path_filter, argv[optind], RBH_PATH_MAX);
 
     rc = rbh_init_internals();
     if (rc != 0)
