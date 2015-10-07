@@ -424,23 +424,53 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
                 block_name, name, rh_config_GetItemLine(sub_item));
         return EEXIST;
     }
-    if (rh_config_ItemType(sub_item) != CONFIG_ITEM_BLOCK)
+
+    if (rh_config_ItemType(sub_item) == CONFIG_ITEM_VAR)
     {
-        sprintf(msg_out, "A sub-block is expected for '%s' item in block '%s %s', line %d",
+        char *vname;
+        char *value;
+        int extra_args = 0;
+
+        rc = rh_config_GetKeyValue(sub_item, &vname, &value, &extra_args);
+        if (rc)
+            return EINVAL;
+
+        if (strcasecmp(value, "all") != 0)
+        {
+            sprintf(msg_out, "Sub-block (or 'scope = all') is expected for '%s' item in block '%s %s', line %d",
+                    "scope", block_name, name, rh_config_GetItemLine(sub_item));
+            return EINVAL;
+        }
+
+        if (extra_args)
+        {
+             sprintf(msg_out, "Unexpected argument after 'scope = all' in block '%s %s', line %d",
+                     block_name, name, rh_config_GetItemLine(sub_item));
+             return EINVAL;
+        }
+
+        ConstantBoolExpr(true, &policy->scope);
+        policy->scope_mask = null_mask;
+    }
+    else if (rh_config_ItemType(sub_item) == CONFIG_ITEM_BLOCK)
+    {
+        /* analyze boolean expression */
+        /* pass the status manager instance to interpret status condition
+         * depending on the context */
+        mask = null_mask;
+        rc = GetBoolExpr(sub_item, SCOPE_BLOCK, &policy->scope, &mask,
+                         msg_out, policy->status_mgr);
+        if (rc)
+            return rc;
+
+        policy->scope_mask = mask;
+    }
+    else
+    {
+        sprintf(msg_out, "Sub-block (or 'scope = all') is expected for '%s' item in block '%s %s', line %d",
                 "scope", block_name, name, rh_config_GetItemLine(sub_item));
         return EINVAL;
     }
-
-    /* analyze boolean expression */
-    /* pass the status manager instance to interpret status condition
-     * depending on the context */
-    mask = null_mask;
-    rc = GetBoolExpr(sub_item, SCOPE_BLOCK, &policy->scope, &mask,
-                     msg_out, policy->status_mgr);
-    if (rc)
-        return rc;
-
-    policy->scope_mask = mask;
 
     CheckUnknownParameters(config_blk, block_name, expect);
     return 0;
@@ -1516,7 +1546,7 @@ static int parse_rule_block(config_item_t config_item,
             /* check double condition */
             if (definition_done)
             {
-                sprintf(msg_out, "Double condition in policy %s, line %d.",
+                sprintf(msg_out, "Double condition in policy rule '%s', line %d.",
                          rule_name, rh_config_GetItemLine(sub_item));
                 return EINVAL;
             }
@@ -1645,6 +1675,33 @@ static int parse_rule_block(config_item_t config_item,
                         "specified in a <policy>_action_params block.",
                         rh_config_GetItemLine(sub_item));
                 return EINVAL;
+            }
+            else if (!strcasecmp(subitem_name, "condition"))
+            {
+                if (strcasecmp(value, "true") != 0)
+                {
+                    sprintf(msg_out, "Sub-block (or 'condition = true') is expected for '%s' item in block '%s %s', line %d",
+                            subitem_name, block_name, rule_name, rh_config_GetItemLine(sub_item));
+                    return EINVAL;
+                }
+
+                if (extra_args)
+                {
+                     sprintf(msg_out, "Unexpected argument after 'condition = true' in block '%s %s', line %d",
+                             block_name, rule_name, rh_config_GetItemLine(sub_item));
+                     return EINVAL;
+                }
+
+                /* check double condition */
+                if (definition_done)
+                {
+                    sprintf(msg_out, "Double condition in policy rule '%s', line %d.",
+                            rule_name, rh_config_GetItemLine(sub_item));
+                    return EINVAL;
+                }
+
+                ConstantBoolExpr(true, &rule->condition);
+                definition_done = true;
             }
             else
             {
