@@ -100,7 +100,7 @@ static void DEBUG_LEX( char * format, ... ) { return ; }
 SPACE        [ \t\r\f]
 NL           [\n]
 VAL_CHAR     [^ \t\r\n\f"'#(),;=<>!{}]
-COMMENT	 #.*$
+COMMENT  #.*$
 COMMENT2 \/\/.*$
 /* lettre posant probleme dans une chaine */
 STRING_CHAR       [^\n]
@@ -289,14 +289,14 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
                         return BEGIN_BLOCK;
                  }
 
-<INBLOC>"("	 {
-			DEBUG_LEX("(");
-                        parenthesis++;
-			return BEGIN_PARENTHESIS;
-		 }
+<INBLOC>"(" {
+                    DEBUG_LEX("(");
+                    parenthesis++;
+                    return BEGIN_PARENTHESIS;
+             }
 
 <INBLOC>","     {DEBUG_LEX(",  "); return VALUE_SEPARATOR;}
-<INBLOC>")"     {BEGIN INBLOC;  DEBUG_LEX(")\n");
+<INBLOC>")"    {BEGIN INBLOC;  DEBUG_LEX(")\n");
                 if ( parenthesis <= 0 )
                     {
                        /* error */
@@ -307,8 +307,8 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
                     else
                         parenthesis --;
 
-		return END_PARENTHESIS;
-		}
+                    return END_PARENTHESIS;
+                }
 
 <INBLOC>"not"  { DEBUG_LEX(" NOT "); return NOT; }
 <INBLOC>"and"  { DEBUG_LEX(" AND "); return AND; }
@@ -345,13 +345,13 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
 
                     if ( accolades == 0 )
                     {
-                    	DEBUG_LEX("END_BLOCK\n");
+                        DEBUG_LEX("END_BLOCK\n");
                         BEGIN YY_INIT;
                         return END_BLOCK;
                     }
                     else
                     {
-                    	DEBUG_LEX("END_SUB_BLOCK\n");
+                        DEBUG_LEX("END_SUB_BLOCK\n");
                         BEGIN INBLOC;
                         return END_SUB_BLOCK;
                     }
@@ -384,7 +384,6 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
 <INBLOC>";"     {DEBUG_LEX(" end_AFFECT "); return END_AFFECT; }
 
 
-
 <STRING1>\\     {BEGIN ESC1;}
 <STRING1>"\""   {DEBUG_LEX(">");rh_strncpy(yylval.str_val,YY_PARSED_STRING->str,MAXSTRLEN);BEGIN INBLOC;/* chaine finie */ return NON_IDENTIFIER_VALUE; }
 <STRING1>\n      {snprintf(err_str,ERRLEN,"in \"%s\", line %d: missing closing quote.",current_file->str,yylineno); set_error(err_str);yylineno++;return _ERROR_;}
@@ -397,10 +396,13 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
 <STRING2>\n     {snprintf(err_str,ERRLEN,"in \"%s\", line %d: closing quote missing.",current_file->str,yylineno); set_error(err_str);yylineno++;return _ERROR_;}
 <STRING2>.      {YY_BUFFER_APPEND(yytext);DEBUG_LEX("%c",*yytext);/* caractere de la chaine */}
 
-{COMMENT}  ;/* ignore */
-{COMMENT2} ;/* ignore */
+<INBLOC>{COMMENT}   DEBUG_LEX("comment: \"%s\"\n", yytext);/* ignore */
+<YY_INIT>{COMMENT}  DEBUG_LEX("comment: \"%s\"\n", yytext);/* ignore */
+<INBLOC>{COMMENT2}  DEBUG_LEX("comment: \"%s\"\n", yytext);/* ignore */
+<YY_INIT>{COMMENT2} DEBUG_LEX("comment: \"%s\"\n", yytext);/* ignore */
+
 {SPACE}        ;/* ignore */
-{NL}           yylineno++;/* ignore */
+{NL}          yylineno++;/* ignore */
 
 . { snprintf(err_str,ERRLEN,"in \"%s\", line %d: '%c' unexpected",current_file->str,yylineno,*yytext); set_error(err_str);return _ERROR_;}
 
