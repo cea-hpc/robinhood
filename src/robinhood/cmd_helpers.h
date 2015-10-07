@@ -150,6 +150,10 @@ void display_report(const report_field_descr_t *descr, unsigned int field_count,
                     const profile_field_descr_t *prof_descr, profile_u *p_prof,
                     bool csv, bool header, int rank);
 
+
+/** convert a list of attribute indexes into a attribute mask. */
+attr_mask_t list2mask(unsigned int *attr_list, int attr_count);
+
 static inline const char *class_format(const char *class_name)
 {
     if (class_name == NULL)
