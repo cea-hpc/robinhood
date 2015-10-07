@@ -308,7 +308,8 @@ static int listmgr_softrm_single(lmgr_t *p_mgr, const entry_id_t *p_id,
     int  rc;
     char err_buf[1024];
     GString *req;
-    attr_mask_t tmp_mask;
+    attr_mask_t   tmp_mask;
+    proc_action_e pa;
 
     if (!ATTR_MASK_TEST(p_old_attrs, rm_time))
     {
@@ -317,6 +318,25 @@ static int listmgr_softrm_single(lmgr_t *p_mgr, const entry_id_t *p_id,
     }
 
     set_fullpath(p_mgr, p_old_attrs);
+
+    /* does the entry matches softrm filters? */
+    pa =  match_all_softrm_filters(p_id, p_old_attrs);
+    switch (pa)
+    {
+        case PROC_ACT_NONE:
+            /* FIXME keep the entry in DB, whereas we are already in the
+             * process of removing it? For now, perform a standard softrm. */
+            break;
+
+        case PROC_ACT_RM_ALL:
+            /* continue without inserting the entry in SOFTRM */
+            return 0;
+
+        case PROC_ACT_SOFTRM_IF_EXISTS:
+        case PROC_ACT_SOFTRM_ALWAYS:
+            /* continue to insert into SOFTRM */
+            break;
+    }
 
     /* if fullpath is set, update it */
     if (ATTR_MASK_TEST(p_old_attrs, fullpath))
