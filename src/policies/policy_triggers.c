@@ -1092,6 +1092,101 @@ static void trig_target_end(target_iterator_t *it)
     return;
 }
 
+static void sprint_ctr(char *str, int size,
+                       const counters_t* ctr, policy_target_t tgt_type)
+{
+    char buff[256];
+
+    if (!counter_is_set(ctr))
+    {
+        strncpy(str, "none", size);
+        return;
+    }
+
+    FormatFileSize(buff, sizeof(buff), ctr->vol);
+
+#ifdef _LUSTRE
+    if (tgt_type == TGT_OST || tgt_type == TGT_POOL)
+    {
+        snprintf(str, size, "%llu entries, total volume %s "
+                "(%llu blocks, %llu in target devices)",
+                ctr->count, buff, ctr->blocks, ctr->targeted);
+    }
+    else
+#endif
+    {
+        snprintf(str, size, "%llu entries, total volume %s "
+                   "(%llu blocks)", ctr->count, buff, ctr->blocks);
+    }
+}
+
+static void print_ctr(int level, const char *tag, const char *header,
+                      const counters_t* ctr, policy_target_t tgt_type)
+{
+    char buff[256];
+
+    if (!counter_is_set(ctr))
+    {
+        DisplayLog(level, tag, "%s: none", header);
+        return;
+    }
+
+    FormatFileSize(buff, sizeof(buff), ctr->vol);
+
+#ifdef _LUSTRE
+    if (tgt_type == TGT_OST || tgt_type == TGT_POOL)
+    {
+        DisplayLog(level, tag, "%s: %llu entries, total volume %s "
+                   "(%llu blocks, %llu in target devices)", header,
+                   ctr->count, buff, ctr->blocks, ctr->targeted);
+    }
+    else
+#endif
+    {
+        DisplayLog(level, tag, "%s: %llu entries, total volume %s "
+                   "(%llu blocks)", header, ctr->count, buff, ctr->blocks);
+    }
+}
+
+static void print_done_vs_target(char *str, int size, const counters_t* done,
+                                 const counters_t* target)
+{
+    int rc = 0;
+    char *curr = str;
+
+    str[0] = '\0';
+
+    if (target->count != 0 && done->count < target->count)
+    {
+        rc = snprintf(curr, size, "%Lu entries/%Lu targeted", done->count,
+                      target->count);
+        size -= rc;
+        curr += rc;
+    }
+
+    if (target->vol != 0 && done->vol < target->vol)
+    {
+        rc = snprintf(curr, size, "%s%Lu bytes/%Lu targeted",
+                      (curr == str)?"":", ", done->vol,  target->vol);
+        size -= rc;
+        curr += rc;
+    }
+
+    if (target->blocks != 0 && done->blocks < target->blocks)
+    {
+        rc = snprintf(curr, size, "%s%Lu blocks/%Lu targeted",
+                      (curr == str)?"":", ", done->blocks,  target->blocks);
+        size -= rc;
+        curr += rc;
+    }
+
+    if (target->targeted != 0 && done->targeted < target->targeted)
+    {
+        snprintf(curr, size, "%s%Lu blocks in target device/%Lu targeted",
+                (curr == str)?"":", ", done->blocks,  target->blocks);
+    }
+}
+
 /** \param trigger_index -1 if this is a manual run */
 static void report_policy_run(policy_info_t *pol, policy_param_t *param,
                               action_summary_t *summary, lmgr_t *lmgr,
@@ -1103,11 +1198,15 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
     char bw_buff[128];
     unsigned int spent;
 
+    print_ctr(LVL_DEBUG, tag(pol), "target", &param->target_ctr, param->target);
+    print_ctr(LVL_DEBUG, tag(pol), "done", &summary->action_ctr, param->target);
+
     if (trigger_index != -1)
     {
         /* save the summary to trigger_info */
         pol->trigger_info[trigger_index].last_ctr = summary->action_ctr;
-        counters_add(&pol->trigger_info[trigger_index].total_ctr, &summary->action_ctr);
+        counters_add(&pol->trigger_info[trigger_index].total_ctr,
+                     &summary->action_ctr);
     }
 
     spent = time(NULL) - summary->policy_start;
@@ -1125,8 +1224,6 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
 
     if (policy_rc == 0)
     {
-        update_trigger_status(pol, trigger_index, TRIG_OK);
-
         DisplayLog(LVL_MAJOR, tag(pol),
                    "Policy run summary: time=%s; target=%s; %llu successful actions (%.2f/sec); "
                    "volume: %s (%s/sec); %u entries skipped; %u errors.",
@@ -1134,6 +1231,54 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
                    summary->action_ctr.count,
                    (float)summary->action_ctr.count/(float)spent,
                    vol_buff, bw_buff, summary->skipped, summary->errors);
+
+        if (counter_not_reached(&summary->action_ctr, &param->target_ctr))
+        {
+            trigger_item_t  *trig = NULL;
+
+            print_done_vs_target(buff, sizeof(buff), &summary->action_ctr, &param->target_ctr);
+
+            if (trigger_index != -1)
+            {
+                trig = &pol->config->trigger_list[trigger_index];
+
+                DisplayLog(LVL_CRIT, tag(pol),
+                           "Warning: could not reach the specified policy target for trigger #%u (%s): %s",
+                           trigger_index, trigger2str(trig), buff);
+
+                if (trig->alert_lw)
+                {
+                    char title[1024];
+                    char ctr1[1024];
+                    char ctr2[1024];
+
+                    snprintf(title, sizeof(title), "%s on %s: could not reach policy target",
+                             tag(pol), global_config.fs_path);
+
+                    sprint_ctr(ctr1, sizeof(ctr1), &summary->action_ctr,
+                               param->target);
+                    sprint_ctr(ctr2, sizeof(ctr2), &param->target_ctr,
+                               param->target);
+
+                    RaiseAlert(title, "Could not reach the specified target "
+                               "for policy '%s', trigger #%u (%s)\n"
+                               "%s\nTargeted: %s\nDone: %s", tag(pol),
+                               trigger_index, trigger2str(trig),
+                               buff, ctr2, ctr1);
+                }
+            }
+            else
+            {
+                DisplayLog(LVL_CRIT, tag(pol), "Warning: could not reach the specified policy target: %s",
+                           buff);
+            }
+
+            update_trigger_status(pol, trigger_index, TRIG_NOT_ENOUGH);
+        }
+        else
+            update_trigger_status(pol, trigger_index, TRIG_OK);
+
+
 
         //snprintf(status_str, 1024, "Success (%llu entries, %llu blocks released)",
         //         nbr_purged, blocks_purged);
@@ -1741,34 +1886,6 @@ int policy_module_wait(policy_info_t *policy)
             rh_sleep(1);
     }
     return rc;
-}
-
-static void print_ctr(int level, const char *tag, const char *header,
-                      const counters_t* ctr, policy_target_t tgt_type)
-{
-    char buff[256];
-
-    if (!counter_is_set(ctr))
-    {
-        DisplayLog(level, tag, "%s: none", header);
-        return;
-    }
-
-    FormatFileSize(buff, sizeof(buff), ctr->vol);
-
-#ifdef _LUSTRE
-    if (tgt_type == TGT_OST || tgt_type == TGT_POOL)
-    {
-        DisplayLog(level, tag, "%s: %llu entries, total volume %s "
-                   "(%llu blocks, %llu in target devices)", header,
-                   ctr->count, buff, ctr->blocks, ctr->targeted);
-    }
-    else
-#endif
-    {
-        DisplayLog(level, tag, "%s: %llu entries, total volume %s "
-                   "(%llu blocks)", header, ctr->count, buff, ctr->blocks);
-    }
 }
 
 void policy_module_dump_stats(policy_info_t *policy)

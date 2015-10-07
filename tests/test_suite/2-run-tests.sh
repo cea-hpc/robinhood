@@ -6109,11 +6109,15 @@ function test_logs
         extra_action=""
     fi
 
-	# run a scan
+	# run a scan + alert check
 	if (( $stdio )); then
-		$RH -f ./cfg/$config_file --scan $extra_action -l DEBUG --once >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error "scan error"
+		$RH -f ./cfg/$config_file --scan $extra_action --run=alert -I -l DEBUG --once >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error "scan error"
 	else
-		$RH -f ./cfg/$config_file --scan -l DEBUG --once || error "scan error"
+        # detach and wait, else it will log to stderr by default
+		$RH -f ./cfg/$config_file --scan --run=alert -I -l DEBUG --once -d -p pidfile|| error "scan error"
+        sleep 2
+        [ -f pidfile ] && wait $(cat pidfile)
+        ps -edf | grep $RH | grep -v grep 
 	fi
 
 	if (( $files )); then
@@ -6160,7 +6164,7 @@ function test_logs
 	fi
 
 	# check if there is something written in the log
-	if (( `wc -l $log | awk '{print $1}'` > 0 )); then
+	if [[ -s $log ]]; then
 		echo "OK: log file is not empty"
 	else
 		error ": empty log file"
@@ -6172,10 +6176,10 @@ function test_logs
 		(($sum==1)) || (error ": no summary found" ; cat $alert)
 		# check alerts about file.1 and file.2
 		# search for line ' * 1 alert_file1', ' * 1 alert_file2'
-		a1=`egrep -e "[0-9]* alert_file1" $alert | sed -e 's/.* \([0-9]*\) alert_file1/\1/' | xargs`
-		a2=`egrep -e "[0-9]* alert_file2" $alert | sed -e 's/.* \([0-9]*\) alert_file2/\1/' | xargs`
-		e1=`grep ${ROOT}'/file\.1' $alert | wc -l`
-		e2=`grep ${ROOT}'/file\.2' $alert | wc -l`
+		a1=`egrep -e "[0-9]* entry matches 'file1'" $alert | sed -e 's/.* \([0-9]*\) entry.*/\1/' | xargs`
+		a2=`egrep -e "[0-9]* entry matches 'file2'" $alert | sed -e 's/.* \([0-9]*\) entry.*/\1/' | xargs`
+		e1=`grep ${RH_ROOT}'/file\.1' $alert | wc -l`
+		e2=`grep ${RH_ROOT}'/file\.2' $alert | wc -l`
 		# search for alert count: "2 alerts:"
 		if (($syslog)); then
 			all=`egrep -e "\| [0-9]* alerts:" $alert | sed -e 's/.*| \([0-9]*\) alerts:/\1/' | xargs`
@@ -6190,10 +6194,10 @@ function test_logs
 		fi
 	else
 		# check alerts about file.1 and file.2
-		a1=`grep alert_file1 $alert | wc -l`
-		a2=`grep alert_file2 $alert | wc -l`
-		e1=`grep 'Entry: '${ROOT}'/file\.1' $alert | wc -l`
-		e2=`grep 'Entry: '${ROOT}'/file\.2' $alert | wc -l`
+		a1=`grep file1 $alert | wc -l`
+		a2=`grep file2 $alert | wc -l`
+		e1=`grep 'Entry: '${RH_ROOT}'/file\.1' $alert | wc -l`
+		e2=`grep 'Entry: '${RH_ROOT}'/file\.2' $alert | wc -l`
 		all=`grep "Robinhood alert" $alert | wc -l`
 		if (( $a1 == 1 && $a2 == 1 && $e1 == 1 && $e2 == 1 && $all == 2)); then
 			echo "OK: 2 alerts"
@@ -6222,10 +6226,13 @@ function test_logs
 		rm -f $log $report $alert
 
 		if (( $stdio )); then
-			$RH -f ./cfg/$config_file $PURGE_OPT -l DEBUG --dry-run >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error ""
+			$RH -f ./cfg/$config_file $PURGE_OPT -l DEBUG --once --dry-run >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error "run failed"
 		else
-			$RH -f ./cfg/$config_file $PURGE_OPT -l DEBUG --dry-run || error ""
-		fi
+			$RH -f ./cfg/$config_file $PURGE_OPT -l DEBUG --once --dry-run -d -p pidfile || error "run failed"
+            sleep 2
+            [ -f pidfile ] && wait $(cat pidfile)
+            ps -edf | grep $RH | grep -v grep 
+        fi
 
 		# extract new syslog messages
 		if (( $syslog )); then
@@ -6254,18 +6261,19 @@ function test_logs
 		fi
 
 		# check that there is something written in the log
-		if (( `wc -l $log | awk '{print $1}'` > 0 )); then
+	    if [[ -s $log ]]; then
 			echo "OK: log file is not empty"
 		else
 			error ": empty log file"
 		fi
 
-		# check alerts (should be impossible to purge at 0%)
-		grep "Could not purge" $alert > /dev/null
+        egrep "summary|Warning" $log
+    
+		grep "could not reach the specified" $log > /dev/null
 		if (($?)); then
-			error ": alert should have been raised for impossible purge"
+			error ": a warning should have been issued for impossible purge"
 		else
-			echo "OK: alert raised"
+			echo "OK: warning issued"
 		fi
 
 		# all files must have been purged
@@ -6285,7 +6293,7 @@ function test_logs
 	fi
 
 	# start a FS scanner with FS_Scan period = 100
-	$RH -f ./cfg/$config_file --scan -l DEBUG &
+	$RH -f ./cfg/$config_file --scan -l DEBUG -d -p pidfile
 
 	# rotate the logs
 	for l in /tmp/test_log.1 /tmp/test_report.1 /tmp/test_alert.1; do
@@ -6295,7 +6303,7 @@ function test_logs
 	sleep $sleep_time
 
 	# check that there is something written in the log
-	if (( `wc -l /tmp/test_log.1 | awk '{print $1}'` > 0 )); then
+    if [[ -s $log ]]; then
 		echo "OK: log file is not empty"
 	else
 		error ": empty log file"
@@ -6304,8 +6312,8 @@ function test_logs
 	# check alerts about file.1 and file.2
 	a1=`grep alert_file1 /tmp/test_alert.1 | wc -l`
 	a2=`grep alert_file2 /tmp/test_alert.1 | wc -l`
-	e1=`grep 'Entry: '${ROOT}'/file\.1' /tmp/test_alert.1 | wc -l`
-	e2=`grep 'Entry: '${ROOT}'/file\.2' /tmp/test_alert.1 | wc -l`
+	e1=`grep 'Entry: '${RH_ROOT}'/file\.1' /tmp/test_alert.1 | wc -l`
+	e2=`grep 'Entry: '${RH_ROOT}'/file\.2' /tmp/test_alert.1 | wc -l`
 	all=`grep "Robinhood alert" /tmp/test_alert.1 | wc -l`
 	if (( $a1 > 0 && $a2 > 0 && $e1 > 0 && $e2 > 0 && $all >= 2)); then
 		echo "OK: $all alerts"
@@ -6322,8 +6330,8 @@ function test_logs
 		cat /tmp/test_report.1
         fi
 
-	pkill -9 $PROC
-	rm -f /tmp/test_log.1 /tmp/test_report.1 /tmp/test_alert.1
+	[ -f pidfile ] && kill -9 $(cat pidfile)
+	rm -f /tmp/test_log.1 /tmp/test_report.1 /tmp/test_alert.1 pidfile
 	rm -f /tmp/test_log.1.old /tmp/test_report.1.old /tmp/test_alert.1.old
 }
 
