@@ -54,7 +54,6 @@ Group: Applications/System
 Url: http://robinhood.sourceforge.net
 Source0: @PACKAGE@-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
-Group: Applications/System
 BuildRequires: glib2-devel >= 2.16
 BuildRequires: libattr-devel
 BuildRequires: mailx
