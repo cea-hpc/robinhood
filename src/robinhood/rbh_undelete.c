@@ -43,6 +43,9 @@ static struct option option_tab[] =
     {"list", no_argument, NULL, 'L'},
     {"restore", no_argument, NULL, 'R'},
 
+    {"statusmgr", required_argument, NULL, 's'},
+    {"status-mgr", required_argument, NULL, 's'},
+
     /* config file options */
     {"config-file", required_argument, NULL, 'f'},
 
@@ -57,12 +60,13 @@ static struct option option_tab[] =
 
 };
 
-#define SHORT_OPT_STRING    "LRf:l:hV"
+#define SHORT_OPT_STRING    "LRs:f:l:hV"
 
 /* global variables */
 
 static lmgr_t  lmgr;
 char path_filter[RBH_PATH_MAX] = "";
+static sm_instance_t *smi = NULL;
 
 /* special character sequences for displaying help */
 
@@ -84,6 +88,9 @@ static const char *help_string =
     "        List removed entries in the given directory.\n"
     "    " _B "--restore" B_ ", " _B "-R" B_ "\n"
     "        Restore removed entries in the given directory.\n"
+    "\n"
+    _B "Behavior options:" B_ "\n"
+    "    " _B "--status-mgr" B_ _U "statusmgr" U_", " _B "-s" B_ _U "statusmgr" U_"\n"
     "\n"
     _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "file" U_ ", " _B "--config-file=" B_ _U "file" U_ "\n"
@@ -210,39 +217,12 @@ static bool is_id_filter(entry_id_t * id)
     return false;
 }
 
-static inline void display_rm_entry(entry_id_t * id, const char *last_known_path,
-#ifdef _HSM_LITE
-                             const char *bkpath,
-#endif
-                             time_t soft_rm_time, time_t expiration_time)
-{
-    char           date_rm[128];
-    char           date_exp[128];
-    struct tm      t;
-
-    strftime(date_rm, 128, "%Y/%m/%d %T", localtime_r(&soft_rm_time, &t));
-    strftime(date_exp, 128, "%Y/%m/%d %T", localtime_r(&expiration_time, &t));
-
-    printf("Fid:               "DFID"\n", PFID(id));
-    if (!EMPTY_STRING(last_known_path))
-        printf("Last known path:   %s\n", last_known_path);
-#ifdef _HSM_LITE
-    if (!EMPTY_STRING(bkpath))
-        printf("Backend path:      %s\n", bkpath);
-#endif
-    printf("Removal time:      %s\n", date_rm);
-    if (expiration_time <= time(NULL))
-        printf("Delayed until:     %s (expired)\n", date_exp);
-    else
-        printf("Delayed until:     %s\n", date_exp);
-}
-
-
 static int list_rm(void)
 {
     int            rc, index;
     entry_id_t     id;
     attr_set_t     attrs = ATTR_SET_INIT;
+    attr_mask_t    mask;
 
     static unsigned int list[] = {
                    ATTR_INDEX_rm_time,
@@ -252,12 +232,17 @@ static int list_rm(void)
                    ATTR_INDEX_gr_name,
                    ATTR_INDEX_size,
                    ATTR_INDEX_last_mod,
-                   ATTR_INDEX_fullpath
+                   0, /* to be set in the code: status index */
+                   ATTR_INDEX_fullpath,
                 };
     int list_cnt = sizeof(list)/sizeof(*list);
 
     unsigned long long total_count = 0;
     lmgr_filter_t  filter = {0};
+
+    list[7] = ATTR_INDEX_FLG_STATUS | smi->smi_index;
+
+    mask = list2mask(list, list_cnt);
 
     print_attr_list(0, list, list_cnt, NULL, false);
 
@@ -295,8 +280,8 @@ static int list_rm(void)
         }
 
         index = 0;
-        /* TODO: get attributes according to softrm masks of the selected
-         * status managers. */
+        attrs.attr_mask = mask;
+
         while ((rc = ListMgr_GetNextRmEntry(rm_list, &id, &attrs))
                == DB_SUCCESS)
         {
@@ -308,6 +293,7 @@ static int list_rm(void)
             /* prepare next call */
             ListMgr_FreeAttrs(&attrs);
             memset(&attrs, 0, sizeof(attrs));
+            attrs.attr_mask = mask;
         }
 
         ListMgr_CloseRmList(rm_list);
@@ -442,7 +428,65 @@ static int undelete(void)
     }
     return 0;
 }
+
+
 #endif
+
+/**
+ * Check if there is a single status manager that supports
+ * undelete, and load it.
+ * \retval EINVAL if more than 1 status managers implement 'undelete'.
+ * \retval 0 if a single status manager was found.
+ * \retval ENOENT if no status manager implements undelete.
+ */
+static int load_single_smi(void)
+{
+    int            i = 0;
+    sm_instance_t *smi_curr;
+
+    /** XXX based on policies or status managers? what about the scope? */
+    while ((smi_curr = get_sm_instance(i)) != NULL)
+    {
+        if (smi_curr->sm->undelete_func != NULL)
+        {
+            if (smi != NULL)
+            {
+                fprintf(stderr, "ERROR: No status manager specified, but several of "
+                        "them implement 'undelete'\n");
+                return EINVAL;
+            }
+            smi = smi_curr;
+        }
+        i++;
+    }
+
+    if (smi == NULL) {
+        fprintf(stderr, "ERROR: No status manager implements 'undelete'");
+        return ENOENT;
+    }
+
+    return 0;
+}
+
+/** load the Status Manager Instance with the given name */
+static int load_smi(const char *sm_name)
+{
+    int rc;
+    const char *dummy;
+
+    rc = check_status_args(sm_name, NULL, &dummy, &smi);
+    if (rc)
+        return rc;
+
+    if (smi->sm->undelete_func == NULL)
+    {
+        fprintf(stderr, "ERROR: the specified status manager '%s' doesn't "
+                "implement 'undelete'\n", sm_name);
+        return EINVAL;
+    }
+
+    return 0;
+}
 
 
 #define MAX_OPT_LEN 1024
@@ -466,6 +510,8 @@ int main(int argc, char **argv)
     bool           chgd = false;
     char    badcfg[RBH_PATH_MAX];
 
+    char sm_name[SM_NAME_MAX+1] = "";
+
     bin = rh_basename(argv[0]); /* supports NULL argument */
 
     /* parse command line options */
@@ -486,6 +532,15 @@ int main(int argc, char **argv)
                                  "on command line. '--list' will be ignored.\n");
             action = ACTION_RESTORE;
             break;
+
+        case 's':
+            if (!EMPTY_STRING(sm_name))
+                fprintf(stderr, "WARNING: only a single status manager is expected "
+                                 "on command line. '%s' ignored.\n", optarg);
+            else
+                rh_strncpy(sm_name, optarg, sizeof(sm_name));
+            break;
+
         case 'f':
             rh_strncpy(config_file, optarg, MAX_OPT_LEN);
             break;
@@ -577,6 +632,18 @@ int main(int argc, char **argv)
     if (rc)
         exit(rc);
 
+    /* load the status manager */
+    if (!EMPTY_STRING(sm_name)) {
+        rc = load_smi(sm_name);
+        if (rc)
+            exit(rc);
+    } else {
+        /* if there is a single smi that allows undelete, use it */
+        rc = load_single_smi();
+        if (rc)
+            exit (rc);
+    }
+
     /* Initialize list manager */
     rc = ListMgr_Init(false);
     if (rc)
@@ -609,7 +676,7 @@ int main(int argc, char **argv)
     switch(action)
     {
         case ACTION_LIST:
-            rc= list_rm();
+            rc = list_rm();
             break;
         case ACTION_RESTORE:
             //rc = undelete();
