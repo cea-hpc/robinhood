@@ -1090,17 +1090,6 @@ static int mk_global_filters(lmgr_filter_t *filter, bool do_display,
     return 0;
 }
 
-static attr_mask_t list2mask(unsigned int *attr_list, int attr_count)
-{
-    int i;
-    attr_mask_t mask = {0};
-
-    for (i=0; i < attr_count; i++)
-        attr_mask_set_index(&mask, attr_list[i]);
-
-    return mask;
-}
-
 /**
  * Manage fid2path resolution
  */

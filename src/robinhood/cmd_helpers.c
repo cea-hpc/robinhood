@@ -1109,3 +1109,20 @@ int rbh_init_internals(void)
 
     return rc;
 }
+
+/** convert a list of attribute indexes into a attribute mask. */
+attr_mask_t list2mask(unsigned int *attr_list, int attr_count)
+{
+    int i;
+    attr_mask_t mask = {0};
+
+    for (i=0; i < attr_count; i++) {
+        /* skip special values (ID, ...) */
+        if (attr_list[i] & ATTR_INDEX_FLG_UNSPEC)
+            continue;
+        attr_mask_set_index(&mask, attr_list[i]);
+    }
+
+    return mask;
+}
+
