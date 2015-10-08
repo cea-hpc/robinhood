@@ -2310,8 +2310,8 @@ get_id:
         return 0;
 }
 
-/* create parent directory, and return its id (even if it already exists) */
-static inline int create_parent_of(const char * child_path, entry_id_t * p_parent_id)
+/** create parent directory, and return its id (even if it already exists) */
+int create_parent_of(const char * child_path, entry_id_t * p_parent_id)
 {
     char tmp[RBH_PATH_MAX];
     char * destdir;
