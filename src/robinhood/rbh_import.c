@@ -233,7 +233,7 @@ static int import_helper(const char       *backend_path,
             }
         }
 
-        PosixStat2EntryAttr(src_md, &src_attrs, true);
+        stat2rbh_attrs(src_md, &src_attrs, true);
         ListMgr_MergeAttrSets(&attrs, &src_attrs, false);
     }
 

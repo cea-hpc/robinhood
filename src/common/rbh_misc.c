@@ -456,8 +456,8 @@ const char * mode2type(mode_t mode)
         return NULL;
 }
 
-void PosixStat2EntryAttr(struct stat *p_inode, attr_set_t *p_attr_set,
-                         bool size_info)
+void stat2rbh_attrs(const struct stat *p_inode, attr_set_t *p_attr_set,
+                    bool size_info)
 {
     ATTR_MASK_SET( p_attr_set, owner );
     uid2str( p_inode->st_uid, ATTR( p_attr_set, owner ) );
@@ -494,7 +494,7 @@ void PosixStat2EntryAttr(struct stat *p_inode, attr_set_t *p_attr_set,
         ATTR(p_attr_set, creation_time) = p_inode->st_ctime;
     }
 
-    const char * type = mode2type(p_inode->st_mode);
+    const char *type = mode2type(p_inode->st_mode);
     if (type != NULL)
     {
         ATTR_MASK_SET( p_attr_set, type );
@@ -506,6 +506,68 @@ void PosixStat2EntryAttr(struct stat *p_inode, attr_set_t *p_attr_set,
 
     ATTR_MASK_SET( p_attr_set, mode );
     ATTR( p_attr_set, mode ) = p_inode->st_mode & 07777 ; /*  mode + sticky bits */
+}
+
+void rbh_attrs2stat(const attr_set_t *p_attr_set, struct stat *p_inode)
+{
+    char buff[4096];
+
+    if (ATTR_MASK_TEST(p_attr_set, mode))
+        p_inode->st_mode = ATTR(p_attr_set, mode);
+    /* default to 600 for files, 700 for other cases */
+    else if (ATTR_MASK_TEST(p_attr_set, type) &&
+             !strcmp(ATTR(p_attr_set, type), STR_TYPE_FILE))
+        p_inode->st_mode = 0600;
+    else
+        p_inode->st_mode = 0700;
+
+    if (ATTR_MASK_TEST(p_attr_set, nlink))
+        p_inode->st_nlink = ATTR(p_attr_set, nlink);
+    else
+        p_inode->st_nlink = 1;
+
+    /* default to 0 (root) */
+    p_inode->st_uid = 0;
+    if (ATTR_MASK_TEST(p_attr_set, owner))
+    {
+        struct passwd pw;
+        struct passwd *p_pw;
+
+        if ((getpwnam_r(ATTR(p_attr_set, owner), &pw, buff, sizeof(buff), &p_pw) != 0)
+            || (p_pw == NULL))
+            DisplayLog(LVL_MAJOR, __func__, "Warning: couldn't resolve uid for user '%s'",
+                        ATTR(p_attr_set, owner));
+        else
+            p_inode->st_uid = p_pw->pw_uid;
+    }
+
+    if (ATTR_MASK_TEST(p_attr_set, gr_name))
+    {
+        struct group gr;
+        struct group *p_gr;
+
+        if ((getgrnam_r(ATTR(p_attr_set, gr_name), &gr, buff, sizeof(buff), &p_gr) != 0)
+            || (p_gr == NULL))
+            DisplayLog(LVL_MAJOR, __func__, "Warning: couldn't resolve gid for group '%s'",
+                       ATTR(p_attr_set, gr_name));
+        else
+            p_inode->st_gid = p_gr->gr_gid;
+    }
+
+    if (ATTR_MASK_TEST(p_attr_set, size))
+        p_inode->st_size = ATTR(p_attr_set, size);
+    else
+        p_inode->st_size = 0;
+
+    if (ATTR_MASK_TEST(p_attr_set, last_access))
+        p_inode->st_atime = ATTR(p_attr_set, last_access);
+    else /* default to current time */
+        p_inode->st_atime = time(NULL);
+
+    if (ATTR_MASK_TEST(p_attr_set, last_mod))
+        p_inode->st_mtime = ATTR(p_attr_set, last_mod);
+    else /* default to current time */
+        p_inode->st_mtime = time(NULL);
 }
 
 #ifndef HAVE_GETMNTENT_R
@@ -2498,7 +2560,7 @@ int create_from_attrs(const attr_set_t * attrs_in,
         return rc;
 
     /* update with the new attributes */
-    PosixStat2EntryAttr(&st_dest, attrs_out, true);
+    stat2rbh_attrs(&st_dest, attrs_out, true);
 
     /* copy missing info: path, name, link, ...*/
     strcpy( ATTR( attrs_out, fullpath ), fspath );

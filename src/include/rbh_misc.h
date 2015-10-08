@@ -123,11 +123,17 @@ void           TestLockFile( time_t * p_last_action );
 
 
 /**
- * Convert a Posix attributes structure (returned by lstat)
- * to an attribute set.
+ * Convert a POSIX attribute structure (returned by lstat)
+ * to a robinhood attribute set.
  * @param size_info indicates if size info is set in the stat structure.
  */
-void PosixStat2EntryAttr(struct stat *p_inode, attr_set_t *p_attr_set, bool size_info);
+void stat2rbh_attrs(const struct stat *p_inode, attr_set_t *p_attr_set,
+                    bool size_info);
+
+/**
+ * Convert a robinhood attribute set to a posix struct stat.
+ */
+void rbh_attrs2stat(const attr_set_t *p_attr_set, struct stat *p_inode);
 
 /* convert file mode to DB type string */
 const char * mode2type(mode_t mode);

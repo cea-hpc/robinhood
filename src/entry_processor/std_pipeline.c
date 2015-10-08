@@ -1288,9 +1288,9 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
         /* convert them to internal structure */
 #if defined( _LUSTRE ) && defined( _HAVE_FID ) && defined( _MDS_STAT_SUPPORT )
-        PosixStat2EntryAttr(&entry_md, &p_op->fs_attrs, !global_config.direct_mds_stat);
+        stat2rbh_attrs(&entry_md, &p_op->fs_attrs, !global_config.direct_mds_stat);
 #else
-        PosixStat2EntryAttr(&entry_md, &p_op->fs_attrs, true);
+        stat2rbh_attrs(&entry_md, &p_op->fs_attrs, true);
 #endif
         ATTR_MASK_SET( &p_op->fs_attrs, md_update );
         ATTR( &p_op->fs_attrs, md_update ) = time( NULL );
