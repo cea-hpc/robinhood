@@ -237,9 +237,6 @@ static int list_rm(void)
                 };
     int list_cnt = sizeof(list)/sizeof(*list);
 
-    unsigned long long total_count = 0;
-    lmgr_filter_t  filter = {0};
-
     list[7] = ATTR_INDEX_FLG_STATUS | smi->smi_index;
 
     mask = list2mask(list, list_cnt);
@@ -254,23 +251,30 @@ static int list_rm(void)
             print_attr_values(0, list, list_cnt, &attrs, &id, false, NULL);
         }
         else if (rc == DB_NOT_EXISTS)
-            fprintf(stderr, DFID": fid not found in deferred removal list\n",
-                    PFID(&id));
+            DisplayLog(LVL_CRIT, LOGTAG,
+                       DFID": fid not found in deferred removal list",
+                       PFID(&id));
         else
-            fprintf(stderr, "ERROR %d in ListMgr_GetRmEntry("DFID")\n",
-                    rc, PFID(&id));
+            DisplayLog(LVL_CRIT, LOGTAG,
+                       "ERROR %d in ListMgr_GetRmEntry("DFID")",
+                       rc, PFID(&id));
         return rc;
     }
     else /* list of entries */
     {
         struct lmgr_rm_list_t *rm_list;
+        lmgr_filter_t  filter = {0};
         bool filter_init = false;
 
-        /* append global filters */
+        /* set filters */
         mk_path_filter(&filter, false, &filter_init);
 
         /* list all deferred rm */
         rm_list = ListMgr_RmList(&lmgr, filter_init ? &filter : NULL, NULL);
+
+        if (filter_init)
+            lmgr_simple_filter_free(&filter);
+
         if (rm_list == NULL)
         {
             DisplayLog(LVL_CRIT, LOGTAG,
@@ -285,7 +289,6 @@ static int list_rm(void)
         while ((rc = ListMgr_GetNextRmEntry(rm_list, &id, &attrs))
                == DB_SUCCESS)
         {
-            total_count++;
             index++;
 
             print_attr_values(0, list, list_cnt, &attrs, &id, false, NULL);
@@ -301,136 +304,159 @@ static int list_rm(void)
     return 0;
 }
 
-#if 0
+static ull_t counters[RS_COUNT] = {0};
+static ull_t db_err = 0;
+
+static const char *st_names[] = {
+    [RS_FILE_OK] = "files",
+    [RS_FILE_DELTA] = "old version",
+    [RS_FILE_EMPTY] = "empty files",
+    [RS_NON_FILE] = "non-files",
+    [RS_NOBACKUP] = "no backup",
+    [RS_ERROR] = "errors"
+};
+
 static void undelete_helper(const entry_id_t *id,
                             const attr_set_t *attrs)
 {
-    entry_id_t new_id;
-    recov_status_t st;
-    attr_set_t     new_attrs;
-    int rc;
+    entry_id_t      new_id = {0};
+    recov_status_t  st;
+    attr_set_t      new_attrs = ATTR_SET_INIT;
+    int             rc;
 
-    /* XXX src path must be in the same filesystem as backend
-     * because it we be renamed */
+    printf("Restoring '%s'...", ATTR(attrs, fullpath));
 
-    if (EMPTY_STRING(last_known_path))
+    st = smi->sm->undelete_func(smi, id, attrs, &new_id, &new_attrs, false);
+
+    counters[st]++;
+
+    switch (st)
     {
-        fprintf(stderr, "Last filesystem path is not known for fid "DFID", backend_path=%s.\n",
-                PFID(id), bkpath);
-        fprintf(stderr, " ----> skipped\n");
-        return;
+        case RS_FILE_OK:
+            printf("\t restore OK (file)\n");
+            break;
+        case RS_FILE_DELTA:
+            printf("\t restored previous version (file)\n");
+            break;
+        case RS_FILE_EMPTY:
+            printf("\t restore OK (empty file)\n");
+            break;
+        case RS_NON_FILE:
+            printf("\t restore OK (%s)\n", ATTR(attrs, type));
+            break;
+        case RS_NOBACKUP:
+            printf("\t cannot restore %s (no backup)\n", ATTR(attrs, type));
+            break;
+        case RS_ERROR:
+            printf("\t ERROR\n");
+            break;
+        default:
+            printf("ERROR: UNEXPECTED STATUS %d\n", st);
     }
+    /* TODO for symlinks and dir, we can implement a common recovery
+     * that consists in setting entry attributes from DB.
+     * FIXME these entries may not be matches by status managers.
+     * XXX Use create_from_attrs() */
 
-    printf("Restoring '%s'...\n", last_known_path);
-
-    ATTR_MASK_INIT(&attrs);
-    ATTR_MASK_SET(&attrs, fullpath);
-    strcpy(ATTR(&attrs, fullpath), last_known_path);
-
-    if (!EMPTY_STRING(bkpath))
-    {
-        ATTR_MASK_SET(&attrs, backendpath);
-        strcpy(ATTR(&attrs, backendpath), bkpath);
-    }
-
-    /* copy file to Lustre */
-    ATTR_MASK_INIT(&new_attrs);
-    st = rbhext_recover(id, &attrs, &new_id, &new_attrs, NULL);
     if ((st == RS_FILE_OK) || (st == RS_FILE_DELTA)|| (st == RS_FILE_EMPTY)
         ||  (st == RS_NON_FILE))
     {
-        printf("Success\n");
         /* discard entry from remove list */
-        if (ListMgr_SoftRemove_Discard(&lmgr, id) != 0)
-            fprintf(stderr, "Error: could not remove previous id "DFID" from database\n", PFID(id));
+        if (ListMgr_SoftRemove_Discard(&lmgr, id) != 0) {
+            db_err ++;
+            fprintf(stderr, "Error: could not remove previous id "DFID
+                    " from database\n", PFID(id));
+        }
+
         /* clean read-only attrs */
-        new_attrs.attr_mask &= ~readonly_attr_set;
+        attr_mask_unset_readonly(&new_attrs.attr_mask);
+
         /* insert or update it in the db */
         rc = ListMgr_Insert(&lmgr, &new_id, &new_attrs, true);
         if (rc == 0)
-            printf("Entry successfully updated in the dabatase\n");
-        else
-            fprintf(stderr, "ERROR %d inserting entry in the database\n", rc);
-    }
-    else
-    {
-        printf("ERROR\n");
+            printf("\tEntry successfully updated in the dabatase\n");
+        else {
+            db_err ++;
+            fprintf(stderr, "\tERROR %d inserting entry in the database\n", rc);
+        }
     }
 }
 
 static int undelete(void)
 {
     int            rc;
-    struct lmgr_rm_list_t * list;
+    struct lmgr_rm_list_t *list;
     entry_id_t     id;
-    char   last_known_path[RBH_PATH_MAX] = "";
-#ifdef _HSM_LITE
-    char   bkpath[RBH_PATH_MAX] = "";
-#endif
-    unsigned long long total_count = 0;
-    lmgr_filter_t  filter;
+    attr_set_t     attrs = ATTR_SET_INIT;
+    attr_mask_t    mask;
+    recov_status_t st;
+
+    /* get all POSIX + status manager mask */
+    mask = smi->sm->softrm_table_mask;
+    mask.std |= POSIX_ATTR_MASK;
+
+    attrs.attr_mask = mask;
 
     if (is_id_filter(&id)) /* 1 single entry */
     {
-         rc = ListMgr_GetRmEntry(&lmgr, &id, last_known_path,
-#ifdef _HSM_LITE
-                            bkpath,
-#endif
-                            NULL, NULL);
+        rc = ListMgr_GetRmEntry(&lmgr, &id, &attrs);
         if (rc == DB_SUCCESS)
         {
-            undelete_helper(&id, last_known_path,
-#ifdef _HSM_LITE
-                            bkpath
-#endif
-                           );
+            undelete_helper(&id, &attrs);
         }
         else if (rc == DB_NOT_EXISTS)
-            fprintf(stderr, DFID": fid not found in deferred removal list\n",
-                    PFID(&id));
+            DisplayLog(LVL_CRIT, LOGTAG,
+                       DFID": fid not found in removed entries",
+                       PFID(&id));
         else
-            fprintf(stderr, "ERROR %d in ListMgr_GetRmEntry("DFID")\n",
-                    rc, PFID(&id));
+            DisplayLog(LVL_CRIT, LOGTAG,
+                       "ERROR %d in ListMgr_GetRmEntry("DFID")",
+                       rc, PFID(&id));
         return rc;
     }
     else /* recover a list of entries */
     {
-        lmgr_simple_filter_init(&filter);
+        lmgr_filter_t  filter = {0};
+        bool filter_init = false;
 
-        /* append global filters */
-        mk_path_filter(&filter, true, NULL);
+        /* set filters */
+        mk_path_filter(&filter, false, &filter_init);
 
         /* list files to be recovered */
-        list = ListMgr_RmList(&lmgr, &filter);
+        list = ListMgr_RmList(&lmgr, filter_init ? &filter : NULL, NULL);
+
+        if (filter_init)
+            lmgr_simple_filter_free(&filter);
 
         if (list == NULL)
         {
             DisplayLog(LVL_CRIT, LOGTAG,
-                        "ERROR: Could not retrieve removed entries from database.");
+                       "ERROR: Could not retrieve removed entries from database.");
             return -1;
         }
 
-        while ((rc = ListMgr_GetNextRmEntry(list, &id, last_known_path,
-    #ifdef _HSM_LITE
-                            bkpath,
-    #endif
-                            NULL, NULL)) == DB_SUCCESS)
+        while ((rc = ListMgr_GetNextRmEntry(list, &id, &attrs)) == DB_SUCCESS)
         {
-            total_count++;
+            undelete_helper(&id, &attrs);
 
-            undo_rm_helper(&id, last_known_path,
-#ifdef _HSM_LITE
-                            bkpath
-#endif
-                           );
+            /* prepare next call */
+            ListMgr_FreeAttrs(&attrs);
+            memset(&attrs, 0, sizeof(attrs));
+            attrs.attr_mask = mask;
         }
         ListMgr_CloseRmList(list);
     }
+
+    /* display summary */
+    printf("\nundelete summary:\n");
+    for (st = RS_FILE_OK; st < RS_COUNT; st++)
+    {
+        printf("\t%9llu %s\n", counters[st], st_names[st]);
+    }
+    printf("\t%9llu DB errors\n", db_err);
+
     return 0;
 }
-
-
-#endif
 
 /**
  * Check if there is a single status manager that supports
@@ -451,8 +477,9 @@ static int load_single_smi(void)
         {
             if (smi != NULL)
             {
-                fprintf(stderr, "ERROR: No status manager specified, but several of "
-                        "them implement 'undelete'\n");
+                DisplayLog(LVL_CRIT, LOGTAG,
+                           "ERROR: no status manager specified, but several of "
+                           "them implement 'undelete'");
                 return EINVAL;
             }
             smi = smi_curr;
@@ -461,7 +488,8 @@ static int load_single_smi(void)
     }
 
     if (smi == NULL) {
-        fprintf(stderr, "ERROR: No status manager implements 'undelete'");
+        DisplayLog(LVL_CRIT, LOGTAG,
+                   "ERROR: no status manager implements 'undelete'");
         return ENOENT;
     }
 
@@ -480,8 +508,9 @@ static int load_smi(const char *sm_name)
 
     if (smi->sm->undelete_func == NULL)
     {
-        fprintf(stderr, "ERROR: the specified status manager '%s' doesn't "
-                "implement 'undelete'\n", sm_name);
+        DisplayLog(LVL_CRIT, LOGTAG,
+                   "ERROR: the specified status manager '%s' doesn't "
+                   "implement 'undelete'", sm_name);
         return EINVAL;
     }
 
@@ -679,7 +708,7 @@ int main(int argc, char **argv)
             rc = list_rm();
             break;
         case ACTION_RESTORE:
-            //rc = undelete();
+            rc = undelete();
             break;
         case ACTION_NONE:
             display_help(bin);

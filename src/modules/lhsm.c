@@ -30,11 +30,22 @@
 #include <stdbool.h>
 #include <glib.h>
 
+/* config block name */
+#define LHSM_BLOCK "lhsm_config"
 /* tag for logs */
 #define LHSM_TAG "lhsm"
 
 #define DEFAULT_ARCHIVE_ID  0
 #define ARCHIVE_PARAM "archive_id"
+
+typedef struct lhsm_config_t
+{
+    char rebind_cmd[RBH_PATH_MAX];
+} lhsm_config_t;
+
+/* lhsm config is global as the status manager is shared */
+static lhsm_config_t config;
+
 
 /** global static list of excluded variables for action parameters serialization. */
 static struct rbh_params *exclude_params = NULL;
@@ -691,6 +702,238 @@ static proc_action_e lhsm_softrm_filter(struct sm_instance *smi, const entry_id_
     return PROC_ACT_SOFTRM_ALWAYS;
 }
 
+/** rebind an entry to a new fid in HSM backend */
+static int lhsm_rebind(const entry_id_t *old_id, const entry_id_t *new_id,
+                       const attr_set_t *new_attrs,
+                       unsigned int archive_id)
+{
+    const char descr[] = "rebind command";
+    char  *cmd = NULL;
+    char tmp[256]; /* max length for fid */
+    action_params_t cmd_params = {0};
+    int rc;
+
+    DisplayLog(LVL_EVENT, LHSM_TAG, "Rebinding "DFID" to "DFID" in archive",
+               PFID(old_id), PFID(new_id));
+
+    /* push archive_id, oldfid, newfid into command params */
+    snprintf(tmp, sizeof(tmp), "%u", archive_id);
+    rbh_param_set(&cmd_params, ARCHIVE_PARAM, tmp, true);
+    snprintf(tmp, sizeof(tmp), DFID_NOBRACE, PFID(old_id));
+    rbh_param_set(&cmd_params, "oldfid", tmp, true);
+    snprintf(tmp, sizeof(tmp), DFID_NOBRACE, PFID(new_id));
+    rbh_param_set(&cmd_params, "newfid", tmp, true);
+
+    cmd = subst_params(config.rebind_cmd, descr, new_id, new_attrs,
+                       &cmd_params, NULL, true, true); /* quote, strict bracing */
+    rbh_params_free(&cmd_params);
+
+    if (!cmd) {
+        DisplayLog(LVL_MAJOR, LHSM_TAG, "Invalid rebind command: %s",
+                   config.rebind_cmd);
+        return -EINVAL;
+    }
+
+    DisplayLog(LVL_EVENT, LHSM_TAG, "Executing rebind command: %s", cmd);
+    rc = execute_shell_command(true, cmd, 0);
+    free(cmd);
+
+    return rc;
+}
+
+/**
+ * Undelete function for Lustre/HSM.
+ * Creates file in 'released' state, using the given attributes.
+ * Then call directly an external command to rebind the old archived
+ * entry with the new fid. As long as lustre can't transmit rebind
+ * commands to copytools, robinhood directly calls a admin-defined
+ * command to do this.
+ */
+static recov_status_t lhsm_undelete(struct sm_instance *smi,
+                                    const entry_id_t *p_old_id,
+                                    const attr_set_t *p_attrs_old_in,
+                                    entry_id_t *p_new_id,
+                                    attr_set_t *p_attrs_new,
+                                    bool already_recovered)
+{
+    struct stat entry_stat = {0};
+    unsigned int *tmp;
+    unsigned int idx;
+    const sm_info_def_t *def;
+    unsigned int archive_id = DEFAULT_ARCHIVE_ID;
+    int rc;
+    const char *path;
+
+    /* Lustre/HSM only archive files */
+    if (ATTR_MASK_TEST(p_attrs_old_in, type) &&
+        strcmp(ATTR(p_attrs_old_in, type), STR_TYPE_FILE) != 0)
+    {
+        return RS_NOBACKUP;
+    }
+
+    /* convert attrs from DB to a struct stat */
+    rbh_attrs2stat(p_attrs_old_in, &entry_stat);
+
+    if (!ATTR_MASK_TEST(p_attrs_old_in, fullpath))
+    {
+        DisplayLog(LVL_MAJOR, LHSM_TAG, "Missing mandatory parameter "
+                   "'fullpath' to import the file.");
+        /** TODO create as <root>/.undelete/old_<fid> */
+        return RS_ERROR;
+    }
+    else
+    {
+        path = ATTR(p_attrs_old_in, fullpath);
+    }
+
+    rc = sm_attr_get(smi, p_attrs_old_in, "lhsm.archive_id", (void **)&tmp,
+                     &def, &idx);
+    if (rc == 0)
+    {
+        /* sanity check of returned type */
+        if (def->db_type != DB_UINT)
+            DisplayLog(LVL_CRIT, LHSM_TAG, "Unexpected type for 'lhsm.archive_id'");
+        else
+            archive_id = *tmp;
+    }
+
+    /* create parent directory if it does not already exist */
+    rc = create_parent_of(path, NULL);
+    if (rc != 0 && rc != -EEXIST) {
+        DisplayLog(LVL_CRIT, LHSM_TAG, "Failed to create parent directory for "
+                   "file '%s': %s", path, strerror(-rc));
+            return RS_ERROR;
+    }
+
+    /* create the file in 'released' state */
+    rc = llapi_hsm_import(path, archive_id, &entry_stat, 0, -1, 0, 0, NULL,
+                          p_new_id);
+    if (rc) {
+        DisplayLog(LVL_CRIT, LHSM_TAG, "Failed to import file '%s': %s", path,
+                   strerror(-rc));
+        return RS_ERROR;
+    }
+
+    /* get the new entry attributes */
+    if (lstat(path, &entry_stat)) {
+        DisplayLog(LVL_CRIT, LHSM_TAG, "Failed to stat imported file '%s': %s",
+                   path, strerror(errno));
+        return RS_ERROR;
+    }
+    stat2rbh_attrs(&entry_stat, p_attrs_new, true);
+
+    /** TODO If another status manager recovered it, just rebind in the backend. */
+
+    rc = lhsm_rebind(p_old_id, p_new_id, p_attrs_new, archive_id);
+    if (rc) {
+        DisplayLog(LVL_CRIT, LHSM_TAG, "Failed to rebind entry in backend: %s",
+                   strerror(abs(rc)));
+        return RS_ERROR;
+    }
+
+    return RS_FILE_OK;
+}
+
+#define DEFAULT_REBIND_CMD "lhsmtool_posix --archive={archive_id} " \
+                                "--rebind {oldfid} {newfid} {fsroot}"
+
+static void lhsm_cfg_set_default(void *module_config)
+{
+    lhsm_config_t *conf = (lhsm_config_t *) module_config;
+
+    rh_strncpy(conf->rebind_cmd, DEFAULT_REBIND_CMD, sizeof(conf->rebind_cmd));
+}
+
+static void lhsm_cfg_write_default(FILE *output)
+{
+    print_begin_block(output, 0, LHSM_BLOCK, NULL);
+    print_line(output, 1, "rebind_cmd: "DEFAULT_REBIND_CMD);
+    print_end_block(output, 0);
+}
+
+static int lhsm_cfg_read(config_file_t config, void *module_config, char *msg_out)
+{
+    int              rc;
+    lhsm_config_t *conf = (lhsm_config_t *) module_config;
+    config_item_t    block;
+
+    const cfg_param_t hsm_params[] = {
+        {"rebind_cmd", PT_STRING, 0, /* can contain wildcards: {fsroot} {oldfid} {newfid}... */
+         conf->rebind_cmd, sizeof(conf->rebind_cmd)},
+        END_OF_PARAMS
+    };
+
+    static const char *allowed_params[] = {
+        "rebind_cmd", NULL
+    };
+
+    /* get Backup block */
+    rc = get_cfg_block(config, LHSM_BLOCK, &block, msg_out);
+    if (rc)
+        return rc == ENOENT ? 0 : rc; /* not mandatory */
+
+    /* read std parameters */
+    rc = read_scalar_params(block, LHSM_BLOCK, hsm_params, msg_out);
+    if (rc)
+        return rc;
+
+    CheckUnknownParameters(block, LHSM_BLOCK, allowed_params);
+
+    return 0;
+}
+
+static void lhsm_cfg_write_template(FILE *output)
+{
+    print_begin_block(output, 0, LHSM_BLOCK, NULL);
+    print_line(output, 1, "# command to rebind an entry in the backend");
+    print_line(output, 1, "rebind_cmd = \"lhsmtool_posix "
+                   "--archive={archive_id} --hsm_root=/tmp/backend "
+                   "--rebind {oldfid} {newfid} {fsroot}\"");
+    print_end_block(output, 0);
+}
+
+static void *lhsm_cfg_new(void)
+{
+    return calloc(1, sizeof(lhsm_config_t));
+}
+
+static void lhsm_cfg_free(void *cfg)
+{
+    if (cfg != NULL)
+        free(cfg);
+}
+
+static int lhsm_cfg_set(void *cfg,  bool reload)
+{
+    lhsm_config_t *new = cfg;
+
+    if (!reload)
+    {
+        config = *new;
+        return 0;
+    }
+
+    if (strcmp(new->rebind_cmd, config.rebind_cmd))
+    {
+        DisplayLog(LVL_MAJOR, LHSM_TAG,
+                   LHSM_BLOCK"::rebind_cmd changed in config file "
+                   "but cannot be changed dynamically");
+    }
+
+    return 0;
+}
+
+static const mod_cfg_funcs_t lhsm_cfg_hdlr = {
+    .module_name = "lhsm",
+    .new = lhsm_cfg_new,
+    .free = lhsm_cfg_free,
+    .set_default = lhsm_cfg_set_default,
+    .read = lhsm_cfg_read,
+    .set_config = lhsm_cfg_set,
+    .write_default = lhsm_cfg_write_default,
+    .write_template = lhsm_cfg_write_template,
+};
+
 /** Status manager for Lustre/HSM */
 status_manager_t lhsm_sm = {
     .name = "lhsm",
@@ -722,15 +965,14 @@ status_manager_t lhsm_sm = {
      * - archive_id: to know what archive the hsm_remove order must be sent to.
      */
     .softrm_table_mask = {.status = SMI_MASK(0), .sm_info = GENERIC_INFO_BIT(ATTR_ARCHIVE_ID)},
-    .undelete_func = NULL, /* FIXME to be implemented */
+    .undelete_func = lhsm_undelete,
 
     /* XXX about full disaster recovery: must recreate all metadata (incl. symlinks => need link field)
      * not only the entries managed by the policy.
      * This was used to be done using the contents of ENTRIES table.
      */
 
-    /* XXX A status manager can load a configuration */
-    /* XXX actions may need the same configuration... */
+    .cfg_funcs = &lhsm_cfg_hdlr,
     .init_func = lhsm_init
 };
 
