@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baada198_7bbb9b72",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 891,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2015-10-08T18:30:31Z",
+      "side": 1,
+      "message": "missing \u0027;\u0027 at end of config line",
+      "range": {
+        "startLine": 891,
+        "startChar": 54,
+        "endLine": 891,
+        "endChar": 60
+      },
+      "revId": "df5968e719b59f683eb9d0e482c81f3d1d43da19",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
