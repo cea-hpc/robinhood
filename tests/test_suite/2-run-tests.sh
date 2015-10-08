@@ -1819,7 +1819,7 @@ function test_undelete
 
 	clean_logs
 
-	if (( $is_hsmlite == 0 )); then
+	if (( $is_hsmlite + $is_lhsm == 0 )); then
 		echo "No undelete for this flavor"
 		set_skipped
 		return 1
@@ -1838,6 +1838,9 @@ function test_undelete
 
 	if (( $is_lhsm != 0 )); then
 		wait_done 60 || error "Copy timeout"
+
+        # archive is asynchronous: read the changelog to get archive completion status
+        $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "Reading changelog"
 	fi
 
     # remove all and read the changelog
@@ -1847,23 +1850,53 @@ function test_undelete
     check_db_error rh_chglogs.log
 
     # list all deleted entries
-	$UNDELETE -f $RBH_CFG_DIR/$config_file -L $RH_ROOT | grep "Last known path" | awk '{print $(NF)}' > rh_report.log
-    (( $(wc -l rh_report.log | awk '{print $1}') == 4 )) || error "invalid file count in undelete list"
+    # details about output format:
+    #   - last field of each line is last entry path in filesystem
+    #   - test suite uses a single status manager at once: '-s' option not needed
+	$UNDELETE -f $RBH_CFG_DIR/$config_file -L | grep 'file' | awk '{print $(NF)}' > rh_report.log
+    c=$(wc -l rh_report.log | awk '{print $1}')
+    (( $c == 4 )) || error "invalid file count in undelete list: $c/4"
     for f in $FILES; do grep $f rh_report.log || error "missing $f in undelete list"; done
+
     # list all deleted entried from dir1
-	$UNDELETE -f $RBH_CFG_DIR/$config_file -L $RH_ROOT/dir1 | grep "Last known path" | awk '{print $(NF)}' > rh_report.log
-    (( $(wc -l rh_report.log | awk '{print $1}') == 2 )) || error "invalid file count in undelete list"
+	$UNDELETE -f $RBH_CFG_DIR/$config_file -L $RH_ROOT/dir1 | grep "file" | awk '{print $(NF)}' > rh_report.log
+    c=$(wc -l rh_report.log | awk '{print $1}')
+    (( $c == 2 )) || error "invalid file count in undelete list: $c/2"
     for f in dir1/file1 dir1/file2; do grep $f rh_report.log || error "missing $f in undelete list"; done
+
     # recover all deleted entries from dir2
 	$UNDELETE -f $RBH_CFG_DIR/$config_file -R $RH_ROOT/dir2 | grep Restoring | cut -d "'" -f 2 > rh_report.log
-    (( $(wc -l rh_report.log | awk '{print $1}') == 2 )) || error "invalid undeleted file count"
-    for f in dir2/file1 dir2/file2; do grep $f rh_report.log || error "missing $f in undelete list"; done
-    [ ! -f $RH_ROOT/dir2/file1 ] && error "Missing $RH_ROOT/dir2/file1 in FS after undelete"
-    [ ! -f $RH_ROOT/dir2/file2 ] && error "Missing $RH_ROOT/dir2/file2 in FS after undelete"
+    c=$(wc -l rh_report.log | awk '{print $1}')
+    (( $c == 2 )) || error "invalid file count in undelete list: $c/2"
+
+    DIR2_LIST="$RH_ROOT/dir2/file1 $RH_ROOT/dir2/file2"
+
+    for f in $DIR2_LIST; do
+        grep $f rh_report.log || error "missing $f in undelete list"
+        [  ! -f $f  ] && error "Missing $f in FS after undelete"
+    done
 
     # check final size
     sz2=$(stat -c '%s' $RH_ROOT/dir2/file1)
     (( $sz1 == $sz2 )) || error "final size $sz2 doesn't match $sz1"
+
+    # Lustre/HSM specific checks
+	if (( $is_lhsm != 0 )); then
+        # files must be imported as 'released'
+        for f in $DIR2_LIST ; do $LFS hsm_state $f | grep released || error "$f should be released"; done
+
+        # check if restore command succeeds
+        for f in $DIR2_LIST ; do $LFS hsm_restore $f || error "hsm_restore"; done
+        wait_done 60 || error "Restore timeout"
+
+        # check final size
+        sz2=$(stat -c '%s' $RH_ROOT/dir2/file1)
+        (( $sz1 == $sz2 )) || error "final size $sz2 doesn't match $sz1"
+
+        # files must be online now
+        for f in $DIR2_LIST ; do $LFS hsm_state $f | grep released && error "$f should be online"; done
+    fi
+
 }
 
 
@@ -4460,17 +4493,11 @@ function partial_paths
             [ "$DEBUG" = "1" ] && cat report.log
             nb=$(cat report.log | grep file3 | wc -l)
             (($nb == 1)) || error "file3 not reported in remove-pending list"
-            f3=$(cut -d "," -f 3 report.log)
+            f3=$(cat report.log | grep file3 | awk '{print $(NF)}')
             [[ $f3 = /* ]] && [[ $f3 != $RH_ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
         fi
 
-        if (( $is_hsmlite > 0 )); then
-            b3=$(cut -d "," -f 6 report.log)
-            echo $b3 | egrep "dir1/dir2|unknown_path" || error "unexpected backend path $b3"
-
-            b3=$($UNDELETE -f $RBH_CFG_DIR/$config_file -L '*/file3' | grep "Backend path" | cut -d ':' -f 2- | tr -d ' ')
-            echo $b3 | egrep "dir1/dir2|unknown_path" || error "unexpected backend path $b3"
-
+        if (( $is_hsmlite + $is_lhsm > 0 )); then
             $UNDELETE -f $RBH_CFG_DIR/$config_file -R '*/file3' -l DEBUG || error "undeleting file3"
             find $RH_ROOT -name "file3" -ls | tee report.log
             (( $(wc -l report.log | awk '{print $1}') == 1 )) || error "file3 not restored"
