@@ -1148,7 +1148,7 @@ static const char *ResolvName(const entry_id_t *p_id, attr_set_t *attrs,
 
         /* we're lucky, try lstat now! */
         if (lstat(ATTR(attrs, fullpath), &st) == 0)
-            PosixStat2EntryAttr(&st, attrs, true);
+            stat2rbh_attrs(&st, attrs, true);
         return ATTR(attrs, fullpath);
     }
     /* if parent id and name are set: try to resolve parent */

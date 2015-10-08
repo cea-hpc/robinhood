@@ -253,9 +253,9 @@ static bool ignore_entry(char *fullpath, char *name, unsigned int depth, struct 
     ATTR( &tmpattr, depth ) = depth;
 
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
-    PosixStat2EntryAttr(p_stat, &tmpattr , !(is_lustre_fs && global_config.direct_mds_stat));
+    stat2rbh_attrs(p_stat, &tmpattr , !(is_lustre_fs && global_config.direct_mds_stat));
 #else
-    PosixStat2EntryAttr(p_stat, &tmpattr , true);
+    stat2rbh_attrs(p_stat, &tmpattr , true);
 #endif
 
     /* Set entry id */
@@ -900,9 +900,9 @@ push:
         if (!no_md)
         {
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
-            PosixStat2EntryAttr( &inode, &op->fs_attrs, !(is_lustre_fs && global_config.direct_mds_stat) );
+            stat2rbh_attrs( &inode, &op->fs_attrs, !(is_lustre_fs && global_config.direct_mds_stat) );
 #else
-            PosixStat2EntryAttr(&inode, &op->fs_attrs, true);
+            stat2rbh_attrs(&inode, &op->fs_attrs, true);
 #endif
             /* set update time  */
             ATTR_MASK_SET( &op->fs_attrs, md_update );
@@ -1316,9 +1316,9 @@ static int process_one_task(robinhood_task_t *p_task,
 
 #ifndef _BENCH_PIPELINE
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
-        PosixStat2EntryAttr(&p_task->dir_md, &op->fs_attrs, !(is_lustre_fs && global_config.direct_mds_stat));
+        stat2rbh_attrs(&p_task->dir_md, &op->fs_attrs, !(is_lustre_fs && global_config.direct_mds_stat));
 #else
-        PosixStat2EntryAttr(&p_task->dir_md, &op->fs_attrs, true);
+        stat2rbh_attrs(&p_task->dir_md, &op->fs_attrs, true);
 #endif
 #endif
 

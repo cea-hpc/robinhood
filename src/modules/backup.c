@@ -1765,7 +1765,7 @@ static int wrap_file_copy(sm_instance_t *smi,
     }
 
     /* update entry attributes */
-    PosixStat2EntryAttr(&info, p_attrs, true);
+    stat2rbh_attrs(&info, p_attrs, true);
     rc = 0;
 
 free_params:
@@ -1927,7 +1927,7 @@ static int backup_rebind(sm_instance_t *smi, const char *fs_path,
 
     /* build attr structure to pass to entry2backend_path() */
     ATTR_MASK_INIT(&attrs_new);
-    PosixStat2EntryAttr(&st, &attrs_new, true);
+    stat2rbh_attrs(&st, &attrs_new, true);
     strcpy(ATTR(&attrs_new, fullpath), fs_path);
     ATTR_MASK_SET(&attrs_new, fullpath);
 
@@ -2142,7 +2142,7 @@ static recov_status_t recov_file(const entry_id_t *p_id,
 
         ATTR_MASK_INIT(&attr_bk);
         /* merge missing posix attrs to p_attrs_old */
-        PosixStat2EntryAttr(bk_stat, &attr_bk, true);
+        stat2rbh_attrs(bk_stat, &attr_bk, true);
         /* leave attrs unchanged if they are already set in p_attrs_old */
         ListMgr_MergeAttrSets(attrs, &attr_bk, false);
     }
@@ -2561,7 +2561,7 @@ static recov_status_t backup_recover(struct sm_instance *smi,
 
     /* set the new attributes */
     ATTR_MASK_INIT(p_attrs_new);
-    PosixStat2EntryAttr(&st_dest, p_attrs_new, true);
+    stat2rbh_attrs(&st_dest, p_attrs_new, true);
     strcpy(ATTR(p_attrs_new, fullpath), fspath);
     ATTR_MASK_SET(p_attrs_new, fullpath);
 

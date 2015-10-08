@@ -161,7 +161,7 @@ static int Recursive_Rmdir_ByPath( lmgr_t * lmgr,
         }
 
         /* set posix attrs in attr struct */
-        PosixStat2EntryAttr(&stat_buf, &attr_set, true);
+        stat2rbh_attrs(&stat_buf, &attr_set, true);
 
         if ( fsdev != stat_buf.st_dev )
         {
@@ -998,7 +998,7 @@ static void   *Thr_Rmdir( void *arg )
             }
 #endif
           /* convert posix attributes to internal structure */
-          PosixStat2EntryAttr(&entry_md, &new_attr_set, true);
+          stat2rbh_attrs(&entry_md, &new_attr_set, true);
 
           /* set update time  */
           ATTR_MASK_SET( &new_attr_set, md_update );

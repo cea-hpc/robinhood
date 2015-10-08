@@ -991,7 +991,7 @@ static int list_bulk(void)
 
     if (lstat(ATTR(&root_attrs, fullpath), &st) == 0)
     {
-        PosixStat2EntryAttr(&st, &root_attrs, true);
+        stat2rbh_attrs(&st, &root_attrs, true);
         ListMgr_GenerateFields(&root_attrs, attr_mask_or(&disp_mask, &query_mask));
     }
     /* root has no name... */
@@ -1133,7 +1133,7 @@ static int list_contents(char ** id_list, int id_count)
 
                 if (lstat(ATTR(&root_attrs, fullpath), &st) == 0)
                 {
-                    PosixStat2EntryAttr(&st, &root_attrs, true);
+                    stat2rbh_attrs(&st, &root_attrs, true);
                     ListMgr_GenerateFields(&root_attrs,
                                          attr_mask_or(&disp_mask, &query_mask));
                 }
@@ -1147,7 +1147,7 @@ static int list_contents(char ** id_list, int id_count)
 
                 if (lstat(ATTR(&root_attrs, fullpath), &st) == 0)
                 {
-                    PosixStat2EntryAttr(&st, &root_attrs, true);
+                    stat2rbh_attrs(&st, &root_attrs, true);
                     ListMgr_GenerateFields(&root_attrs,
                                          attr_mask_or(&disp_mask, &query_mask));
                 }

@@ -1823,7 +1823,7 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
     }
 
     /* convert posix attributes to attr structure */
-    PosixStat2EntryAttr(&entry_md, new_attr_set, true);
+    stat2rbh_attrs(&entry_md, new_attr_set, true);
 
     /* set update time of the stucture */
     ATTR_MASK_SET(new_attr_set, md_update);
@@ -1926,7 +1926,7 @@ if (ATTR_MASK_TEST(&p_item->entry_attr, fullpath))
     }
 
     /* convert posix attributes to attr structure */
-    PosixStat2EntryAttr(&entry_md, new_attr_set, true);
+    stat2rbh_attrs(&entry_md, new_attr_set, true);
 
     /* set update time of the stucture */
     ATTR_MASK_SET(new_attr_set, md_update);
