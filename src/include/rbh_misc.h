@@ -183,11 +183,18 @@ uint64_t       get_fskey( void );
 const entry_id_t *get_root_id(void);
 
 /**
- * extract relative path from full path
+ * extract relative path from full path.
  */
 int relative_path( const char * fullpath, const char * root, char * rel_path );
 
-/* create an object with the given attributes */
+/**
+ * create parent directory, and return its id (even if it already exists).
+ */
+int create_parent_of(const char * child_path, entry_id_t * p_parent_id);
+
+/**
+ * create an object with the given attributes.
+ */
 int create_from_attrs(const attr_set_t * attrs_in,
                       attr_set_t * attrs_out,
                       entry_id_t *new_id, bool overwrite, bool setstripe);
