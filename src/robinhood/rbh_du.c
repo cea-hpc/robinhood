@@ -502,7 +502,7 @@ static int list_all(stats_du_t * stats, bool display_stats)
 
     if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
     {
-        PosixStat2EntryAttr(&st, &root_attrs, true);
+        stat2rbh_attrs(&st, &root_attrs, true);
         ListMgr_GenerateFields(&root_attrs, attr_mask_or(&disp_mask, &query_mask));
     }
 
@@ -620,7 +620,7 @@ static int list_content(char ** id_list, int id_count)
 
                 if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
                 {
-                    PosixStat2EntryAttr(&st, &root_attrs, true);
+                    stat2rbh_attrs(&st, &root_attrs, true);
                     ListMgr_GenerateFields(&root_attrs, attr_mask_or(&disp_mask, &query_mask));
                 }
             }
@@ -633,7 +633,7 @@ static int list_content(char ** id_list, int id_count)
 
                 if (lstat(ATTR(&root_attrs, fullpath ), &st) == 0)
                 {
-                    PosixStat2EntryAttr(&st, &root_attrs, true);
+                    stat2rbh_attrs(&st, &root_attrs, true);
                     ListMgr_GenerateFields(&root_attrs, attr_mask_or(&disp_mask, &query_mask));
                 }
             }
