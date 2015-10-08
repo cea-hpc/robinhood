@@ -1050,7 +1050,7 @@ static int backup_status(struct sm_instance *smi,
         if (rc)
             return rc;
 
-        /* compare symlink content */
+        /* compare symlink contents */
         if ( (rc = readlink(bkpath, lnk1, RBH_PATH_MAX )) < 0 )
         {
             rc = -errno;
@@ -1075,7 +1075,7 @@ static int backup_status(struct sm_instance *smi,
         DisplayLog( LVL_FULL, RBHEXT_TAG, "FS symlink => %s", lnk2 );
         if ( strcmp(lnk1, lnk2) )
         {
-            /* symlink content is different */
+            /* symlink contents is different */
             rc = set_backup_status(smi, p_attrs_changed, STATUS_MODIFIED);
             if (rc)
                 return rc;
@@ -1083,7 +1083,7 @@ static int backup_status(struct sm_instance *smi,
             /* update path in the backend */
             return set_backend_path(smi, p_attrs_changed, bkpath);
         }
-        else /* same content */
+        else /* same contents */
         {
             rc = set_backup_status(smi, p_attrs_changed, STATUS_SYNCHRO);
             if (rc)
@@ -1492,11 +1492,11 @@ static int backup_symlink(sm_instance_t *smi, attr_set_t *p_attrs,
     if (readlink(src, link, RBH_PATH_MAX) < 0)
     {
         rc = -errno;
-        DisplayLog(LVL_MAJOR,  RBHEXT_TAG, "Error reading symlink content (%s): %s",
+        DisplayLog(LVL_MAJOR,  RBHEXT_TAG, "Error reading symlink contents (%s): %s",
                    src, strerror(-rc));
         return rc;
     }
-    /* link content is not supposed to change during its lifetime */
+    /* link contents is not supposed to change during its lifetime */
     if (symlink(link, dst) != 0)
     {
         rc = -errno;
@@ -1510,7 +1510,7 @@ static int backup_symlink(sm_instance_t *smi, attr_set_t *p_attrs,
     set_backend_path(smi, p_attrs, dst);
     set_last_archive(smi, p_attrs, time(NULL));
 
-    /* set symlink owner/group (ignore error, as link content is saved) */
+    /* set symlink owner/group (ignore error, as link contents is saved) */
     if (lstat(src, &info) != 0)
     {
         rc = -errno;
@@ -2058,12 +2058,12 @@ static recov_status_t recov_symlink(const char *backend_path, const char *fspath
         rh_strncpy(link, ATTR(attrs, link), sizeof(link));
     else /* restore from FS */
     {
-        /* read link content from backend */
+        /* read link contents from backend */
         rc = readlink(backend_path, link, sizeof(link));
         if (rc < 0)
         {
             rc = errno;
-            DisplayLog(LVL_MAJOR,  RBHEXT_TAG, "Error reading symlink content (%s): %s",
+            DisplayLog(LVL_MAJOR,  RBHEXT_TAG, "Error reading symlink contents (%s): %s",
                        backend_path, strerror(rc));
             if (rc == ENOENT)
                 return RS_NOBACKUP;
