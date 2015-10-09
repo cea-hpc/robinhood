@@ -75,8 +75,10 @@ if [[ $PURPOSE = "LUSTRE_HSM" ]]; then
 fi
 
 # workaround for statahead issues
-f=`ls /proc/fs/lustre/llite/lustre-*/statahead_max`
-[[ -n "$f" ]] && echo 0 > $f
+list=`ls /proc/fs/lustre/llite/lustre-*/statahead_max`
+for f in $list; do
+    [[ -n "$f" ]] && echo 0 > $f
+done
 
 # create testuser
 getent passwd testuser || useradd testuser || exit 1

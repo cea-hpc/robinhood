@@ -4209,14 +4209,14 @@ function check_fcount
     [[ -z $nbfile ]] && nbfile=0
     [ "$DEBUG" = "1" ] && echo "nb_files=$nbfile"
 
-    [[ $nbfile != $nb ]] && error "Unexpected file count: $nbfile"
+    [[ $nbfile != $nb ]] && error "Unexpected file count: $nbfile/$nb"
 }
 
 function empty_fs
 {
-    	if [[ -n "$RH_ROOT" ]]; then
-	    	 find "$RH_ROOT" -mindepth 1 -delete 2>/dev/null
-    	fi
+    if [[ -n "$RH_ROOT" ]]; then
+        find "$RH_ROOT" -mindepth 1 -delete 2>/dev/null
+    fi
 }
 
 function test_info_collect2
