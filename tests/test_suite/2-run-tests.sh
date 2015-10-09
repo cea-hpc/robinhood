@@ -23,6 +23,7 @@ RBH_OPT=""
 #RBH_BINDIR="/usr/sbin"
 RBH_BINDIR="../../src/robinhood"
 RBH_MODDIR=$(readlink -m "../../src/modules/.libs")
+RBH_CFG_DIR="./cfg"
 
 XML="test_report.xml"
 TMPXML_PREFIX="/tmp/report.xml.$$"
@@ -398,7 +399,7 @@ function migration_test
 	clean_logs
 	if (( $no_log == 0 )); then
 		echo "Initial scan of empty filesystem"
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
 
 	# create and fill 10 files
@@ -411,15 +412,15 @@ function migration_test
 	echo "2-Reading changelogs..."
 	# read changelogs
 	if (( $no_log )); then
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	else
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
     	check_db_error rh_chglogs.log
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log || error ""
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log || error ""
 
 	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
 	if (($nb_migr != 0)); then
@@ -429,7 +430,7 @@ function migration_test
 	fi
 
 	if (( $is_lhsm != 0 )); then
-	    $REPORT -f ./cfg/$config_file --status-info $STATUS_MGR --csv -q --count-min=1 > report.out
+	    $REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR --csv -q --count-min=1 > report.out
         [ "$DEBUG" = "1" ] && cat report.out
         check_status_count report.out archiving 0
         check_status_count report.out archived 0
@@ -439,7 +440,7 @@ function migration_test
 	sleep $sleep_time
 
 	echo "3-Applying migration policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log
 
 	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
 	if (($nb_migr != $expected_migr)); then
@@ -449,16 +450,16 @@ function migration_test
 	fi
 
 	if (( $is_lhsm != 0 )); then
-	    $REPORT -f ./cfg/$config_file --status-info $STATUS_MGR --csv -q --count-min=1 > report.out
+	    $REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR --csv -q --count-min=1 > report.out
         [ "$DEBUG" = "1" ] && cat report.out
         check_status_count report.out archiving $expected_migr
 
 		wait_done 60 || error "Migration timeout"
         # get completion log
-        $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "readlog"
+        $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "readlog"
 
         # should be archived now
-	    $REPORT -f ./cfg/$config_file --status-info $STATUS_MGR --csv -q --count-min=1 > report.out
+	    $REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR --csv -q --count-min=1 > report.out
         [ "$DEBUG" = "1" ] && cat report.out
         check_status_count report.out synchro $expected_migr
     fi
@@ -492,7 +493,7 @@ function migration_test_single
 	count=0
 	echo "2-Trying to migrate files before we know them..."
 	for i in a `seq 1 10`; do
-		$RH -f ./cfg/$config_file --run=migration --target=file:$RH_ROOT/file.$i -L rh_migr.log -l DEBUG 2>/dev/null
+		$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=file:$RH_ROOT/file.$i -L rh_migr.log -l DEBUG 2>/dev/null
 		grep "$RH_ROOT/file.$i" rh_migr.log | grep "not known in database" && count=$(($count+1))
 	done
 
@@ -508,9 +509,9 @@ function migration_test_single
 	echo "3-Reading changelogs..."
 	# read changelogs
 	if (( $no_log )); then
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error ""
 	else
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error ""
 	fi
     	check_db_error rh_chglogs.log
 
@@ -519,7 +520,7 @@ function migration_test_single
 	echo "4-Applying migration policy ($policy_str)..."
 	# files should not be migrated this time: do not match policy
 	for i in a `seq 1 10`; do
-		$RH -f ./cfg/$config_file --run=migration --target=file:$RH_ROOT/file.$i -l DEBUG -L rh_migr.log 2>/dev/null
+		$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=file:$RH_ROOT/file.$i -l DEBUG -L rh_migr.log 2>/dev/null
 		grep "$RH_ROOT/file.$i" rh_migr.log | grep "doesn't match condition for policy rule" && count=$(($count+1))
 	done
 
@@ -543,7 +544,7 @@ function migration_test_single
 	count=0
 	echo "5-Applying migration policy again ($policy_str)..."
 	for i in a `seq 1 10`; do
-		$RH -f ./cfg/$config_file --run=migration --target=file:$RH_ROOT/file.$i -l DEBUG -L rh_migr.log 2>/dev/null
+		$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=file:$RH_ROOT/file.$i -l DEBUG -L rh_migr.log 2>/dev/null
 		grep "$RH_ROOT/file.$i" rh_migr.log | grep "$ARCH_STR" && count=$(($count+1))
 	done
 
@@ -586,16 +587,16 @@ function migrate_symlink
 	echo "2-Reading changelogs..."
 	# read changelogs
 	if (( $no_log )); then
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
 	else
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
 	fi
     	check_db_error rh_chglogs.log
 
 	count=0
 	echo "3-Applying migration policy ($policy_str)..."
 	# files should not be migrated this time: do not match policy
-	$RH -f ./cfg/$config_file  --run=migration --target=file:$RH_ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
+	$RH -f $RBH_CFG_DIR/$config_file  --run=migration --target=file:$RH_ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
 	grep "$RH_ROOT/link.1" rh_migr.log | grep "whitelisted" && count=$(($count+1))
 
 	if (( $count == 1 )); then
@@ -617,7 +618,7 @@ function migrate_symlink
 
 	count=0
 	echo "5-Applying migration policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --run=migration --target=file:$RH_ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=file:$RH_ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
 	grep "$RH_ROOT/link.1" rh_migr.log | grep "successful" && count=$(($count+1))
 
 	if (( $count == 1 )); then
@@ -634,10 +635,10 @@ function migrate_symlink
 	fi
 
 	echo "6-Scanning..."
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
     	check_db_error rh_chglogs.log
 
-	count=`$REPORT -f ./cfg/$config_file --fs-info --csv -q 2>/dev/null | grep synchro | wc -l`
+	count=`$REPORT -f $RBH_CFG_DIR/$config_file --fs-info --csv -q 2>/dev/null | grep synchro | wc -l`
 	if  (($count == 1)); then
 		echo "OK: 1 synchro symlink"
 	else
@@ -646,7 +647,7 @@ function migrate_symlink
 
 	cp /dev/null rh_migr.log
 	echo "7-Applying migration policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --run=migration --target=$RH_ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=$RH_ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
 
 	count=`grep "$RH_ROOT/link.1" rh_migr.log | grep "skipping entry" | wc -l`
 
@@ -668,14 +669,14 @@ function run_rmdirs
     expect_recurs=$4
 
     echo "Applying rmdir_empty policy ($policy_str)..."
-    $RH -f ./cfg/$config_file --run=rmdir_empty --target=all --once -l FULL -L rh_purge.log
+    $RH -f $RBH_CFG_DIR/$config_file --run=rmdir_empty --target=all --once -l FULL -L rh_purge.log
     [ "$DEBUG" = "1" ] && grep "SELECT ENTRIES" rh_purge.log
     grep "Policy run summary" rh_purge.log | grep rmdir_empty
     cnt_empty=$(grep "Policy run summary" rh_purge.log | grep rmdir_empty | cut -d ';' -f 3 | awk '{print $1}')
     :> rh_purge.log
 
     echo "Applying rmdir_recurse policy ($policy_str)..."
-    $RH -f ./cfg/$config_file --run=rmdir_recurse --target=all --once -l FULL -L rh_purge.log
+    $RH -f $RBH_CFG_DIR/$config_file --run=rmdir_recurse --target=all --once -l FULL -L rh_purge.log
     [ "$DEBUG" = "1" ] && grep "SELECT ENTRIES" rh_purge.log
     grep "Policy run summary" rh_purge.log | grep rmdir_recurse
     cnt_recurs=$(grep "Policy run summary" rh_purge.log | grep rmdir_recurse | cut -d ';' -f 3 | awk '{print $1}')
@@ -708,7 +709,7 @@ function test_rmdir
     export MATCH_PATH="$RH_ROOT/$RECURSE.*"
 
     # initial scan
-    $RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log
        check_db_error rh_chglogs.log
 
     echo "Create test directories"
@@ -726,9 +727,9 @@ function test_rmdir
     echo "Reading changelogs..."
     # read changelogs
     if (( $no_log )); then
-        $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+        $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
     else
-        $RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+        $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
     fi
     check_db_error rh_chglogs.log
 
@@ -763,7 +764,7 @@ function test_lru_policy
 
 	clean_logs
 	# initial scan
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log
    	check_db_error rh_chglogs.log
 
 	# create test tree with 10 files
@@ -810,9 +811,9 @@ function test_lru_policy
     # TODO: creation time is different when scanning (ctime at discovery time) and when reading
     # changelogs (changelog timestamp)
 	if (( $no_log )); then
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	else
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
     check_db_error rh_chglogs.log
     # md_update of entries must be > 0 for policy application
@@ -821,7 +822,7 @@ function test_lru_policy
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
 
-	$RH -f ./cfg/$config_file --run=migration --target=all -l FULL -L rh_migr.log   || error ""
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l FULL -L rh_migr.log   || error ""
     [ "$DEBUG" = "1" ] && grep "SELECT ENTRIES" rh_migr.log
 
     # Retrieve the names of migrated files.
@@ -840,7 +841,7 @@ function test_lru_policy
     :> rh_migr.log
 
 	echo "5-Applying migration policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log
     [ "$DEBUG" = "1" ] && grep "SELECT ENTRIES" rh_migr.log
 
     # Retrieve the names of migrated files.
@@ -878,7 +879,7 @@ function test_purge_lru
 	clean_logs
 
     # initial scan
-    $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+    $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 
     # create 6 files
   	for i in {1..6}; do
@@ -894,29 +895,29 @@ function test_purge_lru
 
  	# read changelogs
 	if (( $no_log )); then
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	else
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
 
 	# flush data for HSM flavors
     if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
 		echo "Archiving files"
-		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "archiving files"
+		$RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "archiving files"
 
         if (( $is_lhsm != 0 )); then
     		echo "Waiting for end of data migration..."
     		wait_done 60
 
             # archive is asynchronous: read changelog to get the archive status
-            $RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+            $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
         fi
 	fi
 
     # md_update for purge must be > previous md updates
     sleep 1
 
-    $RH -f ./cfg/$config_file $PURGE_OPT --once -l DEBUG  -L rh_purge.log || error "purging files"
+    $RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT --once -l DEBUG  -L rh_purge.log || error "purging files"
 
     # if sorted: order should be 5 6 1 2 3 4
     exp_rank=(3 4 5 6 1 2)
@@ -975,9 +976,9 @@ function test_suspend_on_error
 
     # read fs content
 	if (( $no_log )); then
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	else
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
     check_db_error rh_chglogs.log
 
@@ -993,7 +994,7 @@ function test_suspend_on_error
         done
     fi
 
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error ""
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error ""
 
     [ "$DEBUG" = "1" ] && grep action_params rh_migr.log
     nb_fail_match=$(count_action_params rh_migr.log arg=fail)
@@ -1024,7 +1025,7 @@ function xattr_test
 	clean_logs
 	if (( $no_log == 0 )); then
 		echo "Initial scan of empty filesystem"
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
 
 	# create and fill 10 files
@@ -1043,16 +1044,16 @@ function xattr_test
 	# read changelogs
 	if (( $no_log )); then
 		echo "2-Scanning..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	else
 		echo "2-Reading changelogs..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
     	check_db_error rh_chglogs.log
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error ""
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error ""
 
 	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
 	if (($nb_migr != 0)); then
@@ -1065,7 +1066,7 @@ function xattr_test
 	sleep $sleep_time
 
 	echo "3-Applying migration policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log
 
 	nb_migr=`grep "$ARCH_STR" rh_migr.log |  wc -l`
 	if (($nb_migr != 3)); then
@@ -1123,7 +1124,7 @@ function link_unlink_remove_test
 
 	echo "1-Start reading changelogs in background..."
 	# read changelogs
-	$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --detach --pid-file=rh.pid || error ""
+	$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --detach --pid-file=rh.pid || error ""
 
 	sleep 1
 
@@ -1141,7 +1142,7 @@ function link_unlink_remove_test
 		echo "3bis-Waiting for end of data migration..."
 		wait_done 60 || error "Migration timeout"
 	elif (( $is_hsmlite != 0 )); then
-		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+		$RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
 	fi
 
 	# create links on file.1 files
@@ -1158,7 +1159,7 @@ function link_unlink_remove_test
 	sleep $cl_delay
 
 	echo "Checking report..."
-	$REPORT -f ./cfg/$config_file --deferred-rm --csv -q > rh_report.log
+	$REPORT -f $RBH_CFG_DIR/$config_file --deferred-rm --csv -q > rh_report.log
 	nb_ent=`wc -l rh_report.log | awk '{print $1}'`
 	if (( $nb_ent != $expected_rm )); then
 		error "Wrong number of deferred rm reported: $nb_ent"
@@ -1167,7 +1168,7 @@ function link_unlink_remove_test
 
 	# deferred remove delay is not reached: nothing should be removed
 	echo "6-Performing HSM remove requests (before delay expiration)..."
-	$RH -f ./cfg/$config_file --run=hsm_remove --target=all --force -l DEBUG -L rh_rm.log  || error "hsm_remove"
+	$RH -f $RBH_CFG_DIR/$config_file --run=hsm_remove --target=all --force -l DEBUG -L rh_rm.log  || error "hsm_remove"
 
 	nb_rm=`grep "$HSMRM_STR" rh_rm.log | wc -l`
 	if (($nb_rm != 0)); then
@@ -1180,7 +1181,7 @@ function link_unlink_remove_test
 	sleep $sleep_time
 
 	echo "8-Performing HSM remove requests (after delay expiration)..."
-	$RH -f ./cfg/$config_file --run=hsm_remove --target=all --force -l DEBUG -L rh_rm.log  || error "hsm_remove"
+	$RH -f $RBH_CFG_DIR/$config_file --run=hsm_remove --target=all --force -l DEBUG -L rh_rm.log  || error "hsm_remove"
 
 	nb_rm=`grep "$HSMRM_STR" rh_rm.log | wc -l`
 	if (($nb_rm != $expected_rm)); then
@@ -1223,7 +1224,7 @@ function test_hsm_remove
     done
 
     # initial scan (files are known as 'new')
-    $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error ""
+    $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log  --once || error ""
     check_db_error rh_scan.log
 
     # create 2 more files that robinhood won't know before their removal
@@ -1243,7 +1244,7 @@ function test_hsm_remove
         wait_done 60 || error "Migration timeout"
     elif (( $is_hsmlite != 0 )); then
         for i in $(seq 1 $expected_rm) a; do
-            $RH -f ./cfg/$config_file --run=migration --target=file:$RH_ROOT/file.$i --ignore-conditions -l DEBUG  -L rh_migr.log || error "migrating $RH_ROOT/file.$i"
+            $RH -f $RBH_CFG_DIR/$config_file --run=migration --target=file:$RH_ROOT/file.$i --ignore-conditions -l DEBUG  -L rh_migr.log || error "migrating $RH_ROOT/file.$i"
         done
     fi
 
@@ -1255,11 +1256,11 @@ function test_hsm_remove
     sleep 1
 
     # robinhood reads the log but entries no longer exist: make sure it takes the right decision in this case
-    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log  --once || error "reading changelogs"
+    $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_chglogs.log  --once || error "reading changelogs"
     check_db_error rh_chglogs.log
 
     echo "Checking report..."
-    $REPORT -f ./cfg/$config_file --deferred-rm --csv -q > rh_report.log
+    $REPORT -f $RBH_CFG_DIR/$config_file --deferred-rm --csv -q > rh_report.log
     nb_ent=`wc -l rh_report.log | awk '{print $1}'`
     if (( $nb_ent != $expected_rm  + 1 )); then
         error "Wrong number of deferred rm reported: $nb_ent"
@@ -1274,7 +1275,7 @@ function test_hsm_remove
 
     # deferred remove delay is not reached: nothing should be removed
     echo "Performing HSM remove requests (before delay expiration)..."
-    $RH -f ./cfg/$config_file --run=hsm_remove --target=all --force -l DEBUG -L rh_rm.log  || error "hsm_remove"
+    $RH -f $RBH_CFG_DIR/$config_file --run=hsm_remove --target=all --force -l DEBUG -L rh_rm.log  || error "hsm_remove"
 
     nb_rm=`grep "$HSMRM_STR" rh_rm.log | wc -l`
     if (($nb_rm != 0)); then
@@ -1287,7 +1288,7 @@ function test_hsm_remove
     sleep $sleep_time
 
     echo "Performing HSM remove requests (after delay expiration)..."
-    $RH -f ./cfg/$config_file --run=hsm_remove --target=all --force -l DEBUG -L rh_rm.log  || error "hsm_remove"
+    $RH -f $RBH_CFG_DIR/$config_file --run=hsm_remove --target=all --force -l DEBUG -L rh_rm.log  || error "hsm_remove"
 
     nb_rm=`grep "$HSMRM_STR" rh_rm.log | wc -l`
     if (($nb_rm != $expected_rm + 1)); then
@@ -1335,7 +1336,7 @@ function test_lhsm_remove
     done
 
     # initial scan (files are known as 'new')
-    $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error ""
+    $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log  --once || error ""
     check_db_error rh_scan.log
 
     # archive then
@@ -1354,7 +1355,7 @@ function test_lhsm_remove
     sleep 1
 
     # robinhood reads the archive_id
-    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log  --once || error "reading changelogs"
+    $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_chglogs.log  --once || error "reading changelogs"
     check_db_error rh_chglogs.log
 
     # now archive and remove the last file
@@ -1369,12 +1370,12 @@ function test_lhsm_remove
     sleep 1
 
     # read unlink records
-    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log  --once || error "reading changelogs"
+    $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_chglogs.log  --once || error "reading changelogs"
     check_db_error rh_chglogs.log
 
 
     echo "Checking report..."
-    $REPORT -f ./cfg/$config_file --deferred-rm --csv -q > rh_report.log
+    $REPORT -f $RBH_CFG_DIR/$config_file --deferred-rm --csv -q > rh_report.log
 
     nb_ent=`wc -l rh_report.log | awk '{print $1}'`
     if (( $nb_ent != $nb_archive + 3 )); then
@@ -1388,7 +1389,7 @@ function test_lhsm_remove
     done
 
     echo "Applying deferred remove operations"
-    $RH -f ./cfg/$config_file --run=hsm_remove --target=all --force-all -l DEBUG -L rh_rm.log  || error "hsm_remove"
+    $RH -f $RBH_CFG_DIR/$config_file --run=hsm_remove --target=all --force-all -l DEBUG -L rh_rm.log  || error "hsm_remove"
 
     for i in $(seq 1 ${#id[@]}); do
         n=${name[$((i-1))]}
@@ -1452,7 +1453,7 @@ function mass_softrm
 	nbsubdirs=$( ls $RH_ROOT/dir.1 | grep subdir | wc -l )
 
 	echo "2-Initial scan..."
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning filesystem"
+	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning filesystem"
     	check_db_error rh_scan.log
 
 	grep "Full scan of" rh_scan.log | tail -1
@@ -1464,22 +1465,22 @@ function mass_softrm
 
 	if (( $is_lhsm != 0 )); then
 		flush_data
-		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "flushing data to backend"
+		$RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "flushing data to backend"
 
 		echo "3bis-Waiting for end of data migration..."
 		wait_done 120 || error "Migration timeout"
 		echo "update db content..."
-		$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "reading chglog"
+		$RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "reading chglog"
 
 	elif (( $is_hsmlite != 0 )); then
-		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "flushing data to backend"
+		$RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "flushing data to backend"
 	fi
 	grep "Migration summary" rh_migr.log
 
 	echo "Checking stats after 1st scan..."
-	$REPORT -f ./cfg/$config_file --status-info $STATUS_MGR --csv -q --count-min=1 | grep -v ' dir,' > fsinfo.1
+	$REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR --csv -q --count-min=1 | grep -v ' dir,' > fsinfo.1
 	cat fsinfo.1
-	$REPORT -f ./cfg/$config_file --deferred-rm --csv -q > deferred.1
+	$REPORT -f $RBH_CFG_DIR/$config_file --deferred-rm --csv -q > deferred.1
 	(( `wc -l fsinfo.1 | awk '{print $1}'` == 1 )) || error "a single file status is expected after data migration"
 	status=`cat fsinfo.1 | cut -d "," -f 2 | tr -d ' '`
 	nb=`cat fsinfo.1 | grep synchro | cut -d "," -f 3 | tr -d ' '`
@@ -1497,15 +1498,15 @@ function mass_softrm
 	sleep 1
 
 	echo "5-Update DB with a new scan..."
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning filesystem"
+	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning filesystem"
     	check_db_error rh_scan.log
 
 	grep "Full scan of" rh_scan.log | tail -1
 
 	echo "Checking stats after 2nd scan..."
-	$REPORT -f ./cfg/$config_file --status-info $STATUS_MGR --csv -q --count-min=1 | grep -v ' dir,' > fsinfo.2
+	$REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR --csv -q --count-min=1 | grep -v ' dir,' > fsinfo.2
 	cat fsinfo.2
-	$REPORT -f ./cfg/$config_file --deferred-rm --csv -q > deferred.2
+	$REPORT -f $RBH_CFG_DIR/$config_file --deferred-rm --csv -q > deferred.2
 	# 100 files were in the removed directory
 	(( `wc -l fsinfo.2 | awk '{print $1}'` == 1 )) || error "a single file status is expected after data migration"
 	status=`cat fsinfo.2 | cut -d "," -f 2 | tr -d ' '`
@@ -1535,7 +1536,7 @@ function purge_test
 	clean_logs
 
 	# initial scan
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log
     	check_db_error rh_chglogs.log
 
 	# fill 10 files and archive them
@@ -1556,10 +1557,10 @@ function purge_test
 	sleep 1
 	if (( $no_log )); then
 		echo "2-Scanning the FS again to update file status (after 1sec)..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	else
 		echo "2-Reading changelogs to update file status (after 1sec)..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 
 		if (($is_lhsm != 0)); then
 			((`grep "archive,rc=0" rh_chglogs.log | wc -l` == 11)) || error "Not enough archive events in changelog!"
@@ -1570,14 +1571,14 @@ function purge_test
 	# use robinhood for flushing
 	if (( $is_hsmlite != 0 )); then
 		echo "2bis-Archiving files"
-		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing migration policy"
+		$RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing migration policy"
 		arch_count=`grep "$ARCH_STR" rh_migr.log | wc -l`
 		(( $arch_count == 11 )) || error "$11 archive commands expected"
 	fi
 
 	echo "3-Applying purge policy ($policy_str)..."
 	# no purge expected here
-	$RH -f ./cfg/$config_file --run=purge --target=all --no-limit -l DEBUG -L rh_purge.log  || error ""
+	$RH -f $RBH_CFG_DIR/$config_file --run=purge --target=all --no-limit -l DEBUG -L rh_purge.log  || error ""
 
         nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
 
@@ -1591,7 +1592,7 @@ function purge_test
 	sleep $sleep_time
 
 	echo "5-Applying purge policy again ($policy_str)..."
-	$RH -f ./cfg/$config_file $PURGE_OPT -l DEBUG -L rh_purge.log --once || error ""
+	$RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT -l DEBUG -L rh_purge.log --once || error ""
 
     nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
 
@@ -1624,7 +1625,7 @@ function test_custom_purge
     touch "$RH_ROOT/foo3' ';' 'exit' '1'" || error "couldn't create file"
 
 	echo "Inital scan..."
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log
 	check_db_error rh_scan.log
 
 	echo "Sleeping $sleep_time seconds..."
@@ -1650,7 +1651,7 @@ function test_custom_purge
     fi
 
 	echo "Applying purge policy ($policy_str)..."
-	$RH -f ./cfg/$config_file $PURGE_OPT -l FULL -L rh_purge.log --once || error "purging files"
+	$RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT -l FULL -L rh_purge.log --once || error "purging files"
 	check_db_error rh_purge.log
 
 	nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
@@ -1740,12 +1741,12 @@ function test_default
     sleep 1
 
 	# initial scan
-    $RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "Initial scan"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "Initial scan"
     check_db_error rh_chglogs.log
 
 	# archive the file (if applicable)
 	if (( $is_hsmlite + $is_lhsm != 0 )); then
-        $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "Migration"
+        $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "Migration"
 
         # check archived files
         # *.B files must be archived. other files should be.
@@ -1766,14 +1767,14 @@ function test_default
 
             # read changelogs to be aware of migration success
             :> rh_chglogs.log
-            $RH -f ./cfg/$config_file --readlog --once  -l DEBUG -L rh_chglogs.log || error "reading changelog"
+            $RH -f $RBH_CFG_DIR/$config_file --readlog --once  -l DEBUG -L rh_chglogs.log || error "reading changelog"
             check_db_error rh_chglogs.log
         fi
 
         # wait for entries to be eligible
         sleep 1
 
-        $RH -f ./cfg/$config_file $PURGE_OPT --once -l DEBUG -L rh_purge.log || error "Purge"
+        $RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT --once -l DEBUG -L rh_purge.log || error "Purge"
 
         # check purged files
         # tmpfs: all Y* files can be purged
@@ -1822,7 +1823,7 @@ function test_undelete
     sz1=$(stat -c '%s' $RH_ROOT/dir2/file1)
 
     # initial scan + archive all
-    $RH -f ./cfg/$config_file --scan --once $SYNC_OPT -l DEBUG -L rh_chglogs.log || error "Initial scan and sync"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once $SYNC_OPT -l DEBUG -L rh_chglogs.log || error "Initial scan and sync"
     check_db_error rh_chglogs.log
 
 	if (( $is_lhsm != 0 )); then
@@ -1832,19 +1833,19 @@ function test_undelete
     # remove all and read the changelog
     rm -rf $RH_ROOT/dir1 $RH_ROOT/dir2
     start=$(date +%s)
-    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "Reading changelog"
+    $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "Reading changelog"
     check_db_error rh_chglogs.log
 
     # list all deleted entries
-	$UNDELETE -f ./cfg/$config_file -L $RH_ROOT | grep "Last known path" | awk '{print $(NF)}' > rh_report.log
+	$UNDELETE -f $RBH_CFG_DIR/$config_file -L $RH_ROOT | grep "Last known path" | awk '{print $(NF)}' > rh_report.log
     (( $(wc -l rh_report.log | awk '{print $1}') == 4 )) || error "invalid file count in undelete list"
     for f in $FILES; do grep $f rh_report.log || error "missing $f in undelete list"; done
     # list all deleted entried from dir1
-	$UNDELETE -f ./cfg/$config_file -L $RH_ROOT/dir1 | grep "Last known path" | awk '{print $(NF)}' > rh_report.log
+	$UNDELETE -f $RBH_CFG_DIR/$config_file -L $RH_ROOT/dir1 | grep "Last known path" | awk '{print $(NF)}' > rh_report.log
     (( $(wc -l rh_report.log | awk '{print $1}') == 2 )) || error "invalid file count in undelete list"
     for f in dir1/file1 dir1/file2; do grep $f rh_report.log || error "missing $f in undelete list"; done
     # recover all deleted entries from dir2
-	$UNDELETE -f ./cfg/$config_file -R $RH_ROOT/dir2 | grep Restoring | cut -d "'" -f 2 > rh_report.log
+	$UNDELETE -f $RBH_CFG_DIR/$config_file -R $RH_ROOT/dir2 | grep Restoring | cut -d "'" -f 2 > rh_report.log
     (( $(wc -l rh_report.log | awk '{print $1}') == 2 )) || error "invalid undeleted file count"
     for f in dir2/file1 dir2/file2; do grep $f rh_report.log || error "missing $f in undelete list"; done
     [ ! -f $RH_ROOT/dir2/file1 ] && error "Missing $RH_ROOT/dir2/file1 in FS after undelete"
@@ -1874,7 +1875,7 @@ function purge_size_filesets
 	clean_logs
 
 	# initial scan
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log
     	check_db_error rh_chglogs.log
 
 	# fill 3 files of different sizes and mark them archived non-dirty
@@ -1897,15 +1898,15 @@ function purge_size_filesets
 	sleep 1
 	if (( $no_log )); then
 		echo "2-Scanning..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	else
 		echo "2-Reading changelogs to update file status (after 1sec)..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
     	check_db_error rh_chglogs.log
 
 	if (( $is_hsmlite != 0 )); then
-		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+		$RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
     fi
 
 	echo "3-Sleeping $sleep_time seconds..."
@@ -1913,7 +1914,7 @@ function purge_size_filesets
 
 	echo "4-Applying purge policy ($policy_str)..."
 	# no purge expected here
-	$RH -f ./cfg/$config_file $PURGE_OPT -l DEBUG -L rh_purge.log --once || error ""
+	$RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT -l DEBUG -L rh_purge.log --once || error ""
 
 	# counting each matching policy $count of each
 	for policy in very_small mid_file default; do
@@ -1955,24 +1956,24 @@ function test_maint_mode
 	# read changelogs
 	if (( $no_log )); then
 		echo "2-Scanning..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error "scanning filesystem"
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error "scanning filesystem"
 	else
 		echo "2-Reading changelogs..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error "reading changelogs"
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error "reading changelogs"
 	fi
     	check_db_error rh_chglogs.log
 
     	# migrate (nothing must be migrated, no maint mode reported)
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error "executing --run=migration action"
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error "executing --run=migration action"
 	grep "Maintenance time" rh_migr.log && error "No maintenance mode expected"
 	grep "Currently in maintenance mode" rh_migr.log && error "No maintenance mode expected"
 
 	# set maintenance mode (due is window +10s)
 	maint_time=`perl -e "use POSIX; print strftime(\"%Y%m%d%H%M%S\" ,localtime($t0 + $window + 10))"`
-	$REPORT -f ./cfg/$config_file --next-maintenance=$maint_time || error "setting maintenance time"
+	$REPORT -f $RBH_CFG_DIR/$config_file --next-maintenance=$maint_time || error "setting maintenance time"
 
 	# right now, migration window is in the future
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error "executing --run=migration action"
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error "executing --run=migration action"
 	grep "maintenance window will start in" rh_migr.log || error "Future maintenance not report in the log"
 
 	# sleep enough to be in the maintenance window
@@ -1987,7 +1988,7 @@ function test_maint_mode
 	# start migrations while we do not reach maintenance time
 	while (( `date +%s` < $t0 + $window + 10 )); do
 		cp /dev/null rh_migr.log
-		$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error "executing --run=migration action"
+		$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error "executing --run=migration action"
 		grep "Currently in maintenance mode" rh_migr.log || error "Should be in maintenance window now"
 
 		# check that files are migrated after min_delay and before the policy delay
@@ -2007,7 +2008,7 @@ function test_maint_mode
 
 	(( `date +%s` > $t0 + $window + 15 )) || sleep $(( $t0 + $window + 15 - `date +%s` ))
 	# shouldn't be in maintenance now
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error "executing --run=migration action"
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error "executing --run=migration action"
 	grep "Maintenance time is in the past" rh_migr.log || error "Maintenance window should be in the past now"
 }
 
@@ -2035,10 +2036,10 @@ function test_rh_report
 
 	if (( $no_log )); then
 		echo "2-Scanning..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	else
 		echo "2-Reading changelogs..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
     	check_db_error rh_chglogs.log
 
@@ -2052,7 +2053,7 @@ function test_rh_report
         else
             real=$(($i*1024*1024))
         fi
-		$REPORT -f ./cfg/$config_file -l MAJOR --csv -U 1 -P "$RH_ROOT/dir.$i/*" > rh_report.log
+		$REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv -U 1 -P "$RH_ROOT/dir.$i/*" > rh_report.log
 		used=`tail -n 1 rh_report.log | cut -d "," -f 3`
 		if (( $used != $real )); then
 			error ": $used != $real"
@@ -2086,12 +2087,12 @@ function test_rh_acct_report
         sync
 
         echo "2-Scanning..."
-        $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+        $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
 	check_db_error rh_scan.log
 
         echo "3.Checking reports..."
-        $REPORT -f ./cfg/$config_file -l MAJOR --csv --force-no-acct --top-user > rh_no_acct_report.log
-        $REPORT -f ./cfg/$config_file -l MAJOR --csv --top-user > rh_acct_report.log
+        $REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv --force-no-acct --top-user > rh_no_acct_report.log
+        $REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv --top-user > rh_acct_report.log
 
         nbrowacct=` awk -F ',' 'END {print NF}' rh_acct_report.log`;
         nbrownoacct=` awk -F ',' 'END {print NF}' rh_no_acct_report.log`;
@@ -2136,12 +2137,12 @@ function test_rh_report_split_user_group
         sync
 
         echo "2-Scanning..."
-        $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
+        $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "scanning filesystem"
 	check_db_error rh_scan.log
 
         echo "3.Checking reports..."
-        $REPORT -f ./cfg/$config_file -l MAJOR --csv --user-info $option | head --lines=-2 > rh_report_no_split.log
-        $REPORT -f ./cfg/$config_file -l MAJOR --csv --user-info --split-user-groups $option | head --lines=-2 > rh_report_split.log
+        $REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv --user-info $option | head --lines=-2 > rh_report_no_split.log
+        $REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv --user-info --split-user-groups $option | head --lines=-2 > rh_report_split.log
 
         nbrow=` awk -F ',' 'END {print NF}' rh_report_split.log`
         nb_uniq_user=`sed "1d" rh_report_split.log | cut -d "," -f 1 | uniq | wc -l `
@@ -2215,7 +2216,7 @@ function test_acct_table
         sync
 
         echo "2-Scanning..."
-        $RH -f ./cfg/$config_file --scan -l VERB -L rh_scan.log  --once || error "scanning filesystem"
+        $RH -f $RBH_CFG_DIR/$config_file --scan -l VERB -L rh_scan.log  --once || error "scanning filesystem"
 	check_db_error rh_scan.log
 
         if [[ "$ACCT_SWITCH" != "no" ]]; then
@@ -2244,7 +2245,7 @@ function test_dircount_report
 	clean_logs
 
 	# inital scan
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
 	check_db_error rh_chglogs.log
 
 	# create several dirs with different entry count (+10 for each)
@@ -2272,16 +2273,16 @@ function test_dircount_report
 	# read changelogs
 	if (( $no_log )); then
 		echo "2-Scanning..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
 	else
 		echo "2-Reading changelogs..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
 	fi
 	check_db_error rh_chglogs.log
 
 	echo "3.Checking dircount report..."
 	# dircount+1 because $RH_ROOT may be returned
-	$REPORT -f ./cfg/$config_file --topdirs=$((dircount+1)) --csv > report.out
+	$REPORT -f $RBH_CFG_DIR/$config_file --topdirs=$((dircount+1)) --csv > report.out
 
     [ "$DEBUG" = "1" ] && cat report.out
 
@@ -2314,35 +2315,35 @@ function test_dircount_report
 	done
 
     echo "3b. Checking topdirs + filterpath"
-	$REPORT -f ./cfg/$config_file --topdirs=$((dircount+1)) --filter-path="$RH_ROOT/dir.1" --csv -q > report.out
+	$REPORT -f $RBH_CFG_DIR/$config_file --topdirs=$((dircount+1)) --filter-path="$RH_ROOT/dir.1" --csv -q > report.out
     [ "$DEBUG" = "1" ] && echo && cat report.out
     # only one line expected
     lines=$(wc -l report.out | awk '{print $1}')
     (( $lines == 1 )) || error "1 single dir expected in output (found $lines)"
     line=`grep "$RH_ROOT/dir.1," report.out` || error "$RH_ROOT/dir.1 not found in report"
 
-    $REPORT -f ./cfg/$config_file --topdirs=$((dircount+1)) --filter-path="$RH_ROOT/dir.1*" --csv -q > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file --topdirs=$((dircount+1)) --filter-path="$RH_ROOT/dir.1*" --csv -q > report.out
     [ "$DEBUG" = "1" ] && echo && cat report.out
     lines=$(wc -l report.out | awk '{print $1}')
     (( $lines == $match_dir1 )) || error "$match_dir1 expected in output (found $lines)"
 
     echo "4. Check empty dirs..."
     # check empty dirs
-    $REPORT -f ./cfg/$config_file --oldest-empty-dirs --csv > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file --oldest-empty-dirs --csv > report.out
     [ "$DEBUG" = "1" ] && echo && cat report.out
     for i in `seq 1 $emptydir`; do
         grep "$RH_ROOT/empty.$i" report.out > /dev/null || error "$RH_ROOT/empty.$i not found in empty dirs"
     done
 
     # test with filterpath
-    $REPORT -f ./cfg/$config_file --oldest-empty-dirs --csv -q --filter-path="$RH_ROOT/empty.1" > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file --oldest-empty-dirs --csv -q --filter-path="$RH_ROOT/empty.1" > report.out
     [ "$DEBUG" = "1" ] && echo && cat report.out
     # only one line expected
     lines=$(wc -l report.out | awk '{print $1}')
     (( $lines == 1 )) || error "1 single dir expected in output (found $lines)"
     line=`grep "$RH_ROOT/empty.1," report.out` || error "$RH_ROOT/empty.1 not found in report"
 
-    $REPORT -f ./cfg/$config_file --oldest-empty-dirs --csv -q --filter-path="$RH_ROOT/empty.1*" > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file --oldest-empty-dirs --csv -q --filter-path="$RH_ROOT/empty.1*" > report.out
     [ "$DEBUG" = "1" ] && echo && cat report.out
     lines=$(wc -l report.out | awk '{print $1}')
     (( $lines == $match_empty1 )) || error "$match_empty1 expected in output (found $lines)"
@@ -2392,48 +2393,48 @@ function    test_sort_report
 
     # scan!
     echo "2-Scanning..."
-    $RH -f ./cfg/$config_file --scan -l VERB -L rh_scan.log  --once || error "scanning filesystem"
+    $RH -f $RBH_CFG_DIR/$config_file --scan -l VERB -L rh_scan.log  --once || error "scanning filesystem"
     check_db_error rh_scan.log
 
     echo "3-checking reports..."
 
     # sort users by volume
-    $REPORT -f ./cfg/$config_file -l MAJOR --csv -q --top-user > report.out || error "generating topuser report by volume"
+    $REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv -q --top-user > report.out || error "generating topuser report by volume"
     first=$(head -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
     last=$(tail -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
     [ $first = ${users[2]} ] || error "first user expected in top volume: ${users[2]} (got $first)"
     [ $last = ${users[0]} ] || error "last user expected in top volume: ${users[0]} (got $last)"
 
     # sort users by volume (reverse)
-    $REPORT -f ./cfg/$config_file -l MAJOR --csv -q --top-user --reverse > report.out || error "generating topuser report by volume (reverse)"
+    $REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv -q --top-user --reverse > report.out || error "generating topuser report by volume (reverse)"
     first=$(head -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
     last=$(tail -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
     [ $first = ${users[0]} ] || error "first user expected in top volume: ${users[0]} (got $first)"
     [ $last = ${users[2]} ] || error "last user expected in top volume: ${users[2]} (got $last)"
 
     # sort users by count
-    $REPORT -f ./cfg/$config_file -l MAJOR --csv -q --top-user --by-count > report.out || error "generating topuser report by count"
+    $REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv -q --top-user --by-count > report.out || error "generating topuser report by count"
     first=$(head -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
     last=$(tail -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
     [ $first = ${users[0]} ] || error "first user expected in top count: ${users[0]} (got $first)"
     [ $last = ${users[2]} ] || error "last user expected in top count: ${users[2]} (got $last)"
 
     # sort users by count (reverse)
-    $REPORT -f ./cfg/$config_file -l MAJOR --csv -q --top-user --by-count --reverse > report.out || error "generating topuser report by count (reverse)"
+    $REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv -q --top-user --by-count --reverse > report.out || error "generating topuser report by count (reverse)"
     first=$(head -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
     last=$(tail -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
     [ $first = ${users[2]} ] || error "first user expected in top count: ${users[2]} (got $first)"
     [ $last = ${users[0]} ] || error "last user expected in top count: ${users[0]} (got $last)"
 
     # sort users by avg size
-    $REPORT -f ./cfg/$config_file -l MAJOR --csv -q --top-user --by-avgsize > report.out || error "generating topuser report by avg size"
+    $REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv -q --top-user --by-avgsize > report.out || error "generating topuser report by avg size"
     first=$(head -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
     last=$(tail -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
     [ $first = ${users[2]} ] || error "first user expected in top avg size: ${users[2]} (got $first)"
     [ $last = ${users[0]} ] || error "last user expected in top avg size: ${users[0]} (got $last)"
 
     # sort users by avg size (reverse)
-    $REPORT -f ./cfg/$config_file -l MAJOR --csv -q --top-user --by-avgsize --reverse > report.out || error "generating topuser report by avg size (reverse)"
+    $REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv -q --top-user --by-avgsize --reverse > report.out || error "generating topuser report by avg size (reverse)"
     first=$(head -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
     last=$(tail -n 1 report.out | cut -d ',' -f 2 | tr -d ' ')
     [ $first = ${users[0]} ] || error "first user expected in top avg size: ${users[0]} (got $first)"
@@ -2441,7 +2442,7 @@ function    test_sort_report
 
     # filter users by min count
     # only user 0 and 1 have 10 entries or more
-    $REPORT -f ./cfg/$config_file -l MAJOR --csv -q --top-user --count-min=10 > report.out || error "generating topuser with at least 10 entries"
+    $REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv -q --top-user --count-min=10 > report.out || error "generating topuser with at least 10 entries"
     (( $(wc -l report.out | awk '{print$1}') == 2 )) || error "only 2 users expected with more than 10 entries"
     grep ${users[2]} report.out && error "${users[2]} is not expected to have more than 10 entries"
 
@@ -2468,7 +2469,7 @@ function path_test
 	clean_logs
 	if (( $no_log == 0 )); then
 		echo "Initial scan of empty filesystem"
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
 
 	# create test tree
@@ -2584,17 +2585,17 @@ function path_test
 	# read changelogs
 	if (( $no_log )); then
 		echo "2-Scanning..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	else
 		echo "2-Reading changelogs..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
 	check_db_error rh_chglogs.log
 
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error ""
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error ""
 
 	# count the number of file for each policy
 	nb_pol1=$(count_action_params rh_migr.log class=absolute_path)
@@ -2654,7 +2655,7 @@ function update_test
 		clean_logs
 
 		# start log reader (DEBUG level displays needed attrs)
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || error ""
 
 		start=`date "+%s"`
 		# generate a lot of MTIME events within 'event_updt_min'
@@ -2700,7 +2701,7 @@ function update_test
 		clean_logs
 
 		# start log reader (DEBUG level displays needed attrs)
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || error ""
 
 		start=`date "+%s"`
 		# generate a lot of TIME events within 'event_updt_min'
@@ -2735,7 +2736,7 @@ function update_test
 	clean_logs
 
 	# check that getattr+getpath are performed after update_period, even if the event is not related:
-	$RH -f ./cfg/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || error ""
+	$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || error ""
 	sleep $update_period
 
 	if (( $is_lhsm != 0 )); then
@@ -2790,11 +2791,11 @@ function periodic_class_match_migr
 	touch $RH_ROOT/default1
 
 	# scan
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log
 	check_db_error rh_chglogs.log
 
 	# now apply policies
-	$RH -f ./cfg/$config_file --run=migration --target=all --dry-run -l FULL -L rh_migr.log  || error ""
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all --dry-run -l FULL -L rh_migr.log  || error ""
 
 	#we must have 4 lines like this: Entry xxx matches target file class
 	nb_updt=`grep "matches target file class" rh_migr.log | wc -l`
@@ -2815,7 +2816,7 @@ function periodic_class_match_migr
 
 	# rematch entries: should update all fileclasses
 	clean_logs
-	$RH -f ./cfg/$config_file --run=migration --target=all --dry-run -l FULL -L rh_migr.log  || error ""
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all --dry-run -l FULL -L rh_migr.log  || error ""
 
 	nb_updt=`grep "matches target file class" rh_migr.log | wc -l`
 	nb_whitelist=`grep "matches ignored target" rh_migr.log | wc -l`
@@ -2850,11 +2851,11 @@ function policy_check_migr
 
     echo "1. scan..."
 	# scan
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "scanning"
+	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "scanning"
 	check_db_error rh_chglogs.log
     # check that all files have been properly matched
 
-    $REPORT -f ./cfg/$config_file --dump -q  > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file --dump -q  > report.out
     [ "$DEBUG" = "1" ] && cat report.out
     st1=`grep ignore1 report.out | cut -d ',' -f 5 | tr -d ' '`
     st2=`grep whitelist1 report.out  | cut -d ',' -f 5 | tr -d ' '`
@@ -2869,9 +2870,9 @@ function policy_check_migr
     echo "2. migrate..."
 
 	# now apply policies
-	$RH -f ./cfg/$config_file --run=migration --target=all --dry-run -l FULL -L rh_migr.log  || error "running migration"
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all --dry-run -l FULL -L rh_migr.log  || error "running migration"
 
-    $REPORT -f ./cfg/$config_file --dump -q  > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file --dump -q  > report.out
     [ "$DEBUG" = "1" ] && cat report.out
     st1=`grep ignore1 report.out | cut -d ',' -f 5 | tr -d ' '`
     st2=`grep whitelist1 report.out  | cut -d ',' -f 5 | tr -d ' '`
@@ -2895,7 +2896,7 @@ function policy_check_migr
 
 	# rematch entries
 	clean_logs
-	$RH -f ./cfg/$config_file --run=migration --target=all --dry-run -l FULL -L rh_migr.log  || error "running $RH --run=migration"
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all --dry-run -l FULL -L rh_migr.log  || error "running $RH --run=migration"
 
     # check effectively migrated files
     m1_arch=`grep "$ARCH_STR" rh_migr.log | grep migrate1 | wc -l`
@@ -2940,11 +2941,11 @@ function policy_check_purge
 
     echo "1. scan..."
     # scan
-    $RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "scanning"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "scanning"
     check_db_error rh_chglogs.log
     # check that all files have been properly matched
 
-    $REPORT -f ./cfg/$config_file --dump -q  > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file --dump -q  > report.out
     [ "$DEBUG" = "1" ] && cat report.out
 
     st1=`grep ignore1 report.out | cut -d ',' -f $stf | tr -d ' '`
@@ -2963,19 +2964,19 @@ function policy_check_purge
         # now apply policies
         if (( $is_lhsm != 0 )); then
                 flush_data
-                $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "flushing data to backend"
+                $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "flushing data to backend"
 
                 echo "1ter. Waiting for end of data migration..."
                 wait_done 120 || error "Migration timeout"
         echo "update db content..."
-        $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "reading chglog"
+        $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "reading chglog"
 
         elif (( $is_hsmlite != 0 )); then
-                $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "flushing data to backend"
+                $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "flushing data to backend"
         fi
 
         # check that release class is still correct
-        $REPORT -f ./cfg/$config_file --dump -q  > report.out
+        $REPORT -f $RBH_CFG_DIR/$config_file --dump -q  > report.out
         [ "$DEBUG" = "1" ] && cat report.out
 
         st1=`grep ignore1 report.out | cut -d ',' -f $stf | tr -d ' '`
@@ -2992,9 +2993,9 @@ function policy_check_purge
     echo "2. purge/release..."
 
     # now apply policies
-    $RH -f ./cfg/$config_file $PURGE_OPT -l FULL -L rh_purge.log --once || error "running purge"
+    $RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT -l FULL -L rh_purge.log --once || error "running purge"
 
-    $REPORT -f ./cfg/$config_file --dump -q  > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file --dump -q  > report.out
     [ "$DEBUG" = "1" ] && cat report.out
 
     st1=`grep ignore1 report.out | cut -d ',' -f $stf | tr -d ' '`
@@ -3081,15 +3082,15 @@ function periodic_class_match_purge
 
 	echo "FS Scan..."
 	if (( $is_hsmlite != 0 )); then
-		$RH -f ./cfg/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+		$RH -f $RBH_CFG_DIR/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
 		check_db_error rh_migr.log
 	    else
-   		$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "executing $CMD --scan"
+   		$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "executing $CMD --scan"
 		check_db_error rh_chglogs.log
 	fi
 
 	# now apply policies
-	$RH -f ./cfg/$config_file $PURGE_OPT --dry-run -l FULL -L rh_purge.log  || error ""
+	$RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT --dry-run -l FULL -L rh_purge.log  || error ""
 
 	nb_updt=`grep "matches target file class" rh_purge.log | wc -l`
 	nb_whitelist=`grep "matches ignored target" rh_purge.log | wc -l`
@@ -3117,13 +3118,13 @@ function periodic_class_match_purge
 
 	# update db content and rematch entries: should update all fileclasses
 	clean_logs
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log
 	check_db_error rh_chglogs.log
 
 	echo "Waiting $update_period sec..."
 	sleep $update_period
 
-	$RH -f ./cfg/$config_file $PURGE_OPT --dry-run -l FULL -L rh_purge.log  || error ""
+	$RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT --dry-run -l FULL -L rh_purge.log  || error ""
 
 	nb_updt=`grep "matches target file class" rh_purge.log | wc -l`
 	nb_whitelist=`grep "matches ignored target" rh_purge.log | wc -l`
@@ -3152,19 +3153,19 @@ function test_size_updt
 	fi
 
     # create a log reader
-	$RH -f ./cfg/$config_file --readlog -l DEBUG -L $LOG --detach || error "starting chglog reader"
+	$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L $LOG --detach || error "starting chglog reader"
     sleep 1
 
     # create a small file and write it (20 bytes, incl \n)
     echo "qqslmdkqslmdkqlmsdk" > $RH_ROOT/file
     sleep 1
 
-    [ "$DEBUG" = "1" ] && $FIND $RH_ROOT/file -f ./cfg/$config_file -ls
-    size=$($FIND $RH_ROOT/file -f ./cfg/$config_file -ls | awk '{print $(NF-3)}')
+    [ "$DEBUG" = "1" ] && $FIND $RH_ROOT/file -f $RBH_CFG_DIR/$config_file -ls
+    size=$($FIND $RH_ROOT/file -f $RBH_CFG_DIR/$config_file -ls | awk '{print $(NF-3)}')
     if [ -z "$size" ]; then
        echo "db not yet updated, waiting changelog processing delay ($cl_delay sec)..."
        sleep $cl_delay
-       size=$($FIND $RH_ROOT/file -f ./cfg/$config_file -ls | awk '{print $(NF-3)}')
+       size=$($FIND $RH_ROOT/file -f $RBH_CFG_DIR/$config_file -ls | awk '{print $(NF-3)}')
     fi
 
     if (( $size != 20 )); then
@@ -3175,12 +3176,12 @@ function test_size_updt
     echo "qqslmdkqslmdkqlmsdk" >> $RH_ROOT/file
     sleep 1
 
-    [ "$DEBUG" = "1" ] && $FIND $RH_ROOT/file -f ./cfg/$config_file -ls
-    size=$($FIND $RH_ROOT/file -f ./cfg/$config_file -ls | awk '{print $(NF-3)}')
+    [ "$DEBUG" = "1" ] && $FIND $RH_ROOT/file -f $RBH_CFG_DIR/$config_file -ls
+    size=$($FIND $RH_ROOT/file -f $RBH_CFG_DIR/$config_file -ls | awk '{print $(NF-3)}')
     if [ -z "$size" ]; then
        echo "db not yet updated, waiting one more second..."
        sleep 1
-       size=$($FIND $RH_ROOT/file -f ./cfg/$config_file -ls | awk '{print $(NF-3)}')
+       size=$($FIND $RH_ROOT/file -f $RBH_CFG_DIR/$config_file -ls | awk '{print $(NF-3)}')
     fi
 
     if (( $size != 40 )); then
@@ -3279,11 +3280,11 @@ function test_action_params
     id3=$(get_id $RH_ROOT/file.3)
     id4=$(get_id $RH_ROOT/file.4)
 
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scan error"
+	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scan error"
     check_db_error rh_scan.log
 
     # check classinfo report
-    $REPORT -f ./cfg/$config_file --class-info -q > rh_report.log || error "report error"
+    $REPORT -f $RBH_CFG_DIR/$config_file --class-info -q > rh_report.log || error "report error"
     # find_valueInCSVreport $logFile $typeValues $countValues $colSearch
     find_valueInCSVreport rh_report.log class1a 1  2 || error "invalid count for class1a"
     find_valueInCSVreport rh_report.log class1b 1  2 || error "invalid count for class1b"
@@ -3291,7 +3292,7 @@ function test_action_params
     find_valueInCSVreport rh_report.log class3  1  2 || error "invalid count for class3"
 
     # run migration policy (force run to ignore rule time condition)
-    $RH -f ./cfg/$config_file --run=migration --force-all -l DEBUG -L rh_migr.log || error "policy run error"
+    $RH -f $RBH_CFG_DIR/$config_file --run=migration --force-all -l DEBUG -L rh_migr.log || error "policy run error"
     check_db_error rh_migr.log
 
     [ "$DEBUG" = "1" ] && egrep -e 'action:|action_params:' rh_migr.log
@@ -3360,7 +3361,7 @@ function test_action_params
     fi
 
     # check copy completion
-    $RH -f ./cfg/$config_file --readlog --once -l EVENT -L rh_chglogs.log || error "readlog"
+    $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l EVENT -L rh_chglogs.log || error "readlog"
     check_db_error rh_chglogs.log
 
 	clean_logs
@@ -3368,7 +3369,7 @@ function test_action_params
     # now purge all (not by trigger)
     ## BUG: don't quote again if an argument is already quoted
     ## BUG: don't redirect &1 and &2 if the command already does
-    $RH -f ./cfg/$config_file $PURGE_OPT --force-all -l DEBUG -L rh_purge.log || error "policy run error"
+    $RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT --force-all -l DEBUG -L rh_purge.log || error "policy run error"
     check_db_error rh_purge.log
 
     [ "$DEBUG" = "1" ] && egrep -e 'action:|action_params:' rh_purge.log
@@ -3431,7 +3432,7 @@ function test_cnt_trigger
 	if (( $is_hsmlite != 0 )); then
         # this mode may create an extra inode in filesystem: inital scan
         # to take it into account
-		$RH -f ./cfg/$config_file --scan --once -l MAJOR -L rh_scan.log || error "executing $CMD --scan"
+		$RH -f $RBH_CFG_DIR/$config_file --scan --once -l MAJOR -L rh_scan.log || error "executing $CMD --scan"
 		check_db_error rh_scan.log
     fi
 
@@ -3460,16 +3461,16 @@ function test_cnt_trigger
 
 	if (( $is_hsmlite != 0 )); then
         # scan and sync
-		$RH -f ./cfg/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+		$RH -f $RBH_CFG_DIR/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
 		check_db_error rh_migr.log
     else
        	# scan
-	    	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "executing $CMD --scan"
+	    	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "executing $CMD --scan"
 		check_db_error rh_chglogs.log
     fi
 
 	# apply purge trigger
-	$RH -f ./cfg/$config_file --run=purge --once -l FULL -L rh_purge.log
+	$RH -f $RBH_CFG_DIR/$config_file --run=purge --once -l FULL -L rh_purge.log
 
 	nb_release=`grep "$REL_STR" rh_purge.log | wc -l`
 
@@ -3528,7 +3529,7 @@ function test_ost_trigger
 	fi
 
 	if (( $is_hsmlite != 0 )); then
-		$RH -f ./cfg/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+		$RH -f $RBH_CFG_DIR/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
     fi
 
 	# wait for df sync
@@ -3547,13 +3548,13 @@ function test_ost_trigger
 	echo "Need to purge $need_purge MB on OST#0"
 
 	# scan
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log
 	check_db_error rh_chglogs.log
 
-	$REPORT -f ./cfg/$config_file -i
+	$REPORT -f $RBH_CFG_DIR/$config_file -i
 
 	# apply purge trigger
-	$RH -f ./cfg/$config_file --run=purge --once -l DEBUG -L rh_purge.log || error "applying purge policy"
+	$RH -f $RBH_CFG_DIR/$config_file --run=purge --once -l DEBUG -L rh_purge.log || error "applying purge policy"
 
 	grep summary rh_purge.log || error "No purge was done"
     [ "$DEBUG" = "1" ] && cat rh_purge.log
@@ -3648,7 +3649,7 @@ function test_ost_order
     # check thresholds only, then purge
     for opt in "--check-thresholds=purge" "--run=purge"; do
         :> rh_purge.log
-        $RH -f ./cfg/$config_file $opt --once -l DEBUG -L rh_purge.log || error "command $opt error"
+        $RH -f $RBH_CFG_DIR/$config_file $opt --once -l DEBUG -L rh_purge.log || error "command $opt error"
         [ "$DEBUG" = "1" ] && cat rh_purge.log
 
         # OSTs != 0 should be stated from the higher index to the lower
@@ -3694,7 +3695,7 @@ function test_trigger_check
 	if (( $is_hsmlite != 0 )); then
         # this mode may create an extra inode in filesystem: inital scan
         # to take it into account
-		$RH -f ./cfg/$config_file --scan --once -l MAJOR -L rh_scan.log || error "executing $CMD --scan"
+		$RH -f $RBH_CFG_DIR/$config_file --scan --once -l MAJOR -L rh_scan.log || error "executing $CMD --scan"
 		check_db_error rh_scan.log
     fi
 
@@ -3748,16 +3749,16 @@ function test_trigger_check
 
 	if (( $is_hsmlite != 0 )); then
         # scan and sync
-		$RH -f ./cfg/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+		$RH -f $RBH_CFG_DIR/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
 		check_db_error rh_migr.log
     else
 	  # scan
-  	  $RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+  	  $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log
   		check_db_error rh_chglogs.log
     fi
 
 	# check purge triggers
-	$RH -f ./cfg/$config_file --check-thresholds=purge --once -l FULL -L rh_purge.log
+	$RH -f $RBH_CFG_DIR/$config_file --check-thresholds=purge --once -l FULL -L rh_purge.log
 
 	((expect_count=$empty_count+$file_count-$target_count))
 	((expect_vol_fs=$empty_vol+$file_count*$file_size-$target_fs_vol))
@@ -3855,10 +3856,10 @@ function test_periodic_trigger
 	echo "2-Populating robinhood database (scan)..."
 	if (( $is_hsmlite != 0 )); then
         # scan and sync
-		$RH -f ./cfg/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+		$RH -f $RBH_CFG_DIR/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
   		check_db_error rh_migr.log
     else
-	    $RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "executing $CMD --scan"
+	    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log || error "executing $CMD --scan"
   		check_db_error rh_scan.log
     fi
 
@@ -3867,7 +3868,7 @@ function test_periodic_trigger
 
 	# start periodic trigger in background
 	echo "3.1-checking trigger for first policy run..."
-	$RH -f ./cfg/$config_file --run=purge -l DEBUG -L rh_purge.log &
+	$RH -f $RBH_CFG_DIR/$config_file --run=purge -l DEBUG -L rh_purge.log &
 	sleep 2
 
 	t1=`date +%s`
@@ -3942,7 +3943,7 @@ function fileclass_test
 	clean_logs
 
     # initial scan
-    $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error "running initial scan"
+    $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error "running initial scan"
 	check_db_error rh_chglogs.log
 
 	# create test tree
@@ -3985,15 +3986,15 @@ function fileclass_test
 	# read changelogs
 	if (( $no_log )); then
 		echo "2-Scanning..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	else
 		echo "2-Reading changelogs..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
 	check_db_error rh_chglogs.log
 
     # check classinfo report
-    $REPORT -f ./cfg/$config_file --class-info -q > rh_report.log || error "report error"
+    $REPORT -f $RBH_CFG_DIR/$config_file --class-info -q > rh_report.log || error "report error"
     [ "$DEBUG" = "1" ] && cat rh_report.log
 
     # fileclasses with 'report = no' are not expected in the report
@@ -4015,7 +4016,7 @@ function fileclass_test
 
 	echo "3-Applying migration policy ($policy_str)..."
 	# start a migration files should notbe migrated this time
-	$RH -f ./cfg/$config_file --run=migration --target=all -l FULL -L rh_migr.log   || error ""
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l FULL -L rh_migr.log   || error ""
 
     [ "$DEBUG" = "1" ] && grep action_params rh_migr.log
 
@@ -4058,13 +4059,13 @@ function test_info_collect
 	# read changelogs
 	if (( $no_log )); then
 		echo "1-Scanning..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 		nb_cr=0
 	else
         [ "$DEBUG" = "1" ] && $LFS changelog lustre
 		echo "1-Reading changelogs..."
-		#$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
-		$RH -f ./cfg/$config_file --readlog -l FULL -L rh_chglogs.log  --once || error ""
+		#$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l FULL -L rh_chglogs.log  --once || error ""
 		nb_cr=4
 	fi
 	check_db_error rh_chglogs.log
@@ -4110,7 +4111,7 @@ function test_info_collect
 	clean_logs
 
 	echo "2-Scanning..."
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	check_db_error rh_chglogs.log
 
 	grep "DB query failed" rh_chglogs.log && error ": a DB query failed when scanning"
@@ -4132,7 +4133,7 @@ function readlog_chk
 	local config_file=$1
 
 	echo "Reading changelogs..."
-	$RH -f ./cfg/$config_file --readlog -l FULL -L rh_chglogs.log  --once || error "reading logs"
+	$RH -f $RBH_CFG_DIR/$config_file --readlog -l FULL -L rh_chglogs.log  --once || error "reading logs"
 	grep "DB query failed" rh_chglogs.log && error ": a DB query failed: `grep 'DB query failed' rh_chglogs.log | tail -1`"
 	clean_logs
 }
@@ -4142,7 +4143,7 @@ function scan_chk
 	local config_file=$1
 
 	echo "Scanning..."
-        $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error "scanning filesystem"
+        $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error "scanning filesystem"
 	grep "DB query failed" rh_chglogs.log && error ": a DB query failed: `grep 'DB query failed' rh_chglogs.log | tail -1`"
 	clean_logs
 }
@@ -4152,7 +4153,7 @@ function diff_chk
     local config_file=$1
 
     echo "Scanning with rbh-diff..."
-    $DIFF -f ./cfg/$config_file --apply=db -l DEBUG > rh_chglogs.log  2>&1 || error "scanning filesystem"
+    $DIFF -f $RBH_CFG_DIR/$config_file --apply=db -l DEBUG > rh_chglogs.log  2>&1 || error "scanning filesystem"
     grep "DB query failed" rh_chglogs.log && error ": a DB query failed: `grep 'DB query failed' rh_chglogs.log | tail -1`"
     clean_logs
 }
@@ -4161,7 +4162,7 @@ function check_fcount
 {
     local nb=$1
 
-    nbfile=$($REPORT -f ./cfg/$config_file -icq | grep file | awk -F ',' '{print $2}' | tr -d ' ')
+    nbfile=$($REPORT -f $RBH_CFG_DIR/$config_file -icq | grep file | awk -F ',' '{print $2}' | tr -d ' ')
     [[ -z $nbfile ]] && nbfile=0
     [ "$DEBUG" = "1" ] && echo "nb_files=$nbfile"
 
@@ -4258,7 +4259,7 @@ function get_db_info
     local field=$2
     local entry=$3
 
-    $REPORT -f ./cfg/$config_file -e $entry -c | egrep -E "^$field," | cut -d ',' -f 2 | sed -e 's/^ //g'
+    $REPORT -f $RBH_CFG_DIR/$config_file -e $entry -c | egrep -E "^$field," | cut -d ',' -f 2 | sed -e 's/^ //g'
 }
 
 function test_root_changelog
@@ -4369,7 +4370,7 @@ function partial_paths
     touch $RH_ROOT/dir3/file4
 
     # initial scan
-    $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
     check_db_error rh_scan.log
 
     # remove a path component from the DB
@@ -4380,7 +4381,7 @@ function partial_paths
 
 	if (( $is_hsmlite + $is_lhsm > 0 )); then
         # check how a child entry is archived
-        $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log
+        $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log
         check_db_error rh_migr.log
         if (( $is_hsmlite > 0 )); then
             name=$(find $BKROOT -type f -name "file3__*")
@@ -4393,41 +4394,41 @@ function partial_paths
     fi
 
     # check what --dump reports
-    f3=$($REPORT -f ./cfg/$config_file --dump --csv -q | grep "file3" | awk '{print $(NF)}')
+    f3=$($REPORT -f $RBH_CFG_DIR/$config_file --dump --csv -q | grep "file3" | awk '{print $(NF)}')
     echo "file3 reported with path $f3"
     [[ $f3 = /* ]] && [[ $f3 != $RH_ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
 
     # check filter path behavior
     # should report at least file2 (and optionnally file3 : must check its path is valid)
-    f2=$($REPORT -f ./cfg/$config_file --dump --csv -q -P "$RH_ROOT/dir1" | grep file2 | awk '{print $(NF)}')
+    f2=$($REPORT -f $RBH_CFG_DIR/$config_file --dump --csv -q -P "$RH_ROOT/dir1" | grep file2 | awk '{print $(NF)}')
     [[ -n $f2 ]] && echo "file2 reported with path $f2"
     [[ $f2 != $RH_ROOT/dir1/file2 ]] && error "wrong path reported for file2: $f2"
 
-    f3=$($REPORT -f ./cfg/$config_file --dump --csv -q -P "$RH_ROOT/dir1" | grep file3 | awk '{print $(NF)}')
+    f3=$($REPORT -f $RBH_CFG_DIR/$config_file --dump --csv -q -P "$RH_ROOT/dir1" | grep file3 | awk '{print $(NF)}')
     [[ -n $f3 ]] && echo "file3 reported with path $f3"
     [[ $f3 = /* ]] && [[ $f3 != $RH_ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
 
-    f3=$($REPORT -f ./cfg/$config_file --dump --csv -q -P "$RH_ROOT/dir1/dir2" | grep file)
+    f3=$($REPORT -f $RBH_CFG_DIR/$config_file --dump --csv -q -P "$RH_ROOT/dir1/dir2" | grep file)
     [[ -n $f3 ]] && echo "file3 reported with path $f3"
     [[ $f3 = /* ]] && [[ $f3 != $RH_ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
 
     # check find behavior
     # find cannot go into dir2
-    $FIND -f ./cfg/$config_file $RH_ROOT/dir1 | grep dir2 && echo "$RH_ROOT/dir1/dir2 reported?!"
+    $FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT/dir1 | grep dir2 && echo "$RH_ROOT/dir1/dir2 reported?!"
     # starting from dir2 fid, it can list file3 in it
-    f3=$($FIND -f ./cfg/$config_file $RH_ROOT/dir1/dir2 | grep file3)
+    f3=$($FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT/dir1/dir2 | grep file3)
     echo "find: $f3"
     [[ $f3 = $RH_ROOT/dir1/dir2/file3 ]] || error "$f3 : invalid fullpath"
 
     # like find, should count file3
-    fc=$($DU -d -f ./cfg/$config_file $RH_ROOT/dir1/dir2 | grep "file count" | cut -d ':' -f 2 | cut -d ',' -f 1)
+    fc=$($DU -d -f $RBH_CFG_DIR/$config_file $RH_ROOT/dir1/dir2 | grep "file count" | cut -d ':' -f 2 | cut -d ',' -f 1)
     [[ $fc = 1 ]] || error "expected filecount in $RH_ROOT/dir1/dir2: 1 (got $fc)"
 
     # check -e report
     # dir2 should be in DB, even with no path
-    $REPORT -f ./cfg/$config_file --csv -e "$RH_ROOT/dir1/dir2" | grep "md updt" || error "$RH_ROOT/dir1/dir2 should have a DB entry"
+    $REPORT -f $RBH_CFG_DIR/$config_file --csv -e "$RH_ROOT/dir1/dir2" | grep "md updt" || error "$RH_ROOT/dir1/dir2 should have a DB entry"
 
-    $REPORT -f ./cfg/$config_file --csv -e "$RH_ROOT/dir1/dir2/file3"  > report.log || error "report error for $RH_ROOT/dir1/dir2/file3"
+    $REPORT -f $RBH_CFG_DIR/$config_file --csv -e "$RH_ROOT/dir1/dir2/file3"  > report.log || error "report error for $RH_ROOT/dir1/dir2/file3"
     grep "md updt" report.log || error "$RH_ROOT/dir1/dir2/file3 should have a DB entry"
     f3=$(egrep "^path," report.log)
     [[ $f3 = /* ]] && [[ $f3 != $RH_ROOT/dir1/dir2/file3 ]] && error "$f3 : invalid fullpath"
@@ -4445,7 +4446,7 @@ function partial_paths
         readlog_chk $config_file
 
 	    if (( $is_lhsm + $is_hsmlite > 0 )); then
-            $REPORT -f ./cfg/$config_file -Rcq > report.log
+            $REPORT -f $RBH_CFG_DIR/$config_file -Rcq > report.log
             [ "$DEBUG" = "1" ] && cat report.log
             nb=$(cat report.log | grep file3 | wc -l)
             (($nb == 1)) || error "file3 not reported in remove-pending list"
@@ -4457,10 +4458,10 @@ function partial_paths
             b3=$(cut -d "," -f 6 report.log)
             echo $b3 | egrep "dir1/dir2|unknown_path" || error "unexpected backend path $b3"
 
-            b3=$($UNDELETE -f ./cfg/$config_file -L '*/file3' | grep "Backend path" | cut -d ':' -f 2- | tr -d ' ')
+            b3=$($UNDELETE -f $RBH_CFG_DIR/$config_file -L '*/file3' | grep "Backend path" | cut -d ':' -f 2- | tr -d ' ')
             echo $b3 | egrep "dir1/dir2|unknown_path" || error "unexpected backend path $b3"
 
-            $UNDELETE -f ./cfg/$config_file -R '*/file3' -l DEBUG || error "undeleting file3"
+            $UNDELETE -f $RBH_CFG_DIR/$config_file -R '*/file3' -l DEBUG || error "undeleting file3"
             find $RH_ROOT -name "file3" -ls | tee report.log
             (( $(wc -l report.log | awk '{print $1}') == 1 )) || error "file3 not restored"
         fi
@@ -4489,20 +4490,20 @@ function test_mnt_point
     done
 
     # scan the filesystem
-    $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
     check_db_error rh_scan.log
 
     # check that rbh-find output is correct (2 methods)
     for opt in "-nobulk $fs_path" "$fs_path" "-nobulk" ""; do
         echo "checking output for rbh-find $opt..."
-        $FIND -f ./cfg/$config_file $opt > rh_report.log
+        $FIND -f $RBH_CFG_DIR/$config_file $opt > rh_report.log
         for e in $dir_rel $file_rel; do
             egrep -E "^$fs_path/$e$" rh_report.log || error "$e not found in rbh-find output"
         done
     done
 
     # check that rbh-report output is correct
-    $REPORT -f ./cfg/$config_file -q --dump | awk '{print $(NF)}'> rh_report.log
+    $REPORT -f $RBH_CFG_DIR/$config_file -q --dump | awk '{print $(NF)}'> rh_report.log
     [ "$DEBUG" = "1" ] && cat rh_report.log
     for e in $dir_rel $file_rel; do
         egrep -E "^$fs_path/$e$" rh_report.log || error "$e not found in report output"
@@ -4512,7 +4513,7 @@ function test_mnt_point
     if (( $is_hsmlite > 0 )); then
         # wait atime > 1s
         sleep 1
-        $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log
+        $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log
         check_db_error rh_migr.log
 
         for e in $file_rel; do
@@ -4562,19 +4563,19 @@ function test_compress
 
     # scan the filesystem (compress=no)
     export compress=no
-    $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
     check_db_error rh_scan.log
 
     # check file status
-    $REPORT -f ./cfg/$config_file -i -q | grep 'file,' > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file -i -q | grep 'file,' > report.out
     check_status_count report.out new 4
 
     # check how a child entries is archived
-    $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log
+    $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log
     check_db_error rh_migr.log
 
     # check file status
-    $REPORT -f ./cfg/$config_file -i -q | grep 'file,' > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file -i -q | grep 'file,' > report.out
     check_status_count report.out synchro 4
 
     # no compressed file names expected xxxx__<fid>z
@@ -4600,21 +4601,21 @@ function test_compress
     done
 
     # scan the file system and check file status
-    $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing 2nd scan"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing 2nd scan"
     check_db_error rh_scan.log
 
     # check file status
-    $REPORT -f ./cfg/$config_file -i -q | grep 'file,' > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file -i -q | grep 'file,' > report.out
     check_status_count report.out synchro 2
     check_status_count report.out modified 2
     check_status_count report.out new 3
 
     # archive all dirty data and check status
-    $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log
+    $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log
     check_db_error rh_migr.log
 
     # check file status
-    $REPORT -f ./cfg/$config_file -i -q | grep 'file,' > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file -i -q | grep 'file,' > report.out
     check_status_count report.out synchro 7
 
     # check backend files
@@ -4637,15 +4638,15 @@ function test_compress
     done
 
     export compress=no
-    $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
     check_db_error rh_scan.log
 
     # check file status
-    $REPORT -f ./cfg/$config_file -i -q | grep 'file,' > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file -i -q | grep 'file,' > report.out
     check_status_count report.out synchro 5
     check_status_count report.out modified 2
 
-    $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log
+    $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log
     check_db_error rh_migr.log
 
     # check backend files
@@ -4663,7 +4664,7 @@ function test_compress
     (( $type_ncomp == 4 )) || error "4 ASCII file data expected in backend: found $type_ncomp"
 
     # check file status
-    $REPORT -f ./cfg/$config_file -i -q | grep 'file,' > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file -i -q | grep 'file,' > report.out
     check_status_count report.out synchro 7
 
     # test disaster recovery with compressed files
@@ -4687,9 +4688,9 @@ function test_compress
         # perform the recovery
         echo "Performing recovery (compress=$c)..."
         cp /dev/null recov.log
-        $RECOV -f ./cfg/$config_file --start -l DEBUG >> recov.log 2>&1 || error "Error starting recovery"
-        $RECOV -f ./cfg/$config_file --resume -l DEBUG >> recov.log 2>&1 || error "Error performing recovery"
-        $RECOV -f ./cfg/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
+        $RECOV -f $RBH_CFG_DIR/$config_file --start -l DEBUG >> recov.log 2>&1 || error "Error starting recovery"
+        $RECOV -f $RBH_CFG_DIR/$config_file --resume -l DEBUG >> recov.log 2>&1 || error "Error performing recovery"
+        $RECOV -f $RBH_CFG_DIR/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
 
         find $RH_ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > $after
         find $RH_ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> $after
@@ -4733,7 +4734,7 @@ function test_enoent
 
 	echo "1-Start reading changelogs in background..."
 	# read changelogs
-	$RH -f ./cfg/$config_file --readlog -l FULL -L rh_chglogs.log  --detach --pid-file=rh.pid || error "could not start cl reader"
+	$RH -f $RBH_CFG_DIR/$config_file --readlog -l FULL -L rh_chglogs.log  --detach --pid-file=rh.pid || error "could not start cl reader"
 
 	echo "2-create/unlink sequence"
     for i in $(seq 1 1000); do
@@ -4749,7 +4750,7 @@ function test_enoent
 
     # TODO add addl checks here
 
-	$REPORT -f ./cfg/$config_file --dump-all -cq > report.out || error "report cmd failed"
+	$REPORT -f $RBH_CFG_DIR/$config_file --dump-all -cq > report.out || error "report cmd failed"
     lines=$(cat report.out | wc -l)
     [ "$DEBUG" = "1" ] && cat report.out
     (($lines == 0)) || error "no entries expected after create/rm"
@@ -4782,7 +4783,7 @@ function test_diff
 
     # initial scan
     echo "1-Initial scan..."
-    $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
 
     # new entry (file & dir)
     touch $RH_ROOT/dir.1/file.new || error "touch"
@@ -4815,11 +4816,11 @@ function test_diff
 
     echo "2-diff ($policy_str)..."
     if [ "$flavor" = "diff" ]; then
-        $DIFF -f ./cfg/$config_file -l FULL > report.out 2> rh_report.log || error "performing diff"
+        $DIFF -f $RBH_CFG_DIR/$config_file -l FULL > report.out 2> rh_report.log || error "performing diff"
     elif [ "$flavor" = "diffapply" ]; then
-        $DIFF --apply=db -f ./cfg/$config_file -l FULL > report.out 2> rh_report.log || error "performing diff"
+        $DIFF --apply=db -f $RBH_CFG_DIR/$config_file -l FULL > report.out 2> rh_report.log || error "performing diff"
     elif [ "$flavor" = "scan" ]; then
-        $RH -f ./cfg/$config_file -l FULL --scan --once --diff=all -L rh_report.log > report.out || error "performing scan+diff"
+        $RH -f $RBH_CFG_DIR/$config_file -l FULL --scan --once --diff=all -L rh_report.log > report.out || error "performing scan+diff"
     fi
 
     [ "$DEBUG" = "1" ] && cat report.out
@@ -4877,7 +4878,7 @@ function test_diff_apply_fs # test diff --apply=fs in particular for entry recov
 
     # run initial scan
     echo "Initial scan..."
-    $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
 
     # save contents of bin.1
     find $RH_ROOT/bin.1 -printf "%n %y %m %T@ %g %u %p %l\n" > find.out || error "find error"
@@ -4891,7 +4892,7 @@ function test_diff_apply_fs # test diff --apply=fs in particular for entry recov
     sleep 1
 
     echo "running recovery..."
-    strace -f $DIFF -f ./cfg/$config_file --apply=fs > diff.out 2> diff.log || error "rbh-diff error"
+    strace -f $DIFF -f $RBH_CFG_DIR/$config_file --apply=fs > diff.out 2> diff.log || error "rbh-diff error"
 
     cr1=$(grep -E '^\+\+[^+]' diff.out | wc -l)
     cr2=$(grep -E 'create|mkdir' diff.log | wc -l)
@@ -5002,7 +5003,7 @@ function test_completion
 
     # do the scan
     echo "scan..."
-    $RH -f ./cfg/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
 
     # if flavor is OK: completion command must have been called
     if [ "$flavor" = "OK" ]; then
@@ -5057,13 +5058,13 @@ function test_rename
     # readlog or scan
     if [ "$flavor" = "readlog" ]; then
         echo "2. Reading changelogs..."
-    	$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+    	$RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
     elif [ "$flavor" = "diff" ]; then
         echo "2. Diff..."
-    	$DIFF -f ./cfg/$config_file --apply=db -l DEBUG > rh_scan.log 2>&1 || error "scanning"
+    	$DIFF -f $RBH_CFG_DIR/$config_file --apply=db -l DEBUG > rh_scan.log 2>&1 || error "scanning"
     else
         echo "2. Scanning initial state..."
-    	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning"
+    	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning"
     fi
 
 	if (( $is_lhsm != 0 )); then
@@ -5074,14 +5075,14 @@ function test_rename
 		wait_done 60 || error "Migration timeout"
 	elif (( $is_hsmlite != 0 )); then
 		echo "  -archiving all data"
-		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "executing $CMD --sync"
+		$RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "executing $CMD --sync"
         [ "$DEBUG" = "1" ] && find $BKROOT -type f -ls
 	fi
 
-    $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
+    $REPORT -f $RBH_CFG_DIR/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
 
-    $FIND -f ./cfg/$config_file $RH_ROOT -ls -nobulk > find.out || error "$FIND"
+    $FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT -ls -nobulk > find.out || error "$FIND"
     [ "$DEBUG" = "1" ] && cat find.out
 
     # checking all objects in reports
@@ -5138,7 +5139,7 @@ function test_rename
     # readlog or re-scan
     if [ "$flavor" = "readlog" ]; then
         echo "4. Reading changelogs..."
-    	$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+    	$RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
 
         ## check the "fake" records are correctly built
 
@@ -5165,10 +5166,10 @@ function test_rename
 
     elif [ "$flavor" = "scan" ]; then
         echo "4. Scanning again..."
-    	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning"
+    	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning"
     elif [ "$flavor" = "diff" ]; then
         echo "4. Diffing again..."
-    	$DIFF -f ./cfg/$config_file --apply=db -l DEBUG > rh_scan.log 2>&1 || error "scanning"
+    	$DIFF -f $RBH_CFG_DIR/$config_file --apply=db -l DEBUG > rh_scan.log 2>&1 || error "scanning"
     elif [ "$flavor" = "partial" ]; then
         i=0
         for d in $dirs_tgt; do
@@ -5176,7 +5177,7 @@ function test_rename
             sleep 1
             ((i++))
             echo "4.$i Partial scan ($d)..."
-        	$RH -f ./cfg/$config_file --scan=$d --once -l DEBUG -L rh_scan.log || error "scanning $d"
+        	$RH -f $RBH_CFG_DIR/$config_file --scan=$d --once -l DEBUG -L rh_scan.log || error "scanning $d"
         done
     elif [ "$flavor" = "partdiff" ]; then
         i=0
@@ -5185,14 +5186,14 @@ function test_rename
             sleep 1
             ((i++))
             echo "4.$i Partial diff+apply ($d)..."
-        	$DIFF -f ./cfg/$config_file --scan=$d --apply=db -l DEBUG  > rh_scan.log 2>&1 || error "scanning $d"
+        	$DIFF -f $RBH_CFG_DIR/$config_file --scan=$d --apply=db -l DEBUG  > rh_scan.log 2>&1 || error "scanning $d"
         done
     fi
 
-    $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
+    $REPORT -f $RBH_CFG_DIR/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
 
-    $FIND -f ./cfg/$config_file $RH_ROOT -nobulk -ls > find.out || error "$FIND"
+    $FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT -nobulk -ls > find.out || error "$FIND"
     [ "$DEBUG" = "1" ] && cat find.out
 
     # checking all objects in reports
@@ -5205,7 +5206,7 @@ function test_rename
     unset count_nb_final
 	if (( $is_lhsm + $is_hsmlite == 1 )); then
 		# additionally check that the entry is scheduled for deferred rm (and only this one)
-	    $REPORT -f ./cfg/$config_file --deferred-rm --csv -q > rh_report.log
+	    $REPORT -f $RBH_CFG_DIR/$config_file --deferred-rm --csv -q > rh_report.log
 
         # The following test is not critical for partial scanning
         # In the worst case, the deleted entry remains in the archive.
@@ -5250,29 +5251,29 @@ function test_unlink
 	ln "$RH_ROOT/foo1" "$RH_ROOT/foo2"
 
 	# Check nlink == 2
-    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
-	$FIND -f ./cfg/$config_file $RH_ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
+    $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+	$FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
 	nlink=$( cat report.out | awk '{ print $4; }' )
 	(( $nlink == 2 )) || error "nlink should be 2 instead of $nlink"
 
 	# Remove one file and check nlink == 1
 	rm "$RH_ROOT/foo2"
-    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
-	$FIND -f ./cfg/$config_file $RH_ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
+    $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+	$FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
 	nlink=$( cat report.out | awk '{ print $4; }' )
 	(( $nlink == 1 )) || error "nlink should be 1 instead of $nlink"
 
 	# Add a new hard link and check nlink == 2
 	ln "$RH_ROOT/foo1" "$RH_ROOT/foo3"
-    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
-	$FIND -f ./cfg/$config_file $RH_ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
+    $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+	$FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
 	nlink=$( cat report.out | awk '{ print $4; }' )
 	(( $nlink == 2 )) || error "nlink should be 1 instead of $nlink"
 
 	# Remove one file and check nlink == 1
 	rm "$RH_ROOT/foo3"
-    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
-	$FIND -f ./cfg/$config_file $RH_ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
+    $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+	$FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
 	nlink=$( cat report.out | awk '{ print $4; }' )
 	(( $nlink == 1 )) || error "nlink should be 1 instead of $nlink"
 
@@ -5280,8 +5281,8 @@ function test_unlink
 	ln "$RH_ROOT/foo1" "$RH_ROOT/foo2"
 	rm "$RH_ROOT/foo2"
 	# check nlink == 1
-	$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
-	$FIND -f ./cfg/$config_file $RH_ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
+	$RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+	$FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT/foo1 -nobulk -ls > report.out || error "$REPORT"
 	nlink=$( cat report.out | awk '{ print $4; }' )
 	(( $nlink == 1 )) || error "nlink should be 1 instead of $nlink"
 
@@ -5317,13 +5318,13 @@ function test_layout
     $LFS migrate -c 2 $DSTFILE
 
 	# Check if a CL_LAYOUT record was emitted and triggered a getstripe().
-    $RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+    $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
     ngetstripe_zero=$(grep LYOUT rh_scan.log | grep -c "getstripe=0")
     ngetstripe=$(grep LYOUT rh_scan.log | grep -c "getstripe=1")
     (( $ngetstripe_zero == 0 && $ngetstripe > 0 )) || error "CL_LAYOUT should trigger a getstripe() operation."
 
     $LFS migrate -c 1 $DSTFILE
-    fsdiff=$($RH -f ./cfg/$config_file --readlog --diff=stripe --once -l DEBUG -L rh_scan.log)
+    fsdiff=$($RH -f $RBH_CFG_DIR/$config_file --readlog --diff=stripe --once -l DEBUG -L rh_scan.log)
     (( $? == 0 )) || error "reading changelog (diff)"
 
     echo $fsdiff | egrep "\-.*,stripe_count=2,.* \+.*,stripe_count=1,.*" > /dev/null || error "missed layout change"
@@ -5387,7 +5388,7 @@ function run_scan_cmd
     local cmd=$(flavor2rbh_cmd $mode)
 
     :> rh.out
-    $cmd -f ./cfg/$cfg -l FULL > rh.out 2>> rh.log || error "running $cmd"
+    $cmd -f $RBH_CFG_DIR/$cfg -l FULL > rh.out 2>> rh.log || error "running $cmd"
 	check_db_error rh.log
     grep -E "Warning" rh.log && grep -E "doesn't match stripe count" rh.log > /dev/null && error "Stripe count mismatch detected"
 }
@@ -5434,7 +5435,7 @@ function check_stripe
     local pattern=$3
 
     :> rh.out
-    $REPORT -f ./cfg/$cfg -c -e $f > rh.out 2>> rh.log || error "$f not in RBH DB"
+    $REPORT -f $RBH_CFG_DIR/$cfg -c -e $f > rh.out 2>> rh.log || error "$f not in RBH DB"
 	check_db_error rh.log
     egrep "^stripes," rh.out | egrep "$pattern" || error "pattern \"$pattern\" not found in report output: $(cat rh.out)"
 }
@@ -5708,13 +5709,13 @@ function test_hardlinks
     # readlog or scan
     if [ "$flavor" = "readlog" ]; then
         echo "2. Reading changelogs..."
-    	$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+    	$RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
     elif [ "$flavor" = "diff" ]; then
         echo "2. Diff..."
-    	$DIFF -f ./cfg/$config_file --apply=db -l DEBUG > rh_scan.log 2>&1 || error "scanning"
+    	$DIFF -f $RBH_CFG_DIR/$config_file --apply=db -l DEBUG > rh_scan.log 2>&1 || error "scanning"
     else
         echo "2. Scanning initial state..."
-    	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning"
+    	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning"
     fi
 
 	if (( $is_lhsm != 0 )); then
@@ -5725,14 +5726,14 @@ function test_hardlinks
 		wait_done 60 || error "Migration timeout"
 	elif (( $is_hsmlite != 0 )); then
 		echo "  -archiving all data"
-		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "executing $CMD --sync"
+		$RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "executing $CMD --sync"
         [ "$DEBUG" = "1" ] && find $BKROOT -type f -ls
 	fi
 
-    $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
+    $REPORT -f $RBH_CFG_DIR/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
 
-    $FIND -f ./cfg/$config_file $RH_ROOT -nobulk -ls > find.out || error "$FIND"
+    $FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT -nobulk -ls > find.out || error "$FIND"
     [ "$DEBUG" = "1" ] && cat find.out
 
     # checking all objects in reports
@@ -5794,13 +5795,13 @@ function test_hardlinks
     # readlog or re-scan
     if [ "$flavor" = "readlog" ]; then
         echo "4. Reading changelogs..."
-    	$RH -f ./cfg/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+    	$RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
     elif [ "$flavor" = "scan" ]; then
         echo "4. Scanning again..."
-    	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning"
+    	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning"
     elif [ "$flavor" = "diff" ]; then
         echo "4. Diffing again..."
-    	$DIFF -f ./cfg/$config_file --apply=db -l DEBUG > rh_scan.log 2>&1 || error "scanning"
+    	$DIFF -f $RBH_CFG_DIR/$config_file --apply=db -l DEBUG > rh_scan.log 2>&1 || error "scanning"
     elif [ "$flavor" = "partial" ]; then
         i=0
         for d in $dirs_tgt; do
@@ -5808,7 +5809,7 @@ function test_hardlinks
             sleep 1
             ((i++))
             echo "4.$i Partial scan ($d)..."
-        	$RH -f ./cfg/$config_file --scan=$d --once -l DEBUG -L rh_scan.log || error "scanning $d"
+        	$RH -f $RBH_CFG_DIR/$config_file --scan=$d --once -l DEBUG -L rh_scan.log || error "scanning $d"
         done
     elif [ "$flavor" = "partdiff" ]; then
         i=0
@@ -5817,14 +5818,14 @@ function test_hardlinks
             sleep 1
             ((i++))
             echo "4.$i Partial diff+apply ($d)..."
-        	$DIFF -f ./cfg/$config_file --scan=$d --apply=db -l DEBUG  > rh_scan.log 2>&1 || error "scanning $d"
+        	$DIFF -f $RBH_CFG_DIR/$config_file --scan=$d --apply=db -l DEBUG  > rh_scan.log 2>&1 || error "scanning $d"
         done
     fi
 
-    $REPORT -f ./cfg/$config_file --dump-all -q > report.out || error "$REPORT"
+    $REPORT -f $RBH_CFG_DIR/$config_file --dump-all -q > report.out || error "$REPORT"
     [ "$DEBUG" = "1" ] && cat report.out
 
-    $FIND -f ./cfg/$config_file $RH_ROOT -nobulk -ls > find.out || error "$FIND"
+    $FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT -nobulk -ls > find.out || error "$FIND"
     [ "$DEBUG" = "1" ] && cat find.out
 
 
@@ -5842,7 +5843,7 @@ function test_hardlinks
     unset count_nb_final
     if (( $is_lhsm + $is_hsmlite == 1 )); then
         # check that removed entries are scheduled for HSM rm
-        $REPORT -f ./cfg/$config_file --deferred-rm --csv -q > rh_report.log
+        $REPORT -f $RBH_CFG_DIR/$config_file --deferred-rm --csv -q > rh_report.log
         for f in $rmids; do
 
             # The following test is not critical for partial scanning
@@ -5907,23 +5908,23 @@ function test_hl_count
     done
 
     # scan
-   	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning $RH_ROOT"
+   	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning $RH_ROOT"
 
     ino=$(( $dcount * $fcount + $dcount ))
     ino_subdir=$(($fcount + 1))
 
     # reports to be checked:
     #   dump report (9 entries, no root)
-    (($($REPORT -f ./cfg/$config_file -D -q | wc -l) == $ino )) || error "wrong count in 'rbh-report -D' output"
+    (($($REPORT -f $RBH_CFG_DIR/$config_file -D -q | wc -l) == $ino )) || error "wrong count in 'rbh-report -D' output"
     #   dump report with path filter (3 entries)
-    (($($REPORT -f ./cfg/$config_file -D -q -P $RH_ROOT/dir.1 | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-report -D -P <path>' output"
+    (($($REPORT -f $RBH_CFG_DIR/$config_file -D -q -P $RH_ROOT/dir.1 | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-report -D -P <path>' output"
     #   dump find output (whole FS) (10 entries, incl. root)
-    (($($FIND -f ./cfg/$config_file -nobulk | wc -l) == $ino + 1))  || error "wrong count in 'rbh-find' output"
+    (($($FIND -f $RBH_CFG_DIR/$config_file -nobulk | wc -l) == $ino + 1))  || error "wrong count in 'rbh-find' output"
     #   dump find output (subdir: 3 entries)
-    (($($FIND -f ./cfg/$config_file $RH_ROOT/dir.1 -nobulk | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-find <path>' output"
+    (($($FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT/dir.1 -nobulk | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-find <path>' output"
 
     #   dump summary (9 entries)
-    $REPORT -f ./cfg/$config_file -icq > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file -icq > report.out
     [ "$DEBUG" = "1" ] && cat report.out
     typeValues="dir;file"
   	countValues="$dcount;$(($dcount * $fcount))"
@@ -5932,7 +5933,7 @@ function test_hl_count
 	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i' output"
 
     #   dump summary with path filter (3 entries)
-    $REPORT -f ./cfg/$config_file -iq -P $RH_ROOT/dir.1 > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file -iq -P $RH_ROOT/dir.1 > report.out
     [ "$DEBUG" = "1" ] && cat report.out
   	countValues="1;$fcount"
 	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i -P <path>' output"
@@ -5945,28 +5946,28 @@ function test_hl_count
     done
 
     # rescan
-   	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning $RH_ROOT"
+   	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning $RH_ROOT"
 
     paths=$(( $dcount * $fcount * 2 + $dcount ))
     paths_subdir=$(($fcount * 2 + 1))
 
     #   dump report (still 9 entries, no root)
-    (($($REPORT -f ./cfg/$config_file -D -q | wc -l) == $ino )) || error "wrong count in 'rbh-report -D' output"
+    (($($REPORT -f $RBH_CFG_DIR/$config_file -D -q | wc -l) == $ino )) || error "wrong count in 'rbh-report -D' output"
     #   dump report with path filter (still 3 entries)
-    (($($REPORT -f ./cfg/$config_file -D -q -P $RH_ROOT/dir.1 | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-report -D -P <path>' output"
+    (($($REPORT -f $RBH_CFG_DIR/$config_file -D -q -P $RH_ROOT/dir.1 | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-report -D -P <path>' output"
     #   dump find output (whole FS) (
-    (($($FIND -f ./cfg/$config_file -nobulk | wc -l) == $paths + 1 ))  || error "wrong count in 'rbh-find' output"
+    (($($FIND -f $RBH_CFG_DIR/$config_file -nobulk | wc -l) == $paths + 1 ))  || error "wrong count in 'rbh-find' output"
     #   dump find output (subdir: 3 entries)
-    (($($FIND -f ./cfg/$config_file $RH_ROOT/dir.1 -nobulk | wc -l) == $paths_subdir )) || error "wrong count in 'rbh-find <path>' output"
+    (($($FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT/dir.1 -nobulk | wc -l) == $paths_subdir )) || error "wrong count in 'rbh-find <path>' output"
 
     #   dump summary (9 entries)
-    $REPORT -f ./cfg/$config_file -icq > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file -icq > report.out
     [ "$DEBUG" = "1" ] && cat report.out
   	countValues="$dcount;$(($dcount * $fcount))"
 	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i' output"
 
     #   dump summary with path filter (3 entries)
-    $REPORT -f ./cfg/$config_file -iq -P $RH_ROOT/dir.1 > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file -iq -P $RH_ROOT/dir.1 > report.out
     [ "$DEBUG" = "1" ] && cat report.out
   	countValues="1;$fcount"
 	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i -P <path>' output"
@@ -5986,7 +5987,7 @@ function test_pools
         set_skipped
         return 1
     fi
-        
+
 	create_pools
 
 	clean_logs
@@ -6004,16 +6005,16 @@ function test_pools
 	# read changelogs
 	if (( $no_log )); then
 		echo "1.1-scan and match..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 	else
 		echo "1.1-read changelog and match..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 	fi
 
 
 	echo "1.2-checking report output..."
 	# check classes in report output
-	$REPORT -f ./cfg/$config_file --dump-all -c > report.out || error ""
+	$REPORT -f $RBH_CFG_DIR/$config_file --dump-all -c > report.out || error ""
 	cat report.out
 
 	echo "1.3-checking robinhood log..."
@@ -6035,11 +6036,11 @@ function test_pools
 	# rematch and recheck
 	echo "2.1-scan and match..."
 	# read changelogs
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 
 	echo "2.2-checking report output..."
 	# check classes in report output
-	$REPORT -f ./cfg/$config_file --dump-all -c  > report.out || error ""
+	$REPORT -f $RBH_CFG_DIR/$config_file --dump-all -c  > report.out || error ""
 	cat report.out
 
 	for i in 1 2; do
@@ -6111,13 +6112,13 @@ function test_logs
 
 	# run a scan + alert check
 	if (( $stdio )); then
-		$RH -f ./cfg/$config_file --scan $extra_action --run=alert -I -l DEBUG --once >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error "scan error"
+		$RH -f $RBH_CFG_DIR/$config_file --scan $extra_action --run=alert -I -l DEBUG --once >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error "scan error"
 	else
         # detach and wait, else it will log to stderr by default
-		$RH -f ./cfg/$config_file --scan --run=alert -I -l DEBUG --once -d -p pidfile|| error "scan error"
+		$RH -f $RBH_CFG_DIR/$config_file --scan --run=alert -I -l DEBUG --once -d -p pidfile|| error "scan error"
         sleep 2
         [ -f pidfile ] && wait $(cat pidfile)
-        ps -edf | grep $RH | grep -v grep 
+        ps -edf | grep $RH | grep -v grep
 	fi
 
 	if (( $files )); then
@@ -6226,12 +6227,12 @@ function test_logs
 		rm -f $log $report $alert
 
 		if (( $stdio )); then
-			$RH -f ./cfg/$config_file $PURGE_OPT -l DEBUG --once --dry-run >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error "run failed"
+			$RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT -l DEBUG --once --dry-run >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error "run failed"
 		else
-			$RH -f ./cfg/$config_file $PURGE_OPT -l DEBUG --once --dry-run -d -p pidfile || error "run failed"
+			$RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT -l DEBUG --once --dry-run -d -p pidfile || error "run failed"
             sleep 2
             [ -f pidfile ] && wait $(cat pidfile)
-            ps -edf | grep $RH | grep -v grep 
+            ps -edf | grep $RH | grep -v grep
         fi
 
 		# extract new syslog messages
@@ -6268,7 +6269,7 @@ function test_logs
 		fi
 
         egrep "summary|Warning" $log
-    
+
 		grep "could not reach the specified" $log > /dev/null
 		if (($?)); then
 			error ": a warning should have been issued for impossible purge"
@@ -6293,7 +6294,7 @@ function test_logs
 	fi
 
 	# start a FS scanner with FS_Scan period = 100
-	$RH -f ./cfg/$config_file --scan -l DEBUG -d -p pidfile
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -d -p pidfile
 
 	# rotate the logs
 	for l in /tmp/test_log.1 /tmp/test_report.1 /tmp/test_alert.1; do
@@ -6498,21 +6499,21 @@ function recovery_test
     # read changelogs
     if (( $no_log )); then
         echo "1.3-scan..."
-        $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning"
+        $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning"
     else
         echo "1.3-read changelog..."
-        $RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading log"
+        $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading log"
     fi
 
     sleep 2
 
     # all files are new
-    new_cnt=`$REPORT -f ./cfg/$config_file -l MAJOR --csv -i | grep file | grep new | cut -d ',' -f 3`
+    new_cnt=`$REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv -i | grep file | grep new | cut -d ',' -f 3`
     echo "$new_cnt files are new"
     (( $new_cnt == $total )) || error "20 new files expected"
 
-    na_link=`$REPORT -f ./cfg/$config_file -l MAJOR --csv -i | grep symlink | grep "n/a" | cut -d ',' -f 3`
-    new_link=`$REPORT -f ./cfg/$config_file -l MAJOR --csv -i | grep symlink | grep new | cut -d ',' -f 3`
+    na_link=`$REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv -i | grep symlink | grep "n/a" | cut -d ',' -f 3`
+    new_link=`$REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv -i | grep symlink | grep new | cut -d ',' -f 3`
     [[ -z $new_link ]] && new_link=0
     [[ -z $na_link ]] && na_link=0
     echo "$new_link symlinks are new, $na_link are n/a"
@@ -6526,18 +6527,18 @@ function recovery_test
     # archive and modify files
     for i in `seq 1 $total`; do
         if (( $i <= $nb_full )); then
-            $RH -f ./cfg/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
+            $RH -f $RBH_CFG_DIR/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
                 || error "archiving $RH_ROOT/dir.$i/file.$i"
-            $RH -f ./cfg/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/link.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
+            $RH -f $RBH_CFG_DIR/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/link.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
                 || error "archiving $RH_ROOT/dir.$i/link.$i"
             if (( $arch_slink == 0 )); then
                 grep "$RH_ROOT/dir.$i/link.$i" rh_migr.log | grep "bad type for migration" > /dev/null 2> /dev/null \
                     || error "$RH_ROOT/dir.$i/link.$i should not have been migrated"
             fi
         elif (( $i <= $(($nb_full+$nb_rename)) )); then
-            $RH -f ./cfg/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
+            $RH -f $RBH_CFG_DIR/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
                 || error "archiving $RH_ROOT/dir.$i/file.$i"
-            $RH -f ./cfg/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/link.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
+            $RH -f $RBH_CFG_DIR/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/link.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
                 || error "archiving $RH_ROOT/dir.$i/link.$i"
             if (( $arch_slink == 0 )); then
                 grep "$RH_ROOT/dir.$i/link.$i" rh_migr.log | grep "bad type for migration" > /dev/null 2> /dev/null \
@@ -6547,7 +6548,7 @@ function recovery_test
             mv "$RH_ROOT/dir.$i/link.$i" "$RH_ROOT/dir.$i/link_new.$i" || error "renaming link"
             mv "$RH_ROOT/dir.$i" "$RH_ROOT/dir.new_$i" || error "renaming dir"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
-            $RH -f ./cfg/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
+            $RH -f $RBH_CFG_DIR/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
                 || error "archiving $RH_ROOT/dir.$i/file.$i"
             touch "$RH_ROOT/dir.$i/file.$i"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
@@ -6565,13 +6566,13 @@ function recovery_test
 
     if (( $no_log )); then
         echo "2.2-scan..."
-        $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning"
+        $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning"
     else
         echo "2.2-read changelog..."
-        $RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading log"
+        $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading log"
     fi
 
-    $REPORT -f ./cfg/$config_file -l MAJOR --csv -i > /tmp/report.$$
+    $REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv -i > /tmp/report.$$
     [ "$DEBUG" = "1" ] && cat  /tmp/report.$$
 
     new_cnt=`grep "new" /tmp/report.$$ | grep file | cut -d ',' -f 3`
@@ -6616,11 +6617,11 @@ function recovery_test
     # perform the recovery
     echo "4-Performing recovery..."
     cp /dev/null recov.log
-    $RECOV -f ./cfg/$config_file --start -l DEBUG >> recov.log 2>&1 || error "Error starting recovery"
+    $RECOV -f $RBH_CFG_DIR/$config_file --start -l DEBUG >> recov.log 2>&1 || error "Error starting recovery"
 
-    $RECOV -f ./cfg/$config_file --resume -l DEBUG >> recov.log 2>&1 || error "Error performing recovery"
+    $RECOV -f $RBH_CFG_DIR/$config_file --resume -l DEBUG >> recov.log 2>&1 || error "Error performing recovery"
 
-    $RECOV -f ./cfg/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
+    $RECOV -f $RBH_CFG_DIR/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
 
     find $RH_ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/after.$$
     find $RH_ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
@@ -6707,7 +6708,7 @@ function recov_filters
 
     echo "scan and archive"
     # scan and archive
-    $RH -f ./cfg/$config_file --scan $SYNC_OPT -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "scanning or migrating"
+    $RH -f $RBH_CFG_DIR/$config_file --scan $SYNC_OPT -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "scanning or migrating"
 
     if [[ $flavor == since ]]; then
 	    $LFS changelog_clear lustre-MDT0000 cl1 0
@@ -6725,7 +6726,7 @@ function recov_filters
         ln -s "this is an initial symlink" $RH_ROOT/dir.match/slink || error "creating symlink slink_new"
 
         # don't update non-modified objects, migrate other candidates
-        $RH -f ./cfg/$config_file --readlog $SYNC_OPT -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "reading changelogs"
+        $RH -f $RBH_CFG_DIR/$config_file --readlog $SYNC_OPT -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "reading changelogs"
     fi
 
     echo "making deltas"
@@ -6753,13 +6754,13 @@ function recov_filters
     if [[ $flavor == since ]]; then
         [ "$DEBUG" = "1" ] && $LFS changelog lustre
         # don't update non-modified objects
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "reading changelogs"
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "reading changelogs"
     else
         echo "rescan (no archive)"
-        $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "scanning"
+        $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "scanning"
     fi
 
-    $REPORT -f ./cfg/$config_file -l MAJOR --csv -i > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv -i > report.out
     [ "$DEBUG" = "1" ] && cat report.out
 
     new_cnt=`grep "new" report.out | grep file | cut -d ',' -f 3`
@@ -6814,10 +6815,10 @@ function recov_filters
             ;;
     esac
 
-    $RECOV -f ./cfg/$config_file --start $start_option -l FULL >> recov.log 2>&1 || error "Error starting recovery"
-    $RECOV -f ./cfg/$config_file --resume $resume_option -l DEBUG >> recov.log 2>&1 || error "Error performing recovery"
+    $RECOV -f $RBH_CFG_DIR/$config_file --start $start_option -l FULL >> recov.log 2>&1 || error "Error starting recovery"
+    $RECOV -f $RBH_CFG_DIR/$config_file --resume $resume_option -l DEBUG >> recov.log 2>&1 || error "Error performing recovery"
     if [[ $flavor != dir ]]; then # for dirs, cannot complete as long as it is only for parallelizing the recovery
-        $RECOV -f ./cfg/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
+        $RECOV -f $RBH_CFG_DIR/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
     fi
 
     # check that all matching entries are recovered with the appropriate status
@@ -6854,7 +6855,7 @@ function test_tokudb
 
     echo "Test without default compression, i.e. none"
     $CFG_SCRIPT empty_db $RH_DB > /dev/null
-    $RH -f ./cfg/tokudb1.conf --scan -l DEBUG -L rh_scan.log --once || error ""
+    $RH -f $RBH_CFG_DIR/tokudb1.conf --scan -l DEBUG -L rh_scan.log --once || error ""
     mysql $RH_DB -e "show create table ENTRIES;" |
         grep "ENGINE=TokuDB .*\`COMPRESSION\`=tokudb_uncompressed" ||
         error "invalid engine/compression"
@@ -6862,7 +6863,7 @@ function test_tokudb
     echo "Tests with valid compression names"
     for COMPRESS in tokudb_uncompressed tokudb_zlib tokudb_lzma ; do
         $CFG_SCRIPT empty_db $RH_DB > /dev/null
-        RBH_TOKU_COMPRESS=$COMPRESS $RH -f ./cfg/tokudb2.conf --scan -l DEBUG -L rh_scan.log --once || error ""
+        RBH_TOKU_COMPRESS=$COMPRESS $RH -f $RBH_CFG_DIR/tokudb2.conf --scan -l DEBUG -L rh_scan.log --once || error ""
         mysql $RH_DB -e "show create table ENTRIES;" |
             grep "ENGINE=TokuDB .*\`COMPRESSION\`=${COMPRESS}" ||
             error "invalid engine/compression"
@@ -6870,7 +6871,7 @@ function test_tokudb
 
     echo "Test with invalid compression name"
     $CFG_SCRIPT empty_db $RH_DB > /dev/null
-    RBH_TOKU_COMPRESS=some_non_existent_compression $RH -f ./cfg/tokudb2.conf --scan -l DEBUG -L rh_scan.log --once &&
+    RBH_TOKU_COMPRESS=some_non_existent_compression $RH -f $RBH_CFG_DIR/tokudb2.conf --scan -l DEBUG -L rh_scan.log --once &&
         error "should have failed"
     grep "Error: Incorrect value 'some_non_existent_compression' for option 'compression'" rh_scan.log ||
         error "expected error not found"
@@ -6883,19 +6884,19 @@ function test_cfg_overflow
     # fs_key is harcoded as 128 bytes max. Try various lengths.
 
     echo "Test with a valid key"
-    FS_KEY="fsname" $RH -f ./cfg/overflow.conf --test-syntax |
+    FS_KEY="fsname" $RH -f $RBH_CFG_DIR/overflow.conf --test-syntax |
         grep "has been read successfully" || error "valid config failed"
 
     echo "Test with an invalid key, at the size limit"
-    FS_KEY="ghfkfkjghsdfklhgjklsdfhgkdjfhgkljfhgkljdfghlkfjghkjfhgjklhkljdfhsglkjfhlkgjhflkjghdflkjhgldfksjhglkdfjhglkjdfhglkjdfhglkjfdhglk" $RH -f ./cfg/overflow.conf --test-syntax |&
+    FS_KEY="ghfkfkjghsdfklhgjklsdfhgkdjfhgkljfhgkljdfghlkfjghkjfhgjklhkljdfhsglkjfhlkgjhflkjghdflkjhgldfksjhglkdfjhglkjdfhglkjdfhglkjfdhglk" $RH -f $RBH_CFG_DIR/overflow.conf --test-syntax |&
         grep "Invalid type for fs_key" || error "unexpected result for invalid key"
 
     echo "Test with a key 1 character too long"
-    FS_KEY="ghfkfkjghsdfklhgjklsdfhgkdjfhgkljfhgkljdfghlkfjghkjfhgjklhkljdfhsglkjfhlkgjhflkjghdflkjhgldfksjhglkdfjhglkjdfhglkjdfhglkjfdhglkq" $RH -f ./cfg/overflow.conf --test-syntax |&
+    FS_KEY="ghfkfkjghsdfklhgjklsdfhgkdjfhgkljfhgkljdfghlkfjghkjfhgjklhkljdfhsglkjfhlkgjhflkjghdflkjhgldfksjhglkdfjhglkjdfhglkjdfhglkjfdhglkq" $RH -f $RBH_CFG_DIR/overflow.conf --test-syntax |&
         grep "Option too long for parameter 'General::fs_key'" || error "unexpected result for 127 chars key"
 
     echo "Test with a key several characters too long"
-    FS_KEY="ghfkfkjghsdfklhgjklsdfhgkdjfhgkllkhfglkhjgyugfhlgfghfhfhhfkdhliutylkrhgkjdfshgskjjfhgkljdfghlkfjghkjfhgjklhkljdfhsglkjfhlkgjhflkjghdflkjhgldfksjhglkdfjhglkjdfhglkjdfhglkjfdhglkq" $RH -f ./cfg/overflow.conf --test-syntax |&
+    FS_KEY="ghfkfkjghsdfklhgjklsdfhgkdjfhgkllkhfglkhjgyugfhlgfghfhfhhfkdhliutylkrhgkjdfshgskjjfhgkljdfghlkfjghkjfhgjklhkljdfhsglkjfhlkgjhflkjghdflkjhgldfksjhglkdfjhglkjdfhglkjdfhglkjfdhglkq" $RH -f $RBH_CFG_DIR/overflow.conf --test-syntax |&
         grep "Option too long for parameter 'General::fs_key'" || error "unexpected result for too long key"
 
 
@@ -6919,7 +6920,7 @@ function import_test
 
     # initial scan
     echo "0- initial scan..."
-	$RH -f ./cfg/$config_file --scan --once -l DEBUG -L rh_chglogs.log 2>/dev/null || error "scanning"
+	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log 2>/dev/null || error "scanning"
 
 
     # create files in backend
@@ -6960,7 +6961,7 @@ function import_test
 
 	# perform the import
     echo "2- import to $RH_ROOT..."
-    $IMPORT -l DEBUG -f ./cfg/$config_file $BKROOT/import  $RH_ROOT/dest > recov.log 2>&1 || error "importing data from backend"
+    $IMPORT -l DEBUG -f $RBH_CFG_DIR/$config_file $BKROOT/import  $RH_ROOT/dest > recov.log 2>&1 || error "importing data from backend"
 
     [ "$DEBUG" = "1" ] && cat recov.log
 
@@ -7027,16 +7028,16 @@ function import_test
 	# read changelogs to check there is no side effect
 	if (( $no_log )); then
 		echo "1.2-scan..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning"
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning"
 	else
 		echo "1.2-read changelog..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading log"
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading log"
 	fi
 
 	sleep 2
 
 	# all files are new
-	new_cnt=`$REPORT -f ./cfg/$config_file -l MAJOR --csv -i | grep new | cut -d ',' -f 3`
+	new_cnt=`$REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv -i | grep new | cut -d ',' -f 3`
 	echo "$new_cnt files are new"
 	(( $new_cnt == $total )) || error "20 new files expected"
 
@@ -7044,15 +7045,15 @@ function import_test
 	# archive and modify files
 	for i in `seq 1 $total`; do
 		if (( $i <= $nb_full )); then
-			$RH -f ./cfg/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
+			$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
 				|| error "archiving $RH_ROOT/dir.$i/file.$i"
 		elif (( $i <= $(($nb_full+$nb_rename)) )); then
-			$RH -f ./cfg/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
+			$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
 				|| error "archiving $RH_ROOT/dir.$i/file.$i"
 			mv "$RH_ROOT/dir.$i/file.$i" "$RH_ROOT/dir.$i/file_new.$i" || error "renaming file"
 			mv "$RH_ROOT/dir.$i" "$RH_ROOT/dir.new_$i" || error "renaming dir"
 		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
-			$RH -f ./cfg/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
+			$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=file:"$RH_ROOT/dir.$i/file.$i" --ignore-conditions -l DEBUG -L rh_migr.log 2>/dev/null \
 				|| error "archiving $RH_ROOT/dir.$i/file.$i"
 			touch "$RH_ROOT/dir.$i/file.$i"
 		elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
@@ -7063,13 +7064,13 @@ function import_test
 
 	if (( $no_log )); then
 		echo "2.2-scan..."
-		$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning"
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning"
 	else
 		echo "2.2-read changelog..."
-		$RH -f ./cfg/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading log"
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading log"
 	fi
 
-	$REPORT -f ./cfg/$config_file -l MAJOR --csv -i > /tmp/report.$$
+	$REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv -i > /tmp/report.$$
 	new_cnt=`grep "new" /tmp/report.$$ | cut -d ',' -f 3`
 	mod_cnt=`grep "modified" /tmp/report.$$ | cut -d ',' -f 3`
 	sync_cnt=`grep "synchro" /tmp/report.$$ | cut -d ',' -f 3`
@@ -7096,11 +7097,11 @@ function import_test
 	# perform the recovery
 	echo "4-Performing recovery..."
 	cp /dev/null recov.log
-	$RECOV -f ./cfg/$config_file --start -l DEBUG >> recov.log 2>&1 || error "Error starting recovery"
+	$RECOV -f $RBH_CFG_DIR/$config_file --start -l DEBUG >> recov.log 2>&1 || error "Error starting recovery"
 
-	$RECOV -f ./cfg/$config_file --resume -l DEBUG >> recov.log 2>&1 || error "Error performing recovery"
+	$RECOV -f $RBH_CFG_DIR/$config_file --resume -l DEBUG >> recov.log 2>&1 || error "Error performing recovery"
 
-	$RECOV -f ./cfg/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
+	$RECOV -f $RBH_CFG_DIR/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
 
 	find $RH_ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/after.$$
 	find $RH_ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
@@ -7149,7 +7150,7 @@ function check_find
 
 function test_find
 {
-	cfg=./cfg/$1
+	cfg=$RBH_CFG_DIR/$1
 	opt=$2
 	policy_str="$3"
 
@@ -7291,7 +7292,7 @@ function test_find
 
 function test_du
 {
-	cfg=./cfg/$1
+	cfg=$RBH_CFG_DIR/$1
 	opt=$2
 	policy_str="$3"
 
@@ -7419,7 +7420,7 @@ function check_disabled
 
        echo "1.1. Performing action $cmd (daemon mode)..."
        # run with --scan, to keep the daemon alive (else, it would have nothing to do)
-       $RH -f ./cfg/$config_file --scan $cmd -l DEBUG -L rh_scan.log -p rh.pid &
+       $RH -f $RBH_CFG_DIR/$config_file --scan $cmd -l DEBUG -L rh_scan.log -p rh.pid &
 
        sleep 2
        echo "1.2. Checking that kill -HUP does not terminate the process..."
@@ -7435,7 +7436,7 @@ function check_disabled
 
        cp /dev/null rh_scan.log
        echo "2. Performing action $cmd (one shot)..."
-        $RH -f ./cfg/$config_file $cmd --once -l DEBUG -L rh_scan.log
+        $RH -f $RBH_CFG_DIR/$config_file $cmd --once -l DEBUG -L rh_scan.log
 
        grep "$match" rh_scan.log || error "log should contain \"$match\""
 
@@ -7661,7 +7662,7 @@ function test_alerts
     export ALERT_CLASS=$testKey
 
 	echo "2-Scanning filesystem..."
-	$RH -f ./cfg/$config_file --scan --run=alert -l MAJOR -I --once || error "scan+alert error"
+	$RH -f $RBH_CFG_DIR/$config_file --scan --run=alert -l MAJOR -I --once || error "scan+alert error"
 
 	echo "3-Checking results..."
 	logFile=/tmp/rh_alert.log
@@ -7748,7 +7749,7 @@ function test_alerts_OST
     export ALERT_CLASS=$testKey
 
 	echo "2-Scanning filesystem..."
-	$RH -f ./cfg/$config_file --scan --run=alert -l MAJOR -I --once || error "scan+alert error"
+	$RH -f $RBH_CFG_DIR/$config_file --scan --run=alert -l MAJOR -I --once || error "scan+alert error"
 
 	echo "3-Checking results..."
 	logFile=/tmp/rh_alert.log
@@ -7933,7 +7934,7 @@ function test_migration
     fi
 
 	echo "Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan $migrOpt -l DEBUG -L rh_migr.log --once
+	$RH -f $RBH_CFG_DIR/$config_file --scan $migrOpt -l DEBUG -L rh_migr.log --once
     (( $is_lhsm > 0 )) && wait_done 60
 
     # no symlink archiving for Lustre/HSM
@@ -7998,7 +7999,7 @@ function migration_file_type
     fi
 
 	echo "Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$RH_ROOT/dir1/link.1 -l DEBUG -L rh_migr.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan --run=migration --target=file:$RH_ROOT/dir1/link.1 -l DEBUG -L rh_migr.log
 
     nbError=0
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -8013,7 +8014,7 @@ function migration_file_type
     ((nbError+=$?))
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --run=migration --target=file:$RH_ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=file:$RH_ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -8070,7 +8071,7 @@ function migration_file_owner
     fi
 
 	echo "Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$RH_ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan --run=migration --target=file:$RH_ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     nbError=0
@@ -8083,7 +8084,7 @@ function migration_file_owner
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --run=migration --target=file:$RH_ROOT/dir1/file.3 -l DEBUG -L rh_migr.log
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=file:$RH_ROOT/dir1/file.3 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -8132,7 +8133,7 @@ function migration_file_Last
 	create_files_migration
 
 	echo "Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$RH_ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan --run=migration --target=file:$RH_ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
 	nbError=0
@@ -8153,7 +8154,7 @@ function migration_file_Last
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --run=migration --target=file:$RH_ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=file:$RH_ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -8202,7 +8203,7 @@ function migration_file_ExtendedAttribut
 	create_files_migration
 
 	echo "Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$RH_ROOT/dir1/file.4 -l DEBUG -L rh_migr.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan --run=migration --target=file:$RH_ROOT/dir1/file.4 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
 	nbError=0
@@ -8215,7 +8216,7 @@ function migration_file_ExtendedAttribut
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$RH_ROOT/dir1/file.5 -l DEBUG -L rh_migr.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan --run=migration --target=file:$RH_ROOT/dir1/file.5 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -8227,7 +8228,7 @@ function migration_file_ExtendedAttribut
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$RH_ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan --run=migration --target=file:$RH_ROOT/dir1/file.1 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -8285,7 +8286,7 @@ function migration_OST
 	done
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan $migrOpt -l DEBUG -L rh_migr.log --once
+	$RH -f $RBH_CFG_DIR/$config_file --scan $migrOpt -l DEBUG -L rh_migr.log --once
     (( $is_lhsm > 0 )) && wait_done 60
     nbError=0
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -8342,7 +8343,7 @@ function migration_file_OST
 	done
 
 	echo "3-Reading changelogs and Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$RH_ROOT/file.2 -l DEBUG -L rh_migr.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan --run=migration --target=file:$RH_ROOT/file.2 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     nbError=0
@@ -8355,7 +8356,7 @@ function migration_file_OST
     fi
 
 	echo "Applying migration policy..."
-	$RH -f ./cfg/$config_file --scan --run=migration --target=file:$RH_ROOT/file.3 -l DEBUG -L rh_migr.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan --run=migration --target=file:$RH_ROOT/file.3 -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 10
 
     countFile=`find $BKROOT -type f -not -name "*.lov" | wc -l`
@@ -8437,7 +8438,7 @@ function trigger_purge_QUOTA_EXCEEDED
     done
 
     echo "2-Reading changelogs and Applying purge trigger policy..."
-	$RH -f ./cfg/$config_file --scan --check-thresholds=purge -l DEBUG -L rh_purge.log --once
+	$RH -f $RBH_CFG_DIR/$config_file --scan --check-thresholds=purge -l DEBUG -L rh_purge.log --once
 
     countMigrLog=`grep "High threshold reached on Filesystem" rh_purge.log | wc -l`
     if (($countMigrLog == 0)); then
@@ -8496,7 +8497,7 @@ function trigger_purge_OST_QUOTA_EXCEEDED
     done
 
     echo "2-Reading changelogs and Applying purge trigger policy..."
-	$RH -f ./cfg/$config_file --scan --check-thresholds=purge -l DEBUG -L rh_purge.log --once
+	$RH -f $RBH_CFG_DIR/$config_file --scan --check-thresholds=purge -l DEBUG -L rh_purge.log --once
 
     countMigrLog=`grep "High threshold reached on OST #0" rh_purge.log | wc -l`
     if (($countMigrLog == 0)); then
@@ -8586,7 +8587,7 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
 
 
     echo "2-Reading changelogs and Applying purge trigger policy..."
-	$RH -f ./cfg/$config_file --scan --check-thresholds=purge -l DEBUG -L rh_purge.log --once
+	$RH -f $RBH_CFG_DIR/$config_file --scan --check-thresholds=purge -l DEBUG -L rh_purge.log --once
 
     countMigrLog=`grep "$usage exceeds high threshold" rh_purge.log | wc -l`
     if (($countMigrLog == 0)); then
@@ -8678,12 +8679,12 @@ function test_purge
 	create_files_Purge
 
 	sleep 1
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once
 
 	# use robinhood for flushing
     if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
 		echo "Archiving files"
-		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing Archiving files"
+		$RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing Archiving files"
 	fi
 
 	if(($sleep_time != 0)); then
@@ -8695,13 +8696,13 @@ function test_purge
 
         if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
 	        echo "Update and archiving files"
-	        $RH -f ./cfg/$config_file --scan --run=migration --target=all --once -l DEBUG  -L rh_migr.log
+	        $RH -f $RBH_CFG_DIR/$config_file --scan --run=migration --target=all --once -l DEBUG  -L rh_migr.log
             (( $is_lhsm > 0 )) && wait_done 60
 	    fi
     fi
 
 	echo "Scan and apply purge policy ($purgeOpt)..."
-	$RH -f ./cfg/$config_file --scan  $purgeOpt --once -l DEBUG -L rh_purge.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan  $purgeOpt --once -l DEBUG -L rh_purge.log
 
 	nbError=0
 	nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
@@ -8750,7 +8751,7 @@ function test_purge_tmp_fs_mgr
 	create_files_Purge
 
 	sleep 1
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once
 
 	if(($sleep_time != 0)); then
 	    echo "Sleep $sleep_time"
@@ -8761,7 +8762,7 @@ function test_purge_tmp_fs_mgr
     fi
 
 	echo "Reading changelogs and Applying purge policy..."
-	$RH -f ./cfg/$config_file --scan  $purgeOpt --once -l DEBUG -L rh_purge.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan  $purgeOpt --once -l DEBUG -L rh_purge.log
 
 	nbError=0
 	nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
@@ -8840,17 +8841,17 @@ function purge_OST
 	done
 
 	sleep 1
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once
 
 	# use robinhood for flushing
 	if (( $is_hsmlite + $is_lhsm > 0 )); then
 		echo "2bis-Archiving files"
-		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing Archiving files"
+		$RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing Archiving files"
         (( $is_lhsm > 0 )) && wait_done 60
 	fi
 
 	echo "Reading changelogs and Applying purge policy..."
-	$RH -f ./cfg/$config_file --scan $purgeOpt -l DEBUG -L rh_purge.log --once
+	$RH -f $RBH_CFG_DIR/$config_file --scan $purgeOpt -l DEBUG -L rh_purge.log --once
 
 	nbError=0
 	nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
@@ -8934,7 +8935,7 @@ function test_removing
 
 	# launch the scan ..........................
 	echo "2-Scanning directories in filesystem ..."
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once || error "scanning filesystem"
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once || error "scanning filesystem"
 
 	# optional sleep process ......................
 	if [ $sleepTime != 0 ]; then
@@ -8952,9 +8953,9 @@ function test_removing
 	# launch the rmdir ..........................
 	echo "3-Removing directories in filesystem ..."
 	if [ $testKey == "lastAccess" ]; then
-	$RH -f ./cfg/$config_file --run=rmdir_recurse --target=all -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
+	$RH -f $RBH_CFG_DIR/$config_file --run=rmdir_recurse --target=all -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
 	else
-	$RH -f ./cfg/$config_file --scan --run=rmdir_recurse --target=all -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
+	$RH -f $RBH_CFG_DIR/$config_file --scan --run=rmdir_recurse --target=all -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
 	fi
 
 	# launch the validation ..........................
@@ -9035,10 +9036,10 @@ function test_rmdir_mix
 
     # launch the scan ..........................
     echo "2-Scanning directories in filesystem ..."
-    $RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once || error "scanning filesystem"
+    $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once || error "scanning filesystem"
 
     echo "3-Checking old dirs report"
-    $REPORT -f ./cfg/$config_file -l MAJOR -cq --oldest-empty-dirs > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR -cq --oldest-empty-dirs > report.out
     [ "$DEBUG" = "1" ] && cat report.out
     # must report empty dirs
     grep "no_rm/dirempty," report.out || error "no_rm/dirempty not in empty dir report"
@@ -9053,7 +9054,7 @@ function test_rmdir_mix
 
     # launch the rmdir ..........................
     echo "4-Removing directories in filesystem ..."
-    $RH -f ./cfg/$config_file --run=rmdir --target=all -l DEBUG -L rh_rmdir.log --once || error "performing rmdir"
+    $RH -f $RBH_CFG_DIR/$config_file --run=rmdir --target=all -l DEBUG -L rh_rmdir.log --once || error "performing rmdir"
 
     echo "5-Checking results ..."
     exist="$RH_ROOT/no_rm/dirempty;$RH_ROOT/no_rm/dir1;$RH_ROOT/no_rm/dir2;$RH_ROOT/no_rm/dirempty_new;$RH_ROOT/dir2;$RH_ROOT/dirempty_new"
@@ -9107,7 +9108,7 @@ function test_removing_ost
 	$LFS setstripe  -p lustre.$POOL2 $RH_ROOT/dir2/file.3 -c 1 >/dev/null 2>/dev/null
 
 	echo "Removing directories in filesystem ..."
-	$RH -f ./cfg/$config_file --scan --run=rmdir_recurse --target=all -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
+	$RH -f $RBH_CFG_DIR/$config_file --scan --run=rmdir_recurse --target=all -l DEBUG -L rh_rmdir.log --once || error "performing FS removing"
 
 	# launch the validation ..........................
 	echo "Checking results ..."
@@ -9271,12 +9272,12 @@ function test_report_generation_1
 
 	# launch the scan ..........................
 	echo -e "\n 2-Scanning Filesystem..."
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "performing FS scan"
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "performing FS scan"
 
 	# launch another scan ..........................
 	echo -e "\n 3-Filesystem content statistics..."
-	#$REPORT -f ./cfg/$config_file --fs-info -c || error "performing FS statistics (--fs-info)"
-	$REPORT -f ./cfg/$config_file --fs-info --csv > report.out || error "performing FS statistics (--fs-info)"
+	#$REPORT -f $RBH_CFG_DIR/$config_file --fs-info -c || error "performing FS statistics (--fs-info)"
+	$REPORT -f $RBH_CFG_DIR/$config_file --fs-info --csv > report.out || error "performing FS statistics (--fs-info)"
 	logFile=report.out
 
     typeValues="dir;file;symlink"
@@ -9288,7 +9289,7 @@ function test_report_generation_1
 
 	# launch another scan ..........................
 	echo -e "\n 4-FileClasses summary..."
-	$REPORT -f ./cfg/$config_file --class-info --csv > report.out || error "performing FileClasses summary (--class)"
+	$REPORT -f $RBH_CFG_DIR/$config_file --class-info --csv > report.out || error "performing FileClasses summary (--class)"
     if (( $is_lhsm == 0 )); then
         typeValues="test_file_type;test_link_type"
         countValues="6;5"
@@ -9304,7 +9305,7 @@ function test_report_generation_1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FileClasses summary (--class)"
 	# launch another scan ..........................
 	echo -e "\n 5-User statistics of root..."
-	$REPORT -f ./cfg/$config_file --user-info -u root --csv > report.out || error "performing User statistics (--user)"
+	$REPORT -f $RBH_CFG_DIR/$config_file --user-info -u root --csv > report.out || error "performing User statistics (--user)"
     typeValues="root.*dir;root.*file;root.*symlink"
     countValues="2;5;3"
 	colSearch=3
@@ -9313,7 +9314,7 @@ function test_report_generation_1
 
 	# launch another scan ..........................
 	echo -e "\n 6-Group statistics of testgroup..."
-	$REPORT -f ./cfg/$config_file --group-info -g testgroup --csv > report.out || error "performing Group statistics (--group)"
+	$REPORT -f $RBH_CFG_DIR/$config_file --group-info -g testgroup --csv > report.out || error "performing Group statistics (--group)"
 	typeValues="testgroup.*dir;testgroup.*file;testgroup.*symlink"
 	countValues="6;3;2"
 	colSearch=3
@@ -9322,7 +9323,7 @@ function test_report_generation_1
 
 	# launch another scan ..........................
 	echo -e "\n 7-Four largest files of Filesystem..."
-	$REPORT -f ./cfg/$config_file --top-size=4 --csv > report.out || error "performing Largest files list (--top-size)"
+	$REPORT -f $RBH_CFG_DIR/$config_file --top-size=4 --csv > report.out || error "performing Largest files list (--top-size)"
 	typeValues="file\.2;file\.6;file\.5;file\.3"
 	countValues="1;2;3;4"
 	colSearch=1
@@ -9330,7 +9331,7 @@ function test_report_generation_1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Largest files list (--top-size)"
 
 	echo -e "\n 8-Largest directories of Filesystem..."
-	$REPORT -f ./cfg/$config_file --top-dirs=3 --csv > report.out || error "performing Largest folders list (--top-dirs)"
+	$REPORT -f $RBH_CFG_DIR/$config_file --top-dirs=3 --csv > report.out || error "performing Largest folders list (--top-dirs)"
 	# 2 possible orders
 	typeValues="$RH_ROOT/dir1;$RH_ROOT/dir5;$RH_ROOT,"
 	typeValuesAlt="$RH_ROOT/dir1;$RH_ROOT,;$RH_ROOT/dir5"
@@ -9347,12 +9348,12 @@ function test_report_generation_1
     echo "FIXME: test is disturbed by file and symlink reading"
     if (( 0 )); then
         if (( $is_hsmlite + $is_lhsm != 0 )); then
-        $RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log  --once || error "performing migration"
-        $REPORT -f ./cfg/$config_file --oldest-files=4 --csv > report.out || error "performing Oldest entries list (--oldest-files)"
+        $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log  --once || error "performing migration"
+        $REPORT -f $RBH_CFG_DIR/$config_file --oldest-files=4 --csv > report.out || error "performing Oldest entries list (--oldest-files)"
         typeValues="link\.3;link\.1;link\.2;file\.1"
         countValues="1;2;3;4"
         else
-        $REPORT -f ./cfg/$config_file --oldest-files=4 --csv > report.out || error "performing Oldest entries list (--oldest-files)"
+        $REPORT -f $RBH_CFG_DIR/$config_file --oldest-files=4 --csv > report.out || error "performing Oldest entries list (--oldest-files)"
         typeValues="file\.3;file\.4;file\.5;link\.3"
         countValues="1;2;3;4"
         fi
@@ -9361,7 +9362,7 @@ function test_report_generation_1
     fi
 
     echo -e "\n 10-Oldest empty directories of Filesystem..."
-    $REPORT -f ./cfg/$config_file --oldest-empty-dirs --csv > report.out || error "performing oldest empty folders list (--oldest-empty-dirs)"
+    $REPORT -f $RBH_CFG_DIR/$config_file --oldest-empty-dirs --csv > report.out || error "performing oldest empty folders list (--oldest-empty-dirs)"
     [ "$DEBUG" = "1" ] && cat report.out
     nb_dir3=`grep "dir3" $logFile | wc -l`
     if (( nb_dir3==0 )); then
@@ -9382,7 +9383,7 @@ function test_report_generation_1
 
 	# launch another scan ..........................
 	echo -e "\n 11-Top disk space consumers of Filesystem..."
-	$REPORT -f ./cfg/$config_file --top-users --csv > report.out || error "performing disk space consumers (--top-users)"
+	$REPORT -f $RBH_CFG_DIR/$config_file --top-users --csv > report.out || error "performing disk space consumers (--top-users)"
 	typeValues="testuser;root"
 	countValues="1;2"
 	colSearch=1
@@ -9391,7 +9392,7 @@ function test_report_generation_1
 
 	# launch another scan ..........................
 	echo -e "\n 12-Dump entries for one user of Filesystem..."
-	$REPORT -f ./cfg/$config_file --dump-user root --csv > report.out || error "dumping entries for one user 'root'(--dump-user)"
+	$REPORT -f $RBH_CFG_DIR/$config_file --dump-user root --csv > report.out || error "dumping entries for one user 'root'(--dump-user)"
 	typeValues="root.*[root|testgroup].*dir1$;root.*[root|testgroup].*file\.1;root.*[root|testgroup].*file\.3;root.*[root|testgroup].*dir4$;"
 	countValues="dir;file;file;dir"
 	colSearch=1
@@ -9407,8 +9408,8 @@ function test_report_generation_1
 	fi
 	# launch another scan ..........................
 	echo -e "\n 13-Dump entries for one group of Filesystem..."
-	$REPORT -f ./cfg/$config_file --dump-group testgroup --csv > report.out || error "dumping entries for one group 'testgroup'(--dump-group)"
-	#$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "performing FS scan"
+	$REPORT -f $RBH_CFG_DIR/$config_file --dump-group testgroup --csv > report.out || error "dumping entries for one group 'testgroup'(--dump-group)"
+	#$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log  --once || error "performing FS scan"
 	typeValues="testgroup.*link\.1;testgroup.*file\.1;testgroup.*file\.2;testgroup.*link\.2;testgroup.*file\.6"
 	countValues="symlink;file;file;symlink;file"
 	colSearch=1
@@ -9557,11 +9558,11 @@ function report_generation2
 	done
 
 	sleep 1
-	$RH -f ./cfg/common.conf --scan -l DEBUG -L rh_scan.log --once
+	$RH -f $RBH_CFG_DIR/common.conf --scan -l DEBUG -L rh_scan.log --once
 
 
 	echo "Generate report..."
-	$REPORT -f ./cfg/common.conf --dump-ost 1 >> report.out
+	$REPORT -f $RBH_CFG_DIR/common.conf --dump-ost 1 >> report.out
 
 	nbError=0
 	nb_report=`grep "$RH_ROOT/file." report.out | wc -l`
@@ -9618,7 +9619,7 @@ function test_changelog
 
     # Reading changelogs
     echo "2. Scanning ..."
-   	$RH -f ./cfg/$config_file --readlog --once -l FULL -L rh_scan.log || error "reading changelog"
+   	$RH -f $RBH_CFG_DIR/$config_file --readlog --once -l FULL -L rh_scan.log || error "reading changelog"
 	grep ChangeLog rh_scan.log
 
     # check that the MARK, CLOSE and SATTR have been ignored, but
@@ -9667,16 +9668,16 @@ function TEST_OTHER_PARAMETERS_1
 
 	echo "Scan Filesystem"
 	sleep 1
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once
 
 	# use robinhood for flushing
 	if (( ($is_hsmlite == 0 && $is_lhsm == 1 && $shook == 0) || ($is_hsmlite == 1 && $is_lhsm == 0 && $shook == 1) )); then
 		echo "Archiving files"
-		$RH -f ./cfg/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing Archiving files"
+		$RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing Archiving files"
 	fi
 
 	echo "Report : --dump --filter-class test_purge"
-	$REPORT -f ./cfg/$config_file --dump --filter-class test_purge > report.out
+	$REPORT -f $RBH_CFG_DIR/$config_file --dump --filter-class test_purge > report.out
 
 	nbError=0
 	nb_entries=`grep "0 entries" report.out | wc -l`
@@ -9687,7 +9688,7 @@ function TEST_OTHER_PARAMETERS_1
 
 	if (( $is_hsmlite == 0 || $shook != 0 || $is_lhsm != 0 )); then
 	    echo "Reading changelogs and Applying purge policy..."
-	    $RH -f ./cfg/$config_file --scan --run=purge -l DEBUG -L rh_purge.log --once  &
+	    $RH -f $RBH_CFG_DIR/$config_file --scan --run=purge -l DEBUG -L rh_purge.log --once  &
 
 	    sleep 1
 
@@ -9701,7 +9702,7 @@ function TEST_OTHER_PARAMETERS_1
 	    fi
     else #backup mod
 	    echo "Launch Migration in background"
-	    $RH -f ./cfg/$config_file --scan --run=migration --target=all -l DEBUG -L rh_migr.log --once &
+	    $RH -f $RBH_CFG_DIR/$config_file --scan --run=migration --target=all -l DEBUG -L rh_migr.log --once &
 
 	    sleep 1
 
@@ -9748,10 +9749,10 @@ function TEST_OTHER_PARAMETERS_2
 	done
 
 	sleep 1
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once
 
 	echo "Migrate files"
-	$RH -f ./cfg/$config_file --run=migration -l DEBUG -L rh_migr.log &
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration -l DEBUG -L rh_migr.log &
 	pid=$!
 
 	sleep 5
@@ -9826,7 +9827,7 @@ function TEST_OTHER_PARAMETERS_3
 	done
 
 	echo "Archives files"
-	$RH -f ./cfg/$config_file --scan --run=migration --target=all --once -l DEBUG -L rh_migr.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan --run=migration --target=all --once -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 60
 
 	nbError=0
@@ -9843,13 +9844,13 @@ function TEST_OTHER_PARAMETERS_3
     	rm -f $RH_ROOT/file.$i && rmd+=($f)
 	done
 
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once
 
 	echo "sleep 31 seconds"
 	sleep 31
 
 	echo "HSM Remove"
-	$RH -f ./cfg/$config_file --run=hsm_remove -l DEBUG -L rh_purge.log &
+	$RH -f $RBH_CFG_DIR/$config_file --run=hsm_remove -l DEBUG -L rh_purge.log &
 	pid=$!
 
 	echo "sleep 5 seconds"
@@ -9938,7 +9939,7 @@ function TEST_OTHER_PARAMETERS_4
 	done
 
 	echo "Migrate files (must fail)"
-	$RH -f ./cfg/$config_file --scan --run=migration --target=all --once -l DEBUG -L rh_migr.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan --run=migration --target=all --once -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 60
 
 	nbError=0
@@ -9956,8 +9957,8 @@ function TEST_OTHER_PARAMETERS_4
     ensure_init_backend || error "Error initializing backend $BKROOT"
 
     echo "Migrate files"
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  &
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  &
 	pid=$!
     kill -9 $pid
 
@@ -9969,8 +9970,8 @@ function TEST_OTHER_PARAMETERS_4
     fi
 
     echo "Migrate files"
-	$RH -f ./cfg/$config_file --scan -l DEBUG -L rh_scan.log --once
-	$RH -f ./cfg/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log &
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log &
 	pid=$!
 
 	echo "sleep 30 seconds"
@@ -10013,7 +10014,7 @@ function TEST_OTHER_PARAMETERS_5
 	clean_logs
 
     echo "Launch scan in background..."
-	$RH -f ./cfg/$config_file --scan --check-thresholds=purge -l DEBUG -L rh_scan.log &
+	$RH -f $RBH_CFG_DIR/$config_file --scan --check-thresholds=purge -l DEBUG -L rh_scan.log &
 	pid=$!
 
 	sleep 2
