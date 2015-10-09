@@ -8,8 +8,12 @@ EXTRA_DIST= test_suite/1-test_setup_lustre.sh	\
 	test_suite/README.rst		\
 	test_suite/bench_rpc.sh		\
 	test_suite/cfg		    \
+	test_suite/valgrind.supp \
+	test_suite/rm_script \
+	test_suite/hudson_lsetup.sh \
     huge_posix/cfg		 \
     huge_posix/1-test_setup.sh      \
     huge_posix/2-run-tests.sh	    \
 	test_compil_switches.sh	    \
-	fill_fs.sh
+	fill_fs.sh \
+	completion.sh

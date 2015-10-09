@@ -82,6 +82,9 @@ EXTRA_DIST= robinhood.spec robinhood.spec.in \
 	doc/install_webgui.txt \
 	doc/templates_v3/includes/lhsm.inc \
 	doc/templates_v3/includes/tmpfs.inc \
+	doc/templates_v3/includes/alerts.inc \
+	doc/templates_v3/includes/backup.inc \
+	doc/templates_v3/includes/rmdir.inc \
 	doc/templates_v3/template.conf \
 	ChangeLog \
 	man/*.1
