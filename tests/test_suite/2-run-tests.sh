@@ -20,18 +20,30 @@ fi
 BKROOT="/tmp/backend"
 RBH_OPT=""
 
-#RBH_BINDIR="/usr/sbin"
-RBH_BINDIR="../../src/robinhood"
-RBH_MODDIR=$(readlink -m "../../src/modules/.libs")
-RBH_TESTS_DIR=".."
-RBH_CFG_DIR="./cfg"
-RBH_TEST_POLICIES="$(pwd)/cfg/test_policies.inc"
+# Test whether the testsuite is running from the source tree or has
+# been installed.
+if [ -d "../../src/robinhood" ]; then
+    CFG_SCRIPT="../../scripts/rbh-config"
+    RBH_BINDIR="../../src/robinhood"
+    RBH_MODDIR=$(readlink -m "../../src/modules/.libs")
+    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$RBH_MODDIR
+    RBH_TEMPLATE_DIR="../../doc/templates"
+    RBH_TESTS_DIR=".."
+    RBH_CFG_DIR="./cfg"
+    export RBH_TEST_POLICIES="$(pwd)/cfg/test_policies.inc"
+else
+    CFG_SCRIPT="rbh-config"
+    RBH_BINDIR=${RBH_BINDIR:-"/usr/sbin"}
+    RBH_INSTALL_DIR=${RBH_INSTALL_DIR:-"/usr/share/robinhood"}
+    RBH_TESTS_DIR="${RBH_INSTALL_DIR}/tests"
+    RBH_CFG_DIR="$RBH_TESTS_DIR/test_suite/cfg"
+    RBH_TEMPLATE_DIR="$RBH_INSTALL_DIR/doc/templates"
+    export RBH_TEST_POLICIES="$(pwd)/test_policies.inc"
+fi
 
 XML="test_report.xml"
 TMPXML_PREFIX="/tmp/report.xml.$$"
 TMPERR_FILE="/tmp/err_str.$$"
-
-RBH_TEMPLATE_DIR='../../doc/templates'
 
 if [[ ! -d $RH_ROOT ]]; then
 	echo "Creating directory $RH_ROOT"
@@ -66,9 +78,6 @@ CMD=robinhood
 ARCH_STR="migration success for"
 REL_STR="purge success for"
 HSMRM_STR="hsm_remove success for"
-
-LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$RBH_MODDIR
-export LD_LIBRARY_PATH
 
 #default: TMP_FS_MGR
 if [[ -z "$PURPOSE" || $PURPOSE = "TMP"* ]]; then
@@ -176,7 +185,6 @@ else
 fi
 
 PROC=$CMD
-CFG_SCRIPT="../../scripts/rbh-config"
 
 CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log rh_syntax.log recov.log rh_scan.log /tmp/rh_alert.log rh_rmdir.log"
 
