@@ -1,6 +1,19 @@
 #!/bin/bash
 
-CFG_SCRIPT="../../scripts/rbh-config"
+# Test whether the testsuite is running from the source tree or has
+# been installed.
+if [ -d "../../src/robinhood" ]; then
+    RBH_TEST_INSTALLED=0
+else
+    RBH_TEST_INSTALLED=1
+fi
+
+if [ $RBH_TEST_INSTALLED = 0 ]; then
+    CFG_SCRIPT="../../scripts/rbh-config"
+else
+    CFG_SCRIPT="rbh-config"
+fi
+
 BKROOT="/tmp/backend"
 
 if [ -z "$LFS" ]; then

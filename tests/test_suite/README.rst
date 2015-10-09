@@ -120,3 +120,12 @@ Run the tests
 ~~~~~~~~~~~~~
 
 Run the test as previously described in the Lustre section.
+
+Running the tests with robinhood installed
+------------------------------------------
+
+After installing the three rpms robinhood, robinhood-adm and
+robinhood-tests, create a test repository, cd into it, and run both
+/usr/share/robinhood/tests/test_suite/1-test_setup_lustre.sh and
+/usr/share/robinhood/tests/test_suite/2-run-tests.sh as shown in the
+previous sections.

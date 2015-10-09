@@ -107,6 +107,14 @@ Group: Applications/System
 Tools for MDS recovery.
 %endif
 
+%package tests
+Summary: Test suite for Robinhood
+Group: Applications/System
+Requires: robinhood robinhood-adm
+
+%description tests
+Lustre and Posix tests for Robinhood.
+
 %prep
 %setup -q -n @PACKAGE@-%{version}
 
@@ -149,6 +157,10 @@ cp    web_gui/acct/.htaccess $RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
 
 rm -f $RPM_BUILD_ROOT/%{_libdir}/robinhood/librbh_mod_*.a
 rm -f $RPM_BUILD_ROOT/%{_libdir}/robinhood/librbh_mod_*.la
+
+# Add an unmutable copy of the templates for the tests
+mkdir -p $RPM_BUILD_ROOT/%{_datadir}/robinhood/doc
+cp -a doc/templates doc/templates_v3 $RPM_BUILD_ROOT/%{_datadir}/robinhood/doc
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -200,6 +212,12 @@ ldconfig
 # set apache permissions
 %defattr(750,root,apache)
 %{installdir_www}/robinhood
+
+%files tests
+%defattr(-,root,root,-)
+%dir %{_datadir}/robinhood/
+%{_datadir}/robinhood/tests/
+%{_datadir}/robinhood/doc/
 
 %files
 %defattr(-,root,root,-)
