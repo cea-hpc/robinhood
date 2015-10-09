@@ -23,6 +23,7 @@ RBH_OPT=""
 #RBH_BINDIR="/usr/sbin"
 RBH_BINDIR="../../src/robinhood"
 RBH_MODDIR=$(readlink -m "../../src/modules/.libs")
+RBH_TESTS_DIR=".."
 RBH_CFG_DIR="./cfg"
 RBH_TEST_POLICIES="$(pwd)/test_policies.inc"
 
@@ -4192,7 +4193,7 @@ function test_info_collect2
 	fi
 
 	# create 10k entries
-	../fill_fs.sh $RH_ROOT 10000 >/dev/null
+	$RBH_TESTS_DIR/fill_fs.sh $RH_ROOT 10000 >/dev/null
 
 	# flavor 1: scan only x3
 	# flavor 2: mixed (readlog/scan/readlog/scan)
@@ -4214,7 +4215,7 @@ function test_info_collect2
 		scan_chk    $config_file
         check_fcount 10000
 		# touch entries before reading log
-		../fill_fs.sh $RH_ROOT 10000 >/dev/null
+		$RBH_TESTS_DIR/fill_fs.sh $RH_ROOT 10000 >/dev/null
 		readlog_chk $config_file
         check_fcount 10000
         empty_fs
@@ -4224,7 +4225,7 @@ function test_info_collect2
 		readlog_chk $config_file
         check_fcount 10000
 		# touch entries before reading log again
-		../fill_fs.sh $RH_ROOT 10000 >/dev/null
+		$RBH_TESTS_DIR/fill_fs.sh $RH_ROOT 10000 >/dev/null
 		readlog_chk $config_file
         check_fcount 10000
 		scan_chk    $config_file
@@ -4977,22 +4978,22 @@ function test_completion
     # flavors:
     case "$flavor" in
         OK)
-            export TEST_CMD="../completion.sh {cfg} {fspath} out"
+            export TEST_CMD="$RBH_TESTS_DIR/completion.sh {cfg} {fspath} out"
             ;;
         unmatched)
-            export TEST_CMD="../completion.sh {cfg"
+            export TEST_CMD="$RBH_TESTS_DIR/completion.sh {cfg"
             err="ERROR: unmatched '{' in scan completion command"
             ;;
         invalid_ctx_id)
-            export TEST_CMD="../completion.sh {fid}"
+            export TEST_CMD="$RBH_TESTS_DIR/completion.sh {fid}"
             err="fid is not available in this context"
             ;;
         invalid_ctx_attr)
-            export TEST_CMD="../completion.sh {fullpath}"
+            export TEST_CMD="$RBH_TESTS_DIR/completion.sh {fullpath}"
             err="entry attributes are not available in this context"
             ;;
         invalid_attr)
-            export TEST_CMD="../completion.sh {foo}"
+            export TEST_CMD="$RBH_TESTS_DIR/completion.sh {foo}"
             err="unexpected variable 'foo' in scan completion command"
             ;;
     esac
