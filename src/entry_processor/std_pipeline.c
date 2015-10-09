@@ -233,6 +233,10 @@ static inline void check_path_info(struct entry_proc_op_t *p_op, const char *rec
 static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
                                     bool allow_md_updt)
 {
+    /* status mask to call changelog callbacks */
+    uint32_t cl_cb_status_mask = 0;
+    bool status_mask_set = false;
+
     /* alias to the log record */
     CL_REC_TYPE *logrec = p_op->extra_info.log_record.p_log_rec;
     attr_mask_t status_mask_need = null_mask;
@@ -274,6 +278,10 @@ static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
             /* get status for all policies with a matching scope */
             add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true,
                                      &p_op->fs_attr_need.status);
+
+            /* will use the same mask for calling changelog callbacks */
+            cl_cb_status_mask = p_op->fs_attr_need.status;
+            status_mask_set = true;
         }
     }
     else if (logrec->cr_type == CL_HARDLINK)
@@ -359,11 +367,23 @@ static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
         }
     }
 
-    /* Changelog callback for policies with a matching scope */
-    add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true,
-                             &p_op->fs_attr_need.status);
+    if (!status_mask_set)
+    {
+        /* status mask has not been already computed */
+        /* Warning: do not use cached DB information to check the scope
+         * because some information may have changed (e.g. entry status)
+         * so the entry may now match the scope, and using an outdated status
+         * may result in an invalid matching. */
+        add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true,
+                                 &cl_cb_status_mask);
+    }
+    else
+    {
+        cl_cb_status_mask = p_op->fs_attr_need.status;
+    }
+    /* call changelog callback for policies with a matching scope */
     run_all_cl_cb(logrec, &p_op->entry_id, &p_op->db_attrs, &p_op->fs_attrs,
-                  &status_mask_need, p_op->fs_attr_need.status, &rec_action);
+                  &status_mask_need, cl_cb_status_mask, &rec_action);
     p_op->fs_attr_need = attr_mask_or(&p_op->fs_attr_need, &status_mask_need);
 
     /* process the value of rec_action */
@@ -854,9 +874,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         /* check if entry is in policies scope */
         add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true, &status_scope);
 
-        /* XXX also retrieve needed attributes to check the scope? */
-
-        /* get cached info from the DB
+        /* get missing attributes to check the scopes:
          * db_attr_need |= <attrs_for_status> and not <fs_attrs>
          */
         tmp = attrs_for_status_mask(status_scope, false);
@@ -947,8 +965,6 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
         /* check if entry is in policies scope */
         add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true, &status_scope);
-
-        /* XXX also retrieve needed attributes to check the scope? */
 
         p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &diff_mask);
         /* retrieve missing attributes for diff */
