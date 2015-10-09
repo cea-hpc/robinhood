@@ -1004,7 +1004,7 @@ function test_suspend_on_error
         done
     fi
 
-	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error ""
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --force --target=all -l DEBUG -L rh_migr.log   || error ""
 
     [ "$DEBUG" = "1" ] && grep action_params rh_migr.log
     nb_fail_match=$(count_action_params rh_migr.log arg=fail)
@@ -1014,7 +1014,7 @@ function test_suspend_on_error
     (($nb_ok_match == $nb_files_ok)) || error "expected $nb_files_ok successful copies (got $nb_ok_match)"
     # migration should have been stopped before migrating all
     (($nb_fail_match == $nb_files_error)) && error "migration should have stopped before migrating all"
-    grep "suspending migration" rh_migr.log || error "migration should have been suspended"
+    grep "suspending policy run" rh_migr.log || error "migration should have been suspended"
 }
 
 

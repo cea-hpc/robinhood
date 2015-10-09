@@ -334,11 +334,11 @@ static int policy_action(policy_info_t *policy,
         /* call action callback if there is no status manager executor to wrap actions */
         if (smi != NULL && smi->sm->action_cb != NULL)
         {
-            rc = smi->sm->action_cb(smi, policy->descr->implements, rc,
-                                    id, p_attr_set, after);
-            if (rc)
+            int tmp_rc = smi->sm->action_cb(smi, policy->descr->implements, rc,
+                                            id, p_attr_set, after);
+            if (tmp_rc)
                 DisplayLog(LVL_MAJOR, tag(policy), "Action callback failed for action '%s': rc=%d",
-                           policy->descr->implements ? policy->descr->implements : "<null>", rc);
+                           policy->descr->implements ? policy->descr->implements : "<null>", tmp_rc);
         }
     }
 
