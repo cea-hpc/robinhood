@@ -8,7 +8,7 @@
 #define FLEX_SCANNER
 #define YY_FLEX_MAJOR_VERSION 2
 #define YY_FLEX_MINOR_VERSION 5
-#define YY_FLEX_SUBMINOR_VERSION 35
+#define YY_FLEX_SUBMINOR_VERSION 37
 #if YY_FLEX_SUBMINOR_VERSION > 0
 #define FLEX_BETA
 #endif
@@ -53,7 +53,6 @@ typedef int flex_int32_t;
 typedef unsigned char flex_uint8_t; 
 typedef unsigned short int flex_uint16_t;
 typedef unsigned int flex_uint32_t;
-#endif /* ! C99 */
 
 /* Limits of integral types. */
 #ifndef INT8_MIN
@@ -83,6 +82,8 @@ typedef unsigned int flex_uint32_t;
 #ifndef UINT32_MAX
 #define UINT32_MAX             (4294967295U)
 #endif
+
+#endif /* ! C99 */
 
 #endif /* ! FLEXINT_H */
 
@@ -152,7 +153,12 @@ typedef unsigned int flex_uint32_t;
 typedef struct yy_buffer_state *YY_BUFFER_STATE;
 #endif
 
-extern int yyleng;
+#ifndef YY_TYPEDEF_YY_SIZE_T
+#define YY_TYPEDEF_YY_SIZE_T
+typedef size_t yy_size_t;
+#endif
+
+extern yy_size_t yyleng;
 
 extern FILE *yyin, *yyout;
 
@@ -178,11 +184,6 @@ extern FILE *yyin, *yyout;
 
 #define unput(c) yyunput( c, (yytext_ptr)  )
 
-#ifndef YY_TYPEDEF_YY_SIZE_T
-#define YY_TYPEDEF_YY_SIZE_T
-typedef size_t yy_size_t;
-#endif
-
 #ifndef YY_STRUCT_YY_BUFFER_STATE
 #define YY_STRUCT_YY_BUFFER_STATE
 struct yy_buffer_state
@@ -200,7 +201,7 @@ struct yy_buffer_state
 	/* Number of characters read into yy_ch_buf, not including EOB
 	 * characters.
 	 */
-	int yy_n_chars;
+	yy_size_t yy_n_chars;
 
 	/* Whether we "own" the buffer - i.e., we know we created it,
 	 * and can realloc() it to grow it, and should free() it to
@@ -270,8 +271,8 @@ static YY_BUFFER_STATE * yy_buffer_stack = 0; /**< Stack as an array. */
 
 /* yy_hold_char holds the character lost when yytext is formed. */
 static char yy_hold_char;
-static int yy_n_chars;		/* number of characters read into yy_ch_buf */
-int yyleng;
+static yy_size_t yy_n_chars;		/* number of characters read into yy_ch_buf */
+yy_size_t yyleng;
 
 /* Points to current character in buffer. */
 static char *yy_c_buf_p = (char *) 0;
@@ -299,7 +300,7 @@ static void yy_init_buffer (YY_BUFFER_STATE b,FILE *file  );
 
 YY_BUFFER_STATE yy_scan_buffer (char *base,yy_size_t size  );
 YY_BUFFER_STATE yy_scan_string (yyconst char *yy_str  );
-YY_BUFFER_STATE yy_scan_bytes (yyconst char *bytes,int len  );
+YY_BUFFER_STATE yy_scan_bytes (yyconst char *bytes,yy_size_t len  );
 
 void *yyalloc (yy_size_t  );
 void *yyrealloc (void *,yy_size_t  );
@@ -604,6 +605,7 @@ char *yytext;
 #include <errno.h>
 #include <stdlib.h>
 #include <libgen.h>
+#include <glib.h>
 
 #if HAVE_STRING_H
 #   include <string.h>
@@ -619,53 +621,52 @@ int accolades;
 int parenthesis;
 
 /* Traitement des messages d'erreur */
-void set_error(char * s);
+void set_error(const char *s);
 
 #define ERRLEN 1024
 char err_str[ERRLEN]="";
 
-/* Stockage des chaines 
+/* Stockage des chaines
 */
-char YY_PARSED_STRING[MAXSTRLEN];
+GString *YY_PARSED_STRING;
 
-void YY_BUFFER_APPEND(char * s){
-    strncat(YY_PARSED_STRING,s, MAXSTRLEN-1);
+void YY_BUFFER_APPEND(const char *s) {
+    g_string_append(YY_PARSED_STRING, s);
 }
 
-void YY_BUFFER_RESET(void){
-    int i;
-    for (i=0;i<MAXSTRLEN;i++){
-        YY_PARSED_STRING[i]='\0';
-    }
+void YY_BUFFER_RESET(void) {
+    g_string_set_size(YY_PARSED_STRING, 0);
 }
 
 /* includes management */
 #define FILE_LEN 1024
-char current_file[FILE_LEN] = "";
+GString *current_file;
 
 #define MAX_INCLUDE_DEPTH  10
 YY_BUFFER_STATE include_stack[MAX_INCLUDE_DEPTH];
 
 /* keep track of filenames and line numbers */
-unsigned int    lines_stack[MAX_INCLUDE_DEPTH];
-char            files_stack[MAX_INCLUDE_DEPTH][FILE_LEN];
+unsigned int lines_stack[MAX_INCLUDE_DEPTH];
+GString *files_stack[MAX_INCLUDE_DEPTH];
 
 int include_stack_index = 0;
 
 
 /* initialisation du parser */
-
 #define YY_USER_INIT {          \
     unsigned int i;             \
     yylineno = 1;               \
     accolades = 0;              \
     parenthesis = 0;            \
     include_stack_index = 0;    \
-    for ( i=0; i<MAX_INCLUDE_DEPTH; i++) {\
-        lines_stack[i]=0;       \
-        files_stack[i][0]='\0'; \
-    }\
-    BEGIN YY_INIT;\
+    for (i = 0; i < MAX_INCLUDE_DEPTH; i++) { \
+        lines_stack[i] = 0;     \
+        if (files_stack[i] == NULL) \
+            files_stack[i] = g_string_sized_new(FILE_LEN); \
+    }                           \
+    if (YY_PARSED_STRING == NULL) YY_PARSED_STRING = g_string_sized_new(MAXSTRLEN); \
+    if (current_file == NULL) current_file = g_string_sized_new(FILE_LEN); \
+    BEGIN YY_INIT; \
 }
 
 #ifdef _DEBUG_PARSING
@@ -681,7 +682,7 @@ static void DEBUG_LEX( char * format, ... ) { return ; }
 /* comment est compose un identifiant */
 /* INCLUDE state is used for picking the name of the include file */
 
-#line 685 "conf_lex.c"
+#line 686 "conf_lex.c"
 
 #define INITIAL 0
 #define YY_INIT 1
@@ -728,7 +729,7 @@ FILE *yyget_out (void );
 
 void yyset_out  (FILE * out_str  );
 
-int yyget_leng (void );
+yy_size_t yyget_leng (void );
 
 char *yyget_text (void );
 
@@ -789,7 +790,7 @@ static int input (void );
 	if ( YY_CURRENT_BUFFER_LVALUE->yy_is_interactive ) \
 		{ \
 		int c = '*'; \
-		unsigned n; \
+		size_t n; \
 		for ( n = 0; n < max_size && \
 			     (c = getc( yyin )) != EOF && c != '\n'; ++n ) \
 			buf[n] = (char) c; \
@@ -874,7 +875,7 @@ YY_DECL
 #line 114 "conf_lex.l"
 
 
-#line 878 "conf_lex.c"
+#line 879 "conf_lex.c"
 
 	if ( !(yy_init) )
 		{
@@ -985,112 +986,118 @@ YY_RULE_SETUP
 #line 130 "conf_lex.l"
 { /* include file read */
                         unsigned int i;
-                        char new_file_path[FILE_LEN];
+                        GString *new_file_path;
                         DEBUG_LEX(">");
-                        
+
                         if ( include_stack_index >= MAX_INCLUDE_DEPTH )
                         {
                            /* error */
-                           snprintf(err_str,ERRLEN,"in \"%s\", line %d: includes nested too deeply",current_file, yylineno);
+                           snprintf(err_str,ERRLEN,"in \"%s\", line %d: includes nested too deeply",current_file->str, yylineno);
                            set_error(err_str);
-                           return _ERROR_;                        
+                           return _ERROR_;
                         }
 
                         /* replace environment variables */
-                        if (YY_PARSED_STRING[0] == '$')
+                        if (YY_PARSED_STRING->str[0] == '$')
                         {
                             /* included file is an environment variable */
-                            char *val = getenv(YY_PARSED_STRING + 1); /* skip '$' */
+                            char *val = getenv(YY_PARSED_STRING->str + 1); /* skip '$' */
                             if (val == NULL)
                             {
                                snprintf(err_str, ERRLEN, "in \"%s\", line %d: environment variable '%s' is not set",
-                                        current_file, yylineno, YY_PARSED_STRING + 1);
+                                        current_file->str, yylineno, YY_PARSED_STRING->str + 1);
                                set_error(err_str);
                                return _ERROR_;
                             }
-                            else if (strlen(val) >= sizeof(YY_PARSED_STRING))
+                            else if (strlen(val) >= MAXSTRLEN)
                             {
                                snprintf(err_str, ERRLEN, "in \"%s\", line %d: "
                                         "file name too long in include statement",
-                                        current_file, yylineno);
+                                        current_file->str, yylineno);
                                set_error(err_str);
                                return _ERROR_;
                             }
-                            rh_strncpy(YY_PARSED_STRING, val, MAXSTRLEN);
+                            g_string_assign(YY_PARSED_STRING, val);
                         }
 
                         include_stack[include_stack_index] = YY_CURRENT_BUFFER;
                         lines_stack[include_stack_index] = yylineno;
-                        rh_strncpy(files_stack[include_stack_index], current_file, FILE_LEN);
-                        
+                        g_string_assign(files_stack[include_stack_index], current_file->str);
+
                         /* relative path management */
-                        
+                        new_file_path = g_string_sized_new(FILE_LEN);
+
                         /* 1) if the new path is absolute, nothing to do
                          * 2) if there was no '/' in previous dir, the new path
                          *  is relative to the current dir.
                          */
-                        if ((YY_PARSED_STRING[0] == '/')
-                            || (strchr( current_file, '/') == NULL))
+                        if ((YY_PARSED_STRING->str[0] == '/')
+                            || (strchr(current_file->str, '/') == NULL))
                         {
-                            rh_strncpy(new_file_path, YY_PARSED_STRING, FILE_LEN);
+                            g_string_assign(new_file_path, YY_PARSED_STRING->str);
                         }
                         else
                         {
                             /* in any other case, path is relative to the current config file
                              * directory */
-                            
-                            char tmp_buf[FILE_LEN];
-                            char * path;
-                            
-                            rh_strncpy(tmp_buf, current_file, FILE_LEN);
-                            
-                            path = dirname( tmp_buf );
+                            GString *tmp_buf;
+                            char *path;
 
-                            snprintf( new_file_path, FILE_LEN, "%s/%s", path, YY_PARSED_STRING );
-                        }                        
-                                               
+                            tmp_buf = g_string_new(current_file->str);
+
+                            path = dirname(tmp_buf->str);
+
+                            g_string_printf(new_file_path, "%s/%s", path, YY_PARSED_STRING->str);
+                            g_string_free(tmp_buf, TRUE);
+                        }
+
                         /* loop detection */
-                        
+
                         for ( i = 0; i <= include_stack_index; i++ )
                         {
-                            if (!strncmp(files_stack[i], new_file_path, FILE_LEN))
+                            if (!strcmp(files_stack[i]->str, new_file_path->str))
                             {
-                               snprintf(err_str,ERRLEN,"in \"%s\", line %d: include loop detected: \"%s\" already parsed",current_file, yylineno, new_file_path );
+                               snprintf(err_str,ERRLEN,"in \"%s\", line %d: include loop detected: \"%s\" already parsed",
+                                        current_file->str, yylineno, new_file_path->str);
                                set_error(err_str);
-                               return _ERROR_;                                
+                               g_string_free(new_file_path, TRUE);
+                               return _ERROR_;
                             }
                         }
-                        
+
                         include_stack_index ++;
-                        
-                        yyin = fopen( new_file_path, "r" );
-                        
+
+                        yyin = fopen(new_file_path->str, "r");
+
                         if ( yyin == NULL )
                         {
                            /* error */
-                           snprintf(err_str,ERRLEN,"in \"%s\", line %d: error %d opening file \"%s\": %s",current_file,yylineno,
-                                    errno, new_file_path, strerror(errno) );
+                           snprintf(err_str, ERRLEN, "in \"%s\", line %d: error %d opening file \"%s\": %s",
+                                    current_file->str, yylineno,
+                                    errno, new_file_path->str, strerror(errno));
                            set_error(err_str);
-                           return _ERROR_;                    
+                           g_string_free(new_file_path, TRUE);
+                           return _ERROR_;
                         }
-                        
+
                         yylineno = 1;
-                        rh_strncpy(current_file, new_file_path, FILE_LEN);
-                        
+                        g_string_assign(current_file, new_file_path->str);
+                        g_string_free(new_file_path, TRUE);
+
                         /* change current buffer */
                         yy_switch_to_buffer(yy_create_buffer(yyin,YY_BUF_SIZE ) );
-                                                
+
                         /* start reading file from scratch */
                         BEGIN YY_INIT;
-                        
+
                     }
 	YY_BREAK
 case 5:
 /* rule 5 can match eol */
 YY_RULE_SETUP
-#line 233 "conf_lex.l"
+#line 239 "conf_lex.l"
 {
-                            snprintf(err_str,ERRLEN,"in \"%s\", line %d: missing closing quote.",current_file, yylineno);
+                            snprintf(err_str,ERRLEN,"in \"%s\", line %d: missing closing quote.",current_file->str, yylineno);
                             set_error(err_str);
                             yylineno++;
                             return _ERROR_;
@@ -1098,18 +1105,18 @@ YY_RULE_SETUP
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 240 "conf_lex.l"
+#line 246 "conf_lex.l"
 {YY_BUFFER_APPEND(yytext); DEBUG_LEX("%c",*yytext);/* caractere du fichier */}
 	YY_BREAK
 case 7:
 /* rule 7 can match eol */
 YY_RULE_SETUP
-#line 242 "conf_lex.l"
+#line 248 "conf_lex.l"
 {BEGIN INCL_STRING; yylineno++;}/* ignore un saut de ligne echappe*/
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 243 "conf_lex.l"
+#line 249 "conf_lex.l"
 {DEBUG_LEX("%c",*yytext);YY_BUFFER_APPEND(yytext);BEGIN INCL_STRING;/* caractere du fichier */}
 	YY_BREAK
 case YY_STATE_EOF(INITIAL):
@@ -1121,15 +1128,15 @@ case YY_STATE_EOF(ESC1):
 case YY_STATE_EOF(INCLUDE):
 case YY_STATE_EOF(INCL_STRING):
 case YY_STATE_EOF(INCL_ESC):
-#line 246 "conf_lex.l"
+#line 252 "conf_lex.l"
 { /* end of included file */
             DEBUG_LEX("<EOF>\n");
-            
+
             include_stack_index --;
-            
+
             if ( include_stack_index < 0 )
             {
-                /* eof of all streams */                
+                /* eof of all streams */
                 yyterminate();
             }
             else
@@ -1137,17 +1144,17 @@ case YY_STATE_EOF(INCL_ESC):
                 fclose(yyin);
                 /*go down into stack */
                 yy_delete_buffer(YY_CURRENT_BUFFER );
-                
+
                 yylineno = lines_stack[include_stack_index];
-                rh_strncpy(current_file, files_stack[include_stack_index], FILE_LEN);
-                
+                g_string_assign(current_file, files_stack[include_stack_index]->str);
+
                 yy_switch_to_buffer(include_stack[include_stack_index] );
             }
         }
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 271 "conf_lex.l"
+#line 277 "conf_lex.l"
 {
                     /* identifier */
                     DEBUG_LEX("[bloc:%s]\n",yytext);
@@ -1157,7 +1164,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 279 "conf_lex.l"
+#line 285 "conf_lex.l"
 {/* debut de bloc */
                         DEBUG_LEX("BEGIN_BLOCK\n");
                         BEGIN INBLOC;
@@ -1167,7 +1174,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 286 "conf_lex.l"
+#line 292 "conf_lex.l"
 {
 			DEBUG_LEX("(");
                         parenthesis++;
@@ -1176,17 +1183,17 @@ YY_RULE_SETUP
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 292 "conf_lex.l"
+#line 298 "conf_lex.l"
 {DEBUG_LEX(",  "); return VALUE_SEPARATOR;}
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 293 "conf_lex.l"
+#line 299 "conf_lex.l"
 {BEGIN INBLOC;  DEBUG_LEX(")\n");
                 if ( parenthesis <= 0 )
                     {
                        /* error */
-                       snprintf(err_str,ERRLEN,"in \"%s\", line %d: '%c' too much closing parenthesis",current_file,yylineno,*yytext);
+                       snprintf(err_str,ERRLEN,"in \"%s\", line %d: '%c' too much closing parenthesis",current_file->str,yylineno,*yytext);
                        set_error(err_str);
                        return _ERROR_;
                     }
@@ -1198,32 +1205,32 @@ YY_RULE_SETUP
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 307 "conf_lex.l"
+#line 313 "conf_lex.l"
 { DEBUG_LEX(" NOT "); return NOT; }
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 308 "conf_lex.l"
+#line 314 "conf_lex.l"
 { DEBUG_LEX(" AND "); return AND; }
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 309 "conf_lex.l"
+#line 315 "conf_lex.l"
 { DEBUG_LEX(" OR "); return OR; }
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 311 "conf_lex.l"
+#line 317 "conf_lex.l"
 { DEBUG_LEX(" UNION "); return UNION; }
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 312 "conf_lex.l"
+#line 318 "conf_lex.l"
 { DEBUG_LEX(" INTER "); return INTER; }
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 314 "conf_lex.l"
+#line 320 "conf_lex.l"
 {
                     /* environment variable */
                     DEBUG_LEX("[VAR:%s]",yytext);
@@ -1233,7 +1240,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 321 "conf_lex.l"
+#line 327 "conf_lex.l"
 {
                     /* identifier */
                     DEBUG_LEX("[%s]",yytext);
@@ -1243,18 +1250,18 @@ YY_RULE_SETUP
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 329 "conf_lex.l"
+#line 335 "conf_lex.l"
 {   /* end of block */
                     if ( accolades <= 0 )
                     {
                        /* error */
-                       snprintf(err_str,ERRLEN,"in \"%s\", line %d: '%c' closing bracket outside a block",current_file,yylineno,*yytext);
+                       snprintf(err_str,ERRLEN,"in \"%s\", line %d: '%c' closing bracket outside a block",current_file->str,yylineno,*yytext);
                        set_error(err_str);
                        return _ERROR_;
                     }
                     else
                         accolades --;
-                    
+
                     if ( accolades == 0 )
                     {
                     	DEBUG_LEX("END_BLOCK\n");
@@ -1267,52 +1274,52 @@ YY_RULE_SETUP
                         BEGIN INBLOC;
                         return END_SUB_BLOCK;
                     }
-                     
+
                 }
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 355 "conf_lex.l"
+#line 361 "conf_lex.l"
 { DEBUG_LEX(" EQUAL "); return EQUAL; }
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 356 "conf_lex.l"
+#line 362 "conf_lex.l"
 { DEBUG_LEX(" SUP "); return GT; }
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 357 "conf_lex.l"
+#line 363 "conf_lex.l"
 { DEBUG_LEX(" SUP_OR_EQUAL "); return GT_EQ; }
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 358 "conf_lex.l"
+#line 364 "conf_lex.l"
 { DEBUG_LEX(" INF  "); return LT; }
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 359 "conf_lex.l"
+#line 365 "conf_lex.l"
 { DEBUG_LEX(" INF_OR_EQUAL "); return LT_EQ; }
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 360 "conf_lex.l"
+#line 366 "conf_lex.l"
 { DEBUG_LEX(" DIFF "); return DIFF; }
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 361 "conf_lex.l"
+#line 367 "conf_lex.l"
 { DEBUG_LEX(" DIFF "); return DIFF; }
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 362 "conf_lex.l"
+#line 368 "conf_lex.l"
 { DEBUG_LEX(" AFFECT "); return AFFECT; }
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 364 "conf_lex.l"
+#line 370 "conf_lex.l"
 {
                                 /* sub-block */
                                 DEBUG_LEX("\nBEGIN_SUB_BLOCK\n");
@@ -1323,70 +1330,70 @@ YY_RULE_SETUP
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 373 "conf_lex.l"
+#line 379 "conf_lex.l"
 {BEGIN STRING1;DEBUG_LEX("value:<");YY_BUFFER_RESET();} /* ouverture string 1 */
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 374 "conf_lex.l"
+#line 380 "conf_lex.l"
 {BEGIN STRING2;DEBUG_LEX("value:<");YY_BUFFER_RESET();} /* ouverture string 2 */
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 376 "conf_lex.l"
+#line 382 "conf_lex.l"
 {/* valeur */DEBUG_LEX("[value:%s]\n",yytext);rh_strncpy(yylval.str_val,yytext,MAXSTRLEN); return NON_IDENTIFIER_VALUE;}
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 378 "conf_lex.l"
+#line 384 "conf_lex.l"
 {DEBUG_LEX(" end_AFFECT "); return END_AFFECT; }
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 382 "conf_lex.l"
+#line 388 "conf_lex.l"
 {BEGIN ESC1;}
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 383 "conf_lex.l"
-{DEBUG_LEX(">");rh_strncpy(yylval.str_val,YY_PARSED_STRING,MAXSTRLEN);BEGIN INBLOC;/* chaine finie */ return NON_IDENTIFIER_VALUE; }
+#line 389 "conf_lex.l"
+{DEBUG_LEX(">");rh_strncpy(yylval.str_val,YY_PARSED_STRING->str,MAXSTRLEN);BEGIN INBLOC;/* chaine finie */ return NON_IDENTIFIER_VALUE; }
 	YY_BREAK
 case 37:
 /* rule 37 can match eol */
 YY_RULE_SETUP
-#line 384 "conf_lex.l"
-{snprintf(err_str,ERRLEN,"in \"%s\", line %d: missing closing quote.",current_file,yylineno); set_error(err_str);yylineno++;return _ERROR_;}
+#line 390 "conf_lex.l"
+{snprintf(err_str,ERRLEN,"in \"%s\", line %d: missing closing quote.",current_file->str,yylineno); set_error(err_str);yylineno++;return _ERROR_;}
 	YY_BREAK
 case 38:
 YY_RULE_SETUP
-#line 385 "conf_lex.l"
+#line 391 "conf_lex.l"
 {YY_BUFFER_APPEND(yytext); DEBUG_LEX("%c",*yytext);/* caractere de la chaine */}
 	YY_BREAK
 case 39:
 /* rule 39 can match eol */
 YY_RULE_SETUP
-#line 387 "conf_lex.l"
+#line 393 "conf_lex.l"
 {BEGIN STRING1;yylineno++;}/* ignore un saut de ligne echappe*/
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
-#line 388 "conf_lex.l"
+#line 394 "conf_lex.l"
 {DEBUG_LEX("%c",*yytext);YY_BUFFER_APPEND(yytext);BEGIN STRING1;/* caractere de la chaine */}
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 390 "conf_lex.l"
-{DEBUG_LEX(">");rh_strncpy(yylval.str_val,YY_PARSED_STRING,MAXSTRLEN);BEGIN INBLOC ;/* chaine finie */ return NON_IDENTIFIER_VALUE;}
+#line 396 "conf_lex.l"
+{DEBUG_LEX(">");rh_strncpy(yylval.str_val,YY_PARSED_STRING->str,MAXSTRLEN);BEGIN INBLOC ;/* chaine finie */ return NON_IDENTIFIER_VALUE;}
 	YY_BREAK
 case 42:
 /* rule 42 can match eol */
 YY_RULE_SETUP
-#line 391 "conf_lex.l"
-{snprintf(err_str,ERRLEN,"in \"%s\", line %d: closing quote missing.",current_file,yylineno); set_error(err_str);yylineno++;return _ERROR_;}
+#line 397 "conf_lex.l"
+{snprintf(err_str,ERRLEN,"in \"%s\", line %d: closing quote missing.",current_file->str,yylineno); set_error(err_str);yylineno++;return _ERROR_;}
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
-#line 392 "conf_lex.l"
+#line 398 "conf_lex.l"
 {YY_BUFFER_APPEND(yytext);DEBUG_LEX("%c",*yytext);/* caractere de la chaine */}
 	YY_BREAK
 case 44:
@@ -1394,7 +1401,7 @@ case 44:
 (yy_c_buf_p) = yy_cp -= 1;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 394 "conf_lex.l"
+#line 400 "conf_lex.l"
 ;/* ignore */
 	YY_BREAK
 case 45:
@@ -1402,31 +1409,31 @@ case 45:
 (yy_c_buf_p) = yy_cp -= 1;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 395 "conf_lex.l"
+#line 401 "conf_lex.l"
 ;/* ignore */
 	YY_BREAK
 case 46:
 YY_RULE_SETUP
-#line 396 "conf_lex.l"
+#line 402 "conf_lex.l"
 ;/* ignore */
 	YY_BREAK
 case 47:
 /* rule 47 can match eol */
 YY_RULE_SETUP
-#line 397 "conf_lex.l"
+#line 403 "conf_lex.l"
 yylineno++;/* ignore */
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 399 "conf_lex.l"
-{ snprintf(err_str,ERRLEN,"in \"%s\", line %d: '%c' unexpected",current_file,yylineno,*yytext); set_error(err_str);return _ERROR_;}
+#line 405 "conf_lex.l"
+{ snprintf(err_str,ERRLEN,"in \"%s\", line %d: '%c' unexpected",current_file->str,yylineno,*yytext); set_error(err_str);return _ERROR_;}
 	YY_BREAK
 case 49:
 YY_RULE_SETUP
-#line 401 "conf_lex.l"
+#line 407 "conf_lex.l"
 ECHO;
 	YY_BREAK
-#line 1430 "conf_lex.c"
+#line 1437 "conf_lex.c"
 
 	case YY_END_OF_BUFFER:
 		{
@@ -1610,21 +1617,21 @@ static int yy_get_next_buffer (void)
 
 	else
 		{
-			int num_to_read =
+			yy_size_t num_to_read =
 			YY_CURRENT_BUFFER_LVALUE->yy_buf_size - number_to_move - 1;
 
 		while ( num_to_read <= 0 )
 			{ /* Not enough room in the buffer - grow it. */
 
 			/* just a shorter name for the current buffer */
-			YY_BUFFER_STATE b = YY_CURRENT_BUFFER;
+			YY_BUFFER_STATE b = YY_CURRENT_BUFFER_LVALUE;
 
 			int yy_c_buf_p_offset =
 				(int) ((yy_c_buf_p) - b->yy_ch_buf);
 
 			if ( b->yy_is_our_buffer )
 				{
-				int new_size = b->yy_buf_size * 2;
+				yy_size_t new_size = b->yy_buf_size * 2;
 
 				if ( new_size <= 0 )
 					b->yy_buf_size += b->yy_buf_size / 8;
@@ -1655,7 +1662,7 @@ static int yy_get_next_buffer (void)
 
 		/* Read in more data. */
 		YY_INPUT( (&YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[number_to_move]),
-			(yy_n_chars), (size_t) num_to_read );
+			(yy_n_chars), num_to_read );
 
 		YY_CURRENT_BUFFER_LVALUE->yy_n_chars = (yy_n_chars);
 		}
@@ -1750,7 +1757,7 @@ static int yy_get_next_buffer (void)
 	yy_current_state = yy_nxt[yy_base[yy_current_state] + (unsigned int) yy_c];
 	yy_is_jam = (yy_current_state == 117);
 
-	return yy_is_jam ? 0 : yy_current_state;
+		return yy_is_jam ? 0 : yy_current_state;
 }
 
     static void yyunput (int c, register char * yy_bp )
@@ -1765,7 +1772,7 @@ static int yy_get_next_buffer (void)
 	if ( yy_cp < YY_CURRENT_BUFFER_LVALUE->yy_ch_buf + 2 )
 		{ /* need to shift things up to make room */
 		/* +2 for EOB chars. */
-		register int number_to_move = (yy_n_chars) + 2;
+		register yy_size_t number_to_move = (yy_n_chars) + 2;
 		register char *dest = &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[
 					YY_CURRENT_BUFFER_LVALUE->yy_buf_size + 2];
 		register char *source =
@@ -1814,7 +1821,7 @@ static int yy_get_next_buffer (void)
 
 		else
 			{ /* need more input */
-			int offset = (yy_c_buf_p) - (yytext_ptr);
+			yy_size_t offset = (yy_c_buf_p) - (yytext_ptr);
 			++(yy_c_buf_p);
 
 			switch ( yy_get_next_buffer(  ) )
@@ -1974,10 +1981,6 @@ static void yy_load_buffer_state  (void)
 	yyfree((void *) b  );
 }
 
-#ifndef __cplusplus
-extern int isatty (int );
-#endif /* __cplusplus */
-    
 /* Initializes or reinitializes a buffer.
  * This function is sometimes called more than once on the same buffer,
  * such as during a yyrestart() or at EOF.
@@ -2090,7 +2093,7 @@ void yypop_buffer_state (void)
  */
 static void yyensure_buffer_stack (void)
 {
-	int num_to_alloc;
+	yy_size_t num_to_alloc;
     
 	if (!(yy_buffer_stack)) {
 
@@ -2182,17 +2185,17 @@ YY_BUFFER_STATE yy_scan_string (yyconst char * yystr )
 
 /** Setup the input buffer state to scan the given bytes. The next call to yylex() will
  * scan from a @e copy of @a bytes.
- * @param bytes the byte buffer to scan
- * @param len the number of bytes in the buffer pointed to by @a bytes.
+ * @param yybytes the byte buffer to scan
+ * @param _yybytes_len the number of bytes in the buffer pointed to by @a bytes.
  * 
  * @return the newly allocated buffer state object.
  */
-YY_BUFFER_STATE yy_scan_bytes  (yyconst char * yybytes, int  _yybytes_len )
+YY_BUFFER_STATE yy_scan_bytes  (yyconst char * yybytes, yy_size_t  _yybytes_len )
 {
 	YY_BUFFER_STATE b;
 	char *buf;
 	yy_size_t n;
-	int i;
+	yy_size_t i;
     
 	/* Get memory for full buffer, including space for trailing EOB's. */
 	n = _yybytes_len + 2;
@@ -2274,7 +2277,7 @@ FILE *yyget_out  (void)
 /** Get the length of the current token.
  * 
  */
-int yyget_leng  (void)
+yy_size_t yyget_leng  (void)
 {
         return yyleng;
 }
@@ -2422,7 +2425,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 401 "conf_lex.l"
+#line 407 "conf_lex.l"
 
 
 
@@ -2435,8 +2438,8 @@ void yyreset(void){
     YY_USER_INIT;
 }
 
-void yy_set_current_file( char * file )
+void yy_set_current_file(const char *file)
 {
-    rh_strncpy(current_file, file, FILE_LEN);
+    g_string_assign(current_file, file);
 }
 
