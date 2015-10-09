@@ -29,7 +29,7 @@ XML="test_report.xml"
 TMPXML_PREFIX="/tmp/report.xml.$$"
 TMPERR_FILE="/tmp/err_str.$$"
 
-TEMPLATE_DIR='../../doc/templates'
+RBH_TEMPLATE_DIR='../../doc/templates'
 
 if [[ ! -d $RH_ROOT ]]; then
 	echo "Creating directory $RH_ROOT"
@@ -76,7 +76,7 @@ if [[ -z "$PURPOSE" || $PURPOSE = "TMP"* ]]; then
     PURPOSE="TMP_FS_MGR"
     STATUS_MGR=none
     # get include for this flavor
-    cp -f ../../doc/templates_v3/includes/tmpfs.inc ./cfg/test_policies.inc || exit 1
+    cp -f ${RBH_TEMPLATE_DIR}_v3/includes/tmpfs.inc ./cfg/test_policies.inc || exit 1
     # change policy names to the test framework names
     sed -e "s/cleanup/purge/" -i ./cfg/test_policies.inc
 elif [[ $PURPOSE = "LUSTRE_HSM" ]]; then
@@ -85,7 +85,7 @@ elif [[ $PURPOSE = "LUSTRE_HSM" ]]; then
     shook=0
     STATUS_MGR=lhsm
     # get include for this flavor
-    cp -f ../../doc/templates_v3/includes/lhsm.inc ./cfg/test_policies.inc || exit 1
+    cp -f ${RBH_TEMPLATE_DIR}_v3/includes/lhsm.inc ./cfg/test_policies.inc || exit 1
     # change policy names to the test framework names
     sed -e "s/lhsm_archive/migration/" -i ./cfg/test_policies.inc
     sed -e "s/lhsm_release/purge/" -i ./cfg/test_policies.inc
@@ -97,7 +97,7 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
     is_hsmlite=1
     STATUS_MGR=backup
     # get include for this flavor
-    cp -f ../../doc/templates_v3/includes/backup.inc ./cfg/test_policies.inc || exit 1
+    cp -f ${RBH_TEMPLATE_DIR}_v3/includes/backup.inc ./cfg/test_policies.inc || exit 1
     # change policy names to the test framework names
     sed -e "s/backup_archive/migration/" -i ./cfg/test_policies.inc
     sed -e "s/backup_remove/hsm_remove/" -i ./cfg/test_policies.inc
@@ -108,7 +108,7 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
     shook=1
     STATUS_MGR=shook
     # get include for this flavor
-    INCLUDE="../../../doc/templates_v3/includes/shook.inc"
+    INCLUDE="${RBH_TEMPLATE_DIR}_v3/includes/shook.inc"
     # change policy names to the test framework names
     sed -e "s/shook_archive/migration/" -i ./cfg/test_policies.inc
     sed -e "s/shook_release/purge/" -i ./cfg/test_policies.inc
@@ -6355,26 +6355,26 @@ function test_cfg_parsing
 	if [[ $flavor == "basic" ]]; then
 
 		if (($is_hsmlite)) ; then
-			TEMPLATE=$TEMPLATE_DIR"/hsmlite_basic.conf"
+			TEMPLATE=$RBH_TEMPLATE_DIR"/hsmlite_basic.conf"
 		elif (($is_lhsm)); then
-			TEMPLATE=$TEMPLATE_DIR"/hsm_policy_basic.conf"
+			TEMPLATE=$RBH_TEMPLATE_DIR"/hsm_policy_basic.conf"
 		else
-			TEMPLATE=$TEMPLATE_DIR"/tmp_fs_mgr_basic.conf"
+			TEMPLATE=$RBH_TEMPLATE_DIR"/tmp_fs_mgr_basic.conf"
 		fi
 
 	elif [[ $flavor == "detailed" ]]; then
 
 		if (($is_hsmlite)) ; then
-			TEMPLATE=$TEMPLATE_DIR"/hsmlite_detailed.conf"
+			TEMPLATE=$RBH_TEMPLATE_DIR"/hsmlite_detailed.conf"
 		elif (($is_lhsm)); then
-			TEMPLATE=$TEMPLATE_DIR"/hsm_policy_detailed.conf"
+			TEMPLATE=$RBH_TEMPLATE_DIR"/hsm_policy_detailed.conf"
 		else
-			TEMPLATE=$TEMPLATE_DIR"/tmp_fs_mgr_detailed.conf"
+			TEMPLATE=$RBH_TEMPLATE_DIR"/tmp_fs_mgr_detailed.conf"
 		fi
 
     elif [[ $flavor == "templatev3" ]]; then
 
-		TEMPLATE=${TEMPLATE_DIR}_v3"/template.conf"
+		TEMPLATE=${RBH_TEMPLATE_DIR}_v3"/template.conf"
 
 	elif [[ $flavor == "generated" ]]; then
 
