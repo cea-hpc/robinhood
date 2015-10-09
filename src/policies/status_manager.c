@@ -257,50 +257,6 @@ For status manager that handle removed entries the 2 masks are:
 #define BASIC_ST_COUNT 2
 static const  char* basic_status_list[] = {"ok", "failed"}; /* + not set */
 
-/* -------------- shook status manager implementation ---------- */
-
-#ifdef HAVE_SHOOK
-static int shook_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
-                       const entry_id_t *id, const attr_set_t *attrs,
-                       attr_set_t *refreshed_attrs, bool *getit)
-{
-    /** TODO RBHv3 implement the following stuff */
-    if (logrec->cr_type == CL_XATTR)
-    {
-        /* need to update status */
-        *getit = true;
-    }
-    else if ( logrec->cr_type == CL_MTIME || logrec->cr_type == CL_TRUNC ||
-              (logrec->cr_type == CL_CLOSE))
-    {
-        /** @TODO do like Lustre/HSM:
-         * if file is modified or truncated, need to check its status
-         * (probably modified) EXCEPT if its status is already 'modified'
-         */
-    }
-    else if (logrec->cr_type == CL_CTIME || (logrec->cr_type == CL_SETATTR))
-    {
-        /* in Lustre v2.O, changing trusted xattr generates CTIME/SATTR event */
-        *getit = true;
-    }
-
-
-    if ( p_op->db_exists )
-    {
-        /* if the old name is a restripe file, update the status */
-        if (!strncmp(RESTRIPE_TGT_PREFIX, ATTR( &p_op->db_attrs, name ),
-                     strlen(RESTRIPE_TGT_PREFIX)))
-        {
-            p_op->fs_attr_need |= ATTR_MASK_status;
-            DisplayLog( LVL_DEBUG, ENTRYPROC_TAG,
-                        "Getstatus needed because entry was a restripe target");
-        }
-    }
-
-    return 0;
-}
-#endif /* HAVE_SHOOK */
-
 static status_manager_t basic_sm = {
     .name = "basic",
     .status_enum = basic_status_list,

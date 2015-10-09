@@ -49,11 +49,11 @@
 #define OLD_BACKUP_BLOCK "Backend"
 
 #ifdef HAVE_SHOOK
-#define RBHEXT_TAG "Shook"
+#define TAG "Shook"
 #define BACKUP_BLOCK "shook_config"
 #define BKL_TAG "shook_cfg"
 #else
-#define RBHEXT_TAG "Backup"
+#define TAG "Backup"
 #define BACKUP_BLOCK "backup_config"
 #define BKL_TAG "backup_cfg"
 #endif
@@ -127,13 +127,13 @@ static void backup_cfg_set_default(void *module_config)
 {
     backup_config_t *conf = (backup_config_t *) module_config;
 
-    strcpy( conf->root, "/backend" );
-    strcpy( conf->mnt_type, "nfs" );
+    strcpy(conf->root, "/backend");
+    strcpy(conf->mnt_type, "nfs");
     conf->check_mounted = true;
     conf->compress = false;
     conf->copy_timeout = 6*3600; /* 6h */
 #ifdef HAVE_SHOOK
-    strcpy( conf->shook_cfg, "/etc/shook.cfg" );
+    strcpy(conf->shook_cfg, "/etc/shook.cfg");
 #endif
 
 #ifdef HAVE_SHOOK
@@ -359,9 +359,9 @@ static inline bool is_shell_special(char c)
 static void clean_bad_chars(char * path)
 {
     char * curr;
-    for ( curr = path; *curr != '\0'; curr++ )
+    for (curr = path; *curr != '\0'; curr++)
     {
-        if ( !is_allowed_char(*curr) )
+        if (!is_allowed_char(*curr))
             *curr = '_';
     }
 }
@@ -384,7 +384,7 @@ static int backup_init(struct sm_instance *smi, run_flags_t flags)
     rc = shook_svr_init(config.shook_cfg);
     if (rc)
     {
-        DisplayLog(LVL_CRIT, RBHEXT_TAG, "ERROR %d initializing shook server library",
+        DisplayLog(LVL_CRIT, TAG, "ERROR %d initializing shook server library",
                    rc);
         return rc;
     }
@@ -435,41 +435,41 @@ static bool backup_ignore(const entry_id_t *p_id, attr_set_t *p_attrs)
     if (ATTR_MASK_TEST(p_attrs, fullpath))
     {
         /* check lock file */
-        if (!fnmatch("*/"LOCK_DIR"/"SHOOK_LOCK_PREFIX"*", ATTR(p_attrs, fullpath ), 0))
+        if (!fnmatch("*/"LOCK_DIR"/"SHOOK_LOCK_PREFIX"*", ATTR(p_attrs, fullpath), 0))
         {
             /* skip the entry */
-            DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s is a shook lock",
+            DisplayLog(LVL_DEBUG, TAG, "%s is a shook lock",
                        ATTR(p_attrs, fullpath));
             /** @TODO raise special event for the file: LOCK/UNLOCK */
             return true;
         }
         /* check lock dir */
-        else if (!fnmatch("*/"LOCK_DIR, ATTR(p_attrs, fullpath ), 0))
+        else if (!fnmatch("*/"LOCK_DIR, ATTR(p_attrs, fullpath), 0))
         {
             /* skip the entry */
-            DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s is a shook lock dir",
+            DisplayLog(LVL_DEBUG, TAG, "%s is a shook lock dir",
                        ATTR(p_attrs, fullpath));
             return true;
         }
         /* check restripe dir */
-        else if (!fnmatch("*/"RESTRIPE_DIR, ATTR(p_attrs, fullpath ), 0))
+        else if (!fnmatch("*/"RESTRIPE_DIR, ATTR(p_attrs, fullpath), 0))
         {
             /* skip the entry */
-            DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s is a shook restripe dir",
+            DisplayLog(LVL_DEBUG, TAG, "%s is a shook restripe dir",
                        ATTR(p_attrs, fullpath));
             return true;
         }
     }
 
     /* match '.shook' directory */
-    if (p_attrs && ATTR_MASK_TEST( p_attrs, name )
-        && ATTR_MASK_TEST( p_attrs, type ))
+    if (p_attrs && ATTR_MASK_TEST(p_attrs, name)
+        && ATTR_MASK_TEST(p_attrs, type))
     {
-        if ( !strcmp(STR_TYPE_DIR, ATTR(p_attrs, type)) &&
-             !strcmp(SHOOK_DIR, ATTR(p_attrs, name)) )
+        if (!strcmp(STR_TYPE_DIR, ATTR(p_attrs, type)) &&
+             !strcmp(SHOOK_DIR, ATTR(p_attrs, name)))
         {
             /* skip the entry */
-            DisplayLog(LVL_DEBUG, RBHEXT_TAG, "\"%s\" is a shook dir",
+            DisplayLog(LVL_DEBUG, TAG, "\"%s\" is a shook dir",
                        ATTR(p_attrs, name));
             return true;
         }
@@ -479,7 +479,7 @@ static bool backup_ignore(const entry_id_t *p_id, attr_set_t *p_attrs)
      * we MUST NOT remove the backend entry
      * as it will be linked to the restripe target
      */
-    if ( (ATTR_MASK_TEST(p_attrs, fullpath)
+    if ((ATTR_MASK_TEST(p_attrs, fullpath)
                && !fnmatch("*/"RESTRIPE_DIR"/"RESTRIPE_SRC_PREFIX"*",
                      ATTR(p_attrs, fullpath), 0))
         ||
@@ -487,9 +487,9 @@ static bool backup_ignore(const entry_id_t *p_id, attr_set_t *p_attrs)
          && !strncmp(RESTRIPE_SRC_PREFIX, ATTR(p_attrs, name),
                      strlen(RESTRIPE_SRC_PREFIX))))
     {
-        DisplayLog( LVL_DEBUG, RBHEXT_TAG, "Removing shook stripe source %s: no removal in backend!",
-                    ATTR_MASK_TEST(p_attrs, fullpath)?
-                    ATTR(p_attrs, fullpath) : ATTR(p_attrs, name));
+        DisplayLog(LVL_DEBUG, TAG, "Removing shook stripe source %s: no removal in backend!",
+                   ATTR_MASK_TEST(p_attrs, fullpath)?
+                   ATTR(p_attrs, fullpath) : ATTR(p_attrs, name));
         return true;
     }
 
@@ -526,9 +526,9 @@ static void entry2backend_path(sm_instance_t *smi,
 
     if (ATTR_MASK_INFO_TEST(p_attrs_in, smi, ATTR_BK_PATH))
     {
-       DisplayLog( LVL_DEBUG, RBHEXT_TAG, "%s: previous backend_path: %s",
-                   (what_for == FOR_LOOKUP)?"LOOKUP":"NEW_COPY",
-                   (char *)SMI_INFO(p_attrs_in, smi, ATTR_BK_PATH));
+       DisplayLog(LVL_DEBUG, TAG, "%s: previous backend_path: %s",
+                  (what_for == FOR_LOOKUP)?"LOOKUP":"NEW_COPY",
+                  (char *)SMI_INFO(p_attrs_in, smi, ATTR_BK_PATH));
     }
     else if (ATTR_MASK_TEST(p_attrs_in, type) &&
              !strcasecmp(ATTR(p_attrs_in, type), STR_TYPE_DIR))
@@ -536,9 +536,9 @@ static void entry2backend_path(sm_instance_t *smi,
         if (ATTR_MASK_TEST(p_attrs_in, fullpath) &&
             ATTR(p_attrs_in, fullpath)[0] == '/' &&
             relative_path(ATTR(p_attrs_in, fullpath), global_config.fs_path,
-                          rel_path ) == 0)
+                          rel_path) == 0)
         {
-            DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s is a directory: backend path is the same",
+            DisplayLog(LVL_DEBUG, TAG, "%s is a directory: backend path is the same",
                        ATTR(p_attrs_in, fullpath));
 
             if (!strcmp(config.root, "/")) /* root is '/' */
@@ -565,10 +565,10 @@ static void entry2backend_path(sm_instance_t *smi,
                 fname = UNK_NAME;
 
             /* backup entry to a special dir */
-            if ( !strcmp(config.root, "/") ) /* root is '/' */
+            if (!strcmp(config.root, "/")) /* root is '/' */
                 sprintf(backend_path, "/%s/%s", UNK_PATH, fname);
             else
-                sprintf(backend_path, "%s/%s/%s", config.root, UNK_PATH, fname );
+                sprintf(backend_path, "%s/%s/%s", config.root, UNK_PATH, fname);
         }
 
         /* clean bad characters */
@@ -581,7 +581,7 @@ static void entry2backend_path(sm_instance_t *smi,
         int rc;
         char fidpath[RBH_PATH_MAX];
 
-        BuildFidPath( p_id, fidpath );
+        BuildFidPath(p_id, fidpath);
 
         /* retrieve backend path from shook xattrs */
         rc = shook_get_hsm_info(fidpath, backend_path, NULL);
@@ -598,14 +598,14 @@ static void entry2backend_path(sm_instance_t *smi,
     else /* in any other case, build a path from scratch */
     {
         /* if the fullpath is available, build human readable path */
-        if ( ATTR_MASK_TEST(p_attrs_in, fullpath) &&
+        if (ATTR_MASK_TEST(p_attrs_in, fullpath) &&
              ATTR(p_attrs_in, fullpath)[0] == '/' &&
-             relative_path( ATTR(p_attrs_in, fullpath), global_config.fs_path,
-                            rel_path ) == 0 )
+             relative_path(ATTR(p_attrs_in, fullpath), global_config.fs_path,
+                            rel_path) == 0)
         {
             /* backend path is '<bakend_root>/<rel_path>' */
 
-            if ( !strcmp(config.root, "/") ) /* root is '/' */
+            if (!strcmp(config.root, "/")) /* root is '/' */
                 sprintf(backend_path, "/%s", rel_path);
             else
                 sprintf(backend_path, "%s/%s", config.root, rel_path);
@@ -629,10 +629,10 @@ static void entry2backend_path(sm_instance_t *smi,
                 fname = UNK_NAME;
 
             /* backup entry to a special dir */
-            if ( !strcmp(config.root, "/") ) /* root is '/' */
+            if (!strcmp(config.root, "/")) /* root is '/' */
                 sprintf(backend_path, "/%s/%s", UNK_PATH, fname);
             else
-                sprintf(backend_path, "%s/%s/%s", config.root, UNK_PATH, fname );
+                sprintf(backend_path, "%s/%s/%s", config.root, UNK_PATH, fname);
         }
 
         /* clean bad characters */
@@ -641,11 +641,11 @@ static void entry2backend_path(sm_instance_t *smi,
         /* add __<id> after the name */
         pathlen = strlen(backend_path);
 #ifdef  _HAVE_FID
-        sprintf( backend_path + pathlen, "__"DFID_NOBRACE, PFID(p_id) );
+        sprintf(backend_path + pathlen, "__"DFID_NOBRACE, PFID(p_id));
 #else
-        sprintf( backend_path + pathlen, "__%#LX:%#LX",
+        sprintf(backend_path + pathlen, "__%#LX:%#LX",
                  (unsigned long long)p_id->device,
-                 (unsigned long long)p_id->inode );
+                 (unsigned long long)p_id->inode);
 #endif
         /* check if compression is enabled and if the entry is a file */
         if (allow_compress && !strcasecmp(ATTR(p_attrs_in, type), STR_TYPE_FILE))
@@ -663,23 +663,23 @@ static void entry2backend_path(sm_instance_t *smi,
  * \retval <0: error
  * \retval >0: last modification time
  */
-static int entry_is_archiving(const char * backend_path )
+static int entry_is_archiving(const char * backend_path)
 {
     char xfer_path[RBH_PATH_MAX];
     struct stat cp_md;
     int rc;
-    sprintf(xfer_path, "%s.%s", backend_path, COPY_EXT );
+    sprintf(xfer_path, "%s.%s", backend_path, COPY_EXT);
 
-    if ( lstat(xfer_path, &cp_md ) != 0 )
+    if (lstat(xfer_path, &cp_md) != 0)
     {
         rc = -errno;
-        if ( (rc == -ENOENT) || (rc == -ESTALE) )
+        if ((rc == -ENOENT) || (rc == -ESTALE))
             return 0;
         else
             return rc;
     }
     /* xfer is running. return last action time */
-    return MAX3( cp_md.st_mtime, cp_md.st_ctime, cp_md.st_atime );
+    return MAX3(cp_md.st_mtime, cp_md.st_ctime, cp_md.st_atime);
 }
 
 /**
@@ -689,9 +689,9 @@ static int transfer_cleanup(const char * backend_path)
 {
     char xfer_path[RBH_PATH_MAX];
     int rc;
-    sprintf(xfer_path, "%s.%s", backend_path, COPY_EXT );
+    sprintf(xfer_path, "%s.%s", backend_path, COPY_EXT);
 
-    if ( unlink(xfer_path) != 0 )
+    if (unlink(xfer_path) != 0)
     {
         rc = -errno;
         return rc;
@@ -709,35 +709,35 @@ static int move_orphan(const char * path)
     int rc;
 
     /* does the trash directory exist? */
-    sprintf( dest, "%s/%s", config.root, TRASH_DIR );
-    if ( (mkdir(dest, 0750) != 0) && (errno != EEXIST) )
+    sprintf(dest, "%s/%s", config.root, TRASH_DIR);
+    if ((mkdir(dest, 0750) != 0) && (errno != EEXIST))
     {
         rc = -errno;
-        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error creating directory %s: %s",
-                    dest, strerror(-rc) );
+        DisplayLog(LVL_MAJOR, TAG, "Error creating directory %s: %s",
+                   dest, strerror(-rc));
         return rc;
     }
 
     fname = rh_basename(path);
-    if ( fname == NULL || (strcmp(fname, "/") == 0) || EMPTY_STRING(fname) )
+    if (fname == NULL || (strcmp(fname, "/") == 0) || EMPTY_STRING(fname))
     {
-        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Invalid path '%s'",
-                    path );
+        DisplayLog(LVL_MAJOR, TAG, "Invalid path '%s'",
+                   path);
         return -EINVAL;
     }
     /* move the orphan to the directory */
     snprintf(dest, RBH_PATH_MAX, "%s/%s/%s", config.root, TRASH_DIR, fname);
 
-    if ( rename(path, dest) != 0 )
+    if (rename(path, dest) != 0)
     {
         rc = -errno;
-        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error moving '%s' to '%s'",
-                    path, dest );
+        DisplayLog(LVL_MAJOR, TAG, "Error moving '%s' to '%s'",
+                   path, dest);
         return rc;
     }
 
-    DisplayLog( LVL_EVENT, RBHEXT_TAG, "'%s' moved to '%s'",
-                path, dest );
+    DisplayLog(LVL_EVENT, TAG, "'%s' moved to '%s'",
+               path, dest);
     return 0;
 }
 
@@ -751,27 +751,27 @@ static int check_running_copy(const char * bkpath)
 {
     int rc;
     /* is a copy running for this entry? */
-    rc = entry_is_archiving( bkpath );
-    if ( rc < 0 )
+    rc = entry_is_archiving(bkpath);
+    if (rc < 0)
     {
-        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error %d checking if copy is running for %s: %s",
-                    rc, bkpath, strerror(-rc) );
+        DisplayLog(LVL_MAJOR, TAG, "Error %d checking if copy is running for %s: %s",
+                   rc, bkpath, strerror(-rc));
         return rc;
     }
-    else if ( rc > 0 )
+    else if (rc > 0)
     {
-        if ( config.copy_timeout && ( time(NULL) - rc > config.copy_timeout ))
+        if (config.copy_timeout && (time(NULL) - rc > config.copy_timeout))
         {
-            DisplayLog( LVL_EVENT, RBHEXT_TAG, "Copy timed out for %s (inactive for %us)",
-                        bkpath, (unsigned int)(time(NULL) - rc) );
+            DisplayLog(LVL_EVENT, TAG, "Copy timed out for %s (inactive for %us)",
+                       bkpath, (unsigned int)(time(NULL) - rc));
             /* previous copy timed out: clean it */
-            transfer_cleanup( bkpath );
+            transfer_cleanup(bkpath);
         }
         else
         {
-            DisplayLog( LVL_DEBUG, RBHEXT_TAG,
-                        "'%s' is being archived (last mod: %us ago)",
-                        bkpath, (unsigned int)(time(NULL) - rc) );
+            DisplayLog(LVL_DEBUG, TAG,
+                       "'%s' is being archived (last mod: %us ago)",
+                        bkpath, (unsigned int)(time(NULL) - rc));
             return 1;
         }
     }
@@ -864,7 +864,7 @@ static int entry_fs_path(const entry_id_t *p_id, const attr_set_t *p_attrs, char
     /* we need the posix path */
     if (!ATTR_MASK_TEST(p_attrs, fullpath))
     {
-        DisplayLog(LVL_CRIT, RBHEXT_TAG, "Error in %s(): path argument is "
+        DisplayLog(LVL_CRIT, TAG, "Error in %s(): path argument is "
                    "mandatory for archive command", __FUNCTION__);
         return -EINVAL;
     }
@@ -890,9 +890,9 @@ static int backup_status(struct sm_instance *smi,
     bool compressed = false;
 
     /* check if mtime is provided (mandatory) */
-    if ( !ATTR_MASK_TEST(p_attrs_in, last_mod) || !ATTR_MASK_TEST(p_attrs_in, type) )
+    if (!ATTR_MASK_TEST(p_attrs_in, last_mod) || !ATTR_MASK_TEST(p_attrs_in, type))
     {
-        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Missing mandatory attribute for checking entry status" );
+        DisplayLog(LVL_MAJOR, TAG, "Missing mandatory attribute for checking entry status");
         return -EINVAL;
     }
 
@@ -904,8 +904,8 @@ static int backup_status(struct sm_instance *smi,
 
     if ((entry_type != TYPE_FILE) && (entry_type != TYPE_LINK))
     {
-        DisplayLog( LVL_VERB, RBHEXT_TAG, "Unsupported type %s for this backend",
-                    ATTR(p_attrs_in, type) );
+        DisplayLog(LVL_VERB, TAG, "Unsupported type %s for this backend",
+                   ATTR(p_attrs_in, type));
         return -ENOTSUP;
     }
 
@@ -919,9 +919,9 @@ static int backup_status(struct sm_instance *smi,
     char fidpath[RBH_PATH_MAX];
     file_status_t status;
 
-    BuildFidPath( p_id, fidpath );
+    BuildFidPath(p_id, fidpath);
 
-    rc = ShookGetStatus( fidpath, &status );
+    rc = ShookGetStatus(fidpath, &status);
     if (rc)
         return rc;
 
@@ -934,12 +934,12 @@ static int backup_status(struct sm_instance *smi,
             return rc;
     }
 
-    if ( status != STATUS_SYNCHRO )
+    if (status != STATUS_SYNCHRO)
     {
-        DisplayLog( LVL_FULL, RBHEXT_TAG, "shook reported status<>online: %d",
-                    status );
-        ATTR_MASK_SET( p_attrs_changed, status );
-        ATTR( p_attrs_changed, status ) = status;
+        DisplayLog(LVL_FULL, TAG, "shook reported status<>online: %d",
+                   status);
+        ATTR_MASK_SET(p_attrs_changed, status);
+        ATTR(p_attrs_changed, status) = status;
 
         /* set backend path if it is not known */
         if (!ATTR_MASK_INFO_TEST(p_attrs_in, smi, ATTR_BK_PATH)
@@ -955,7 +955,7 @@ static int backup_status(struct sm_instance *smi,
     /* else: must compare status with backend */
 #endif
 
-    if ( entry_type == TYPE_FILE )
+    if (entry_type == TYPE_FILE)
     {
         /* is a copy running for this entry? */
         rc = check_running_copy(bkpath);
@@ -971,43 +971,43 @@ static int backup_status(struct sm_instance *smi,
     if (bk_lstat(bkpath, &bkmd, entry_type == TYPE_FILE, &compressed) != 0)
     {
         rc = -errno;
-        if ( (rc != -ENOENT) && (rc != -ESTALE) )
+        if ((rc != -ENOENT) && (rc != -ESTALE))
         {
-            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Lookup error for path '%s': %s",
-                        bkpath, strerror(-rc) );
+            DisplayLog(LVL_MAJOR, TAG, "Lookup error for path '%s': %s",
+                       bkpath, strerror(-rc));
             return rc;
         }
         else
         {
-            DisplayLog( LVL_DEBUG, RBHEXT_TAG,
-                        "'%s' does not exist in the backend (new entry): %s",
-                        bkpath, strerror(-rc) );
+            DisplayLog(LVL_DEBUG, TAG,
+                       "'%s' does not exist in the backend (new entry): %s",
+                        bkpath, strerror(-rc));
             /* no entry in the backend: new entry */
             return set_backup_status(smi, p_attrs_changed, STATUS_NEW);
         }
     }
 
-    if ( entry_type == TYPE_FILE )
+    if (entry_type == TYPE_FILE)
     {
-        if ( !S_ISREG(bkmd.st_mode))
+        if (!S_ISREG(bkmd.st_mode))
         {
             /* entry of invalid type */
-            DisplayLog( LVL_MAJOR, RBHEXT_TAG,
-                        "Different type in backend for entry %s. Moving it to orphan dir.",
-                        bkpath );
-            rc = move_orphan( bkpath );
+            DisplayLog(LVL_MAJOR, TAG,
+                       "Different type in backend for entry %s. Moving it to orphan dir.",
+                        bkpath);
+            rc = move_orphan(bkpath);
             if (rc)
                 return rc;
             return set_backup_status(smi, p_attrs_changed, STATUS_NEW);
         }
         /* compare mtime and size to check if the entry changed */
         /* XXX consider it modified this even if mtime is smaller */
-        if ( (ATTR( p_attrs_in, last_mod ) != bkmd.st_mtime )
-             || ((ATTR( p_attrs_in, size ) != bkmd.st_size) && !compressed) )
+        if ((ATTR(p_attrs_in, last_mod) != bkmd.st_mtime)
+             || ((ATTR(p_attrs_in, size) != bkmd.st_size) && !compressed))
         {
                 /* display a warning if last_mod in FS < mtime in backend */
-                if (ATTR( p_attrs_in, last_mod ) < bkmd.st_mtime)
-                    DisplayLog(LVL_MAJOR, RBHEXT_TAG,
+                if (ATTR(p_attrs_in, last_mod) < bkmd.st_mtime)
+                    DisplayLog(LVL_MAJOR, TAG,
                                "Warning: mtime in filesystem < mtime in backend (%s)",
                                bkpath);
 
@@ -1028,18 +1028,18 @@ static int backup_status(struct sm_instance *smi,
                 return set_backend_path(smi, p_attrs_changed, bkpath);
         }
     }
-    else if ( entry_type == TYPE_LINK )
+    else if (entry_type == TYPE_LINK)
     {
         char lnk1[RBH_PATH_MAX];
         char lnk2[RBH_PATH_MAX];
         char fspath[RBH_PATH_MAX];
 
-        if ( !S_ISLNK(bkmd.st_mode))
+        if (!S_ISLNK(bkmd.st_mode))
         {
-            DisplayLog( LVL_MAJOR, RBHEXT_TAG,
-                        "Different type in backend for entry %s. Moving it to orphan dir.",
-                        bkpath );
-            rc = move_orphan( bkpath );
+            DisplayLog(LVL_MAJOR, TAG,
+                       "Different type in backend for entry %s. Moving it to orphan dir.",
+                       bkpath);
+            rc = move_orphan(bkpath);
             if (rc)
                 return rc;
 
@@ -1051,10 +1051,10 @@ static int backup_status(struct sm_instance *smi,
             return rc;
 
         /* compare symlink contents */
-        if ( (rc = readlink(bkpath, lnk1, RBH_PATH_MAX )) < 0 )
+        if ((rc = readlink(bkpath, lnk1, RBH_PATH_MAX)) < 0)
         {
             rc = -errno;
-            if ( rc == -ENOENT )
+            if (rc == -ENOENT)
             {
                 /* entry disapeared */
                 return set_backup_status(smi, p_attrs_changed, STATUS_NEW);
@@ -1063,17 +1063,17 @@ static int backup_status(struct sm_instance *smi,
                 return rc;
         }
         lnk1[rc] = '\0';
-        DisplayLog( LVL_FULL, RBHEXT_TAG, "backend symlink => %s", lnk1 );
-        if ( (rc = readlink(fspath, lnk2, RBH_PATH_MAX )) < 0 )
+        DisplayLog(LVL_FULL, TAG, "backend symlink => %s", lnk1);
+        if ((rc = readlink(fspath, lnk2, RBH_PATH_MAX)) < 0)
         {
             rc = -errno;
-            DisplayLog( LVL_EVENT, RBHEXT_TAG, "Error performing readlink(%s): %s",
-                        fspath, strerror(-rc) );
+            DisplayLog(LVL_EVENT, TAG, "Error performing readlink(%s): %s",
+                       fspath, strerror(-rc));
             return rc;
         }
         lnk2[rc] = '\0';
-        DisplayLog( LVL_FULL, RBHEXT_TAG, "FS symlink => %s", lnk2 );
-        if ( strcmp(lnk1, lnk2) )
+        DisplayLog(LVL_FULL, TAG, "FS symlink => %s", lnk2);
+        if (strcmp(lnk1, lnk2))
         {
             /* symlink contents is different */
             rc = set_backup_status(smi, p_attrs_changed, STATUS_MODIFIED);
@@ -1101,66 +1101,136 @@ static int backup_status(struct sm_instance *smi,
     /* TODO What about STATUS_REMOVED? */
 }
 
-#if 0 /* in changelog callback */
 
-                /* If the entry exists in DB, this moves it from main table
-                 * to a remove queue, else, ignore the record. */
-                if (!p_op->db_exists)
-                    /* ignore the record */
-                    return STAGE_CHGLOG_CLR;
-                else if (soft_remove_filter(p_op)) /** FIXME to be provided by status manager */
-                    p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
-                else
-                    p_op->db_op_type = OP_TYPE_REMOVE_LAST;
-#endif
+/**
+ * Function to determine if a deleted entry must be inserted to SOFTRM table
+ */
+static proc_action_e backup_softrm_filter(struct sm_instance *smi, const entry_id_t *id,
+                                          const attr_set_t *attrs)
+{
+    /** @TODO support dirs here to clean empty directories? */
 
-#if 0 /* in softrm filter */
-    if (ATTR_FSorDB_TEST( p_op, type )
-        && !strcmp( ATTR_FSorDB( p_op, type ), STR_TYPE_DIR ))
+    if (ATTR_MASK_STATUS_TEST(attrs, smi->smi_index)
+        && status_equal(smi, attrs, STATUS_NEW))
     {
-        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Removing directory entry (no rm in backend)");
-        return false;
+        DisplayLog(LVL_DEBUG, TAG, "Removing 'new' entry ("DFID"): no remove in backend",
+                   PFID(id));
+        return PROC_ACT_RM_ALL;
     }
-#ifdef ATTR_INDEX_status
-    else if (ATTR_FSorDB_TEST(p_op, status)
-        && (ATTR_FSorDB(p_op, status) == STATUS_NEW))
-    {
-        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Removing 'new' entry ("DFID"): no remove in backend",
-                    PFID(&p_op->entry_id) );
-        return false;
-    }
-#endif
-#ifdef HAVE_SHOOK /** policy specific => move to status manager */
+#ifdef HAVE_SHOOK
     /* if the removed entry is a restripe source,
      * we MUST NOT remove the backend entry
      * as it will be linked to the restripe target
      */
-    else if ( (ATTR_FSorDB_TEST(p_op, fullpath)
+    /** @TODO adapt to RBHv3 */
+    else if ((ATTR_FSorDB_TEST(p_op, fullpath)
                && !fnmatch("*/"RESTRIPE_DIR"/"RESTRIPE_SRC_PREFIX"*",
                      ATTR_FSorDB(p_op, fullpath), 0))
         ||
         (ATTR_FSorDB_TEST(p_op, name)
-         && !strncmp(RESTRIPE_SRC_PREFIX, ATTR_FSorDB(p_op, name ),
+         && !strncmp(RESTRIPE_SRC_PREFIX, ATTR_FSorDB(p_op, name),
                      strlen(RESTRIPE_SRC_PREFIX))))
     {
-        DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Removing shook stripe source %s: no removal in backend!",
-                    ATTR_FSorDB_TEST(p_op, fullpath)?
-                    ATTR_FSorDB(p_op, fullpath) : ATTR_FSorDB(p_op, name));
-        return false;
+        DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "Removing shook stripe source %s: no remove in backend!",
+                   ATTR_FSorDB_TEST(p_op, fullpath)?
+                   ATTR_FSorDB(p_op, fullpath) : ATTR_FSorDB(p_op, name));
+        return PROC_ACT_NONE;
     }
 #endif
-    return true;
+    /* If we have a doubt, always insert to softrm.
+     *  In the worst case, it's just a useless backup_rm operation.
+     */
+    return PROC_ACT_SOFTRM_ALWAYS;
+}
 
+
+static int backup_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
+                        const entry_id_t *id, const attr_set_t *attrs,
+                        attr_set_t *refreshed_attrs, bool *getit,
+                        proc_action_e *rec_action)
+{
+    /* If this is a CREATE record, we know its status is NEW
+     * (except if it is already set to another value) */
+    if (logrec->cr_type == CL_CREATE)
+    {
+        if (!ATTR_MASK_STATUS_TEST(attrs, smi->smi_index))
+        {
+            /* new file, status is new */
+            set_backup_status(smi, refreshed_attrs, STATUS_NEW);
+            /* no need to retrieve it from filesystem */
+            *getit = false;
+        }
+        /* else: file is already known. Preserve the known status. */
+    }
+    else if ((logrec->cr_type == CL_MKDIR) || (logrec->cr_type == CL_RMDIR))
+    {
+        /* no status for directories */
+        *getit = false;
+    }
+    else if (logrec->cr_type == CL_MTIME || logrec->cr_type == CL_TRUNC ||
+             logrec->cr_type == CL_CLOSE)
+    {
+        /* If file is modified or truncated, need to check its status
+         * (probably modified) EXCEPT if its status is already 'modified' */
+        if (!ATTR_MASK_STATUS_TEST(attrs, smi->smi_index)
+            || (!status_equal(smi, attrs, STATUS_NEW) &&
+                !status_equal(smi, attrs, STATUS_MODIFIED)))
+        {
+            DisplayLog(LVL_DEBUG, TAG,
+                       "Getstatus needed because this is a %s event "
+                       "and status is not already 'modified' or 'new': status=%s",
+                       changelog_type2str(logrec->cr_type),
+                       ATTR_MASK_STATUS_TEST(attrs, smi->smi_index)?
+                         STATUS_ATTR(attrs, smi->smi_index) :"<not set>");
+            *getit = true;
+        }
+    }
+    else if ((logrec->cr_type == CL_UNLINK)
+             && (logrec->cr_flags & CLF_UNLINK_LAST))
+    {
+        if (backup_softrm_filter(smi, id, attrs))
+            *rec_action = PROC_ACT_SOFTRM_IF_EXISTS;
+        else
+            /* no chance it can match softrm_filter: drop from DB */
+            *rec_action = PROC_ACT_RM_ALL;
+    }
+#ifdef HAVE_SHOOK
+    else if (logrec->cr_type == CL_XATTR)
+    {
+        /* need to update status */
+        *getit = true;
+    }
+    else if (logrec->cr_type == CL_CTIME || (logrec->cr_type == CL_SETATTR))
+    {
+        /* in Lustre v2.O, changing trusted xattr generates CTIME/SATTR event */
+        *getit = true;
+    }
+
+    /** @FIXME */
+    if (p_op->db_exists)
+    {
+        /* if the old name is a restripe file, update the status */
+        if (!strncmp(RESTRIPE_TGT_PREFIX, ATTR(&p_op->db_attrs, name),
+                     strlen(RESTRIPE_TGT_PREFIX)))
+        {
+            p_op->fs_attr_need |= ATTR_MASK_status;
+            DisplayLog(LVL_DEBUG, TAG,
+                       "Getstatus needed because entry was a restripe target");
+        }
+    }
 #endif
 
-typedef enum { TO_FS, TO_BACKEND } target_e;
+    return 0;
+}
+
+typedef enum {TO_FS, TO_BACKEND} target_e;
 
 /**
  * get metadata of a directory in filesystem or in backend
  * by target path
  */
-static int get_orig_dir_md( const char * target_dir, struct stat * st,
-                            target_e target )
+static int get_orig_dir_md(const char * target_dir, struct stat * st,
+                            target_e target)
 {
     char rel_path[RBH_PATH_MAX];
     char orig_path[RBH_PATH_MAX];
@@ -1168,7 +1238,7 @@ static int get_orig_dir_md( const char * target_dir, struct stat * st,
     const char * dest_root;
     const char * src_root;
 
-    if ( target == TO_BACKEND )
+    if (target == TO_BACKEND)
     {
         dest_root = config.root;
         src_root = global_config.fs_path;
@@ -1179,21 +1249,21 @@ static int get_orig_dir_md( const char * target_dir, struct stat * st,
         src_root = config.root;
     }
 
-    rc =  relative_path( target_dir, dest_root, rel_path );
+    rc =  relative_path(target_dir, dest_root, rel_path);
     if (rc)
         return rc;
 
     /* orig path is '<fs_root>/<rel_path>' */
     sprintf(orig_path, "%s/%s", src_root, rel_path);
 
-    DisplayLog( LVL_FULL, RBHEXT_TAG, "Target directory: %s, source directory: %s",
-                target_dir, orig_path );
+    DisplayLog(LVL_FULL, TAG, "Target directory: %s, source directory: %s",
+               target_dir, orig_path);
 
-    if ( lstat(orig_path, st) )
+    if (lstat(orig_path, st))
     {
         rc = -errno;
-        DisplayLog( LVL_DEBUG, RBHEXT_TAG, "Cannot stat %s: %s",
-                    orig_path, strerror(-rc) );
+        DisplayLog(LVL_DEBUG, TAG, "Cannot stat %s: %s",
+                   orig_path, strerror(-rc));
         return rc;
     }
     else
@@ -1203,8 +1273,8 @@ static int get_orig_dir_md( const char * target_dir, struct stat * st,
 /**
  *  Ensure POSIX directory exists
  */
-static int mkdir_recurse_clone_attrs( const char * full_path, mode_t default_mode,
-                          target_e target )
+static int mkdir_recurse_clone_attrs(const char * full_path, mode_t default_mode,
+                          target_e target)
 {
     char path_copy[MAXPATHLEN];
     const char * curr;
@@ -1214,11 +1284,11 @@ static int mkdir_recurse_clone_attrs( const char * full_path, mode_t default_mod
     bool setattrs = false;
 
     /* to backend or the other way? */
-    if ( target == TO_BACKEND )
+    if (target == TO_BACKEND)
     {
         if (strncmp(config.root,full_path, strlen(config.root)) != 0)
         {
-            DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Error: '%s' is not under backend root '%s'",
+            DisplayLog(LVL_MAJOR, TAG, "Error: '%s' is not under backend root '%s'",
                        full_path, config.root);
             return -EINVAL;
         }
@@ -1235,7 +1305,7 @@ static int mkdir_recurse_clone_attrs( const char * full_path, mode_t default_mod
         }
         else if (strncmp(global_config.fs_path,full_path, strlen(global_config.fs_path)) != 0)
         {
-            DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Error: '%s' is not under filesystem root '%s'",
+            DisplayLog(LVL_MAJOR, TAG, "Error: '%s' is not under filesystem root '%s'",
                        full_path, global_config.fs_path);
             return -EINVAL;
         }
@@ -1247,7 +1317,7 @@ static int mkdir_recurse_clone_attrs( const char * full_path, mode_t default_mod
         return 0;
     else if (*curr != '/') /* slash expected */
     {
-        DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Error: '%s' is not under backend root '%s'",
+        DisplayLog(LVL_MAJOR, TAG, "Error: '%s' is not under backend root '%s'",
                    full_path, (target == TO_BACKEND)?config.root:global_config.fs_path);
         return -EINVAL;
     }
@@ -1256,7 +1326,7 @@ static int mkdir_recurse_clone_attrs( const char * full_path, mode_t default_mod
     curr ++;
 relative:
 
-    while( (curr = strchr( curr, '/' )) != NULL )
+    while((curr = strchr(curr, '/')) != NULL)
     {
          /* if fullpath = '/a/b',
          * curr = &(fullpath[2]);
@@ -1270,12 +1340,12 @@ relative:
         path_copy[path_len]='\0';
 
         /* stat dir */
-        if ( lstat( path_copy, &st ) != 0 )
+        if (lstat(path_copy, &st) != 0)
         {
             rc = -errno;
             if (rc != -ENOENT)
             {
-                DisplayLog( LVL_CRIT, RBHEXT_TAG, "Cannot lstat() '%s': %s", path_copy, strerror(-rc) );
+                DisplayLog(LVL_CRIT, TAG, "Cannot lstat() '%s': %s", path_copy, strerror(-rc));
                 return rc;
             }
 
@@ -1290,30 +1360,30 @@ relative:
                 setattrs = false;
             }
 
-            DisplayLog(LVL_FULL, RBHEXT_TAG, "mkdir(%s)", path_copy );
-            if ( (mkdir( path_copy, mode ) != 0) && (errno != EEXIST) )
+            DisplayLog(LVL_FULL, TAG, "mkdir(%s)", path_copy);
+            if ((mkdir(path_copy, mode) != 0) && (errno != EEXIST))
             {
                 rc = -errno;
-                DisplayLog( LVL_CRIT, RBHEXT_TAG, "mkdir(%s) failed: %s",
-                            path_copy, strerror(-rc) );
+                DisplayLog(LVL_CRIT, TAG, "mkdir(%s) failed: %s",
+                           path_copy, strerror(-rc));
                 return rc;
             }
 
-            if ( setattrs )
+            if (setattrs)
             {
                 /* set owner and group */
-                if ( lchown( path_copy, st.st_uid, st.st_gid ) )
-                    DisplayLog( LVL_MAJOR, RBHEXT_TAG,
-                                "Error setting owner/group for '%s': %s",
-                                path_copy, strerror(errno) );
+                if (lchown(path_copy, st.st_uid, st.st_gid))
+                    DisplayLog(LVL_MAJOR, TAG,
+                               "Error setting owner/group for '%s': %s",
+                                path_copy, strerror(errno));
                 /* mode is set by mkdir */
             }
         }
-        else if ( !S_ISDIR( st.st_mode ) )
+        else if (!S_ISDIR(st.st_mode))
         {
-            DisplayLog( LVL_CRIT, RBHEXT_TAG,
-                        "Cannot create directory '%s': existing non-directory",
-                        path_copy );
+            DisplayLog(LVL_CRIT, TAG,
+                       "Cannot create directory '%s': existing non-directory",
+                        path_copy);
             return -ENOTDIR;
         }
 
@@ -1332,17 +1402,17 @@ relative:
     }
 
     /* finaly create this dir */
-    DisplayLog(LVL_FULL, RBHEXT_TAG, "mkdir(%s)", full_path );
-    if ( (mkdir( full_path, mode ) != 0) && (errno != EEXIST) )
+    DisplayLog(LVL_FULL, TAG, "mkdir(%s)", full_path);
+    if ((mkdir(full_path, mode) != 0) && (errno != EEXIST))
     {
         rc = -errno;
-        DisplayLog( LVL_CRIT, RBHEXT_TAG, "mkdir(%s) failed: %s", full_path, strerror(-rc) );
+        DisplayLog(LVL_CRIT, TAG, "mkdir(%s) failed: %s", full_path, strerror(-rc));
         return rc;
     } else if (setattrs) {
         /* set owner and group */
-        if ( lchown( full_path, st.st_uid, st.st_gid ) )
-            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Error setting owner/group for '%s': %s",
-                        full_path, strerror(errno) );
+        if (lchown(full_path, st.st_uid, st.st_gid))
+            DisplayLog(LVL_MAJOR, TAG, "Error setting owner/group for '%s': %s",
+                       full_path, strerror(errno));
         /* mode is set by mkdir (FIXME but can be cleared by chown) */
     }
 
@@ -1365,7 +1435,7 @@ static int create_parent(const char *child_path, target_e target, entry_id_t *p_
     destdir = dirname(tmp);
     if (destdir == NULL)
     {
-        DisplayLog(LVL_CRIT, RBHEXT_TAG, "Error extracting directory path of '%s'",
+        DisplayLog(LVL_CRIT, TAG, "Error extracting directory path of '%s'",
                    child_path);
         return -EINVAL;
     }
@@ -1407,7 +1477,7 @@ static int backup_action_precheck(sm_instance_t *smi, const entry_id_t *p_id,
     /* if status is not determined, retrieve it */
     if (!ATTR_MASK_STATUS_TEST(p_attrs, smi->smi_index))
     {
-        DisplayLog(LVL_DEBUG, RBHEXT_TAG, "%s not provided to perform pre-copy checks",
+        DisplayLog(LVL_DEBUG, TAG, "%s not provided to perform pre-copy checks",
                    smi->db_field);
         rc = backup_status(smi, p_id, p_attrs, p_attrs);
         if (rc)
@@ -1416,7 +1486,7 @@ static int backup_action_precheck(sm_instance_t *smi, const entry_id_t *p_id,
 
     if (!ATTR_MASK_TEST(p_attrs, type))
     {
-        DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Missing mandatory attribute 'type' to perform pre-copy checks");
+        DisplayLog(LVL_MAJOR, TAG, "Missing mandatory attribute 'type' to perform pre-copy checks");
         return -EINVAL;
     }
 
@@ -1424,7 +1494,7 @@ static int backup_action_precheck(sm_instance_t *smi, const entry_id_t *p_id,
     *entry_type = db2type(ATTR(p_attrs, type));
     if ((*entry_type != TYPE_FILE) && (*entry_type != TYPE_LINK))
     {
-        DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Unsupported type for copy operation: %s",
+        DisplayLog(LVL_MAJOR, TAG, "Unsupported type for copy operation: %s",
                    ATTR(p_attrs, type));
         return -ENOTSUP;
     }
@@ -1439,7 +1509,7 @@ static int backup_action_precheck(sm_instance_t *smi, const entry_id_t *p_id,
         if ((lstat(bkpath, &void_stat) == 0) || (errno != ENOENT))
         {
             rc = -errno;
-            DisplayLog(LVL_MAJOR, RBHEXT_TAG, "ERROR: new entry %s already exists in the backend?! errno=%d, %s",
+            DisplayLog(LVL_MAJOR, TAG, "ERROR: new entry %s already exists in the backend?! errno=%d, %s",
                        bkpath, -rc, strerror(-rc));
             return rc;
         }
@@ -1464,7 +1534,7 @@ static int backup_action_precheck(sm_instance_t *smi, const entry_id_t *p_id,
             if (lstat(bp, &void_stat) != 0)
             {
                 rc = -errno;
-                DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Warning: previous copy %s not found in the backend (errno=%d, %s): "
+                DisplayLog(LVL_MAJOR, TAG, "Warning: previous copy %s not found in the backend (errno=%d, %s): "
                            "entry will be archived again as %s.", bp,
                            -rc, strerror(-rc), bkpath);
             }
@@ -1473,7 +1543,7 @@ static int backup_action_precheck(sm_instance_t *smi, const entry_id_t *p_id,
     else /* invalid status */
     {
         /* invalid status for performing archive() */
-        DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Unexpected status '%s' in %s()",
+        DisplayLog(LVL_MAJOR, TAG, "Unexpected status '%s' in %s()",
                    STATUS_ATTR(p_attrs, smi->smi_index), __FUNCTION__);
         return -EINVAL;
     }
@@ -1492,7 +1562,7 @@ static int backup_symlink(sm_instance_t *smi, attr_set_t *p_attrs,
     if (readlink(src, link, RBH_PATH_MAX) < 0)
     {
         rc = -errno;
-        DisplayLog(LVL_MAJOR,  RBHEXT_TAG, "Error reading symlink contents (%s): %s",
+        DisplayLog(LVL_MAJOR,  TAG, "Error reading symlink contents (%s): %s",
                    src, strerror(-rc));
         return rc;
     }
@@ -1500,8 +1570,8 @@ static int backup_symlink(sm_instance_t *smi, attr_set_t *p_attrs,
     if (symlink(link, dst) != 0)
     {
         rc = -errno;
-        DisplayLog(LVL_MAJOR,  RBHEXT_TAG, "Error creating symlink %s->\"%s\" in backend: %s",
-                    dst, link, strerror(-rc));
+        DisplayLog(LVL_MAJOR,  TAG, "Error creating symlink %s->\"%s\" in backend: %s",
+                   dst, link, strerror(-rc));
         /* keep the same status */
         return rc;
     }
@@ -1514,7 +1584,7 @@ static int backup_symlink(sm_instance_t *smi, attr_set_t *p_attrs,
     if (lstat(src, &info) != 0)
     {
         rc = -errno;
-        DisplayLog(LVL_EVENT, RBHEXT_TAG, "Error performing lstat(%s): %s",
+        DisplayLog(LVL_EVENT, TAG, "Error performing lstat(%s): %s",
                    src, strerror(-rc));
         /* there is something wrong: set the status to unknown */
         set_backup_status(smi, p_attrs, STATUS_UNKNOWN);
@@ -1522,7 +1592,7 @@ static int backup_symlink(sm_instance_t *smi, attr_set_t *p_attrs,
     else if (lchown(dst, info.st_uid, info.st_gid))
     {
         rc = -errno;
-        DisplayLog(LVL_EVENT, RBHEXT_TAG, "error setting owner/group in backend on %s: %s",
+        DisplayLog(LVL_EVENT, TAG, "error setting owner/group in backend on %s: %s",
                    dst, strerror(-rc));
     }
     return 0;
@@ -1541,7 +1611,7 @@ static int backup_command(const char *cmd_in, const entry_id_t *p_id,
     if (cmd != NULL)
     {
         /* call custom purge command instead of unlink() */
-        DisplayLog(LVL_DEBUG, RBHEXT_TAG, DFID": action: cmd(%s)", PFID(p_id),
+        DisplayLog(LVL_DEBUG, TAG, DFID": action: cmd(%s)", PFID(p_id),
                    cmd);
         rc =  execute_shell_command(true, cmd, 0);
         g_free(cmd);
@@ -1616,7 +1686,7 @@ static int wrap_file_copy(sm_instance_t *smi,
     rc = shook_archive_start(get_fsname(), p_id, bkpath);
     if (rc)
     {
-        DisplayLog(LVL_CRIT, RBHEXT_TAG, "Failed to initialize transfer: shook_archive_start() returned error %d",
+        DisplayLog(LVL_CRIT, TAG, "Failed to initialize transfer: shook_archive_start() returned error %d",
                    rc);
         goto err_out;
     }
@@ -1638,7 +1708,7 @@ static int wrap_file_copy(sm_instance_t *smi,
             break;
 
         case ACTION_FUNCTION:
-            DisplayLog(LVL_DEBUG, RBHEXT_TAG, DFID": action: %s", PFID(p_id),
+            DisplayLog(LVL_DEBUG, TAG, DFID": action: %s", PFID(p_id),
                        action->action_u.func.name);
             rc = action->action_u.func.call(p_id, p_attrs, &tmp_params, after,
                                             db_cb_fn, db_cb_arg);
@@ -1646,12 +1716,12 @@ static int wrap_file_copy(sm_instance_t *smi,
 
         case ACTION_NONE:
             /* NOOP */
-            DisplayLog(LVL_DEBUG, RBHEXT_TAG, "copy(%s->%s): noop", srcpath, tmp);
+            DisplayLog(LVL_DEBUG, TAG, "copy(%s->%s): noop", srcpath, tmp);
             rc = 0;
             break;
 
         case ACTION_UNSET:
-            DisplayLog(LVL_EVENT, RBHEXT_TAG, "copy(%s->%s): no action specified", srcpath, tmp);
+            DisplayLog(LVL_EVENT, TAG, "copy(%s->%s): no action specified", srcpath, tmp);
             rc = 0;
             break;
     }
@@ -1685,7 +1755,7 @@ static int wrap_file_copy(sm_instance_t *smi,
         if (utime(tmp, &tbuf) != 0)
         {
             rc = -errno;
-            DisplayLog(LVL_CRIT, RBHEXT_TAG, "Error setting mtime for file %s: %s",
+            DisplayLog(LVL_CRIT, TAG, "Error setting mtime for file %s: %s",
                        tmp, strerror(-rc));
             /* ignore the error */
             rc = 0;
@@ -1696,7 +1766,7 @@ static int wrap_file_copy(sm_instance_t *smi,
     if (rename(tmp, bkpath) != 0)
     {
         rc = -errno;
-        DisplayLog(LVL_CRIT, RBHEXT_TAG, "Error renaming tmp copy file '%s' to final name '%s': %s",
+        DisplayLog(LVL_CRIT, TAG, "Error renaming tmp copy file '%s' to final name '%s': %s",
                    tmp, bkpath, strerror(-rc));
 
         /* the transfer failed. entry still needs to be archived */
@@ -1716,11 +1786,11 @@ static int wrap_file_copy(sm_instance_t *smi,
         /* check if the backend path is different */
         if(strcmp(bkpath, bp))
         {
-            DisplayLog(LVL_DEBUG, RBHEXT_TAG, "Removing previous copy %s", bp);
+            DisplayLog(LVL_DEBUG, TAG, "Removing previous copy %s", bp);
             if (unlink(bp))
             {
                 rc = -errno;
-                DisplayLog(LVL_DEBUG, RBHEXT_TAG, "Error removing previous copy %s: %s",
+                DisplayLog(LVL_DEBUG, TAG, "Error removing previous copy %s: %s",
                            bp, strerror(-rc));
                 /* ignore */
                 rc = 0;
@@ -1732,8 +1802,8 @@ static int wrap_file_copy(sm_instance_t *smi,
     rc = shook_archive_finalize(get_fsname(), p_id, bkpath);
     if (rc)
     {
-        DisplayLog( LVL_CRIT, RBHEXT_TAG, "Failed to finalize transfer: shook_archive_finalize() returned error %d",
-                    rc );
+        DisplayLog(LVL_CRIT, TAG, "Failed to finalize transfer: shook_archive_finalize() returned error %d",
+                   rc);
         return rc;
     }
 #endif
@@ -1746,7 +1816,7 @@ static int wrap_file_copy(sm_instance_t *smi,
     if (lstat(srcpath, &info) != 0)
     {
         rc = -errno;
-        DisplayLog(LVL_EVENT, RBHEXT_TAG, "Error performing final lstat(%s): %s",
+        DisplayLog(LVL_EVENT, TAG, "Error performing final lstat(%s): %s",
                    srcpath, strerror(-rc));
         set_backup_status(smi, p_attrs, STATUS_UNKNOWN);
         return rc;
@@ -1756,7 +1826,7 @@ static int wrap_file_copy(sm_instance_t *smi,
     if ((info.st_mtime != ATTR(p_attrs, last_mod))
         || (info.st_size != ATTR(p_attrs, size)))
     {
-        DisplayLog(LVL_EVENT, RBHEXT_TAG, "Entry %s has been modified during transfer: "
+        DisplayLog(LVL_EVENT, TAG, "Entry %s has been modified during transfer: "
                    "size before/after: %"PRI_SZ"/%"PRI_SZ", "
                    "mtime before/after: %u/%"PRI_TT,
                    srcpath, ATTR(p_attrs, size), info.st_size,
@@ -1806,7 +1876,7 @@ static int backup_executor(sm_instance_t *smi, const char *implements,
     /** @TODO support execution of hsm_remove actions */
     if (strcmp(implements, "archive"))
     {
-        DisplayLog(LVL_CRIT, RBHEXT_TAG, "Operation not supported by status manager %s: '%s'",
+        DisplayLog(LVL_CRIT, TAG, "Operation not supported by status manager %s: '%s'",
                    smi->sm->name, implements);
         return -ENOTSUP;
     }
@@ -1859,12 +1929,14 @@ static int backup_remove(const entry_id_t *id, attr_set_t *attrs,
     int rc;
     const char *bp;
 
+    /** @TODO perform rmdir to clean empty directories? */
+
     /* check mandatory arguments */
     bp = rbh_param_get(params, TARGET_PATH_PARAM);
 
     if (bp == NULL || EMPTY_STRING(bp))
     {
-        DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Missing mandatory action parameter '%s'",
+        DisplayLog(LVL_MAJOR, TAG, "Missing mandatory action parameter '%s'",
                    TARGET_PATH_PARAM);
         return -EINVAL;
     }
@@ -1878,12 +1950,12 @@ static int backup_remove(const entry_id_t *id, attr_set_t *attrs,
     rc = -errno;
     if (rc == -ENOENT)
     {
-        DisplayLog(LVL_DEBUG, RBHEXT_TAG, "'%s' not found in backend", bp);
+        DisplayLog(LVL_DEBUG, TAG, "'%s' not found in backend", bp);
         *what_after = PA_RM_ONE; /* drop from SOFTRM */
     }
     else
     {
-        DisplayLog(LVL_EVENT, RBHEXT_TAG, "Error removing '%s' from backend: %s",
+        DisplayLog(LVL_EVENT, TAG, "Error removing '%s' from backend: %s",
                    bp, strerror(-rc));
         *what_after = PA_NONE;
     }
@@ -1914,14 +1986,14 @@ static int backup_rebind(sm_instance_t *smi, const char *fs_path,
     if (lstat(fidpath, &st))
     {
         rc = -errno;
-        DisplayLog(LVL_CRIT, RBHEXT_TAG, "ERROR: lstat() failed on target "DFID": %s",
+        DisplayLog(LVL_CRIT, TAG, "ERROR: lstat() failed on target "DFID": %s",
                    PFID(new_id), strerror(-rc));
         return rc;
     }
 
     if (!S_ISREG(st.st_mode))
     {
-        DisplayLog(LVL_MAJOR, RBHEXT_TAG, "%s() is only supported for files", __func__);
+        DisplayLog(LVL_MAJOR, TAG, "%s() is only supported for files", __func__);
         return -ENOTSUP;
     }
 
@@ -1947,8 +2019,8 @@ static int backup_rebind(sm_instance_t *smi, const char *fs_path,
     destdir = dirname(tmp);
     if (destdir == NULL)
     {
-        DisplayLog(LVL_CRIT, RBHEXT_TAG, "Error extracting directory path of '%s'",
-                    new_bk_path);
+        DisplayLog(LVL_CRIT, TAG, "Error extracting directory path of '%s'",
+                   new_bk_path);
         return -EINVAL;
     }
 
@@ -1958,7 +2030,7 @@ static int backup_rebind(sm_instance_t *smi, const char *fs_path,
 
     do {
         /* rename the entry in backend */
-        DisplayLog(LVL_DEBUG, RBHEXT_TAG, "Moving entry in the backend: '%s'->'%s'",
+        DisplayLog(LVL_DEBUG, TAG, "Moving entry in the backend: '%s'->'%s'",
                    old_bk_path, new_bk_path);
         if (rename(old_bk_path, new_bk_path))
         {
@@ -1969,9 +2041,9 @@ static int backup_rebind(sm_instance_t *smi, const char *fs_path,
             {
                 const char *fname;
 
-                DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Could not move entry in the backend "
-                            "because target path is in different device (error EXDEV): '%s'->'%s'",
-                            old_bk_path, new_bk_path);
+                DisplayLog(LVL_MAJOR, TAG, "Could not move entry in the backend "
+                           "because target path is in different device (error EXDEV): '%s'->'%s'",
+                           old_bk_path, new_bk_path);
 
                 /* try to move file from one backend fileset to another:
                  * in this case, just change filename within the same directory
@@ -1992,13 +2064,13 @@ static int backup_rebind(sm_instance_t *smi, const char *fs_path,
     #endif
                 retry = true;
 
-                DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Trying to rename to '%s' instead", new_bk_path);
+                DisplayLog(LVL_MAJOR, TAG, "Trying to rename to '%s' instead", new_bk_path);
                 continue;
             }
             else
             {
-                DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Could not move entry in the backend ('%s'->'%s'): %s",
-                            old_bk_path, new_bk_path, strerror(-rc));
+                DisplayLog(LVL_MAJOR, TAG, "Could not move entry in the backend ('%s'->'%s'): %s",
+                           old_bk_path, new_bk_path, strerror(-rc));
                 /* keep the old path */
                 strcpy(new_bk_path, old_bk_path);
                 return rc;
@@ -2013,8 +2085,8 @@ static int backup_rebind(sm_instance_t *smi, const char *fs_path,
     /* XXX for now, don't manage several hsm_index */
     rc = shook_set_hsm_info(fidpath, new_bk_path, 0);
     if (rc)
-        DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Could not set backend path for "DFID": error %d",
-                    PFID(new_id), rc);
+        DisplayLog(LVL_MAJOR, TAG, "Could not set backend path for "DFID": error %d",
+                   PFID(new_id), rc);
 #endif
 
     return rc;
@@ -2035,7 +2107,7 @@ static recov_status_t recov_dir(const char *backend_path, const char *fspath,
 
     if (rc != 0 && rc != EEXIST)
     {
-        DisplayLog(LVL_CRIT, RBHEXT_TAG, "ERROR: cannot create directory '%s': %s",
+        DisplayLog(LVL_CRIT, TAG, "ERROR: cannot create directory '%s': %s",
                    fspath, strerror(rc));
         return RS_ERROR;
     }
@@ -2063,7 +2135,7 @@ static recov_status_t recov_symlink(const char *backend_path, const char *fspath
         if (rc < 0)
         {
             rc = errno;
-            DisplayLog(LVL_MAJOR,  RBHEXT_TAG, "Error reading symlink contents (%s): %s",
+            DisplayLog(LVL_MAJOR,  TAG, "Error reading symlink contents (%s): %s",
                        backend_path, strerror(rc));
             if (rc == ENOENT)
                 return RS_NOBACKUP;
@@ -2080,7 +2152,7 @@ static recov_status_t recov_symlink(const char *backend_path, const char *fspath
     if (symlink(link, fspath) != 0)
     {
         rc = errno;
-        DisplayLog(LVL_MAJOR,  RBHEXT_TAG, "Error creating symlink %s->\"%s\" in filesystem: %s",
+        DisplayLog(LVL_MAJOR,  TAG, "Error creating symlink %s->\"%s\" in filesystem: %s",
                    fspath, link, strerror(rc));
         return RS_ERROR;
     }
@@ -2107,7 +2179,7 @@ static recov_status_t recov_file(const entry_id_t *p_id,
             rc = errno;
             if (rc != ENOENT)
             {
-                DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Cannot stat '%s' in backend: %s",
+                DisplayLog(LVL_MAJOR, TAG, "Cannot stat '%s' in backend: %s",
                            backend_path, strerror(rc));
                 return RS_ERROR;
             }
@@ -2121,7 +2193,7 @@ static recov_status_t recov_file(const entry_id_t *p_id,
         /* if no stat done and file != 0 => no backup */
         if (!ATTR_MASK_TEST(attrs, size) || ATTR(attrs, size) != 0)
         {
-            DisplayLog(LVL_MAJOR, RBHEXT_TAG, "%s has no backup copy (%s not found)",
+            DisplayLog(LVL_MAJOR, TAG, "%s has no backup copy (%s not found)",
                        fspath, backend_path);
             return RS_NOBACKUP;
         }
@@ -2135,7 +2207,7 @@ static recov_status_t recov_file(const entry_id_t *p_id,
 
         if (!S_ISREG(bk_stat->st_mode))
         {
-            DisplayLog(LVL_CRIT, RBHEXT_TAG, "ERROR: recovering file from non-file object %s",
+            DisplayLog(LVL_CRIT, TAG, "ERROR: recovering file from non-file object %s",
                        backend_path);
             return RS_ERROR;
         }
@@ -2151,13 +2223,13 @@ static recov_status_t recov_file(const entry_id_t *p_id,
     rc = lstat(fspath, &st_dest) ? errno : 0;
     if (rc == 0)
     {
-        DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Error: cannot recover '%s': already exists",
+        DisplayLog(LVL_MAJOR, TAG, "Error: cannot recover '%s': already exists",
                    fspath);
         return RS_ERROR;
     }
     else if (rc != ENOENT)
     {
-        DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Unexpected error performing lstat(%s): %s",
+        DisplayLog(LVL_MAJOR, TAG, "Unexpected error performing lstat(%s): %s",
                    fspath, strerror(rc));
         return RS_ERROR;
     }
@@ -2166,7 +2238,7 @@ static recov_status_t recov_file(const entry_id_t *p_id,
      * in that case) */
     if (!*no_copy && config.check_mounted && (backend_dev != bk_stat->st_dev))
     {
-        DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Source file %s is not in the same device as target %s",
+        DisplayLog(LVL_MAJOR, TAG, "Source file %s is not in the same device as target %s",
                    backend_path, config.root);
         return RS_ERROR;
     }
@@ -2193,7 +2265,7 @@ static recov_status_t recov_file(const entry_id_t *p_id,
         if (fd < 0)
         {
             rc = errno;
-            DisplayLog(LVL_CRIT, RBHEXT_TAG, "ERROR: couldn't create '%s': %s",
+            DisplayLog(LVL_CRIT, TAG, "ERROR: couldn't create '%s': %s",
                        fspath, strerror(rc));
             return RS_ERROR;
         }
@@ -2211,13 +2283,13 @@ static recov_status_t recov_file(const entry_id_t *p_id,
         /* In any case, set 'copyback' param. */
         if (rbh_param_set(&recov_params, "copyback", "1", false))
         {
-            DisplayLog(LVL_CRIT, RBHEXT_TAG, "ERROR: failed to set action param 'copyback'");
+            DisplayLog(LVL_CRIT, TAG, "ERROR: failed to set action param 'copyback'");
             return RS_ERROR;
         }
         /* If compression is enabled, append 'compress' param.  */
         if (rbh_param_set(&recov_params, "compress", "1", false))
         {
-            DisplayLog(LVL_CRIT, RBHEXT_TAG, "ERROR: failed to set action param 'compress'");
+            DisplayLog(LVL_CRIT, TAG, "ERROR: failed to set action param 'compress'");
             return RS_ERROR;
         }
 
@@ -2227,7 +2299,7 @@ static recov_status_t recov_file(const entry_id_t *p_id,
 
         if (rbh_param_set(&recov_params, TARGET_PATH_PARAM, fspath, false))
         {
-            DisplayLog(LVL_CRIT, RBHEXT_TAG, "ERROR: failed to set action param '%s'",
+            DisplayLog(LVL_CRIT, TAG, "ERROR: failed to set action param '%s'",
                        TARGET_PATH_PARAM);
             return RS_ERROR;
         }
@@ -2248,13 +2320,13 @@ static recov_status_t recov_file(const entry_id_t *p_id,
 
             case ACTION_NONE:
                 /* NOOP */
-                DisplayLog(LVL_DEBUG, RBHEXT_TAG, "recovery(%s->%s): noop",
+                DisplayLog(LVL_DEBUG, TAG, "recovery(%s->%s): noop",
                            backend_path, fspath);
                 rc = 0;
                 break;
 
             case ACTION_UNSET:
-                DisplayLog(LVL_EVENT, RBHEXT_TAG, "recovery(%s->%s): no action specified",
+                DisplayLog(LVL_EVENT, TAG, "recovery(%s->%s): no action specified",
                            backend_path, fspath);
                 rc = 0;
                 break;
@@ -2269,10 +2341,10 @@ static recov_status_t recov_file(const entry_id_t *p_id,
         utb.modtime = bk_stat->st_mtime;
 
         /* set the same mtime as in the backend */
-        DisplayLog(LVL_FULL, RBHEXT_TAG, "Restoring times from backend for '%s': atime=%lu, mtime=%lu",
+        DisplayLog(LVL_FULL, TAG, "Restoring times from backend for '%s': atime=%lu, mtime=%lu",
                    fspath, utb.actime, utb.modtime);
         if (utime(fspath, &utb))
-            DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't restore times for '%s': %s",
+            DisplayLog(LVL_MAJOR, TAG, "Warning: couldn't restore times for '%s': %s",
                        fspath, strerror(errno));
     }
     else if (ATTR_MASK_TEST(attrs, last_mod))
@@ -2285,11 +2357,11 @@ static recov_status_t recov_file(const entry_id_t *p_id,
             utb.actime = utb.modtime;
 
         /* set the same mtime as in the DB */
-        DisplayLog(LVL_FULL, RBHEXT_TAG, "Restoring times from DB for '%s': atime=%lu, mtime=%lu",
-                    fspath, utb.actime, utb.modtime);
+        DisplayLog(LVL_FULL, TAG, "Restoring times from DB for '%s': atime=%lu, mtime=%lu",
+                   fspath, utb.actime, utb.modtime);
         if (utime(fspath, &utb))
-            DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't restore times for '%s': %s",
-                        fspath, strerror(errno));
+            DisplayLog(LVL_MAJOR, TAG, "Warning: couldn't restore times for '%s': %s",
+                       fspath, strerror(errno));
     }
 
     return (*no_copy? RS_FILE_EMPTY : RS_FILE_OK);
@@ -2334,7 +2406,7 @@ static recov_status_t backup_recover(struct sm_instance *smi,
         fspath = ATTR(&attrs_old, fullpath);
     else
     {
-        DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Missing mandatory attribute 'fullpath' for recover entry "
+        DisplayLog(LVL_MAJOR, TAG, "Missing mandatory attribute 'fullpath' for recover entry "
                    DFID, PFID(p_old_id));
         return RS_ERROR;
     }
@@ -2373,9 +2445,9 @@ static recov_status_t backup_recover(struct sm_instance *smi,
 
         entry2backend_path(smi, p_old_id, &attrs_old, FOR_LOOKUP, bkpath,
                            config.compress);
-        DisplayLog(lvl_log, RBHEXT_TAG,
-                    "No backend path is set for '%s', guess it could be '%s'",
-                    fspath, bkpath);
+        DisplayLog(lvl_log, TAG,
+                   "No backend path is set for '%s', guess it could be '%s'",
+                   fspath, bkpath);
         backend_path = bkpath;
     }
 
@@ -2400,7 +2472,7 @@ static recov_status_t backup_recover(struct sm_instance *smi,
         if (bk_lstat(backend_path, &st_bk, 1, &compressed) != 0)
         {
             rc = errno;
-            DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Cannot restore entry " DFID
+            DisplayLog(LVL_MAJOR, TAG, "Cannot restore entry " DFID
                        ": '%s' not found in backend.", PFID(p_old_id), backend_path);
             if (rc == ENOENT)
                 return RS_NOBACKUP;
@@ -2418,7 +2490,7 @@ static recov_status_t backup_recover(struct sm_instance *smi,
         }
         else
         {
-            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "%s has unsupported type", backend_path);
+            DisplayLog(LVL_MAJOR, TAG, "%s has unsupported type", backend_path);
             return RS_NOBACKUP;
         }
     }
@@ -2449,7 +2521,7 @@ static recov_status_t backup_recover(struct sm_instance *smi,
     else
     {
         /* type not supported */
-        DisplayLog(LVL_CRIT, RBHEXT_TAG, "Error: cannot restore entries with type '%s' (%s)",
+        DisplayLog(LVL_CRIT, TAG, "Error: cannot restore entries with type '%s' (%s)",
                    ATTR(&attrs_old,type), fspath);
         return RS_NOBACKUP;
     }
@@ -2469,7 +2541,7 @@ static recov_status_t backup_recover(struct sm_instance *smi,
             if ((getpwnam_r(ATTR(&attrs_old, owner), &pw, buff, 4096, &p_pw) != 0)
                 || (p_pw == NULL))
             {
-                DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't resolve uid for user '%s'",
+                DisplayLog(LVL_MAJOR, TAG, "Warning: couldn't resolve uid for user '%s'",
                            ATTR(&attrs_old, owner));
                 uid = -1;
             }
@@ -2484,7 +2556,7 @@ static recov_status_t backup_recover(struct sm_instance *smi,
             if ((getgrnam_r(ATTR(&attrs_old, gr_name), &gr, buff, 4096, &p_gr) != 0)
                 || (p_gr == NULL))
             {
-                DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't resolve gid for group '%s'",
+                DisplayLog(LVL_MAJOR, TAG, "Warning: couldn't resolve gid for group '%s'",
                            ATTR(&attrs_old, gr_name));
                 gid = -1;
             }
@@ -2492,14 +2564,14 @@ static recov_status_t backup_recover(struct sm_instance *smi,
                 gid = p_gr->gr_gid;
         }
 
-        DisplayLog(LVL_FULL, RBHEXT_TAG, "Restoring owner/group for '%s': uid=%u, gid=%u",
+        DisplayLog(LVL_FULL, TAG, "Restoring owner/group for '%s': uid=%u, gid=%u",
                    fspath, uid, gid);
 
         if (lchown(fspath, uid, gid))
         {
             rc = errno;
-            DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Warning: cannot set owner/group for '%s': %s",
-                        fspath, strerror(rc) );
+            DisplayLog(LVL_MAJOR, TAG, "Warning: cannot set owner/group for '%s': %s",
+                       fspath, strerror(rc));
         }
         else
         {
@@ -2513,17 +2585,17 @@ static recov_status_t backup_recover(struct sm_instance *smi,
     if (set_mode)
     {
         /* set the same mode as in the backend */
-        DisplayLog(LVL_FULL, RBHEXT_TAG, "Restoring mode for '%s': mode=%#o",
+        DisplayLog(LVL_FULL, TAG, "Restoring mode for '%s': mode=%#o",
                    fspath, mode_create & 07777);
         if (chmod(fspath, mode_create & 07777))
-            DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Warning: couldn't restore mode for '%s': %s",
+            DisplayLog(LVL_MAJOR, TAG, "Warning: couldn't restore mode for '%s': %s",
                        fspath, strerror(errno));
     }
 
     if (lstat(fspath, &st_dest))
     {
         rc = errno;
-        DisplayLog(LVL_CRIT, RBHEXT_TAG, "ERROR: lstat() failed on restored entry '%s': %s",
+        DisplayLog(LVL_CRIT, TAG, "ERROR: lstat() failed on restored entry '%s': %s",
                    fspath, strerror(rc));
         return RS_ERROR;
     }
@@ -2536,7 +2608,7 @@ static recov_status_t backup_recover(struct sm_instance *smi,
         {
             if (!compressed)
             {
-                DisplayLog(LVL_MAJOR, RBHEXT_TAG, "%s: the restored size (%zu) is "
+                DisplayLog(LVL_MAJOR, TAG, "%s: the restored size (%zu) is "
                            "different from the last known size in filesystem (%"PRIu64"): "
                            "it may have been modified in filesystem after the last backup.",
                            fspath, st_dest.st_size, ATTR(&attrs_old, size));
@@ -2551,7 +2623,7 @@ static recov_status_t backup_recover(struct sm_instance *smi,
     {
         if (ATTR_MASK_TEST(&attrs_old, last_mod) && (st_dest.st_mtime != ATTR(&attrs_old, last_mod)))
         {
-            DisplayLog(LVL_MAJOR, RBHEXT_TAG, "%s: the restored mtime (%lu) is "
+            DisplayLog(LVL_MAJOR, TAG, "%s: the restored mtime (%lu) is "
                        "different from the last time in filesystem (%u): "
                        "it may have been modified in filesystem after the last backup.",
                        fspath, st_dest.st_mtime, ATTR(&attrs_old, last_mod));
@@ -2625,7 +2697,7 @@ static recov_status_t backup_recover(struct sm_instance *smi,
         destdir = dirname(tmp);
         if (destdir == NULL)
         {
-            DisplayLog(LVL_CRIT, RBHEXT_TAG, "Error extracting directory path of '%s'",
+            DisplayLog(LVL_CRIT, TAG, "Error extracting directory path of '%s'",
                        BKPATH(p_attrs_new, smi));
             return RS_ERROR;
         }
@@ -2637,13 +2709,13 @@ static recov_status_t backup_recover(struct sm_instance *smi,
         /* rename the entry in backend */
         if (strcmp(BKPATH(p_attrs_new, smi), backend_path) != 0)
         {
-            DisplayLog(LVL_DEBUG, RBHEXT_TAG, "Moving the entry in backend: '%s'->'%s'",
-                        backend_path, BKPATH(p_attrs_new, smi));
+            DisplayLog(LVL_DEBUG, TAG, "Moving the entry in backend: '%s'->'%s'",
+                       backend_path, BKPATH(p_attrs_new, smi));
             if (rename(backend_path, BKPATH(p_attrs_new, smi)))
             {
                 rc = errno;
-                DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Could not move entry in backend ('%s'->'%s'): %s",
-                            backend_path, BKPATH(p_attrs_new, smi), strerror(rc));
+                DisplayLog(LVL_MAJOR, TAG, "Could not move entry in backend ('%s'->'%s'): %s",
+                           backend_path, BKPATH(p_attrs_new, smi), strerror(rc));
                 /* keep the old path */
                 set_backend_path(smi, p_attrs_new, backend_path);
             }
@@ -2654,7 +2726,7 @@ static recov_status_t backup_recover(struct sm_instance *smi,
         /* XXX for now, don't manage several hsm_index */
         rc = shook_set_hsm_info(fspath, BKPATH(p_attrs_new, smi), 0);
         if (rc)
-            DisplayLog(LVL_MAJOR, RBHEXT_TAG, "Could not set backend path for %s: error %d",
+            DisplayLog(LVL_MAJOR, TAG, "Could not set backend path for %s: error %d",
                        fspath, rc);
 #endif
     }
@@ -2677,7 +2749,7 @@ static int rbh_shook_recov_file(const char *fspath, size_t size)
     rc = shook_set_status(fspath, SS_RELEASED);
     if (rc)
     {
-        DisplayLog(LVL_CRIT, RBHEXT_TAG, "ERROR setting released state for '%s': %s",
+        DisplayLog(LVL_CRIT, TAG, "ERROR setting released state for '%s': %s",
                    fspath, strerror(-rc));
         return rc;
     }
@@ -2685,7 +2757,7 @@ static int rbh_shook_recov_file(const char *fspath, size_t size)
     rc = truncate(fspath, size) ? errno : 0;
     if (rc)
     {
-        DisplayLog(LVL_CRIT, RBHEXT_TAG, "ERROR could not set original size %"PRI_SZ" for '%s': %s",
+        DisplayLog(LVL_CRIT, TAG, "ERROR could not set original size %"PRI_SZ" for '%s': %s",
                    bk_stat->st_size, fspath, strerror(rc));
         return rc;
     }
@@ -2701,27 +2773,27 @@ int rbh_shook_release(const entry_id_t *p_id,
     obj_type_t entry_type;
 
     /* if status is not determined, retrieve it */
-    if ( !ATTR_MASK_TEST(p_attrs, status) )
+    if (!ATTR_MASK_TEST(p_attrs, status))
     {
-        DisplayLog( LVL_DEBUG, RBHEXT_TAG, "Status not provided to backup_release()" );
-        rc = backup_get_status( p_id, p_attrs, p_attrs );
+        DisplayLog(LVL_DEBUG, TAG, "Status not provided to backup_release()");
+        rc = backup_get_status(p_id, p_attrs, p_attrs);
         if (rc)
             return rc;
     }
 
     /* is it the good type? */
-    if ( !ATTR_MASK_TEST(p_attrs, type) )
+    if (!ATTR_MASK_TEST(p_attrs, type))
     {
-        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Missing mandatory attribute 'type' in %s()",
-                    __FUNCTION__ );
+        DisplayLog(LVL_MAJOR, TAG, "Missing mandatory attribute 'type' in %s()",
+                   __FUNCTION__);
         return -EINVAL;
     }
 
     entry_type = ListMgr2PolicyType(ATTR(p_attrs, type));
-    if ( entry_type != TYPE_FILE )
+    if (entry_type != TYPE_FILE)
     {
-        DisplayLog( LVL_MAJOR, RBHEXT_TAG, "Unsupported type for release operation: %s",
-                    ATTR(p_attrs, type) );
+        DisplayLog(LVL_MAJOR, TAG, "Unsupported type for release operation: %s",
+                   ATTR(p_attrs, type));
         return -ENOTSUP;
     }
 
@@ -2753,7 +2825,7 @@ status_manager_t backup_sm = {
     .status_needs_attrs_fresh = {.std = ATTR_MASK_last_mod | ATTR_MASK_size},
 
     .get_status_func = backup_status,
-//    .changelog_cb = backup_cl_cb, /* @TODO */
+    .changelog_cb = backup_cl_cb,
 
     .executor = backup_executor,
 
