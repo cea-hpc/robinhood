@@ -24,6 +24,7 @@ RBH_OPT=""
 RBH_BINDIR="../../src/robinhood"
 RBH_MODDIR=$(readlink -m "../../src/modules/.libs")
 RBH_CFG_DIR="./cfg"
+RBH_TEST_POLICIES="$(pwd)/test_policies.inc"
 
 XML="test_report.xml"
 TMPXML_PREFIX="/tmp/report.xml.$$"
@@ -76,20 +77,20 @@ if [[ -z "$PURPOSE" || $PURPOSE = "TMP"* ]]; then
     PURPOSE="TMP_FS_MGR"
     STATUS_MGR=none
     # get include for this flavor
-    cp -f ${RBH_TEMPLATE_DIR}_v3/includes/tmpfs.inc ./cfg/test_policies.inc || exit 1
+    cp -f ${RBH_TEMPLATE_DIR}_v3/includes/tmpfs.inc $RBH_TEST_POLICIES || exit 1
     # change policy names to the test framework names
-    sed -e "s/cleanup/purge/" -i ./cfg/test_policies.inc
+    sed -e "s/cleanup/purge/" -i $RBH_TEST_POLICIES
 elif [[ $PURPOSE = "LUSTRE_HSM" ]]; then
     is_lhsm=1
     is_hsmlite=0
     shook=0
     STATUS_MGR=lhsm
     # get include for this flavor
-    cp -f ${RBH_TEMPLATE_DIR}_v3/includes/lhsm.inc ./cfg/test_policies.inc || exit 1
+    cp -f ${RBH_TEMPLATE_DIR}_v3/includes/lhsm.inc $RBH_TEST_POLICIES || exit 1
     # change policy names to the test framework names
-    sed -e "s/lhsm_archive/migration/" -i ./cfg/test_policies.inc
-    sed -e "s/lhsm_release/purge/" -i ./cfg/test_policies.inc
-    sed -e "s/lhsm_remove/hsm_remove/" -i ./cfg/test_policies.inc
+    sed -e "s/lhsm_archive/migration/" -i $RBH_TEST_POLICIES
+    sed -e "s/lhsm_release/purge/" -i $RBH_TEST_POLICIES
+    sed -e "s/lhsm_remove/hsm_remove/" -i $RBH_TEST_POLICIES
 
 elif [[ $PURPOSE = "BACKUP" ]]; then
     is_lhsm=0
@@ -97,10 +98,10 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
     is_hsmlite=1
     STATUS_MGR=backup
     # get include for this flavor
-    cp -f ${RBH_TEMPLATE_DIR}_v3/includes/backup.inc ./cfg/test_policies.inc || exit 1
+    cp -f ${RBH_TEMPLATE_DIR}_v3/includes/backup.inc $RBH_TEST_POLICIES || exit 1
     # change policy names to the test framework names
-    sed -e "s/backup_archive/migration/" -i ./cfg/test_policies.inc
-    sed -e "s/backup_remove/hsm_remove/" -i ./cfg/test_policies.inc
+    sed -e "s/backup_archive/migration/" -i $RBH_TEST_POLICIES
+    sed -e "s/backup_remove/hsm_remove/" -i $RBH_TEST_POLICIES
     mkdir -p $BKROOT
 elif [[ $PURPOSE = "SHOOK" ]]; then
     is_lhsm=0
@@ -110,9 +111,9 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
     # get include for this flavor
     INCLUDE="${RBH_TEMPLATE_DIR}_v3/includes/shook.inc"
     # change policy names to the test framework names
-    sed -e "s/shook_archive/migration/" -i ./cfg/test_policies.inc
-    sed -e "s/shook_release/purge/" -i ./cfg/test_policies.inc
-    sed -e "s/shook_remove/hsm_remove/" -i ./cfg/test_policies.inc
+    sed -e "s/shook_archive/migration/" -i $RBH_TEST_POLICIES
+    sed -e "s/shook_release/purge/" -i $RBH_TEST_POLICIES
+    sed -e "s/shook_remove/hsm_remove/" -i $RBH_TEST_POLICIES
     mkdir -p $BKROOT
 fi
 
