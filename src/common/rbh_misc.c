@@ -1708,10 +1708,11 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
                                         brief ? "%s=" : "%s:  ",
                                         sm_attr_info[smi->sm_info_offset + i].user_attr_name);
 
-                    written += ListMgr_PrintAttr(out_str + written, strsize - written,
-                                                 sm_attr_info[smi->sm_info_offset + i].def->db_type,
-                                                 SMI_INFO(p_attr_set, smi, i),
-                                                 brief ? "'" : "\"");
+                    written += ListMgr_PrintAttrPtr(out_str + written,
+                                    strsize - written,
+                                    sm_attr_info[smi->sm_info_offset + i].def->db_type,
+                                    SMI_INFO(p_attr_set, smi, i),
+                                    brief ? "'" : "\"");
 
                     strncat(out_str + written, brief ? "," : "\n", strsize - written);
                     written ++;

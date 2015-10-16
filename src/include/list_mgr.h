@@ -1225,6 +1225,10 @@ attr_mask_t ListMgr_WhatDiff(const attr_set_t *p_tgt, const attr_set_t *p_src);
 int ListMgr_PrintAttr(char *str, int size, db_type_t type,
                       const db_type_u *value_ptr, const char *quote);
 
+/** same as ListMgr_PrintAttr, excpet that the value is passed by pointer
+ * instead of db_type_u */
+int ListMgr_PrintAttrPtr(char *str, int size, db_type_t type,
+                         void *value_ptr, const char *quote);
 
 /**
  * Generate fields automatically from already existing fields,

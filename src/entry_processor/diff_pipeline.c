@@ -168,7 +168,7 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
     int      next_stage = -1; /* -1 = skip */
     attr_mask_t attr_allow_cached = null_mask;
     attr_mask_t attr_need_fresh = null_mask;
-    uint32_t status_scope; /* status mask only */
+    uint32_t status_scope = 0; /* status mask only */
     attr_mask_t tmp;
 
     const pipeline_stage_t *stage_info =

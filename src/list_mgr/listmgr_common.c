@@ -124,6 +124,14 @@ int ListMgr_PrintAttr(char *str, int size, db_type_t type,
     }
 }
 
+int ListMgr_PrintAttrPtr(char *str, int size, db_type_t type,
+                         void *value_ptr, const char *quote)
+{
+    db_type_u u;
+
+    ASSIGN_UNION(u, type, value_ptr);
+    return ListMgr_PrintAttr(str, size, type, &u, quote);
+}
 
 /* return 1 on success */
 int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
