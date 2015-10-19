@@ -285,42 +285,47 @@ out_free:
     return rc;
 }
 
-int File_GetStripeByDirFd( int dirfd, const char *fname,
-                           stripe_info_t * p_stripe_info,
-                           stripe_items_t * p_stripe_items )
+int File_GetStripeByDirFd(int dirfd, const char *fname,
+                          stripe_info_t *p_stripe_info,
+                          stripe_items_t *p_stripe_items)
 {
     int            rc = 0;
-    char           lum_buffer[4096];
-    struct lov_user_md *p_lum = ( struct lov_user_md * ) lum_buffer;
+    struct lov_user_md *p_lum;
 
-    if ( !fname|| !fname[0] )
+    if (!fname|| !fname[0])
         return -EFAULT;
 
-    memset( lum_buffer, 0, sizeof( lum_buffer ) );
-    strcpy((char *)p_lum, fname);
+    p_lum = MemAlloc(LUM_SIZE_MAX);
+    if (!p_lum)
+        return -ENOMEM;
 
-    if (ioctl(dirfd, IOC_MDC_GETFILESTRIPE, (void *)p_lum) == -1)
+    strcpy((char *)p_lum, fname);
+    rc = ioctl(dirfd, IOC_MDC_GETFILESTRIPE, p_lum);
+    if (rc == 0)
+    {
+        rc = fill_stripe_info(p_lum, p_stripe_info, p_stripe_items);
+    }
+    else
+    {
         rc = -errno;
 
-    if ( rc != 0 )
-    {
         if (rc == -ENODATA)
         {
-            DisplayLog( LVL_DEBUG, TAG_STRIPE,
-                        "File %s has no stripe information",
-                        fname );
+            DisplayLog(LVL_DEBUG, TAG_STRIPE,
+                       "File %s has no stripe information", fname);
             set_empty_stripe(p_stripe_info, p_stripe_items);
-            return 0;
+            rc = 0;
         }
-        else if ( ( rc != -ENOENT ) && ( rc != -ESTALE ) )
-            DisplayLog( LVL_CRIT, TAG_STRIPE,
-                        "Error %d getting stripe info for %s", rc,
-                        fname );
-        return rc;
+        else if ((rc != -ENOENT) && (rc != -ESTALE))
+        {
+            DisplayLog(LVL_CRIT, TAG_STRIPE,
+                       "Error %d getting stripe info for %s", rc, fname);
+        }
     }
 
-    return fill_stripe_info(p_lum, p_stripe_info, p_stripe_items);
+    MemFree(p_lum);
 
+    return rc;
 }
 
 /**
