@@ -390,8 +390,14 @@ static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
     switch (rec_action)
     {
         case PROC_ACT_NONE: /* nothing particular */
+            DisplayLog(LVL_DEBUG, ENTRYPROC_TAG,
+                       DFID": run_all_cl_cb=none",
+                       PFID(&p_op->entry_id));
             break;
         case PROC_ACT_RM_ALL: /* remove the entry if it exists */
+            DisplayLog(LVL_DEBUG, ENTRYPROC_TAG,
+                       DFID": run_all_cl_cb=rm from DB",
+                       PFID(&p_op->entry_id));
             if (p_op->db_exists)
             {
                 p_op->db_op_type = OP_TYPE_REMOVE_LAST;
@@ -401,6 +407,9 @@ static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
                 return STAGE_CHGLOG_CLR;
 
         case PROC_ACT_SOFTRM_IF_EXISTS:
+            DisplayLog(LVL_DEBUG, ENTRYPROC_TAG,
+                       DFID": run_all_cl_cb=softrm if exists in DB",
+                       PFID(&p_op->entry_id));
             /* if no policy manages deleted entries, don't SOFTRM */
             if (!has_deletion_policy())
             {
@@ -417,6 +426,9 @@ static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
                 return STAGE_CHGLOG_CLR;
 
         case PROC_ACT_SOFTRM_ALWAYS:
+            DisplayLog(LVL_DEBUG, ENTRYPROC_TAG,
+                       DFID": run_all_cl_cb=always softrm",
+                       PFID(&p_op->entry_id));
             /* if no policy manages deleted entries, don't SOFTRM */
             if (!has_deletion_policy())
                 p_op->db_op_type = OP_TYPE_REMOVE_LAST;
@@ -1199,10 +1211,16 @@ static int rm_record(struct entry_proc_op_t *p_op)
     switch (pa)
     {
         case PROC_ACT_NONE:
+            DisplayLog(LVL_DEBUG, ENTRYPROC_TAG,
+                       DFID": match_all_softrm_filters=none",
+                       PFID(&p_op->entry_id));
             /* keep the current db_op_type */
             break;
 
         case PROC_ACT_RM_ALL:
+            DisplayLog(LVL_DEBUG, ENTRYPROC_TAG,
+                       DFID": match_all_softrm_filters=rm from DB",
+                       PFID(&p_op->entry_id));
         /* Lustre 2 with changelog: we are here because lstat (by fid)
          * on the entry failed, which ensure the entry no longer
          * exists. Skip it. The entry will be removed by a subsequent
@@ -1214,6 +1232,9 @@ static int rm_record(struct entry_proc_op_t *p_op)
             return skip_record(p_op);
 
         case PROC_ACT_SOFTRM_IF_EXISTS:
+            DisplayLog(LVL_DEBUG, ENTRYPROC_TAG,
+                       DFID": match_all_softrm_filters=softrm if exists in DB (exist=%d)",
+                       PFID(&p_op->entry_id), p_op->db_exists ? 1 : 0);
             if (p_op->db_exists)
                 p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
             else
@@ -1222,6 +1243,9 @@ static int rm_record(struct entry_proc_op_t *p_op)
             break;
 
         case PROC_ACT_SOFTRM_ALWAYS:
+            DisplayLog(LVL_DEBUG, ENTRYPROC_TAG,
+                       DFID": match_all_softrm_filters=always softrm",
+                       PFID(&p_op->entry_id));
             p_op->db_op_type = OP_TYPE_SOFT_REMOVE;
             break;
     }

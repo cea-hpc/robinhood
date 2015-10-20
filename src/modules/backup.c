@@ -86,43 +86,6 @@ typedef struct backup_config_t
 /* backup config is global as the status manager is shared */
 static backup_config_t config;
 
-/** XXX OLD params:
-    action_cmd => now in policy
-    xattr_support => useless (unused)
-    archive_symlinks => defined by policy scope
-
-    sync_archive_data => managed as 'no_sync' action hint
-    sendfile => managed as distinct policy action (will be backup.copy and backup.sendfile)
- */
-
-static int backup_copy(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                       const action_params_t *params, post_action_e *after,
-                       db_cb_func_t db_cb_fn, void *db_cb_arg)
-{
-    int rc;
-    copy_flags_e flags = params2flags(params);
-    const char *targetpath = rbh_param_get(params, TARGET_PATH_PARAM);
-
-    /* flags for restore vs. flags for archive */
-    int oflg = (flags & CP_COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
-
-    /* actions expect to get a source path in 'fullpath' and
-     * targetpath in 'backendpath' */
-    if (!ATTR_MASK_TEST(p_attrs, fullpath) || (targetpath == NULL))
-    {
-        DisplayLog(LVL_MAJOR, CP_TAG,
-                   "Missing mandatory attribute to perform file copy "
-                   "fullpath or backendpath)");
-        return -EINVAL;
-    }
-
-    rc = builtin_copy(ATTR(p_attrs, fullpath), targetpath, oflg,
-                      !(flags & CP_COPYBACK), flags);
-
-    *after = PA_UPDATE;
-    return rc;
-}
-
 static void backup_cfg_set_default(void *module_config)
 {
     backup_config_t *conf = (backup_config_t *) module_config;
@@ -136,15 +99,10 @@ static void backup_cfg_set_default(void *module_config)
     strcpy(conf->shook_cfg, "/etc/shook.cfg");
 #endif
 
-#ifdef HAVE_SHOOK
-    conf->recovery_action.type = ACTION_FUNCTION;
-    conf->recovery_action.action_u.func.name = "shook.recov_file";
-    conf->recovery_action.action_u.func.call = rbh_shook_recov_file;
-#else
-    conf->recovery_action.type = ACTION_FUNCTION;
-    conf->recovery_action.action_u.func.name = "backup.copy";
-    conf->recovery_action.action_u.func.call = backup_copy;
-#endif
+    /* must be explicitly specified */
+    conf->recovery_action.type = ACTION_UNSET;
+    conf->recovery_action.action_u.func.name = "";
+    conf->recovery_action.action_u.func.call = NULL;
 }
 
 static void backup_cfg_write_default(FILE *output)
@@ -1143,7 +1101,6 @@ static proc_action_e backup_softrm_filter(struct sm_instance *smi, const entry_i
     return PROC_ACT_SOFTRM_ALWAYS;
 }
 
-
 static int backup_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
                         const entry_id_t *id, const attr_set_t *attrs,
                         attr_set_t *refreshed_attrs, bool *getit,
@@ -1188,11 +1145,7 @@ static int backup_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
     else if ((logrec->cr_type == CL_UNLINK)
              && (logrec->cr_flags & CLF_UNLINK_LAST))
     {
-        if (backup_softrm_filter(smi, id, attrs))
-            *rec_action = PROC_ACT_SOFTRM_IF_EXISTS;
-        else
-            /* no chance it can match softrm_filter: drop from DB */
-            *rec_action = PROC_ACT_RM_ALL;
+        *rec_action = backup_softrm_filter(smi, id, attrs);
     }
 #ifdef HAVE_SHOOK
     else if (logrec->cr_type == CL_XATTR)
@@ -1467,9 +1420,9 @@ static int create_parent_in_backend(const char *child_path)
 }
 
 /** get entry information before performing an archive operation */
-static int backup_action_precheck(sm_instance_t *smi, const entry_id_t *p_id,
-                                  attr_set_t *p_attrs, char *bkpath,
-                                  obj_type_t *entry_type, bool *bk_moved)
+static int copy_action_precheck(sm_instance_t *smi, const entry_id_t *p_id,
+                                attr_set_t *p_attrs, char *bkpath,
+                                obj_type_t *entry_type, bool *bk_moved)
 {
     int rc;
     struct stat void_stat;
@@ -1598,28 +1551,6 @@ static int backup_symlink(sm_instance_t *smi, attr_set_t *p_attrs,
     return 0;
 }
 
-/** run a shell command to perform the copy */
-static int backup_command(const char *cmd_in, const entry_id_t *p_id,
-                          const attr_set_t *p_attrs,
-                          const action_params_t *params)
-{
-    gchar *cmd;
-    int rc = 0;
-
-    cmd = subst_params(cmd_in, "backup command", p_id, p_attrs, params, NULL,
-                       true, true);
-    if (cmd != NULL)
-    {
-        /* call custom purge command instead of unlink() */
-        DisplayLog(LVL_DEBUG, TAG, DFID": action: cmd(%s)", PFID(p_id),
-                   cmd);
-        rc =  execute_shell_command(true, cmd, 0);
-        g_free(cmd);
-    }
-    else
-        rc = errno;
-    return rc;
-}
 
 /* XXX PREVIOUS command code:
         rc = builtin_copy(fspath, tmp, O_WRONLY | O_CREAT | O_TRUNC, true,
@@ -1701,30 +1632,8 @@ static int wrap_file_copy(sm_instance_t *smi,
     rbh_param_set(&tmp_params, TARGET_PATH_PARAM, tmp, true);
     path_replace(&sav, p_attrs, srcpath);
 
-    switch(action->type)
-    {
-        case ACTION_COMMAND:
-            rc = backup_command(action->action_u.command, p_id, p_attrs, &tmp_params);
-            break;
-
-        case ACTION_FUNCTION:
-            DisplayLog(LVL_DEBUG, TAG, DFID": action: %s", PFID(p_id),
-                       action->action_u.func.name);
-            rc = action->action_u.func.call(p_id, p_attrs, &tmp_params, after,
-                                            db_cb_fn, db_cb_arg);
-            break;
-
-        case ACTION_NONE:
-            /* NOOP */
-            DisplayLog(LVL_DEBUG, TAG, "copy(%s->%s): noop", srcpath, tmp);
-            rc = 0;
-            break;
-
-        case ACTION_UNSET:
-            DisplayLog(LVL_EVENT, TAG, "copy(%s->%s): no action specified", srcpath, tmp);
-            rc = 0;
-            break;
-    }
+    rc = action_helper(action, "copy", p_id, p_attrs, &tmp_params,
+                       after, db_cb_fn, db_cb_arg);
 
     /* restore real entry attributes */
     path_restore(&sav, p_attrs);
@@ -1859,13 +1768,11 @@ static bool backup_check_action_name(const char *name)
     return true;
 }
 
-
-/** Wrap command execution */
-static int backup_executor(sm_instance_t *smi, const char *implements,
-                           const policy_action_t *action,
-                           const entry_id_t *p_id, attr_set_t *p_attrs,
-                           const action_params_t *params, post_action_e *after,
-                           db_cb_func_t db_cb_fn, void *db_cb_arg)
+/** executor for copy actions */
+static int copy_executor(sm_instance_t *smi, const policy_action_t *action,
+                         const entry_id_t *p_id, attr_set_t *p_attrs,
+                         const action_params_t *params, post_action_e *after,
+                         db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     int rc;
     char bkpath[RBH_PATH_MAX];
@@ -1873,17 +1780,9 @@ static int backup_executor(sm_instance_t *smi, const char *implements,
     obj_type_t entry_type;
     bool bk_moved = false;
 
-    /** @TODO support execution of hsm_remove actions */
-    if (strcmp(implements, "archive"))
-    {
-        DisplayLog(LVL_CRIT, TAG, "Operation not supported by status manager %s: '%s'",
-                   smi->sm->name, implements);
-        return -ENOTSUP;
-    }
-
     /* check mandatory attributes, entry type and status */
-    rc = backup_action_precheck(smi, p_id, p_attrs, bkpath, &entry_type,
-                                &bk_moved);
+    rc = copy_action_precheck(smi, p_id, p_attrs, bkpath, &entry_type,
+                              &bk_moved);
     if (rc)
         return rc;
 
@@ -1913,53 +1812,74 @@ static int backup_executor(sm_instance_t *smi, const char *implements,
     return rc;
 }
 
-
-/**
- * Performs entry removal in the backend
- * \param[in] p_id pointer to id of entry to be archived
- * \param[in,out] p_attrs pointer to entry attributes
- *                        must be updated even on failure
- * \retval  -ENOENT entry not in backend
- * \retval  -EINVAL empty path provided
- */
-static int backup_remove(const entry_id_t *id, attr_set_t *attrs,
-                         const action_params_t *params, post_action_e *what_after,
-                         db_cb_func_t db_cb_fn, void *db_cb_arg)
+static int remove_executor(sm_instance_t *smi, const policy_action_t *action,
+                           const entry_id_t *p_id, attr_set_t *p_attrs,
+                           const action_params_t *params, post_action_e *after,
+                           db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
-    int rc;
-    const char *bp;
+    const char       *backend_path;
+    struct attr_save  sav = ATTR_SET_INIT;
+    char              bkpath[RBH_PATH_MAX];
+    int               rc;
 
-    /** @TODO perform rmdir to clean empty directories? */
-
-    /* check mandatory arguments */
-    bp = rbh_param_get(params, TARGET_PATH_PARAM);
-
-    if (bp == NULL || EMPTY_STRING(bp))
+    if (ATTR_MASK_INFO_TEST(p_attrs, smi, ATTR_BK_PATH))
+        backend_path = BKPATH(p_attrs, smi);
+    else
+    /* if there is no backend path, try to guess */
     {
-        DisplayLog(LVL_MAJOR, TAG, "Missing mandatory action parameter '%s'",
-                   TARGET_PATH_PARAM);
-        return -EINVAL;
+        int lvl_log;
+
+        if (ATTR_MASK_TEST(p_attrs, type)
+            && !strcasecmp(ATTR(p_attrs, type), STR_TYPE_FILE))
+            lvl_log = LVL_EVENT;
+        else
+            lvl_log = LVL_VERB;
+
+        entry2backend_path(smi, p_id, p_attrs, FOR_LOOKUP, bkpath,
+                           config.compress);
+        DisplayLog(lvl_log, TAG,
+                   "No backend path is set for "DFID", guess it could be '%s'",
+                   PFID(p_id), bkpath);
+        backend_path = bkpath;
     }
 
-    if (unlink(bp) == 0)
-    {
-        *what_after = PA_RM_ONE; /* drop from SOFTRM */
-        return 0;
-    }
+    /* replace the path argument by backend_path */
+    path_replace(&sav, p_attrs, backend_path);
 
-    rc = -errno;
-    if (rc == -ENOENT)
+    rc = action_helper(action, "remove", p_id, p_attrs, params, after, db_cb_fn,
+                       db_cb_arg);
+
+    /* restore real entry attributes */
+    path_restore(&sav, p_attrs);
+
+    return rc;
+}
+
+/** Wrap command execution */
+static int backup_common_executor(sm_instance_t *smi, const char *implements,
+                           const policy_action_t *action,
+                           const entry_id_t *p_id, attr_set_t *p_attrs,
+                           const action_params_t *params, post_action_e *after,
+                           db_cb_func_t db_cb_fn, void *db_cb_arg)
+{
+
+    /** @TODO support execution of hsm_remove actions */
+    if (!strcmp(implements, "archive"))
     {
-        DisplayLog(LVL_DEBUG, TAG, "'%s' not found in backend", bp);
-        *what_after = PA_RM_ONE; /* drop from SOFTRM */
+        return copy_executor(smi, action, p_id, p_attrs, params, after,
+                             db_cb_fn, db_cb_arg);
+    }
+    else if (!strcmp(implements, "removed") || !strcmp(implements, "deleted"))
+    {
+        return remove_executor(smi, action, p_id, p_attrs, params, after,
+                               db_cb_fn, db_cb_arg);
     }
     else
     {
-        DisplayLog(LVL_EVENT, TAG, "Error removing '%s' from backend: %s",
-                   bp, strerror(-rc));
-        *what_after = PA_NONE;
+        DisplayLog(LVL_CRIT, TAG, "Operation not supported by status manager %s: '%s'",
+                   smi->sm->name, implements);
+        return -ENOTSUP;
     }
-    return rc;
 }
 
 #define IS_ZIP_NAME(_n) (_n[strlen(_n) - 1] == 'z')
@@ -2304,33 +2224,9 @@ static recov_status_t recov_file(const entry_id_t *p_id,
             return RS_ERROR;
         }
 
-        switch(config.recovery_action.type)
-        {
-            case ACTION_COMMAND:
-                /* source is backend, target is filesystem */
-                rc = backup_command(config.recovery_action.action_u.command,
-                                    p_id, attrs, &recov_params);
-                break;
+        rc = action_helper(&config.recovery_action, "recover", p_id, attrs,
+                           &recov_params, &dummy_after, NULL, NULL);
 
-            case ACTION_FUNCTION:
-                rc = config.recovery_action.action_u.func.call(p_id, attrs,
-                                       &recov_params, &dummy_after, NULL, NULL);
-
-                break;
-
-            case ACTION_NONE:
-                /* NOOP */
-                DisplayLog(LVL_DEBUG, TAG, "recovery(%s->%s): noop",
-                           backend_path, fspath);
-                rc = 0;
-                break;
-
-            case ACTION_UNSET:
-                DisplayLog(LVL_EVENT, TAG, "recovery(%s->%s): no action specified",
-                           backend_path, fspath);
-                rc = 0;
-                break;
-        }
         /* restore real entry attributes */
         path_restore(&sav, attrs);
 
@@ -2827,14 +2723,19 @@ status_manager_t backup_sm = {
     .get_status_func = backup_status,
     .changelog_cb = backup_cl_cb,
 
-    .executor = backup_executor,
+    .executor = backup_common_executor,
 
     .check_action_name = backup_check_action_name,
     /* no action callback as it has an executor */
 
-    /* fields for managing deleted entries */
+    /* fields for checking if entries must be inserted to SOFTRM */
     .softrm_filter_mask = {.std = ATTR_MASK_type, .status = SMI_MASK(0)},
-//    .softrm_filter_func = backup_softrm_filter, /* @TODO */
+    .softrm_filter_func = backup_softrm_filter,
+
+    /** needed attributes for undelete in addition to POSIX and fullpath:
+     * - backup_status: to know the original status of the 'undeleted' entry.
+     * - backend_path: to rebind undeleted entry in backend.
+     */
     .softrm_table_mask = {.std = ATTR_MASK_type | ATTR_MASK_fullpath,
                           .status = SMI_MASK(0),
                           .sm_info = GENERIC_INFO_BIT(ATTR_BK_PATH)},
@@ -2856,8 +2757,6 @@ status_manager_t *mod_get_status_manager(void)
 
 action_func_t mod_get_action_by_name(const char *action_name)
 {
-    if (strcmp(action_name, "backup.remove") == 0)
-        return backup_remove;
-    else
-        return NULL;
+    /* none implemented */
+    return NULL;
 }

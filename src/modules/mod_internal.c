@@ -345,3 +345,67 @@ close_src:
     return rc;
 }
 
+
+/** run a shell command to perform an action */
+static int run_command(const char *name, const char *cmd_in,
+                       const entry_id_t *p_id,
+                       const attr_set_t *p_attrs,
+                       const action_params_t *params)
+{
+    gchar *cmd;
+    int rc = 0;
+
+    /** @TODO set additional params */
+    cmd = subst_params(cmd_in, "command", p_id, p_attrs, params, NULL,
+                       true, true);
+    if (cmd != NULL)
+    {
+        /* call custom purge command instead of unlink() */
+        DisplayLog(LVL_DEBUG, __func__, DFID": %s action: cmd(%s)", PFID(p_id),
+                   name, cmd);
+        rc =  execute_shell_command(true, cmd, 0);
+        g_free(cmd);
+    }
+    else
+        rc = errno;
+    return rc;
+}
+
+int action_helper(const policy_action_t *action, const char *name,
+                  const entry_id_t *p_id, attr_set_t *p_attrs,
+                  const action_params_t *params, post_action_e *after,
+                  db_cb_func_t db_cb_fn, void *db_cb_arg)
+{
+    int rc;
+
+    switch(action->type)
+    {
+        case ACTION_COMMAND:
+            rc = run_command(name, action->action_u.command, p_id, p_attrs,
+                             params);
+            break;
+
+        case ACTION_FUNCTION:
+            DisplayLog(LVL_DEBUG, __func__, DFID": %s action: %s", PFID(p_id),
+                       name, action->action_u.func.name);
+            rc = action->action_u.func.call(p_id, p_attrs, params, after,
+                                            db_cb_fn, db_cb_arg);
+            break;
+
+        case ACTION_NONE:
+            DisplayLog(LVL_DEBUG, __func__, "%s("DFID"): noop", name,
+                       PFID(p_id));
+            rc = 0;
+            break;
+
+        case ACTION_UNSET:
+            DisplayLog(LVL_EVENT, __func__, "%s("DFID"): no action specified",
+                       name, PFID(p_id));
+            rc = 0;
+
+
+        default:
+            RBH_BUG("action->type is invalid");
+    }
+    return rc;
+}

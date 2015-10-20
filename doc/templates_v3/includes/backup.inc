@@ -10,6 +10,8 @@ define_policy backup_archive {
 define_policy backup_remove {
     scope { type == file }
     status_manager = backup(removed);
-    default_action = common.unlink; # in backend???
+    # this action is executed with a fake 'path' attribute which
+    # is actually the path in backend
+    default_action = common.unlink;
     default_lru_sort_attr = rm_time;
 }

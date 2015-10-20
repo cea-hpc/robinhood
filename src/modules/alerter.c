@@ -68,25 +68,6 @@ static sm_info_def_t alerter_info[] = {
     [ATTR_LAST_ALERT] = { "last_alert", "lstalrt", DB_UINT, 0, {.val_uint = 0}, PT_DURATION },
 };
 
-static int run_command(const char *cmd_in, const entry_id_t *p_id,
-                       const attr_set_t *p_attrs,
-                       const action_params_t *params)
-{
-    gchar *cmd;
-    int rc = 0;
-
-    cmd = subst_params(cmd_in, "alert command", p_id, p_attrs, params, NULL,
-                       true, true);
-    if (cmd == NULL)
-        return -errno;
-
-    /* call custom alert command */
-    DisplayLog(LVL_DEBUG, TAG, DFID": action: cmd(%s)", PFID(p_id), cmd);
-    rc =  execute_shell_command(true, cmd, 0);
-    g_free(cmd);
-    return -rc;
-}
-
 static int alerter_executor(struct sm_instance *smi,
                             const char *implements,
                             const policy_action_t *action,
@@ -133,29 +114,8 @@ static int alerter_executor(struct sm_instance *smi,
     /* set it now, at it may be modified by the specified function */
     *what_after = PA_UPDATE;
 
-    switch(action->type)
-    {
-        case ACTION_COMMAND:
-            rc = run_command(action->action_u.command, p_id, p_attrs, params);
-            break;
-
-        case ACTION_FUNCTION:
-            DisplayLog(LVL_DEBUG, TAG, DFID": action: %s", PFID(p_id),
-                       action->action_u.func.name);
-            rc = action->action_u.func.call(p_id, p_attrs, params, what_after,
-                                            db_cb_fn, db_cb_arg);
-            break;
-
-        case ACTION_NONE:
-            /* NOOP */
-            DisplayLog(LVL_DEBUG, TAG, "alert("DFID"): %s", PFID(p_id), val);
-            rc = 0;
-            break;
-
-        default:
-            RBH_BUG("action->type is invalid");
-    }
-
+    rc = action_helper(action, "alert", p_id, p_attrs, params, what_after,
+                       db_cb_fn, db_cb_arg);
     if (rc)
         return rc;
 

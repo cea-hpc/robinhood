@@ -530,6 +530,10 @@ int run_all_cl_cb(const CL_REC_TYPE *logrec, const entry_id_t *id,
 
         rc = smi->sm->changelog_cb(smi, logrec, id, attrs, refreshed_attrs,
                                    &getstatus, &curr_action);
+        DisplayLog(LVL_DEBUG, __func__, "Running changelog callback for "
+                   "status manager '%s' => rc=%d, action=%d",
+                   smi->instance_name, rc, curr_action);
+
         if (err_max == 0 || rc > err_max)
             err_max = rc;
 
