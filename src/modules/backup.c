@@ -116,20 +116,23 @@ static void backup_cfg_write_default(FILE *output)
 #ifdef HAVE_SHOOK
     print_line(output, 1, "shook_cfg     : \"/etc/shook.cfg\"")
 #endif
-#ifdef HAVE_SHOOK
-    print_line(output, 1, "recovery_action: shook.recover");
-#else
-    print_line(output, 1, "recovery_action: common.copy");
-#endif
+    print_line(output, 1, "recovery_action: <mandatory>");
 
     print_end_block(output, 0);
 }
+
+/* forward declaration */
+static status_manager_t backup_sm;
 
 static int backup_cfg_read(config_file_t config, void *module_config, char *msg_out)
 {
     int              rc;
     backup_config_t *conf = (backup_config_t *) module_config;
     config_item_t    block;
+    char             tmp[RBH_PATH_MAX];
+    char           **extra = NULL;
+    unsigned int     extra_cnt = 0;
+    attr_mask_t      mask = null_mask;
 
     const cfg_param_t backend_params[] = {
         {"root", PT_STRING, PFLG_ABSOLUTE_PATH | PFLG_REMOVE_FINAL_SLASH
@@ -149,6 +152,7 @@ static int backup_cfg_read(config_file_t config, void *module_config, char *msg_
 
     static const char *allowed_params[] = {
         "root", "mnt_type", "check_mounted", "copy_timeout", "compress",
+        "recovery_action",
 #ifdef HAVE_SHOOK
         "shook_cfg",
 #endif
@@ -165,6 +169,22 @@ static int backup_cfg_read(config_file_t config, void *module_config, char *msg_
     rc = read_scalar_params(block, BACKUP_BLOCK, backend_params, msg_out);
     if (rc)
         return rc;
+
+    /* read specific params */
+    rc = GetStringParam(block, BACKUP_BLOCK, "recovery_action",
+                        PFLG_MANDATORY, tmp, sizeof(tmp), &extra,
+                        &extra_cnt, msg_out);
+    if (rc != 0)
+        return rc;
+
+    rc = parse_policy_action("recovery_action", tmp, extra, extra_cnt,
+                             &conf->recovery_action,
+                             &mask, msg_out);
+    if (rc)
+        return rc;
+
+    /* add the mask to softrm table mask */
+    backup_sm.softrm_table_mask = attr_mask_or(&backup_sm.softrm_table_mask, &mask);
 
     CheckUnknownParameters(block, BACKUP_BLOCK, allowed_params);
 
@@ -185,9 +205,9 @@ static void backup_cfg_write_template(FILE *output)
     print_line(output, 1, "shook_cfg     = \"/etc/shook.cfg\";");
 #endif
 #ifdef HAVE_SHOOK
-    print_line(output, 1, "recovery_action = shook.recover;");
+    print_line(output, 1, "#recovery_action = shook.recover;");
 #else
-    print_line(output, 1, "recovery_action = common.copy;");
+    print_line(output, 1, "#recovery_action = common.copy;");
 #endif
     print_end_block(output, 0);
 }
@@ -1108,7 +1128,7 @@ static int backup_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
 {
     /* If this is a CREATE record, we know its status is NEW
      * (except if it is already set to another value) */
-    if (logrec->cr_type == CL_CREATE)
+    if (logrec->cr_type == CL_CREATE || logrec->cr_type == CL_SOFTLINK)
     {
         if (!ATTR_MASK_STATUS_TEST(attrs, smi->smi_index))
         {
@@ -1550,7 +1570,6 @@ static int backup_symlink(sm_instance_t *smi, attr_set_t *p_attrs,
     }
     return 0;
 }
-
 
 /* XXX PREVIOUS command code:
         rc = builtin_copy(fspath, tmp, O_WRONLY | O_CREAT | O_TRUNC, true,
@@ -2207,16 +2226,17 @@ static recov_status_t recov_file(const entry_id_t *p_id,
             return RS_ERROR;
         }
         /* If compression is enabled, append 'compress' param.  */
-        if (rbh_param_set(&recov_params, "compress", "1", false))
+        if (*compressed)
         {
-            DisplayLog(LVL_CRIT, TAG, "ERROR: failed to set action param 'compress'");
-            return RS_ERROR;
+            if (rbh_param_set(&recov_params, "compress", "1", false) != 0)
+            {
+                DisplayLog(LVL_CRIT, TAG, "ERROR: failed to set action param 'compress'");
+                return RS_ERROR;
+            }
         }
 
-        /* actions expect to get a source path in 'fullpath' and targetpath in 'targetpath' parameter
-         * So, build a fake attribute and new parameter set with these values */
-        path_replace(&sav, attrs, backend_path);
-
+        /* fspath may be a pointer to attrs, so make sure we set the right
+         * path in TARGET_PATH before 'path_replace' modifies it. */
         if (rbh_param_set(&recov_params, TARGET_PATH_PARAM, fspath, false))
         {
             DisplayLog(LVL_CRIT, TAG, "ERROR: failed to set action param '%s'",
@@ -2224,6 +2244,11 @@ static recov_status_t recov_file(const entry_id_t *p_id,
             return RS_ERROR;
         }
 
+        /* actions expect to get a source path in 'fullpath' and targetpath in 'targetpath' parameter
+         * So, build a fake attribute and new parameter set with these values */
+        path_replace(&sav, attrs, backend_path);
+
+        /* perform the data copy (if needed) */
         rc = action_helper(&config.recovery_action, "recover", p_id, attrs,
                            &recov_params, &dummy_after, NULL, NULL);
 
@@ -2699,7 +2724,7 @@ int rbh_shook_release(const entry_id_t *p_id,
 
 
 /** Status manager for backup or shook (2 builds with different flags) */
-status_manager_t backup_sm = {
+static status_manager_t backup_sm = {
 #ifdef HAVE_SHOOK
     .name = "shook",
 #else

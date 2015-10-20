@@ -295,6 +295,9 @@ int builtin_copy(const char *src, const char *dst, int dst_oflags,
     cp_nfo.src = src;
     cp_nfo.dst = dst;
 
+    DisplayLog(LVL_DEBUG, "Mod" , "builtin_copy('%s', '%s', oflg=%#x, save_attrs=%d, flags=%#x)",
+               src, dst, dst_oflags, save_attrs, flags);
+
     cp_nfo.src_fd = open(src, O_RDONLY | O_NOATIME);
     if (cp_nfo.src_fd < 0)
     {
@@ -402,7 +405,7 @@ int action_helper(const policy_action_t *action, const char *name,
             DisplayLog(LVL_EVENT, __func__, "%s("DFID"): no action specified",
                        name, PFID(p_id));
             rc = 0;
-
+            break;
 
         default:
             RBH_BUG("action->type is invalid");

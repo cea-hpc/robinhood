@@ -1618,6 +1618,12 @@ function test_custom_purge
 	sleep_time=$2
 	policy_str="$3"
 
+	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
+		echo "No purge for backup purpose: skipped"
+		set_skipped
+		return 1
+	fi
+
 	clean_logs
 
 	# initial scan
@@ -1850,6 +1856,7 @@ function test_undelete
     #   - last field of each line is last entry path in filesystem
     #   - test suite uses a single status manager at once: '-s' option not needed
 	$UNDELETE -f $RBH_CFG_DIR/$config_file -L | grep 'file' | awk '{print $(NF)}' > rh_report.log
+    [ "$DEBUG" = "1" ] && cat rh_report.log
     c=$(wc -l rh_report.log | awk '{print $1}')
     (( $c == 4 )) || error "invalid file count in undelete list: $c/4"
     for f in $FILES; do grep $f rh_report.log || error "missing $f in undelete list"; done

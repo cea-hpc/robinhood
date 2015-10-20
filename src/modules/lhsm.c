@@ -935,7 +935,7 @@ static const mod_cfg_funcs_t lhsm_cfg_hdlr = {
 };
 
 /** Status manager for Lustre/HSM */
-status_manager_t lhsm_sm = {
+static status_manager_t lhsm_sm = {
     .name = "lhsm",
     .flags = SM_SHARED | SM_DELETED | SM_MULTI_ACTION,
     .status_enum = lhsm_status_list,
