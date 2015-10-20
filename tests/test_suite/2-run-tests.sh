@@ -606,15 +606,7 @@ function migrate_symlink
 	count=0
 	echo "3-Applying migration policy ($policy_str)..."
 	# files should not be migrated this time: do not match policy
-	$RH -f $RBH_CFG_DIR/$config_file  --run=migration --target=file:$RH_ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
-	grep "$RH_ROOT/link.1" rh_migr.log | grep "whitelisted" && count=$(($count+1))
-
-	if (( $count == 1 )); then
-		echo "OK: symlink not eligible for migration"
-	else
-		error "$count entries are not eligible, 1 expected"
-	fi
-
+	$RH -f $RBH_CFG_DIR/$config_file  --run=migration --target=file:$RH_ROOT/link.1 -l DEBUG -L rh_migr.log 2>/dev/null
 	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
 	if (($nb_migr != 0)); then
 		error "********** TEST FAILED: No migration expected, $nb_migr started"
@@ -628,14 +620,7 @@ function migrate_symlink
 
 	count=0
 	echo "5-Applying migration policy again ($policy_str)..."
-	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=file:$RH_ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
-	grep "$RH_ROOT/link.1" rh_migr.log | grep "successful" && count=$(($count+1))
-
-	if (( $count == 1 )); then
-		echo "OK: symlink has been migrated successfully"
-	else
-		error "$count symlink migrated, 1 expected"
-	fi
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=file:$RH_ROOT/link.1 -l DEBUG -L rh_migr.log 2>/dev/null
 
 	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
 	if (($nb_migr != 1)); then
@@ -648,23 +633,24 @@ function migrate_symlink
 	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
     	check_db_error rh_chglogs.log
 
-	count=`$REPORT -f $RBH_CFG_DIR/$config_file --fs-info --csv -q 2>/dev/null | grep synchro | wc -l`
+	$REPORT -f $RBH_CFG_DIR/$config_file --dump-status=$STATUS_MGR:synchro --csv -q > report.out
+        [ "$DEBUG" = "1" ] && cat report.out
+    	count=$(wc -l report.out | awk '{print $1}')
 	if  (($count == 1)); then
 		echo "OK: 1 synchro symlink"
 	else
 		error "1 symlink is expected to be synchro (found $count)"
 	fi
+    	rm -f report.out
 
 	cp /dev/null rh_migr.log
 	echo "7-Applying migration policy again ($policy_str)..."
-	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=$RH_ROOT/link.1 -l EVENT -L rh_migr.log 2>/dev/null
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=file:$RH_ROOT/link.1 -l DEBUG -L rh_migr.log
 
-	count=`grep "$RH_ROOT/link.1" rh_migr.log | grep "skipping entry" | wc -l`
-
-	if (( $count == 1 )); then
-		echo "OK: symlink already migrated"
+	if grep " 1 entries skipped" rh_migr.log; then
+		echo "OK: entry skipped"
 	else
-		error "$count symlink skipped, 1 expected"
+		error "1 entry should be skipped"
 	fi
 }
 
