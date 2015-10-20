@@ -1571,15 +1571,6 @@ static int backup_symlink(sm_instance_t *smi, attr_set_t *p_attrs,
     return 0;
 }
 
-/* XXX PREVIOUS command code:
-        rc = builtin_copy(fspath, tmp, O_WRONLY | O_CREAT | O_TRUNC, true,
-                          (config.compress?COMPRESS_DEST:0) | hints2flags(hints));
-        if (hints)
-            rc = execute_shell_command(true, config.action_cmd, 4, "ARCHIVE", fspath, tmp, hints);
-        else
-            rc = execute_shell_command(true, config.action_cmd, 3, "ARCHIVE", fspath, tmp);
-*/
-
 struct attr_save {
     attr_mask_t attr_mask;
     char       *attr_path;
@@ -1647,6 +1638,15 @@ static int wrap_file_copy(sm_instance_t *smi,
     rc = rbh_params_copy(&tmp_params, params);
     if (rc)
         goto err_out;
+
+    if (config.compress)
+    {
+        if (rbh_param_set(&tmp_params, "compress", "1", false) != 0)
+        {
+            DisplayLog(LVL_CRIT, TAG, "ERROR: failed to set action param 'compress'");
+            return -EFAULT;
+        }
+    }
 
     rbh_param_set(&tmp_params, TARGET_PATH_PARAM, tmp, true);
     path_replace(&sav, p_attrs, srcpath);

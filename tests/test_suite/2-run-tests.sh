@@ -4607,7 +4607,8 @@ function test_compress
     check_db_error rh_scan.log
 
     # check file status
-    $REPORT -f $RBH_CFG_DIR/$config_file -i -q | grep 'file,' > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR -q > report.out
+    [ "$DEBUG" = "1" ] && cat report.out
     check_status_count report.out new 4
 
     # check how a child entries is archived
@@ -4615,7 +4616,8 @@ function test_compress
     check_db_error rh_migr.log
 
     # check file status
-    $REPORT -f $RBH_CFG_DIR/$config_file -i -q | grep 'file,' > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR -q  > report.out
+    [ "$DEBUG" = "1" ] && cat report.out
     check_status_count report.out synchro 4
 
     # no compressed file names expected xxxx__<fid>z
@@ -4645,7 +4647,8 @@ function test_compress
     check_db_error rh_scan.log
 
     # check file status
-    $REPORT -f $RBH_CFG_DIR/$config_file -i -q | grep 'file,' > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR -q  > report.out
+    [ "$DEBUG" = "1" ] && cat report.out
     check_status_count report.out synchro 2
     check_status_count report.out modified 2
     check_status_count report.out new 3
@@ -4655,7 +4658,8 @@ function test_compress
     check_db_error rh_migr.log
 
     # check file status
-    $REPORT -f $RBH_CFG_DIR/$config_file -i -q | grep 'file,' > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR -q  > report.out
+    [ "$DEBUG" = "1" ] && cat report.out
     check_status_count report.out synchro 7
 
     # check backend files
@@ -4682,7 +4686,8 @@ function test_compress
     check_db_error rh_scan.log
 
     # check file status
-    $REPORT -f $RBH_CFG_DIR/$config_file -i -q | grep 'file,' > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR -q  > report.out
+    [ "$DEBUG" = "1" ] && cat report.out
     check_status_count report.out synchro 5
     check_status_count report.out modified 2
 
@@ -4704,7 +4709,8 @@ function test_compress
     (( $type_ncomp == 4 )) || error "4 ASCII file data expected in backend: found $type_ncomp"
 
     # check file status
-    $REPORT -f $RBH_CFG_DIR/$config_file -i -q | grep 'file,' > report.out
+    $REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR -q  > report.out
+    [ "$DEBUG" = "1" ] && cat report.out
     check_status_count report.out synchro 7
 
     # test disaster recovery with compressed files
