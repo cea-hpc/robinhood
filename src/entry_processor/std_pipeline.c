@@ -1202,6 +1202,21 @@ static int rm_record(struct entry_proc_op_t *p_op)
     if (!p_op->db_exists && !has_deletion_policy())
         return skip_record(p_op);
 
+    if (p_op->extra_info.is_changelog_record
+        && (p_op->extra_info.log_record.p_log_rec->cr_type != CL_UNLINK
+            && p_op->extra_info.log_record.p_log_rec->cr_type != CL_RMDIR))
+    {
+        /* Lustre 2 with changelog: we are here because lstat (by fid)
+         * on the entry failed, which ensure the entry no longer
+         * exists. Skip it. The entry will be removed by a subsequent
+         * UNLINK record.
+         *
+         * On other posix filesystems, the entry disappeared between
+         * its scanning and its processing... skip it so it will be
+         * cleaned at the end of the scan. */
+         return skip_record(p_op);
+    }
+
     ATTR_MASK_INIT(&merged_attrs);
 
     ListMgr_MergeAttrSets(&merged_attrs, &p_op->fs_attrs, 1);
@@ -1221,15 +1236,7 @@ static int rm_record(struct entry_proc_op_t *p_op)
             DisplayLog(LVL_DEBUG, ENTRYPROC_TAG,
                        DFID": match_all_softrm_filters=rm from DB",
                        PFID(&p_op->entry_id));
-        /* Lustre 2 with changelog: we are here because lstat (by fid)
-         * on the entry failed, which ensure the entry no longer
-         * exists. Skip it. The entry will be removed by a subsequent
-         * UNLINK record.
-         *
-         * On other posix filesystems, the entry disappeared between
-         * its scanning and its processing... skip it so it will be
-         * cleaned at the end of the scan. */
-            return skip_record(p_op);
+            return rm_record(p_op);
 
         case PROC_ACT_SOFTRM_IF_EXISTS:
             DisplayLog(LVL_DEBUG, ENTRYPROC_TAG,
@@ -1309,7 +1316,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         {
             if (ERR_MISSING(rc))
             {
-                DisplayLog( LVL_FULL, ENTRYPROC_TAG, "Entry %s no longer exists", path );
+                DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "Entry %s no longer exists", path);
                 return rm_record(p_op);
             }
             else
