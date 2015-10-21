@@ -1977,6 +1977,9 @@ function test_maint_mode
 
 	clean_logs
 
+    # initial scan
+    $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error "scanning filesystem"
+
 	# writing data
 	echo "1-Writing files..."
 	for i in `seq 1 4`; do

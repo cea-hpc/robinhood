@@ -162,10 +162,8 @@ static struct option option_tab[] = {
     {"count-min", required_argument, NULL, OPT_COUNT_MIN },
     {"reverse", no_argument, NULL, 'r' },
 
-#ifdef HAVE_MIGR_POLICY
     {"next-maintenance", optional_argument, NULL, SET_NEXT_MAINT},
     {"cancel-maintenance", no_argument, NULL, CLEAR_NEXT_MAINT},
-#endif
 
     /* config file options */
     {"config-file", required_argument, NULL, 'f'},
@@ -2375,8 +2373,7 @@ static void report_status_info(int smi_index, const char* val, int flags)
     }
 }
 
-
-static void maintenance_get( int flags )
+static void maintenance_get(int flags)
 {
     char           value[1024];
     time_t         timestamp;
@@ -2384,69 +2381,69 @@ static void maintenance_get( int flags )
     struct tm      t;
     int            rc;
 
-    rc = ListMgr_GetVar( &lmgr, NEXT_MAINT_VAR, value, sizeof(value));
-    if ( rc == DB_SUCCESS )
+    rc = ListMgr_GetVar(&lmgr, NEXT_MAINT_VAR, value, sizeof(value));
+    if (rc == DB_SUCCESS)
     {
-        timestamp = atoi( value );
-        strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
-        if ( time(NULL) >= timestamp )
+        timestamp = atoi(value);
+        strftime(date, 128, "%Y/%m/%d %T", localtime_r(&timestamp, &t));
+        if (time(NULL)>= timestamp)
         {
-            if ( CSV(flags) )
-                printf( "next_maintenance, %s (in the past: no effect)\n", date );
+            if (CSV(flags))
+                printf("next_maintenance, %s (in the past: no effect)\n", date);
             else
-                printf( "Next maintenance: %s (in the past: no effect)\n", date );
+                printf("Next maintenance: %s (in the past: no effect)\n", date);
         }
         else
         {
-            if ( CSV(flags) )
-                printf( "next_maintenance, %s\n", date );
+            if (CSV(flags))
+                printf("next_maintenance, %s\n", date);
             else
-                printf( "Next maintenance: %s\n", date );
+                printf("Next maintenance: %s\n", date);
         }
     }
-    else if ( rc == DB_NOT_EXISTS )
+    else if (rc == DB_NOT_EXISTS)
     {
-        if ( CSV(flags) )
-            printf( "next_maintenance, none\n" );
+        if (CSV(flags))
+            printf("next_maintenance, none\n");
         else
-            printf( "No maintenance is planned\n" );
+            printf("No maintenance is planned\n");
     }
     else
     {
-        DisplayLog( LVL_CRIT, REPORT_TAG,
-                    "ERROR retrieving variable " NEXT_MAINT_VAR " from database" );
+        DisplayLog(LVL_CRIT, REPORT_TAG,
+                    "ERROR retrieving variable " NEXT_MAINT_VAR " from database");
     }
 }
 
-static void maintenance_set( int flags, time_t when )
+static void maintenance_set(int flags, time_t when)
 {
     char           value[1024];
     int            rc;
 
     if (when == 0)
     {
-        rc = ListMgr_SetVar( &lmgr, NEXT_MAINT_VAR, NULL );
+        rc = ListMgr_SetVar(&lmgr, NEXT_MAINT_VAR, NULL);
 
         if (rc)
-            DisplayLog( LVL_CRIT, REPORT_TAG,
-                        "ERROR deleting variable " NEXT_MAINT_VAR " in database" );
+            DisplayLog(LVL_CRIT, REPORT_TAG,
+                        "ERROR deleting variable " NEXT_MAINT_VAR " in database");
         else
-            DisplayLog( LVL_EVENT, REPORT_TAG, "Next maintenance time has been cleared successfully" );
+            DisplayLog(LVL_EVENT, REPORT_TAG, "Next maintenance time has been cleared successfully");
 
         return;
     }
 
-    sprintf( value, "%u", (unsigned int)when );
+    sprintf(value, "%u", (unsigned int)when);
 
-    rc = ListMgr_SetVar( &lmgr, NEXT_MAINT_VAR, value );
-    if ( rc == DB_SUCCESS )
+    rc = ListMgr_SetVar(&lmgr, NEXT_MAINT_VAR, value);
+    if (rc == DB_SUCCESS)
     {
-        DisplayLog( LVL_EVENT, REPORT_TAG, "Next maintenance time has been set successfully" );
+        DisplayLog(LVL_EVENT, REPORT_TAG, "Next maintenance time has been set successfully");
     }
     else
     {
-        DisplayLog( LVL_CRIT, REPORT_TAG,
-                    "ERROR setting variable " NEXT_MAINT_VAR " in database" );
+        DisplayLog(LVL_CRIT, REPORT_TAG,
+                    "ERROR setting variable " NEXT_MAINT_VAR " in database");
     }
 }
 
@@ -2730,7 +2727,6 @@ int main( int argc, char **argv )
             deferred_rm = true;
             break;
 
-#ifdef HAVE_MIGR_POLICY
         case CLEAR_NEXT_MAINT:
             cancel_next_maint = true;
             get_next_maint = true;
@@ -2749,7 +2745,6 @@ int main( int argc, char **argv )
             /* in all cases, display next maintenance time */
             get_next_maint = true;
             break;
-#endif
 
         case 'f':
             rh_strncpy(config_file, optarg, MAX_OPT_LEN);
@@ -2840,9 +2835,7 @@ int main( int argc, char **argv )
 #ifdef _LUSTRE
         && !dump_ost
 #endif
-#ifdef HAVE_MIGR_POLICY
         && !next_maint && !get_next_maint && !cancel_next_maint
-#endif
         )
     {
         display_help( bin );

@@ -803,6 +803,7 @@ static int set_optimization_filters(policy_info_t *policy,
     {
         if (convert_boolexpr_to_simple_filter(&rules->rules[0].condition, p_filter,
                                               policy->descr->status_mgr,
+                                              policy->time_modifier,
                                               policy->descr->manage_deleted))
         {
             DisplayLog(LVL_FULL, tag(policy),
@@ -1631,6 +1632,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     /* filter entries in the policy scope */
     if (convert_boolexpr_to_simple_filter(&p_pol_info->descr->scope, &filter,
                                           p_pol_info->descr->status_mgr,
+                                          p_pol_info->time_modifier,
                                           p_pol_info->descr->manage_deleted))
     {
         DisplayLog(LVL_DEBUG, tag(p_pol_info),

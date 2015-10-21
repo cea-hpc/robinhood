@@ -405,7 +405,8 @@ static int mkfilters(bool exclude_dirs)
 
         /* append bool expr to entry filter */
         /* Do not use 'OR' expression there */
-        convert_boolexpr_to_simple_filter(&match_expr, &entry_filter, prog_options.filter_smi, false);
+        convert_boolexpr_to_simple_filter(&match_expr, &entry_filter,
+                                          prog_options.filter_smi, NULL, false);
     }
 
     return 0;
