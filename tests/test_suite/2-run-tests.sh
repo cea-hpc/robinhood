@@ -3052,7 +3052,7 @@ function policy_check_purge
     (( $w1_arch == 0 )) && (( $i1_arch == 0 )) && (( $p1_arch == 1 )) \
         && (( $d1_arch == 1 )) && echo "OK: All expected purge actions triggered"
 
-    if (( $is_lhsm + $is_hsmlite > 0 )); then
+    if (( $is_lhsm + $shook > 0 )); then
         st1=$(grep purge1 report.out | cut -d ',' -f 6 | tr -d ' ')
         st2=$(grep default1 report.out | cut -d ',' -f 6 | tr -d ' ')
 
