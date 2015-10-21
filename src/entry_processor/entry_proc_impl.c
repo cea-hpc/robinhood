@@ -115,7 +115,8 @@ static void   *entry_proc_worker_thr( void *arg )
     worker_info_t *myinfo = ( worker_info_t * ) arg;
     int count;
 
-    DisplayLog( LVL_DEBUG, ENTRYPROC_TAG, "Starting pipeline worker thread #%u", myinfo->index );
+    DisplayLog(LVL_FULL, ENTRYPROC_TAG, "Starting pipeline worker thread #%u",
+               myinfo->index);
 
     /* create connection to database */
     rc = ListMgr_InitAccess( &myinfo->lmgr );
