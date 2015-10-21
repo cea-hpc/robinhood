@@ -2504,7 +2504,6 @@ function path_test
 	fi
 
 	# create test tree
-
 	mkdir -p $RH_ROOT/dir1
 	mkdir -p $RH_ROOT/dir1/subdir1
 	mkdir -p $RH_ROOT/dir1/subdir2
