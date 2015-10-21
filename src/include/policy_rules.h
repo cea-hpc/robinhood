@@ -330,6 +330,7 @@ int parse_policy_action(const char *name, const char *value,
 struct sm_instance;
 int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
                     filter_comparator_t *p_compar, filter_value_t *p_value,
-                    bool *p_must_release, const struct sm_instance *smi);
+                    bool *p_must_release, const struct sm_instance *smi,
+                    const time_modifier_t *time_mod);
 
 #endif

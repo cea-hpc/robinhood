@@ -397,7 +397,8 @@ static bool allow_null(unsigned int attr_index, const filter_comparator_t *comp,
  * \param op_ctx indicate the current operation context: e.g. AND for 'x and y and z'
  */
 static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
-                              const sm_instance_t *smi, int expr_flag,
+                              const sm_instance_t *smi,
+                              const time_modifier_t *time_mod, int expr_flag,
                               int depth, bool_op_t op_ctx)
 {
     int                 rc, new_depth;
@@ -425,7 +426,7 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
 
             /* get info about condition */
             rc = criteria2filter(boolexpr->content_u.bool_expr.expr1->content_u.condition,
-                                 &index, &comp, &val, &must_free, smi);
+                                 &index, &comp, &val, &must_free, smi, time_mod);
 
             if (rc != 0 || (index & ATTR_INDEX_FLG_UNSPEC))
                 /* do nothing (equivalent to 'AND TRUE') */
@@ -457,7 +458,7 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
             /* get info about condition */
             rc = criteria2filter(boolexpr->content_u.condition,
                                  &index, &comp, &val, &must_free,
-                                 smi);
+                                 smi, time_mod);
 
             if (rc != 0 || (index & ATTR_INDEX_FLG_UNSPEC))
                 /* do nothing (equivalent to 'AND TRUE') */
@@ -520,11 +521,11 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
             }
 
             rc = append_simple_expr(boolexpr->content_u.bool_expr.expr1,
-                                    filter, smi, flag1, new_depth,
+                                    filter, smi, time_mod, flag1, new_depth,
                                     boolexpr->content_u.bool_expr.bool_op);
             if (rc) return rc;
             rc = append_simple_expr(boolexpr->content_u.bool_expr.expr2,
-                                    filter, smi, flag2, new_depth,
+                                    filter, smi, time_mod, flag2, new_depth,
                                     boolexpr->content_u.bool_expr.bool_op);
             return rc;
         }
@@ -550,13 +551,14 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
 
 /** Convert simple expressions to ListMgr filter (append filter) */
 int convert_boolexpr_to_simple_filter(bool_node_t *boolexpr, lmgr_filter_t *filter,
-                                      const sm_instance_t *smi, bool tolerant)
+                                      const sm_instance_t *smi,
+                                      const time_modifier_t *time_mod, bool tolerant)
 {
     if (!is_simple_expr(boolexpr, 0, BOOL_AND))
         return DB_INVALID_ARG;
 
     /* default filter context is AND */
-    return append_simple_expr(boolexpr, filter, smi,
+    return append_simple_expr(boolexpr, filter, smi, time_mod,
                               tolerant ? FILTER_FLAG_ALLOW_NULL : 0, 0, BOOL_AND);
 }
 

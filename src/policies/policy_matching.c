@@ -498,7 +498,8 @@ static int set_filter_value_generic(const sm_info_def_t *def,
 /** @TODO factorize criteria2filter */
 int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
                     filter_comparator_t *p_compar, filter_value_t *p_value,
-                    bool *p_must_release, const sm_instance_t *smi)
+                    bool *p_must_release, const sm_instance_t *smi,
+                    const time_modifier_t *time_mod)
 {
     int len;
     char * new_str;
@@ -624,19 +625,19 @@ int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
     /*   last_access > 2h <=> access_time < time(NULL) - 2h */
 
         *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op));
-        p_value->value.val_uint = time(NULL) - p_comp->val.duration;
+        p_value->value.val_uint = time(NULL) - time_modify(p_comp->val.duration, time_mod);
         break;
 
     case CRITERIA_LAST_MOD:
         *p_attr_index = ATTR_INDEX_last_mod;
         *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op));
-        p_value->value.val_uint = time(NULL) - p_comp->val.duration;
+        p_value->value.val_uint = time(NULL) - time_modify(p_comp->val.duration, time_mod);
         break;
 
     case CRITERIA_CREATION:
         *p_attr_index = ATTR_INDEX_creation_time;
         *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op));
-        p_value->value.val_uint = time(NULL) - p_comp->val.duration;
+        p_value->value.val_uint = time(NULL) - time_modify(p_comp->val.duration, time_mod);
         break;
 
     case CRITERIA_RMTIME:
@@ -649,7 +650,7 @@ int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
         /* XXX should only be used in a policy about 'removed' entries */
         *p_attr_index = ATTR_INDEX_rm_time;
         *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op));
-        p_value->value.val_uint = time(NULL) - p_comp->val.duration;
+        p_value->value.val_uint = time(NULL) - time_modify(p_comp->val.duration, time_mod);
         break;
 
 #ifdef _LUSTRE
