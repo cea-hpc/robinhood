@@ -159,7 +159,12 @@ typedef struct policy_run_config_t
     /** interval for reporting progress of current policy run */
     time_t         report_interval;
 
+    /* maintenance related option */
+    /** is this policy influenced by maintenance mecanism */
+    bool           maintenance_sensitive;
+    /** time window to start modifying time conditions */
     time_t         pre_maintenance_window;
+    /** minimal time condition */
     time_t         maint_min_apply_delay;
 
     /** min error percentage to suspend current policy (0=disable) */

@@ -46,7 +46,7 @@ static int polrun_set_default(const policy_descr_t *pol, policy_run_config_t *cf
     cfg->action_timeout = 2 * 3600; /* 2h */
     cfg->report_interval = 10 * 60; /* 10 min */
 
-    cfg->pre_maintenance_window = 24 * 3600; /* 24h */
+    cfg->pre_maintenance_window = 0; /* disabled */
     cfg->maint_min_apply_delay = 30 * 60; /* 30 min */
 
     cfg->suspend_error_pct = 0.0; /* disabled */
@@ -109,7 +109,7 @@ static void policy_run_cfg_write_default(FILE *output)
     print_line(output, 1, "nb_threads              : 4");
     print_line(output, 1, "queue_size              : 4096");
     print_line(output, 1, "db_result_size_max      : 100000");
-    print_line(output, 1, "pre_maintenance_window  : 24h");
+    print_line(output, 1, "pre_maintenance_window  : 0 (disabled)");
     print_line(output, 1, "maint_min_apply_delay   : 30min");
     print_end_block(output, 0);
     fprintf(output, "\n");
@@ -153,6 +153,7 @@ static void policy_run_cfg_write_template(FILE *output)
     print_line(output, 1, "report_actions = yes;");
     fprintf(output, "\n");
     print_line(output, 1, "# pre-maintenance feature parameters");
+    print_line(output, 1, "# 0 to disable this feature");
     print_line(output, 1, "#pre_maintenance_window = 24h;");
     print_line(output, 1, "#maint_min_apply_delay = 30min;");
     fprintf(output, "\n");
@@ -567,7 +568,7 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
         {"recheck_ignored_classes",     PT_BOOL,     0,
             &conf->recheck_ignored_classes, 0},
         {"report_actions",     PT_BOOL,     0, &conf->report_actions, 0},
-        {"pre_maintenance_window",      PT_DURATION, PFLG_POSITIVE | PFLG_NOT_NULL,
+        {"pre_maintenance_window",      PT_DURATION, PFLG_POSITIVE,
             &conf->pre_maintenance_window, 0},
         {"maint_min_apply_delay",       PT_DURATION, PFLG_POSITIVE,
             &conf->maint_min_apply_delay, 0},
