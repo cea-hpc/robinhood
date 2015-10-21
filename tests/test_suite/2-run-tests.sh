@@ -112,6 +112,15 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
     # change policy names to the test framework names
     sed -e "s/backup_archive/migration/" -i $RBH_TEST_POLICIES
     sed -e "s/backup_remove/hsm_remove/" -i $RBH_TEST_POLICIES
+    # append a basic purge policy to run some purge tests
+    cat >> $RBH_TEST_POLICIES << EOF
+define_policy purge {
+    scope { type != directory }
+    status_manager = none;
+    default_action = common.unlink;
+    default_lru_sort_attr = none;
+}
+EOF
     mkdir -p $BKROOT
 elif [[ $PURPOSE = "SHOOK" ]]; then
     is_lhsm=0
@@ -866,12 +875,6 @@ function test_purge_lru
     export SORT_PARAM=$2
 	policy_str="$3"
 
-	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No purge for backup purpose: skipped"
-		set_skipped
-		return 1
-	fi
-
 	clean_logs
 
     # initial scan
@@ -1533,12 +1536,6 @@ function purge_test
 	sleep_time=$3
 	policy_str="$4"
 
-	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No purge for backup purpose: skipped"
-		set_skipped
-		return 1
-	fi
-
 	clean_logs
 
 	# initial scan
@@ -1617,12 +1614,6 @@ function test_custom_purge
 	config_file=$1
 	sleep_time=$2
 	policy_str="$3"
-
-	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No purge for backup purpose: skipped"
-		set_skipped
-		return 1
-	fi
 
 	clean_logs
 
@@ -1911,12 +1902,6 @@ function purge_size_filesets
 	sleep_time=$2
 	count=$3
 	policy_str="$4"
-
-	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No purge for backup purpose: skipped"
-		set_skipped
-		return 1
-	fi
 
 	clean_logs
 
@@ -2969,12 +2954,6 @@ function policy_check_purge
     update_period=$2
     policy_str="$3"
 
-    if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-        echo "No purge for backup purpose: skipped"
-        set_skipped
-        return 1
-    fi
-
     stf=5
 
     clean_logs
@@ -3105,11 +3084,6 @@ function periodic_class_match_purge
 	update_period=$2
 	policy_str="$3"
 
-	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No purge for backup purpose: skipped"
-		set_skipped
-		return 1
-	fi
 	clean_logs
 
 	echo "Writing and archiving files..."
@@ -3307,8 +3281,8 @@ function test_action_params
 
 	clean_logs
 
-    if (( $is_hsmlite + $is_lhsm == 0 )); then
-       echo "No migration policy defined for this flavor: skipping test."
+    if (( $is_lhsm == 0 )); then
+       echo "This test uses Lustre/HSM actions. Skipping for current test mode $PURPOSE."
        set_skipped
        return 1
     fi
@@ -3468,11 +3442,6 @@ function test_cnt_trigger
 	exp_purge_count=$3
 	policy_str="$4"
 
-	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No purge for backup purpose: skipped"
-		set_skipped
-		return 1
-	fi
 	clean_logs
 
 	if (( $is_hsmlite != 0 )); then
@@ -3538,11 +3507,6 @@ function test_ost_trigger
     export ost_high_vol="${mb_h_threshold}MB"
     export ost_low_vol="${mb_l_threshold}MB"
 
-	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No purge for backup purpose: skipped"
-		set_skipped
-		return 1
-	fi
 	clean_logs
 
     # reset df values
@@ -3652,12 +3616,6 @@ function test_ost_order
     # reset df values
     wait_stable_df
 
-	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No purge for backup purpose: skipped"
-		set_skipped
-		return 1
-	fi
-
     # nb OSTs?
     nbost=`$LFS df $RH_ROOT | grep OST | wc -l`
     maxidx=$((nbost -1))
@@ -3729,11 +3687,6 @@ function test_trigger_check
 	max_user_vol=$8
         target_user_count=$9
 
-	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No purge for backup purpose: skipped"
-		set_skipped
-		return 1
-	fi
 	clean_logs
 
     wait_stable_df
@@ -3871,11 +3824,6 @@ function test_periodic_trigger
 	sleep_time=$2
 	policy_str=$3
 
-	if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No purge for backup purpose: skipped"
-		set_skipped
-		return 1
-	fi
 	clean_logs
 
 	t0=`date +%s`
@@ -7425,11 +7373,6 @@ function check_disabled
 
        case "$flavor" in
                purge)
-		       if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-			       echo "No purge for backup purpose: skipped"
-                               set_skipped
-                               return 1
-                       fi
                        cmd='--run=purge'
                        match='Policy purge is disabled'
                        ;;
