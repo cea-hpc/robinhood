@@ -999,14 +999,14 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
             }
             else if (!EMPTY_STRING(opt->policy_string))
             {
-                /* not empty? may be a previous --run-policy option (make sure it is consistent)*/
+                /* not empty? may be a previous --run option (make sure it is consistent)*/
                 if (optarg == NULL || strcasecmp(opt->policy_string, optarg) != 0)
                 {
-                    fprintf(stderr, "ERROR: multiple inconsistent --run-policy parameters on command line.\n");
+                    fprintf(stderr, "ERROR: multiple inconsistent --run parameters on command line.\n");
                     return EINVAL;
                 }
                 else /* optarg not null and == policy_string */
-                    fprintf(stderr, "Warning: redundant --run-policy parameters on command line.\n");
+                    fprintf(stderr, "Warning: redundant --run parameters on command line.\n");
             }
             else if (optarg != NULL && !EMPTY_STRING(optarg))
             {

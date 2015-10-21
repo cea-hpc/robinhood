@@ -6106,7 +6106,8 @@ function test_logs
 
 	# run a scan + alert check
 	if (( $stdio )); then
-		$RH -f $RBH_CFG_DIR/$config_file --scan $extra_action --run=alert -I -l DEBUG --once >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error "scan error"
+		# FIXME change the syntax of policy run to allow both sync and alert run
+		$RH -f $RBH_CFG_DIR/$config_file --scan $extra_action --run=alert -I -l DEBUG --once >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error "scan error $(cat /tmp/rbh.stderr)"
 	else
         # detach and wait, else it will log to stderr by default
 		$RH -f $RBH_CFG_DIR/$config_file --scan --run=alert -I -l DEBUG --once -d -p pidfile|| error "scan error"
