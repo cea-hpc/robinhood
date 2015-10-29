@@ -369,8 +369,11 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
 <STRING2>\n     {snprintf(err_str,ERRLEN,"in \"%s\", line %d: closing quote missing.",current_file,yylineno); set_error(err_str);yylineno++;return _ERROR_;}
 <STRING2>.      {YY_BUFFER_APPEND(yytext);DEBUG_LEX("%c",*yytext);/* caractere de la chaine */}
 
-{COMMENT}  ;/* ignore */
-{COMMENT2} ;/* ignore */
+<INBLOC>{COMMENT}   DEBUG_LEX("comment: \"%s\"\n", yytext);/* ignore */
+<YY_INIT>{COMMENT}  DEBUG_LEX("comment: \"%s\"\n", yytext);/* ignore */
+<INBLOC>{COMMENT2}  DEBUG_LEX("comment: \"%s\"\n", yytext);/* ignore */
+<YY_INIT>{COMMENT2} DEBUG_LEX("comment: \"%s\"\n", yytext);/* ignore */
+
 {SPACE}        ;/* ignore */
 {NL}           yylineno++;/* ignore */
 
