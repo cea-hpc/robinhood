@@ -1223,6 +1223,10 @@ static int rm_record(struct entry_proc_op_t *p_op)
     ListMgr_MergeAttrSets(&merged_attrs, &p_op->db_attrs, 0);
 
     pa =  match_all_softrm_filters(&p_op->entry_id, &merged_attrs);
+
+    /* free allocated structs in merged attributes */
+    ListMgr_FreeAttrs(&merged_attrs);
+
     switch (pa)
     {
         case PROC_ACT_NONE:
@@ -1437,12 +1441,14 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
                         /** @FIXME RBHv3 if entry is not supported: set extra_info.not_supp?  */
                     }
+                    /* free allocated resources, once merged */
+                    ListMgr_FreeAttrs(&new_attrs);
                 }
             }
             i++;
         }
-        /* free allocated status, once merged */
-        sm_status_free(&new_attrs.attr_values.sm_status);
+        /* free allocated structs in merged attributes */
+        ListMgr_FreeAttrs(&merged_attrs);
     }
 
     /* readlink only for symlinks */

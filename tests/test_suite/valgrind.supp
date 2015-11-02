@@ -76,20 +76,5 @@
    fun:clone
 }
 
-
-# Real leak - need to fix - test 211 and others
-{
-   <insert_a_suppression_name_here>
-   Memcheck:Leak
-   fun:calloc
-   fun:sm_status_ensure_alloc
-   fun:ListMgr_MergeAttrSets
-   fun:EntryProc_get_info_fs
-   fun:entry_proc_worker_thr
-   fun:start_thread
-   fun:clone
-}
-
-
 # test 214d - read after free
 

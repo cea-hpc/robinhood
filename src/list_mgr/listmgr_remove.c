@@ -623,6 +623,7 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
 
             /* insert into softrm table */
             rc = listmgr_softrm_single(p_mgr, &id, &old_attrs);
+            ListMgr_FreeAttrs(&old_attrs);
             if (rc)
                 goto free_res;
         }
@@ -774,7 +775,7 @@ retry:
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
     else if (rc)
-        return rc;
+        goto out;
 
     rc = listmgr_softrm_single(p_mgr, p_id, &all_attrs);
 
@@ -783,7 +784,7 @@ retry:
     else if (rc)
     {
         lmgr_rollback(p_mgr);
-        return rc;
+        goto out;
     }
 
     /* remove the entry from main tables, if it exists */
@@ -793,7 +794,7 @@ retry:
     else if (rc != DB_SUCCESS && rc != DB_NOT_EXISTS)
     {
         lmgr_rollback(p_mgr);
-        return rc;
+        goto out;
     }
 
     /* commit */
@@ -802,6 +803,9 @@ retry:
         goto retry;
     if (!rc)
          p_mgr->nbop[OPIDX_RM]++;
+
+out:
+    ListMgr_FreeAttrs(&all_attrs);
     return rc;
 }
 

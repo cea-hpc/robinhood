@@ -32,6 +32,11 @@ int batch_insert_stripe_info(lmgr_t *p_mgr, pktype *pklist, int *validators,
 
 int            get_stripe_info( lmgr_t * p_mgr, PK_ARG_T pk, stripe_info_t * p_stripe,
                                 stripe_items_t * p_items );
+
+/** duplicate stripe information */
+int dup_stripe_items(stripe_items_t *p_stripe_out,
+                     const stripe_items_t *p_stripe_in);
+
 void           free_stripe_items( stripe_items_t * p_stripe_items );
 
 #endif
