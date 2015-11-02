@@ -295,7 +295,7 @@ int File_GetStripeByDirFd(int dirfd, const char *fname,
     if (!fname|| !fname[0])
         return -EFAULT;
 
-    p_lum = MemAlloc(LUM_SIZE_MAX);
+    p_lum = MemCalloc(1, LUM_SIZE_MAX);
     if (!p_lum)
         return -ENOMEM;
 
