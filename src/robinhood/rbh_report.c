@@ -1447,7 +1447,7 @@ static void report_fs_info( int flags )
     opt.force_no_acct = FORCE_NO_ACCT(flags);
 
     /* append global filters */
-    mk_global_filters( &filter, !NOHEADER(flags), &is_filter );
+    mk_global_filters(&filter, !NOHEADER(flags), &is_filter);
 
     if ( is_filter )
         it = ListMgr_Report( &lmgr, fs_info, FSINFOCOUNT,
@@ -1460,7 +1460,7 @@ static void report_fs_info( int flags )
     {
         DisplayLog( LVL_CRIT, REPORT_TAG,
                     "ERROR: Could not retrieve filesystem stats from database." );
-        return;
+        goto free_filter;
     }
 
 
@@ -1487,7 +1487,7 @@ static void report_fs_info( int flags )
         result_count = FSINFOCOUNT;
     }
 
-    ListMgr_CloseReport( it );
+    ListMgr_CloseReport(it);
 
     /* display summary */
     if ( !NOHEADER(flags) )
@@ -1497,6 +1497,9 @@ static void report_fs_info( int flags )
         printf("\nTotal: %llu entries, %llu bytes (%s)\n",
                total_count, total_size, strsz);
     }
+free_filter:
+    if (is_filter)
+        lmgr_simple_filter_free(&filter);
 }
 
 static int report_entry(const char *entry, int flags)
@@ -1554,6 +1557,8 @@ static int report_entry(const char *entry, int flags)
                 }
             }
         }
+
+        ListMgr_FreeAttrs(&attrs);
         return 0;
     }
     else
