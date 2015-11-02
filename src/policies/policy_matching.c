@@ -1285,8 +1285,10 @@ int match_classes(const entry_id_t *id, attr_set_t *p_attrs_new,
     char *pcur = ATTR(p_attrs_new, fileclass);
     *pcur = '\0';
 
+    attr_set_t attr_cp = ATTR_SET_INIT;
+
     /* merge contents of the 2 input attr sets */
-    attr_set_t attr_cp = *p_attrs_new;
+    ListMgr_MergeAttrSets(&attr_cp, p_attrs_new, true);
     ListMgr_MergeAttrSets(&attr_cp, p_attrs_cached, false);
 
     for (i = 0; i < policies.fileset_count; i++)
@@ -1345,6 +1347,7 @@ int match_classes(const entry_id_t *id, attr_set_t *p_attrs_new,
         ATTR_MASK_SET(p_attrs_new, class_update);
     }
 
+    ListMgr_FreeAttrs(&attr_cp);
     return 0;
 }
 
