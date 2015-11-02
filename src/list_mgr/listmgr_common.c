@@ -314,6 +314,19 @@ void init_attrset_masks(const lmgr_config_t *lmgr_config)
     }
 }
 
+/** return byte address where the given attribute is stored */
+static inline char *attr_address(attr_set_t *attrs, int attr_index)
+{
+    return (char *)&(attrs->attr_values) + field_infos[attr_index].offset;
+}
+
+/** const version */
+static inline const char *attr_address_c(const attr_set_t *attrs, int attr_index)
+{
+    return (char *)&(attrs->attr_values) + field_infos[attr_index].offset;
+}
+
+
 
 /**
  * Add source info of generated fields to attr mask.
@@ -347,8 +360,8 @@ void generate_fields(attr_set_t *p_set)
     {
         if ((p_set->attr_mask.std & mask) && (field_infos[i].flags & GENERATED))
         {
-           void * src_data;
-           void * tgt_data;
+           const void *src_data;
+           void *tgt_data;
 
            if (field_infos[i].gen_func == NULL)
            {
@@ -376,7 +389,7 @@ void generate_fields(attr_set_t *p_set)
                     continue;
                 }
 
-                src_data = (char *) &p_set->attr_values + field_infos[field_infos[i].gen_index].offset;
+                src_data = attr_address_c(p_set, field_infos[i].gen_index);
            }
            else
            {
@@ -384,7 +397,7 @@ void generate_fields(attr_set_t *p_set)
                 src_data = NULL;
            }
 
-           tgt_data = (char *) &p_set->attr_values + field_infos[i].offset;
+           tgt_data = attr_address(p_set, i);
 
            if (field_infos[i].gen_func(tgt_data, src_data) != 0)
                 p_set->attr_mask.std &= ~mask;
@@ -645,7 +658,7 @@ static void print_attr_value(lmgr_t *p_mgr, GString *str, const attr_set_t *p_se
     if (attr_index < ATTR_COUNT)
     {
         ASSIGN_UNION(typeu, field_infos[attr_index].db_type,
-                     ((char *)&p_set->attr_values + field_infos[attr_index].offset));
+                     attr_address_c(p_set, attr_index));
 
         if (is_sepdlist(attr_index))
         {
@@ -900,11 +913,10 @@ int result2attrset( table_enum table, char **result_tab,
                     attr_mask_unset_index(&p_set->attr_mask, i);
             }
             else if (is_sepdlist(i))
-                separated_db2list(typeu.val_str, ((char*)&p_set->attr_values + field_infos[i].offset),
+                separated_db2list(typeu.val_str, attr_address(p_set, i),
                                   field_infos[i].db_type_size+1); /* C size is db_type_size+1 */
             else
-                UNION_GET_VALUE(typeu, field_infos[i].db_type,
-                                ((char *)&p_set->attr_values + field_infos[i].offset));
+                UNION_GET_VALUE(typeu, field_infos[i].db_type, attr_address_c(p_set, i));
             nbfields++;
         }
     }
@@ -1707,28 +1719,25 @@ void ListMgr_MergeAttrSets(attr_set_t *p_target_attrset, const attr_set_t *p_sou
             }
             else if (!is_stripe_field(i))
             {
-                ASSIGN_UNION( typeu, field_infos[i].db_type,
-                              ( ( char * ) &p_source_attrset->attr_values +
-                                field_infos[i].offset ) );
-                UNION_GET_VALUE( typeu, field_infos[i].db_type,
-                                 ( ( char * ) &p_target_attrset->attr_values +
-                                   field_infos[i].offset ) );
+                ASSIGN_UNION(typeu, field_infos[i].db_type,
+                             attr_address_c(p_source_attrset, i));
+                UNION_GET_VALUE(typeu, field_infos[i].db_type,
+                             attr_address_c(p_target_attrset, i));
             }
             else if ( field_infos[i].db_type == DB_STRIPE_ITEMS )
             {
                 /* free previous value if set */
                 if (attr_mask_test_index(&p_target_attrset->attr_mask, i))
-                    free_stripe_items((stripe_items_t *)((char*)&p_target_attrset->attr_values +
-                                                        field_infos[i].offset));
+                    free_stripe_items((stripe_items_t *)attr_address(p_target_attrset, i));
 
-                dup_stripe_items((stripe_items_t *)((char *)&p_target_attrset->attr_values + field_infos[i].offset),
-                                 (stripe_items_t *)((char *)&p_source_attrset->attr_values + field_infos[i].offset));
+                dup_stripe_items((stripe_items_t *)attr_address(p_target_attrset, i),
+                                 (stripe_items_t *)attr_address_c(p_source_attrset, i));
             }
-            else if ( field_infos[i].db_type == DB_STRIPE_INFO )
+            else if (field_infos[i].db_type == DB_STRIPE_INFO)
             {
-                memcpy( ( char * ) &p_target_attrset->attr_values + field_infos[i].offset,
-                        ( char * ) &p_source_attrset->attr_values + field_infos[i].offset,
-                        sizeof( stripe_info_t ) );
+                memcpy(attr_address(p_target_attrset, i),
+                       attr_address_c(p_source_attrset, i),
+                       sizeof(stripe_info_t));
             }
 
             attr_mask_set_index(&p_target_attrset->attr_mask, i);
@@ -1752,8 +1761,7 @@ void ListMgr_FreeAttrs(attr_set_t *p_set)
         if ((field_infos[i].db_type == DB_STRIPE_ITEMS)
             && attr_mask_test_index(&p_set->attr_mask, i))
         {
-            free_stripe_items((stripe_items_t *) ((char *) &p_set->attr_values +
-                                                  field_infos[i].offset));
+            free_stripe_items((stripe_items_t *)attr_address(p_set, i));
         }
     }
 #endif
@@ -1801,10 +1809,7 @@ attr_mask_t ListMgr_WhatDiff(const attr_set_t *p_tgt, const attr_set_t *p_src)
             {
                 /* diff the values */
                 DIFF_UNION(is_diff, field_infos[i].db_type,
-                           ((char *)&p_src->attr_values +
-                                field_infos[i].offset),
-                           ((char *)&p_tgt->attr_values +
-                                field_infos[i].offset));
+                           attr_address_c(p_src, i), attr_address_c(p_tgt, i));
                 if (is_diff)
                     attr_mask_set_index(&diff_mask, i);
             }
