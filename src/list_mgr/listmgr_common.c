@@ -1665,7 +1665,7 @@ void ListMgr_MergeAttrSets(attr_set_t *p_target_attrset, const attr_set_t *p_sou
     db_type_u      typeu;
 
     cookie = -1;
-    while ((i = attr_index_iter(0, &cookie)) != -1) /** @FIXME this function leaks */
+    while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         if ((update || !attr_mask_test_index(&p_target_attrset->attr_mask, i))
              && attr_mask_test_index(&p_source_attrset->attr_mask, i))
@@ -1679,6 +1679,7 @@ void ListMgr_MergeAttrSets(attr_set_t *p_target_attrset, const attr_set_t *p_sou
                     RBH_BUG("status flag is set but status array is not allocated");
 
                 sm_status_ensure_alloc(&p_target_attrset->attr_values.sm_status);
+                /* copy the values as-is (static const strings, not allocated) */
                 p_target_attrset->attr_values.sm_status[status_idx]
                     = p_source_attrset->attr_values.sm_status[status_idx];
             }
@@ -1700,6 +1701,7 @@ void ListMgr_MergeAttrSets(attr_set_t *p_target_attrset, const attr_set_t *p_sou
                 ASSIGN_UNION(typeu, field_type(i),
                              p_source_attrset->attr_values.sm_info[idx]);
 
+                /* duplicate the value to target */
                 p_target_attrset->attr_values.sm_info[idx] =
                     dup_value(field_type(i), typeu);
             }
@@ -1712,11 +1714,16 @@ void ListMgr_MergeAttrSets(attr_set_t *p_target_attrset, const attr_set_t *p_sou
                                  ( ( char * ) &p_target_attrset->attr_values +
                                    field_infos[i].offset ) );
             }
+#ifdef _LUSTRE
             else if ( field_infos[i].db_type == DB_STRIPE_ITEMS )
             {
-                memcpy( ( char * ) &p_target_attrset->attr_values + field_infos[i].offset,
-                        ( char * ) &p_source_attrset->attr_values + field_infos[i].offset,
-                        sizeof( stripe_items_t ) );
+                /* free previous value if set */
+                if (attr_mask_test_index(&p_target_attrset->attr_mask, i))
+                    free_stripe_items((stripe_items_t *)((char*)&p_target_attrset->attr_values +
+                                                        field_infos[i].offset));
+
+                dup_stripe_items((stripe_items_t *)((char *)&p_target_attrset->attr_values + field_infos[i].offset),
+                                 (stripe_items_t *)((char *)&p_source_attrset->attr_values + field_infos[i].offset));
             }
             else if ( field_infos[i].db_type == DB_STRIPE_INFO )
             {
@@ -1724,6 +1731,7 @@ void ListMgr_MergeAttrSets(attr_set_t *p_target_attrset, const attr_set_t *p_sou
                         ( char * ) &p_source_attrset->attr_values + field_infos[i].offset,
                         sizeof( stripe_info_t ) );
             }
+#endif
 
             attr_mask_set_index(&p_target_attrset->attr_mask, i);
         }

@@ -506,7 +506,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         i = 0;
         while ((smi = get_sm_instance(i)) != NULL)
         {
-            ATTR_MASK_INIT(&new_attrs); /* clean the mask without freeing sm_status */
+            ATTR_MASK_INIT(&new_attrs);
 
             if (NEED_GETSTATUS(p_op, i))
             {
@@ -533,18 +533,20 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
                         /* merge/update attributes */
                         ListMgr_MergeAttrSets(&p_op->fs_attrs, &new_attrs, true);
 
-                        /** @TODO
+                        /** @TODO RBHv3
                          * manage no_archive, no_release
                          * manage last_archive, last_restore (init: 0 if status is 'new')
                          * if entry is not supported: set extra_info.not_supp
                          */
                     }
+                    /* free allocated resources, once merged */
+                    ListMgr_FreeAttrs(&new_attrs);
                 }
             }
             i++;
         }
-        /* free allocated status, once merged */
-        sm_status_free(&new_attrs.attr_values.sm_status);
+        /* free allocated structs in merged attributes */
+        ListMgr_FreeAttrs(&merged_attrs);
     }
 
     /* readlink only for symlinks */

@@ -2309,7 +2309,7 @@ static recov_status_t backup_recover(struct sm_instance *smi,
     int rc;
     struct stat st_bk;
     struct stat st_dest;
-    recov_status_t success_status = RS_ERROR;
+    recov_status_t success_status;
     entry_id_t  parent_id;
     mode_t mode_create = 0;
     bool set_mode = false;
@@ -2317,8 +2317,10 @@ static recov_status_t backup_recover(struct sm_instance *smi,
     bool no_copy = false;
     bool compressed = false;
     char *name;
-    /* writable copy of input attrs */
-    attr_set_t attrs_old = *p_attrs_old_in;
+    attr_set_t attrs_old = ATTR_SET_INIT;
+
+    /* build writable copy of input attrs. */
+    ListMgr_MergeAttrSets(&attrs_old, p_attrs_old_in, true);
 
     /* if the entry is already specified, associate with the new fspath, if specified */
     if (already_recovered && VALID_FULLPATH(p_attrs_new))
@@ -2329,7 +2331,8 @@ static recov_status_t backup_recover(struct sm_instance *smi,
     {
         DisplayLog(LVL_MAJOR, TAG, "Missing mandatory attribute 'fullpath' for recover entry "
                    DFID, PFID(p_old_id));
-        return RS_ERROR;
+        success_status = RS_ERROR;
+        goto out;
     }
 
 #if 0 /* Code from RBHv2: keep it? */
@@ -2383,7 +2386,7 @@ static recov_status_t backup_recover(struct sm_instance *smi,
             set_backend_path(smi, p_attrs_new, bknew);
 
         /* @FIXME make backup_rebind return a recov_status */
-        return success_status;
+        goto out;
     }
 
     if (!ATTR_MASK_TEST(&attrs_old, type))
@@ -2396,9 +2399,10 @@ static recov_status_t backup_recover(struct sm_instance *smi,
             DisplayLog(LVL_MAJOR, TAG, "Cannot restore entry " DFID
                        ": '%s' not found in backend.", PFID(p_old_id), backend_path);
             if (rc == ENOENT)
-                return RS_NOBACKUP;
+                success_status = RS_NOBACKUP;
             else
-                return RS_ERROR;
+                success_status = RS_ERROR;
+            goto out;
         }
         stat_done = true;
 
@@ -2412,39 +2416,44 @@ static recov_status_t backup_recover(struct sm_instance *smi,
         else
         {
             DisplayLog(LVL_MAJOR, TAG, "%s has unsupported type", backend_path);
-            return RS_NOBACKUP;
+            success_status = RS_NOBACKUP;
+            goto out;
         }
     }
 
     /* create parent in filesystem in any case */
     if (create_parent_in_fs(fspath, &parent_id))
-        return RS_ERROR;
+    {
+        success_status = RS_ERROR;
+        goto out;
+    }
 
     if (!strcasecmp(ATTR(&attrs_old, type), STR_TYPE_DIR))
     {
         success_status = recov_dir(backend_path, fspath, &attrs_old, &set_mode);
         if (success_status != RS_NON_FILE)
-            return success_status;
+            goto out;
     }
     else if (!strcasecmp(ATTR(&attrs_old, type), STR_TYPE_LINK))
     {
         success_status = recov_symlink(backend_path, fspath, &attrs_old, &set_mode);
         if (success_status != RS_NON_FILE)
-            return success_status;
+            goto out;
     }
     else if (!strcasecmp(ATTR(&attrs_old, type), STR_TYPE_FILE))
     {
         success_status = recov_file(p_old_id, backend_path, fspath, &attrs_old,
                                     &set_mode, &compressed, &stat_done, &st_bk, &no_copy);
         if ((success_status != RS_FILE_EMPTY) && (success_status != RS_FILE_OK))
-            return success_status;
+            goto out;
     }
     else
     {
         /* type not supported */
         DisplayLog(LVL_CRIT, TAG, "Error: cannot restore entries with type '%s' (%s)",
                    ATTR(&attrs_old,type), fspath);
-        return RS_NOBACKUP;
+        success_status = RS_NOBACKUP;
+        goto out;
     }
 
     /* set owner, group */
@@ -2518,7 +2527,8 @@ static recov_status_t backup_recover(struct sm_instance *smi,
         rc = errno;
         DisplayLog(LVL_CRIT, TAG, "ERROR: lstat() failed on restored entry '%s': %s",
                    fspath, strerror(rc));
-        return RS_ERROR;
+        success_status = RS_ERROR;
+        goto out;
     }
 
     /* compare restored size and mtime with the one saved in the DB (for warning purpose)
@@ -2560,7 +2570,10 @@ static recov_status_t backup_recover(struct sm_instance *smi,
 
     rc = path2id(fspath, p_new_id, &st_dest);
     if (rc)
-        return RS_ERROR;
+    {
+        success_status = RS_ERROR;
+        goto out;
+    }
 
     /* set parent id */
     ATTR_MASK_SET(p_attrs_new, parent_id);
@@ -2620,12 +2633,16 @@ static recov_status_t backup_recover(struct sm_instance *smi,
         {
             DisplayLog(LVL_CRIT, TAG, "Error extracting directory path of '%s'",
                        BKPATH(p_attrs_new, smi));
-            return RS_ERROR;
+            success_status = RS_ERROR;
+            goto out;
         }
 
         rc = mkdir_recurse_clone_attrs(destdir, 0750, TO_BACKEND);
         if (rc)
-            return RS_ERROR;
+        {
+            success_status = RS_ERROR;
+            goto out;
+        }
 
         /* rename the entry in backend */
         if (strcmp(BKPATH(p_attrs_new, smi), backend_path) != 0)
@@ -2652,6 +2669,8 @@ static recov_status_t backup_recover(struct sm_instance *smi,
 #endif
     }
 
+out:
+    ListMgr_FreeAttrs(&attrs_old);
     return success_status;
 }
 

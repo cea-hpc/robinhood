@@ -330,6 +330,31 @@ void free_stripe_items(stripe_items_t *p_stripe_items)
     p_stripe_items->count = 0;
 }
 
+/** duplicate stripe information */
+int dup_stripe_items(stripe_items_t *p_stripe_out,
+                     const stripe_items_t *p_stripe_in)
+{
+    if (p_stripe_in == NULL || p_stripe_out == NULL)
+        return DB_INVALID_ARG;
+
+    p_stripe_out->count = p_stripe_in->count;
+
+    if (p_stripe_in->stripe == NULL)
+    {
+        p_stripe_out->stripe = NULL;
+        return 0;
+    }
+
+    p_stripe_out->stripe = MemAlloc(p_stripe_out->count
+                                    * sizeof(stripe_item_t));
+    if (p_stripe_out->stripe == NULL)
+        return DB_NO_MEMORY;
+
+    memcpy(p_stripe_out->stripe, p_stripe_in->stripe,
+           p_stripe_out->count * sizeof(stripe_item_t));
+    return 0;
+}
+
 /** check that validator is matching for a given entry */
 int ListMgr_CheckStripe(lmgr_t *p_mgr, const entry_id_t *p_id, int validator)
 {

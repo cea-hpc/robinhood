@@ -2059,8 +2059,6 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
                "Checking if entry %s matches policy rules",
                ATTR(&p_item->entry_attr, fullpath));
 
-    ATTR_MASK_INIT(&new_attr_set);
-
     if (!pol->descr->manage_deleted)
     {
         rc = check_entry(pol, lmgr, p_item, &new_attr_set);
@@ -2069,12 +2067,9 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
             policy_ack(&pol->queue, rc, &p_item->entry_attr, p_item->targeted);
             goto end;
         }
-
-        /* Merge with missing attrs from database */
-        ListMgr_MergeAttrSets(&new_attr_set, &p_item->entry_attr, false);
     }
-    else
-        new_attr_set = p_item->entry_attr;
+    /* In any case, complete with missing attrs from database */
+    ListMgr_MergeAttrSets(&new_attr_set, &p_item->entry_attr, false);
 
 #ifdef ATTR_INDEX_invalid
     /* From here, assume that entry is valid */
@@ -2361,6 +2356,8 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     }
 
   end:
+    ListMgr_FreeAttrs(&new_attr_set);
+
     if (free_item)
         free_queue_item(p_item);
     return;
