@@ -176,11 +176,11 @@ static void _set_mount_point(char *mntpnt)
         /* also get their fid */
 
         if (path2id(dot_lustre_dir, &dot_lustre_fid, NULL))
-            DisplayLog(LVL_MAJOR, "Error: failed to get FID for special directory <%s>",
+            DisplayLog(LVL_MAJOR, __func__, "Error: failed to get FID for special directory <%s>",
                        dot_lustre_dir);
 
         if (path2id(fid_dir, &fid_fid, NULL))
-            DisplayLog(LVL_MAJOR, "Error: failed to get FID for special directory <%s>",
+            DisplayLog(LVL_MAJOR, __func__, "Error: failed to get FID for special directory <%s>",
                        fid_dir);
 #endif
     }
