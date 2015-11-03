@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "9ab29df4_5d25b0c0",
+        "filename": "src/list_mgr/listmgr_stripe.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 348,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2015-11-03T16:28:19Z",
+      "side": 1,
+      "message": "No need to initialize the memory here, since there is a memcpy later.",
+      "revId": "04cd65683ac221e97c702ca5b15fc027075bcd40",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
