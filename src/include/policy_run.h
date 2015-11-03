@@ -64,9 +64,9 @@ typedef enum {
 
 typedef union
 {
-    unsigned long long volume;
-    unsigned long long count;
-    double             percent;
+    ull_t   volume;
+    ull_t   count;
+    double  percent;
 } threshold_u;
 
 typedef struct trigger_item_t
@@ -78,8 +78,8 @@ typedef struct trigger_item_t
     unsigned int list_size;
     time_t       check_interval;
 
-    unsigned int   max_action_nbr; /* overrides global config */
-    unsigned long long max_action_vol; /* overrides global config */
+    unsigned int max_action_nbr;
+    ull_t        max_action_vol;
 
     trigger_value_type_t hw_type;
     threshold_u          hw_u;
@@ -148,7 +148,7 @@ typedef struct policy_run_config_t
     unsigned int   db_request_limit;
 
     unsigned int   max_action_nbr; /* can also be specified in each trigger */
-    unsigned long long max_action_vol; /* can also be specified in each trigger */
+    ull_t          max_action_vol; /* can also be specified in each trigger */
 
     trigger_item_t *trigger_list;
     unsigned int   trigger_count;
@@ -276,7 +276,7 @@ typedef struct trigger_status__
     /* its usage, the last time it was checked for OST and global FS triggers */
     double         last_usage;
     /* for inode based thresholds */
-    unsigned long long last_count;
+    ull_t          last_count;
 } trigger_info_t;
 
 
@@ -313,7 +313,7 @@ extern policy_run_config_list_t run_cfgs;
 extern mod_cfg_funcs_t policy_run_cfg_hdlr;
 
 typedef union {
-    unsigned int index;
+    int         index;
     const char *name;
 } target_u;
 
@@ -322,10 +322,11 @@ typedef struct policy_opt_t
     policy_target_t target;
     run_flags_t     flags;
     target_u        optarg_u;
-    union
-    {
-        double  usage_pct; /* target pct used for purges */
-    } target_value_u;
+    double          usage_pct; /* target pct for purges */
+
+    /* limits from command line */
+    unsigned int    max_action_nbr;
+    ull_t           max_action_vol;
 } policy_opt_t;
 
 /**

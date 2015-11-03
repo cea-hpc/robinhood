@@ -1468,7 +1468,7 @@ static int targeted_run(policy_info_t *pol, const policy_opt_t *opt)
 #ifdef _LUSTRE
         || param.target == TGT_OST || param.target == TGT_POOL
 #endif
-        ) && opt->target_value_u.usage_pct != -1.0)
+        ) && opt->usage_pct != -1.0)
     {
         trigger_item_t trig;
         trigger_info_t info;
@@ -1481,7 +1481,7 @@ static int targeted_run(policy_info_t *pol, const policy_opt_t *opt)
         /* convert target level to target counter */
 
         /* build fake trigger */
-        mk_fake_trigger(&trig, param.target, opt->target_value_u.usage_pct);
+        mk_fake_trigger(&trig, param.target, opt->usage_pct);
 
         if (param.target == TGT_FS)
         {
@@ -1797,6 +1797,8 @@ int policy_module_start(policy_info_t *policy, /* out */
     if (rc)
         /* don't care about leaks here, as the program is going to exit */
         return rc;
+
+    /**  @TODO take max-count and max-vol parameters into account */
 
     /* Allocate and initialize trigger_info array
      * (only if there is no a specific target)
