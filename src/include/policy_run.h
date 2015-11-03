@@ -322,10 +322,11 @@ typedef struct policy_opt_t
     policy_target_t target;
     run_flags_t     flags;
     target_u        optarg_u;
-    union
-    {
-        double  usage_pct; /* target pct used for purges */
-    } target_value_u;
+    double          usage_pct; /* target pct for purges */
+
+    /* limits from command line */
+    unsigned int    max_action_nbr;
+    unsigned long long max_action_vol;
 } policy_opt_t;
 
 /**

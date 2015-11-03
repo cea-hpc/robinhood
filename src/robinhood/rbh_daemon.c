@@ -124,7 +124,7 @@ static struct option option_tab[] = {
 
     /* specifies a policy target */
     {"target", required_argument, NULL, 't'}, /* ost, pool, all, class, user, group, file... */
-    {"usage-target", required_argument, NULL, TGT_USAGE}, /* usage target FS, OST or pool */
+    {"target-usage", required_argument, NULL, TGT_USAGE}, /* target usage for FS, OST or pool */
 
     /* For policies, this forces to apply policy to files in policy scope,
      * by ignoring condition of policy rules and 'ignore' statements.
@@ -283,7 +283,7 @@ static const char *run_help =
 ", "_B"ost"B_":"_U"ost_idx"U_", "_B"pool"B_":"_U"poolname"U_
 #endif
     ".\n"
-    "    "  _B "--usage-target" B_ "=" _U"percent"U_ "\n"
+    "    "  _B "--target-usage" B_ "=" _U"percent"U_ "\n"
     "        For FS, OST or pool targets of purge policies, specifies the target disk usage (in percent).\n"
     "    " _B "-I" B_ ", " _B "--ignore-conditions"B_"\n"
     "        Apply policy to all entries in policy scope, without checking policy rule conditions.\n"
@@ -860,6 +860,30 @@ static void create_pid_file( const char *pid_file )
 
 }
 
+/** parse a target-usage parameter (float)
+ * @return 0 on success. errno value on failure.
+ */
+static int parse_target_usage(const char *str, double *val)
+{
+    char extra_chr[MAX_OPT_LEN];
+    int n;
+
+    /* parse float argument */
+    n = sscanf(str, "%lf%s", val, extra_chr);
+    if (n != 1 && n != 2)
+    {
+        fprintf(stderr, "ERROR: invalid target-usage '%s'. Float expected.\n", str);
+        return EINVAL;
+    }
+    if (n == 2 && strcmp(extra_chr, "\%") != 0)
+    {
+        fprintf(stderr, "ERROR: unexpected suffix '%s' in target-usage. "
+                "Only '%%' is allowed.\n", extra_chr);
+        return EINVAL;
+    }
+
+    return 0;
+}
 
 #define SET_ACTION_FLAG( _f_ )  do {                                    \
                                     if ( is_default_actions )           \
@@ -871,12 +895,12 @@ static void create_pid_file( const char *pid_file )
                                         *action_mask |= _f_;            \
                                 } while(0)
 
+/** parse options in robinhood command line */
 static int rh_read_parameters(const char *bin, int argc, char **argv,
                               int *action_mask, struct rbh_options *opt)
 {
     int            c, option_index = 0;
     bool           is_default_actions = true;
-    char           extra_chr[1024];
     char           err_msg[4096];
 
     *action_mask = DEFAULT_ACTION_MASK;
@@ -982,7 +1006,6 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
             break;
 
         case RUN_POLICIES:
-            SET_ACTION_FLAG(ACTION_MASK_RUN_POLICIES);
             /* avoid conflicts with check-policies */
             if (opt->flags & RUNFLG_CHECK_ONLY)
             {
@@ -999,20 +1022,39 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
             }
             else if (!EMPTY_STRING(opt->policy_string))
             {
-                /* not empty? may be a previous --run option (make sure it is consistent)*/
-                if (optarg == NULL || strcasecmp(opt->policy_string, optarg) != 0)
+                /* forbid using '--run' (without option)
+                 * together with '--run=policy1...' (with options) */
+                if (optarg == NULL)
                 {
-                    fprintf(stderr, "ERROR: multiple inconsistent --run parameters on command line.\n");
+                    fprintf(stderr, "ERROR: multiple inconsistent '--run' "
+                            "parameters on command line.\n");
                     return EINVAL;
                 }
-                else /* optarg not null and == policy_string */
-                    fprintf(stderr, "Warning: redundant --run parameters on command line.\n");
+                /* Concatenate with previous 'run' parameters, to allow specifying
+                 * --run=policy1 --run=policy2,...
+                 */
+                strncat(opt->policy_string, ",", sizeof(opt->policy_string)
+                        - strlen(opt->policy_string) - 1);
+                strncat(opt->policy_string, optarg, sizeof(opt->policy_string)
+                        - strlen(opt->policy_string) - 1);
             }
             else if (optarg != NULL && !EMPTY_STRING(optarg))
             {
+                /* was there a previous '--run' without policies? */
+                if (!is_default_actions &&
+                    (*action_mask) & ACTION_MASK_RUN_POLICIES)
+                {
+                    fprintf(stderr, "ERROR: multiple inconsistent '--run' or '--check-thresholds' "
+                            "parameters on command line.\n");
+                    return EINVAL;
+                }
+
                 rh_strncpy(opt->policy_string, optarg,
                            sizeof(opt->policy_string));
             }
+            /* Set it at the end, to check if a previous --run
+             * or --check-threshold was specified */
+            SET_ACTION_FLAG(ACTION_MASK_RUN_POLICIES);
             break;
 
         case 't':
@@ -1027,16 +1069,12 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
         case TGT_USAGE:
             if (opt->usage_target != TGT_NOT_SET)
             {
-                fprintf(stderr, "ERROR: multiple usage-target specified on command line.\n");
+                fprintf(stderr, "ERROR: multiple target-usage specified on command line.\n");
                 return EINVAL;
             }
             /* parse float argument */
-            if (sscanf(optarg, "%lf%s", &opt->usage_target, extra_chr) != 1)
-             {
-                fprintf(stderr, "Invalid argument: --usage-target=<target_usage> expected. "
-                        "E.g. --usage-target=10.00\n");
+            if (parse_target_usage(optarg, &opt->usage_target))
                 return EINVAL;
-            }
             break;
 
         case 's':
@@ -1125,11 +1163,11 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
             return EINVAL;
             break;
         case FORCE_OST_PURGE:
-            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=ost:<idx> --usage-target=<pct>\n",
+            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=ost:<idx> --target-usage=<pct>\n",
                     option_tab[option_index].name);
             return EINVAL;
         case FORCE_FS_PURGE:
-            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=all --usage-target=<pct>\n",
+            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=all --target-usage=<pct>\n",
                     option_tab[option_index].name);
             return EINVAL;
         case FORCE_CLASS_PURGE:
@@ -1182,86 +1220,7 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
     }
 
     return 0;
-}
-
-/** convert a comma-delimiter string of policy names to a array of policy indexes */
-static int policyopt2index_list(char *policyarg, unsigned int *count, int **list)
-{
-    int *l = NULL;
-    char *c;
-    char *arg;
-    int cnt, i, j;
-
-    if (EMPTY_STRING(policyarg) || !strcasecmp(policyarg, "all"))
-    {
-        /* return a l with all policies */
-        *count = policies.policy_count;
-        l = calloc(*count, sizeof(int));
-        if (!l)
-        {
-            fprintf(stderr, "ERROR: cannot allocate memory\n");
-            return ENOMEM;
-        }
-        for (i = 0; i < *count; i++)
-            l[i] = i;
-        *list = l;
-        return 0;
-    }
-
-    /* count delimiters to allocate the array */
-    cnt = 0;
-    for (c = policyarg; *c != '\0'; c++)
-    {
-        if (*c == ',')
-            cnt++;
-    }
-    *count = cnt + 1;
-    l = calloc(*count, sizeof(int));
-    if (l == NULL)
-    {
-        fprintf(stderr, "ERROR: cannot allocate memory\n");
-        return ENOMEM;
-    }
-
-    cnt = 0;
-    arg = policyarg;
-    while ((c = strtok(arg, ",")) != NULL)
-    {
-        arg = NULL;
-        if (!policy_exists(c, &(l[cnt])))
-        {
-            fprintf(stderr, "ERROR: policy '%s' is not declared in config file.\n", c);
-            free(l);
-            return EINVAL;
-        }
-        cnt++;
-    }
-    /* check parsed count */
-    if (cnt != *count)
-    {
-        fprintf(stderr, "ERROR: inconsistent policy count. Invalid syntax in policy option?\n");
-        free(l);
-        return EINVAL;
-    }
-    /* check duplicates */
-    for (i = 0; i < cnt; i++)
-    for (j = 0; j < cnt; j++)
-    {
-        if (i == j)
-            continue;
-        if (l[i] == l[j])
-        {
-            fprintf(stderr, "ERROR: duplicate policy in command line option: '%s'\n",
-                    policies.policy_list[l[i]].name);
-            free(l);
-            return EINVAL;
-        }
-    }
-    *list = l;
-    return 0;
-}
-
-
+} /* rh_read_parameters */
 
 #ifdef _LUSTRE
 #define TGT_HELP "Allowed values: 'all', 'user:<username>', 'group:<groupname>', 'file:<path>', 'class:<fileclass>', 'ost:<ost_idx>', 'pool:<poolname>'."
@@ -1269,9 +1228,8 @@ static int policyopt2index_list(char *policyarg, unsigned int *count, int **list
 #define TGT_HELP "Allowed values: 'all', 'user:<username>', 'group:<groupname>', 'file:<path>', 'class:<fileclass>'."
 #endif
 
-
 /** convert a target string option to a policy_opt_t structure */
-static int targetopt2policyopt(char *opt_string, double tgt_level, policy_opt_t *opt)
+static int policyopt_set_target(char *opt_string, policy_opt_t *opt)
 {
     char *next;
     char *c;
@@ -1285,7 +1243,6 @@ static int targetopt2policyopt(char *opt_string, double tgt_level, policy_opt_t 
     if (!strcasecmp(opt_string, "all"))
     {
         opt->target = TGT_FS;
-        opt->target_value_u.usage_pct = tgt_level; /* -1.0 is interpreted by triggers */
         return 0;
     }
 
@@ -1326,20 +1283,19 @@ static int targetopt2policyopt(char *opt_string, double tgt_level, policy_opt_t 
 #ifdef _LUSTRE
     else if (!strcasecmp(c, "ost"))
     {
-        char extra_chr[1024];
+        char extra_chr[MAX_OPT_LEN];
         opt->target = TGT_OST;
         if (sscanf(next, "%u%s", &opt->optarg_u.index, extra_chr) != 1)
         {
-            fprintf(stderr, "Invalid ost target specification: index expected. E.g. --target=ost:123\n");
+            fprintf(stderr, "Invalid ost target specification: index expected "
+                    "(base 10). E.g. --target=ost:42\n");
             return EINVAL;
         }
-        opt->target_value_u.usage_pct = tgt_level;
     }
     else if (!strcasecmp(c, "pool"))
     {
         opt->target = TGT_POOL;
         opt->optarg_u.name = next;
-        opt->target_value_u.usage_pct = tgt_level;
     }
 #endif
     else
@@ -1347,6 +1303,329 @@ static int targetopt2policyopt(char *opt_string, double tgt_level, policy_opt_t 
         fprintf(stderr, "Invalid target type '%s'. "TGT_HELP"\n", c);
         return EINVAL;
     }
+    return 0;
+}
+
+/** policy and options for each policy run */
+typedef struct run_item {
+    int           policy_index;
+    policy_opt_t  run_opt;
+} run_item_t;
+
+/** add a policy run to the list */
+static int add_policy_run(run_item_t **runs, unsigned int *count,
+                          const char *name, const policy_opt_t *opts)
+{
+    int index = -1;
+    run_item_t *prun;
+    int i;
+
+    /* opts should be policy specific or the default */
+    assert(opts != NULL);
+
+    if (!policy_exists(name, &index))
+    {
+        fprintf(stderr, "ERROR: policy '%s' is not declared in config file.\n",
+                name);
+        return EINVAL;
+    }
+
+    /** check duplicates */
+    for (i = 0; i < *count; i++)
+    {
+        if ((*runs)[i].policy_index == index)
+        {
+            fprintf(stderr, "ERROR: policy '%s' is invoked multiple times "
+                    "in '--run' arguments\n", name);
+            return EINVAL;
+        }
+    }
+
+    (*count)++;
+    *runs = realloc(*runs, *count * sizeof(run_item_t));
+
+    prun = &((*runs)[(*count) - 1]);
+    prun->policy_index = index;
+    prun->run_opt = *opts;
+
+    /* If any of the policy runs in a once shot run, assume all actions are
+     * one-shot. */
+    if (prun->run_opt.target != TGT_NONE)
+        options.flags |= RUNFLG_ONCE;
+
+    return 0;
+}
+
+/** parse a single argument for a policy run
+ * @param[in,out] opts  Policy options resulting from policy run arguments.
+ * @param[in,out] arg   String of the argument to be parsed.
+ * @param[in]     name  Policy name (for error messages).
+ * @param[in]     implicit true if the argument name is implicit (policy target).
+ */
+static int parse_policy_single_arg(policy_opt_t *opts, char *arg,
+                                   const char *name, bool implicit)
+{
+    char *val = strchr(arg, '=');
+    if (!val)
+    {
+        if (!implicit)
+        {
+            fprintf(stderr, "Invalid '--run' argument: missing parameter name "
+                    "at '%s' (policy '%s')\n", arg, name);
+            return EINVAL;
+        }
+        else
+        {
+            /* implicit arg name => arg is a policy target */
+            return policyopt_set_target(arg, opts);
+        }
+    }
+    *val = '\0';
+    val++;
+
+    if (!strcmp(arg, "target"))
+    {
+        return policyopt_set_target(val, opts);
+    }
+    else if (!strcmp(arg, "target-usage"))
+    {
+        return parse_target_usage(val, &opts->usage_pct);
+    }
+    else if (!strcmp(arg, "max-count"))
+    {
+        /* support for 'KMG...' suffixes */
+        uint64_t tmp = str2size(val);
+
+        if (tmp == (uint64_t)-1LL || tmp > UINT_MAX)
+        {
+            fprintf(stderr, "ERROR: invalid value '%s' for max-count: "
+                   "integer (32 bits) expected.\n", val);
+            return EINVAL;
+        }
+        opts->max_action_nbr = tmp;
+    }
+    else if (!strcmp(arg, "max-volume") || !strcmp(arg, "max-vol"))
+    {
+        /* parse val */
+        uint64_t tmp;
+        tmp = str2size(val);
+        if (tmp == (uint64_t)-1LL)
+        {
+            fprintf(stderr, "ERROR: invalid value '%s' for max-vol: "
+                   "<int>[KMGTPE] expected.\n", val);
+            return EINVAL;
+        }
+        opts->max_action_vol = tmp;
+    }
+    else
+    {
+        /* error */
+        fprintf(stderr, "ERROR: unexpected parameter name '%s' in run "
+                "arguments for policy '%s'.\n\t'target', 'target-usage', "
+                "'max-count', or 'max-vol' expected.\n", arg, name);
+        return EINVAL;
+    }
+
+    return 0;
+}
+
+
+/** parse a list of arguments for a policy run */
+static int parse_policy_args(policy_opt_t *opts, char *args, const char *name)
+{
+    char *curr = NULL;
+    char *param;
+    int rc;
+
+    param = strtok_r(args, ",", &curr);
+    if (!param)
+        return 0;
+
+    /* allow implicit parameter name for first argument (policy target) */
+    rc = parse_policy_single_arg(opts, param, name, true);
+    if (rc)
+        return rc;
+
+    while ((param = strtok_r(NULL, ",", &curr)))
+    {
+        /* don't allow implicit parameter name for next arguments */
+        rc = parse_policy_single_arg(opts, param, name, false);
+        if (rc)
+            return rc;
+    }
+
+    return 0;
+}
+
+/** Extract a list of arguments from a string
+ * like '(xxxxxxxxxxxx'),....
+ * @param[out] next is set to the next policy run string
+ *             or points to final '\0' if end of string is reached.
+ * @return an malloc'ated string that must be freed by the caller.
+ * @retval NULL on error.
+ */
+static char *extract_arg_list(const char *str, char **next)
+{
+    char *arg_end;
+    char *args_tmp;
+    int   arg_len;
+
+    /*  The first char is a '(' */
+    assert(str != NULL && str[0] == '(');
+
+    /*  Match the next ')' */
+    arg_end = strchr(str + 1, ')');
+    if (arg_end == NULL)
+    {
+        fprintf(stderr, "Error in policy run specification: unmatched "
+                "'(' in '%s'\n", str);
+        return NULL;
+    }
+    /* then ',' or '\0' is expected. */
+    if (arg_end[1] != ',' && arg_end[1] != '\0')
+    {
+        fprintf(stderr, "Error in policy run specification: ',' or "
+                "end of string expected after ')', but '%s' found\n",
+                arg_end + 1);
+        return NULL;
+    }
+
+    /* first args char is str + 1, last args char is arg_end - 1,
+     * length = last - first + 1
+     */
+    arg_len = (arg_end - 1) - (str + 1) + 1;
+    args_tmp = strndup(str + 1, arg_len);
+
+    if (arg_end[1] == ',')
+        /* skip ',' */
+        *next = arg_end + 2;
+    else
+        /* end of string reached */
+        *next = arg_end + 1;
+
+    return args_tmp;
+}
+
+
+/**
+ * Read the next policy in '--run' argument.
+ * @return Pointer to the next policy run string.
+ * @retvall NULL on error.
+ */
+static const char *read_next_policy_run(run_item_t **runs, unsigned int *count,
+                                        const char *param_str,
+                                        const policy_opt_t *default_opt)
+{
+    const char *curr;
+    char *name = NULL;
+    char *args = NULL;
+
+    assert(runs != NULL);
+    assert(count != NULL);
+    assert(param_str != NULL);
+    assert(default_opt != NULL);
+
+    /* stop at the first '(' or ',' */
+    for (curr = param_str;;curr++)
+    {
+        /* reached end of current run */
+        if (*curr == ',' || *curr == '\0')
+        {
+            name = strndup(param_str, curr - param_str);
+            if (!name)
+                return NULL;
+
+            if (add_policy_run(runs, count, name, default_opt))
+                goto err;
+
+            free(name);
+
+            /* return pointer to end-of-string or to the next policy run */
+            return (*curr == '\0') ? curr : curr + 1;
+        }
+        /* starting argument list */
+        if (*curr == '(')
+        {
+            char *next = NULL;
+            policy_opt_t opts = *default_opt;
+
+            name = strndup(param_str, curr - param_str);
+            if (!name)
+                return NULL;
+
+            args = extract_arg_list(curr, &next);
+            if (!args)
+                goto err;
+
+            /* parse arguments between parenthesis */
+            if (parse_policy_args(&opts, args, name))
+                goto err;
+
+            if (add_policy_run(runs, count, name, &opts))
+                goto err;
+
+            free(name);
+
+            return next;
+        }
+    }
+err:
+    free(name);
+    free(args);
+    return NULL;
+}
+
+/**
+ * Parse policy (--run) parameters.
+ * --run argument can be a list of comma-separated list of policy runs.
+ *  Each policy run can include a list of arguments between parenthesis,
+ *  and separated by commas.
+ *  Argument names can be explicit e.g. 'target=user:foo'
+ *  or implicit 'user:foo'. Arguments may depend on the target type.
+ *  Example:
+ *      --run=lhsm_archive(user:foo,max-count=100k),lhsm_release(ost:1,target-usage=85%)
+ *
+ *  Arguments from command line (e.g. --target=file:/x/y/z) are used
+ *  as default for policy runs that have no specified target.
+ */
+static int parse_policy_runs(run_item_t **runs, unsigned int *count,
+                             const char *param_str,
+                             const policy_opt_t *default_opt)
+{
+    const char *curr;
+    int i;
+
+    /* if no policy is specified (or "all") run them all. */
+    if (EMPTY_STRING(param_str) || !strcasecmp(param_str, "all"))
+    {
+        /* return the list of all policies */
+        *count = policies.policy_count;
+        *runs = calloc(*count, sizeof(run_item_t));
+        if (!runs)
+        {
+            fprintf(stderr, "ERROR: cannot allocate memory\n");
+            return -ENOMEM;
+        }
+        for (i = 0; i < *count; i++)
+        {
+            (*runs)[i].policy_index = i;
+            (*runs)[i].run_opt = *default_opt;
+        }
+        return 0;
+    }
+
+    /* split the string as: 'policy(args),policy(args),...' */
+    for (curr = param_str; curr != NULL && *curr != '\0';
+         curr = read_next_policy_run(runs, count, curr, default_opt))
+        /* noop */;
+
+    if (curr == NULL) /* error */
+        return -EINVAL;
+
+    /* Copyback general flag to policies */
+    for (i = 0; i < *count; i++)
+        (*runs)[i].run_opt.flags = options.flags;
+
     return 0;
 }
 
@@ -1362,9 +1641,11 @@ int main(int argc, char **argv)
     int            action_mask = 0;
     char           err_msg[4096];
 
-    int           *pol_idx = NULL; /* list of policy indexes */
-    unsigned int   policy_count = 0; /* number of policies in policy_index list */
-    policy_opt_t   policy_opt;
+    /* policy runs */
+    run_item_t *runs = NULL;
+    unsigned int run_count = 0;
+
+    policy_opt_t   default_policy_opt = {.target = TGT_NONE};
     const char    *bin;
 
     bin = rh_basename(argv[0]);
@@ -1443,23 +1724,20 @@ int main(int argc, char **argv)
 
     if (action_mask & ACTION_MASK_RUN_POLICIES)
     {
-        /* Parse policy string */
-        rc = policyopt2index_list(options.policy_string, &policy_count,
-                                  &pol_idx);
+        /* Parse 'target' option, if any.
+         * The resulting policy_opt is used as default for policy runs. */
+        rc = policyopt_set_target(options.target_string, &default_policy_opt);
         if (rc)
             exit(rc);
 
-        /* Parse target string */
-        rc = targetopt2policyopt(options.target_string,
-                                 options.usage_target, &policy_opt);
+        /* add usage target */
+        default_policy_opt.usage_pct = options.usage_target;
+
+        /* Parse 'run' arguments. */
+        rc = parse_policy_runs(&runs, &run_count, options.policy_string,
+                               &default_policy_opt);
         if (rc)
             exit(rc);
-
-        if (policy_opt.target != TGT_NONE)
-            options.flags |= RUNFLG_ONCE;
-
-        /* finalize policy options */
-        policy_opt.flags = options.flags;
     }
     else if (!EMPTY_STRING(options.target_string))
     {
@@ -1659,24 +1937,26 @@ int main(int argc, char **argv)
     {
         int i;
         /* allocate policy_run structure */
-        policy_run = calloc(policy_count, sizeof(policy_info_t));
+        policy_run = calloc(run_count, sizeof(policy_info_t));
         if (!policy_run)
         {
             DisplayLog(LVL_CRIT, MAIN_TAG, "Cannot allocate memory");
             exit(1);
         }
-        policy_run_cpt = policy_count;
+        policy_run_cpt = run_count;
 
-        for (i = 0; i < policy_count; i++)
+        for (i = 0; i < run_count; i++)
         {
+            unsigned int pol_idx = runs[i].policy_index;
+
             rc = policy_module_start(&policy_run[i],
-                                     &policies.policy_list[pol_idx[i]],
-                                     &run_cfgs.configs[pol_idx[i]],
-                                     &policy_opt);
+                                     &policies.policy_list[pol_idx],
+                                     &run_cfgs.configs[pol_idx],
+                                     &runs[i].run_opt);
             if (rc == ENOENT)
             {
                 DisplayLog(LVL_CRIT, MAIN_TAG, "Policy %s is disabled.",
-                           policies.policy_list[pol_idx[i]].name);
+                           policies.policy_list[pol_idx].name);
                 continue;
             }
             else if (rc)
@@ -1687,7 +1967,7 @@ int main(int argc, char **argv)
             else
             {
                 DisplayLog(LVL_VERB, MAIN_TAG, "Policy %s successfully initialized",
-                           policies.policy_list[pol_idx[i]].name);
+                           policies.policy_list[pol_idx].name);
                 /* Flush logs now, to have a trace in the logs */
                 FlushLogs();
             }
@@ -1702,7 +1982,7 @@ int main(int argc, char **argv)
                 running_mask = 0;
                 DisplayLog(LVL_MAJOR, MAIN_TAG,
                            "%s: policy run terminated (rc = %d).",
-                           policies.policy_list[pol_idx[i]].name,
+                           policies.policy_list[pol_idx].name,
                            rc);
             }
             else
