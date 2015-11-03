@@ -52,8 +52,8 @@ else
 	echo "Creating directory $RH_ROOT"
 fi
 
-SYNC_OPT="--run=migration --target=all --force-all"
-PURGE_OPT="--run=purge --target=all --usage-target=0"
+SYNC_OPT="--run=migration(all) --force-all"
+PURGE_OPT="--run=purge(all,target-usage=0)"
 
 if [ -z ${WITH_VALGRIND+x} ]; then
     VALGRIND=
@@ -6108,7 +6108,6 @@ function test_logs
 
 	# run a scan + alert check
 	if (( $stdio )); then
-		# FIXME change the syntax of policy run to allow both sync and alert run
 		$RH -f $RBH_CFG_DIR/$config_file --scan $extra_action --run=alert -I -l DEBUG --once >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error "scan error $(cat /tmp/rbh.stderr)"
 	else
         # detach and wait, else it will log to stderr by default
@@ -10308,7 +10307,7 @@ run_test 613m test_purge PurgeClass_LastModification.conf 20 9 "file.8" "--run=p
 run_test 613n test_purge PurgeClass_ExtendedAttribut.conf 0 9 "file.4" "--run=purge --target=all" "TEST_PURGE_CLASS_EXTENDED_ATTRIBUT"
 
 run_test 614a purge_OST PurgeStd_OST.conf 2 "file.3;file.4" "--run=purge --target=all" "TEST_PURGE_STD_OST"
-run_test 614b purge_OST PurgeOST.conf 2 "file.3;file.4" "--run=purge --target=ost:1 --usage-target=0" "TEST_PURGE_OST"
+run_test 614b purge_OST PurgeOST.conf 2 "file.3;file.4" "--run=purge --target=ost:1 --target-usage=0" "TEST_PURGE_OST"
 run_test 614c purge_OST PurgeClass_OST.conf 2 "file.3;file.4" "--run=purge --target=all" "TEST_PURGE_CLASS_OST"
 
 run_test 615a test_removing RemovingEmptyDir.conf "emptyDir" 11 "TEST_REMOVING_EMPTY_DIR"

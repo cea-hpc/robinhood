@@ -1130,7 +1130,7 @@ static int set_target_filter(const policy_info_t *pol, const policy_param_t *p_p
 
 #ifdef _LUSTRE
         case TGT_OST:   /* apply policies to the specified OST */
-            DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on OST #%u",
+            DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on OST #%d",
                        p_param->optarg_u.index);
 
             /* retrieve stripe info and stripe items */
