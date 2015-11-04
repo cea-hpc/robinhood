@@ -8600,12 +8600,6 @@ function trigger_purge_QUOTA_EXCEEDED
 
 	config_file=$1
 
-    if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No Purge trigger for this purpose: skipped"
-		set_skipped
-		return 1
-	fi
-
 	clean_logs
 
     if [ -z "$POSIX_MODE" ]; then
@@ -8660,12 +8654,6 @@ function trigger_purge_OST_QUOTA_EXCEEDED
         return 1
     fi
 
-    if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No Purge trigger for this purpose: skipped"
-		set_skipped
-		return 1
-	fi
-
 	clean_logs
 
 	echo "1-Create Pools ..."
@@ -8714,12 +8702,6 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
 
 	config_file=$1
 	usage=$2
-
-    if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No Purge trigger for this purpose: skipped"
-		set_skipped
-		return 1
-	fi
 
 	clean_logs
 
@@ -8857,12 +8839,6 @@ function test_purge
     purge_arr=$(echo $purge_list | tr ";" "\n")
     purgeOpt=$5
 
-    if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No Purge for this purpose: skipped"
-		set_skipped
-		return 1
-	fi
-
     # adapt the test for any root
     export MATCH_PATH2="$RH_ROOT/dir2/*"
     export MATCH_PATH1="$RH_ROOT/dir1/*"
@@ -8932,12 +8908,6 @@ function test_purge_tmp_fs_mgr
 	purge_list=$4
     purge_arr=$(echo $purge_list | tr ";" "\n")
     purgeOpt=$5
-
-    if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
-		echo "No Purge for this purpose: skipped"
-		set_skipped
-		return 1
-	fi
 
 	needPurge=0
 	((needPurge=10-countFinal))
@@ -9013,12 +8983,6 @@ function purge_OST
         set_skipped
         return 1
     fi
-
-    if (( ($is_hsmlite != 0) && ($shook == 0) )); then
-		echo "No Purge for this purpose: skipped"
-		set_skipped
-		return 1
-	fi
 
 	needPurge=0
 	((needPurge=4-countFinal))
