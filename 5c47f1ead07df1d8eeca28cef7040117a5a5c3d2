@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "9ab29df4_3421eefb",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1721,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2015-11-05T08:31:16Z",
+      "side": 1,
+      "message": "This makes the build fail for POSIX mode.",
+      "range": {
+        "startLine": 1721,
+        "startChar": 20,
+        "endLine": 1721,
+        "endChar": 37
+      },
+      "revId": "5c47f1ead07df1d8eeca28cef7040117a5a5c3d2",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
