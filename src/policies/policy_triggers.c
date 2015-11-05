@@ -467,7 +467,7 @@ static int check_trigger_type(trigger_item_t *t)
 #define min_param(_param,_config) (_param == 0?_config:MIN(_param,_config))
 
 /* Set limits for the policy run, according to global policy config
- * and trigger config->
+ * and trigger config.
  * Only override the present info when it is too high or not set.
  */
 static void set_limits(const policy_info_t *pol, const trigger_item_t *trig,
@@ -1462,7 +1462,8 @@ static int targeted_run(policy_info_t *pol, const policy_opt_t *opt)
 
     param.target = opt->target;
     param.optarg_u = opt->optarg_u;
-
+    param.target_ctr.count = opt->max_action_nbr;
+    param.target_ctr.vol = opt->max_action_vol;
 
     if ((param.target == TGT_FS
 #ifdef _LUSTRE
