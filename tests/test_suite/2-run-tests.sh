@@ -351,6 +351,21 @@ function ensure_init_backend()
 }
 
 
+function kill_from_pidfile
+{
+    if [ -f rh.pid ]; then
+        kill $(cat rh.pid)
+        sleep 1
+        # wait a second until it stops
+        if [ -f rh.pid ]; then
+            kill -9 $(cat rh.pid)
+            rm -f rh.pid
+        fi
+    fi
+    # security: drop old process
+	pkill -9 $PROC
+}
+
 POOL1=ost0
 POOL2=ost1
 POOL_CREATED=0
@@ -3436,6 +3451,104 @@ function test_action_params
     check_action_patterns rh_purge.log $id4 "echo" "$id4" "default" "4"
 }
 
+function test_manual_run
+{
+	config_file=$1
+    run_interval=$2
+    flavor=$3
+
+	if (( $is_lhsm + $is_hsmlite == 0 )); then
+		echo "HSM test only: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+
+    # create test files (2 for each rule)
+    for i in 1 2 3 4 5 11 12 13 14 15 ; do
+        touch $RH_ROOT/file.$i
+    done
+
+    # initial scan
+	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log ||
+        error "scan error"
+    check_db_error rh_scan.log
+
+    # policy rules specifies last_mod >= 1
+    sleep 1
+
+    case "$flavor" in
+    run)
+        cmd="--run" # run with arguments
+        bgr=1       # background run?
+        nb_run_migr=2  # nb migration run expected
+        nb_run_purge=2 # nb purge run expected
+        nb_items_migr=10 # nb migration actions
+        ;;
+    run_all)
+        cmd="--run=all"
+        bgr=1
+        nb_run_migr=2
+        nb_run_purge=2
+        nb_items_migr=10
+        ;;
+    run_migr)
+        cmd="--run=migration"
+        bgr=1
+        nb_run_migr=2
+        nb_run_purge=0
+        nb_items_migr=10
+        ;;
+    run_migr_tgt)
+        cmd="--run=migration(target=class:file2)"
+        bgr=0
+        nb_run_migr=1
+        nb_run_purge=0
+        nb_items_migr=2
+        ;;
+    run_migr_usage)
+         cmd="--run=migration(target=class:file1,target-usage=0%)"
+         bgr=0
+         nb_run_migr=1
+         nb_run_purge=0
+         nb_items_migr=2
+        ;;
+    run_both)
+        # run the 2 policies as one-shot cmds (first tgt1, then tgt2?)
+        cmd="--run=migration(user:root),purge(target=class:file1)"
+        bgr=0
+        nb_run_migr=1
+        nb_run_purge=1
+        nb_items_migr=10
+        ;;
+
+    # --run=policy(limits) => to be added with later patch (daemon)
+    # --run=policy1(target1,limit1),policy1(target2,limit2) => to be added with later patch (once shot)
+
+    esac
+
+    echo "run options: $cmd"
+    if [ $bgr = 1 ]; then
+        $RH -f $RBH_CFG_DIR/$config_file $cmd -l DEBUG -L rh_migr.log --detach \
+            --pid-file=rh.pid || error "starting background run"
+
+        # sleep 1.5 the run interval (2 runs should be started)
+        sleep $((3*$run_interval/2))
+        kill_from_pidfile
+    else
+        $RH -f $RBH_CFG_DIR/$config_file $cmd -l DEBUG -L rh_migr.log || \
+            error "starting run"
+    fi
+    
+    c=$(grep migration rh_migr.log | grep "Starting policy run" | wc -l)
+    (( c == $nb_run_migr )) || error "$nb_run_migr migration runs expected (found: $c)"
+    c=$(grep purge rh_migr.log | grep "Starting policy run" | wc -l)
+    (( c == $nb_run_purge )) || error "$nb_purge purge runs expected (found: $c)"
+
+    c=$(grep migration rh_migr.log | grep "Executing policy action" | wc -l)
+    (( c == $nb_items_migr )) || error "$nb_items_migr migration actions expected (found: $c)"
+}
 
 function test_cnt_trigger
 {
@@ -10190,6 +10303,12 @@ run_test 225  test_compress compress.conf "compressed archived files"
 run_test 226a  test_purge_lru lru_purge.conf last_access "test purge order (lru_sort_attr=last_access)"
 run_test 226b  test_purge_lru lru_purge.conf none "test purge order (lru_sort_attr=none)"
 run_test 227  test_action_params test_action_params.conf "custom policy actions and parameters"
+run_test 228a  test_manual_run test_run.conf 5 run "test manual policy runs (run)"
+run_test 228b  test_manual_run test_run.conf 5 run_all "test manual policy runs (run all)"
+run_test 228c  test_manual_run test_run.conf 5 run_migr "test manual policy runs (run migr.)"
+run_test 228d  test_manual_run test_run.conf 5 run_migr_tgt "test manual policy runs (run migr with target)"
+run_test 228e  test_manual_run test_run.conf 5 run_migr_usage "test manual policy runs (run migr with target usage)"
+run_test 228f  test_manual_run test_run.conf 5 run_both "test manual policy runs (run migr and purge with targets)"
 
 #### triggers ####
 
