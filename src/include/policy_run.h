@@ -78,8 +78,8 @@ typedef struct trigger_item_t
     unsigned int list_size;
     time_t       check_interval;
 
-    unsigned int   max_action_nbr; /* overrides global config */
-    unsigned long long max_action_vol; /* overrides global config */
+    unsigned int   max_action_nbr;
+    unsigned long long max_action_vol;
 
     trigger_value_type_t hw_type;
     threshold_u          hw_u;
