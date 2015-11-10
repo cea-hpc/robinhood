@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "7ac7a964_a46ee0c7",
+        "filename": "man/robinhood.1",
+        "patchSetId": 1
+      },
+      "lineNbr": 38,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2015-11-10T13:09:39Z",
+      "side": 1,
+      "message": "Note: full man page update in next patch",
+      "revId": "19ec845fb4e5abc0e43dc42a4f34963683c5f35c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
