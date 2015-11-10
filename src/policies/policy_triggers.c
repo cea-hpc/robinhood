@@ -468,20 +468,22 @@ static int check_trigger_type(trigger_item_t *t)
 
 /* Set limits for the policy run, according to global policy config
  * and trigger config.
- * Only override the present info when it is too high or not set.
+ * Only override the current info when it is too high or not set.
  */
 static void set_limits(const policy_info_t *pol, const trigger_item_t *trig,
                        counters_t *limit)
 {
     /* set policy run limits */
-    if ((trig != NULL) && (trig->max_action_nbr != 0)) /* trigger overrides the global policy config */
+    if ((trig != NULL) && (trig->max_action_nbr != 0))
         limit->count = min_param(limit->count, trig->max_action_nbr);
-    else if (pol->config->max_action_nbr != 0)
+
+    if (pol->config->max_action_nbr != 0)
         limit->count = min_param(limit->count, pol->config->max_action_nbr);
 
     if ((trig != NULL) && (trig->max_action_vol != 0))
         limit->vol = min_param(limit->vol, trig->max_action_vol);
-    else if (pol->config->max_action_vol != 0)
+
+    if (pol->config->max_action_vol != 0)
         limit->vol = min_param(limit->vol, pol->config->max_action_vol);
 }
 
