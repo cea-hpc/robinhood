@@ -13,7 +13,7 @@ if (($? != 0)); then
 fi
 
 if [[ -x $root/src/robinhood/$main ]]; then
-    $dir/cmd2man.sh $root/src/robinhood/$main "policy engine and statistics tool for large file systems" "$prefix-report(1), $prefix-find(1), $prefix-du(1), $prefix-diff(1)" | txt2man -v "Robinhood $VERSION" -t $main -s 1 -I dir -I mdt_idx -I attrset -I ost_index -I cfg_file -I output_file -I logfile -I loglevel -I pidfile -I user_name -I grp_name -I filepath -I policy1 -I policy2 -I percent | $dir/fix_man_options.sh > $root/man/$main.1
+    $dir/cmd2man.sh $root/src/robinhood/$main "policy engine and statistics tool for large file systems" "$prefix-report(1), $prefix-find(1), $prefix-du(1), $prefix-diff(1)" | txt2man -v "Robinhood $VERSION" -t $main -s 1 -I dir -I mdt_idx -I attrset -I ost_index -I cfg_file -I output_file -I logfile -I loglevel -I pidfile -I user_name -I grp_name -I filepath -I policy1 -I policy2 -I args -I pct -I tgt -I size -I nbr | $dir/fix_man_options.sh > $root/man/$main.1
 else
     echo "src/robinhood/$main is not built: can't generate man/$main.1" >&2
 fi
