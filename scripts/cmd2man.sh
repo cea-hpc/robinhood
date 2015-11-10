@@ -20,7 +20,9 @@ echo $(basename $cmd) "-" $descr
 $cmd --help |  sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g" |
      sed -e "s#^\([A-Z][a-z _\-]*:\) \(.*\)#\1\n    \2#" |
      sed -e "s#^\([A-Z][a-z _\-]*\):#\U\1#" |
-     sed -e "s#^USAGE\$#SYNOPSIS#" | perl -ne 'if (/^(\s+-[^\n]+)$/) { if ($opt == 1) {print "\n\n$1"} else { print "\n$1" }  $opt=1} elsif ($opt==1) {if ($_ =~ /^\b*([^\b]*)/) {print $1} else {print $_} $opt=0;} else { print $_ }'
+     sed -e "s#\[\(=[a-zA-Z0-9]*\)(#\1(#g" |
+     sed -e "s#^USAGE\$#SYNOPSIS#" |
+	perl -ne 'if (/^(\s+-[^\n]+)$/) { if ($opt == 1) {print "\n\n$1"} else { print "\n$1" }  $opt=1} elsif ($opt==1) {if ($_ =~ /^\b*([^\b]*)/) {print $1} else {print $_} $opt=0;} elsif ($opt == 2) {if ($_ =~ /^\b*([^\b]*)/) {print "\n$1"} else {print $_; $opt=0;}} elsif (/^(\s+args)$/) {print "\n$1"; $opt=2} else { print $_ }'
 
 if [[ -n $seealso ]]; then
     echo "SEE ALSO"

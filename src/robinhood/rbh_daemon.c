@@ -263,8 +263,12 @@ static const char *action_help =
     "        If "_U"mdt_idx"U_" is specified, only read ChangeLogs for the given MDT.\n"
     "        Else, start 1 changelog reader thread per MDT (with DNE).\n"
 #endif
-    "    " _B "--run" B_"[=" _U "policy1,policy2..." U_ "]\n"
-    "        Run the given policies. If no policy is specified (or 'all'), run all policies.\n"
+    "    " _B "--run" B_"[=all]\n"
+    "        Run all polices (based on triggers).\n"
+    "    " _B "--run" B_"=" _U"policy1"U_"("_U"args"U_"),"
+                             _U"policy2"U_"("_U"args"U_")...\n"
+    "        Run the given policies with the specified arguments. \n"
+    "        See \"Policy run options\" for details about "_U"args"U_".\n"
     "    " _B "-C" B_ " " _U"policy1,policy2..."U_", "
             _B "--check-thresholds" B_"[=" _U "policy1,policy2..." U_ "]\n"
     "        Only check trigger thresholds without applying policy actions.\n"
@@ -274,17 +278,30 @@ static const char *action_help =
 
 static const char *run_help =
     _B "Policy run options:" B_ "\n"
-    "    " _B "-t" B_" " _U"target"U_ ", " _B "--target" B_ "=" _U"target"U_ "\n"
-    "        Run the policies only on the specified target.\n"
-    "        Target specification can be one of:\n"
-    "           " _B"all"B_" (all entries), " _B"user"B_":"_U"username"U_", " _B"group"B_":"_U"grpname"U_",\n"
-    "           " _B"file"B_":"_U"path"U_", " _B"class"B_":"_U"fileclass"U_
+    "    " _U"args"U_ "\n"
+    "       Comma-separated list of <param>=<value>.\n"
+    "           e.g. --run=cleanup(target=user:foo,max-count=1000)\n"
+    "       The following parameters are allowed:\n"
+    "       "_B"target"B_"="_U"tgt"U_"\n"
+    "           Targeted subset of entries for the policy run.\n"
+    "           "_U"tgt"U_" can be one of:\n"
+    "               " _B"all"B_" (all entries), " _B"user"B_":"_U"username"U_", " _B"group"B_":"_U"grpname"U_",\n"
+    "               " _B"file"B_":"_U"path"U_", " _B"class"B_":"_U"fileclass"U_
 #ifdef _LUSTRE
-", "_B"ost"B_":"_U"ost_idx"U_", "_B"pool"B_":"_U"poolname"U_
+    ", "_B"ost"B_":"_U"ost_idx"U_", "_B"pool"B_":"_U"poolname"U_
 #endif
     ".\n"
-    "    "  _B "--target-usage" B_ "=" _U"percent"U_ "\n"
-    "        For FS, OST or pool targets of purge policies, specifies the target disk usage (in percent).\n"
+    "       "_B"max-count"B_"="_U"nbr"U_"\n"
+    "           Max number of actions to execute for a policy run.\n"
+    "       "_B"max-vol"B_"="_U"size"U_"\n"
+    "           Max volume of entries impacted by a policy run.\n"
+    "       "_B"target-usage"B_"="_U"pct"U_"\n"
+    "           Targeted filesystem or OST usage for a policy run, in percent.\n"
+    "\n"
+    "    " _B "-t" B_" " _U"tgt"U_ ", " _B "--target" B_ "=" _U"tgt"U_ "\n"
+    "        Specify the default target for policy runs (see target syntax above).\n"
+    "    "  _B "--target-usage" B_ "=" _U"pct"U_ "\n"
+    "       Specifies the default target disk usage (in pct) for 'all', 'ost' or 'pool' targets.\n"
     "    " _B "-I" B_ ", " _B "--ignore-conditions"B_"\n"
     "        Apply policy to all entries in policy scope, without checking policy rule conditions.\n"
     "    " _B "-F" B_ ", " _B "--force"B_"\n"
