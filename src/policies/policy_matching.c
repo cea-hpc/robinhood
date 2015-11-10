@@ -48,7 +48,7 @@
 #endif
 
 
-//#define _DEBUG_POLICIES 1
+#define _DEBUG_POLICIES 1
 
 
 static char   *ExtractParentDir(const char *file_path, char *out_buff)
