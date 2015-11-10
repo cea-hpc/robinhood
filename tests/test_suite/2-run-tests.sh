@@ -3522,9 +3522,8 @@ function test_manual_run
         nb_run_purge=1
         nb_items_migr=10
         ;;
-
-    # --run=policy(limits) => to be added with later patch (daemon)
-    # --run=policy1(target1,limit1),policy1(target2,limit2) => to be added with later patch (once shot)
+    ## --run=policy(limits) => to be added with later patch (daemon)
+    ## --run=policy1(target1,limit1),policy1(target2,limit2) => to be added with later patch (once shot)
 
     esac
 
@@ -3549,6 +3548,100 @@ function test_manual_run
     c=$(grep migration rh_migr.log | grep "Executing policy action" | wc -l)
     (( c == $nb_items_migr )) || error "$nb_items_migr migration actions expected (found: $c)"
 }
+
+# test policy limits at all levels (trigger, policy parameters, manual run...)
+function test_limits
+{
+	config_file=$1
+    flavor=$2
+
+	if (( $is_lhsm + $is_hsmlite == 0 )); then
+		echo "HSM test only: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+
+    # create test files (2 for each rule)
+    for i in 1 2 3 4 5 11 12 13 14 15 ; do
+        # 1MB each
+        dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=1 2>/dev/null
+    done
+
+    # 0 for no limit
+    export trig_cnt=0
+    export trig_vol=0
+    export param_cnt=0
+    export param_vol=0
+
+    case "$flavor" in
+    trig_cnt)
+        # check that a count limit specified in a trigger is taken into account
+        run_opt="--run=migration --once"
+        export trig_cnt=5
+        ;;
+    trig_vol)
+        # check that a size limit specified in a trigger is taken into account
+        run_opt="--run=migration --once"
+        export trig_vol="5MB"
+        ;;
+    param_cnt)
+        # check that a count limit specified in a policy parameter is taken into account
+        run_opt="--run=migration --once"
+        export param_cnt=5
+        ;;
+    param_vol)
+        # check that a size limit specified in a policy parameter is taken into account
+        run_opt="--run=migration --once"
+        export param_vol="5MB"
+        ;;
+    run_cnt)
+        # check that a count limit specified in a manual run is taken into account
+        run_opt="--run=migration(all,max-count=5)"
+        ;;
+    run_vol)
+        # check that a size limit specified in a manual run is taken into account
+        run_opt="--run=migration(all,max-vol=5MB)"
+        ;;
+    trig_param)
+        # check that if a limit is specified in trigger+policy parameter, we take the min
+        run_opt="--run=migration --once"
+        export trig_vol="7MB"
+        export param_vol="5MB"
+        ;;
+    trig_run)
+        # check that if a limit is specified in trigger+command line, we take the min
+        run_opt="--run=migration(all,max-count=5)"
+        export trig_vol="7MB"
+        ;;
+    param_run)
+        # check that if a limit is specified in command line+policy parameter, we take the min
+        run_opt="--run=migration(all,max-vol=7MB)"
+        export param_cnt="5"
+        ;;
+    esac
+
+    # initial scan
+	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log ||
+        error "scan error"
+    check_db_error rh_scan.log
+
+    # policy rules specifies last_mod >= 1
+    sleep 1
+
+
+    # we should get 5 actions / 5MB in all cases
+    $RH -f $RBH_CFG_DIR/$config_file $run_opt -l DEBUG -L rh_migr.log || \
+        error "starting run"
+    
+    [ "$DEBUG" = "1" ] && grep "run summary" rh_migr.log
+
+    c=$(grep "run summary" rh_migr.log | cut -d ";" -f 3 | awk '{print $1}')
+
+    (( c == 5 )) || error "5 actions expected (got $c)"
+}
+
 
 function test_cnt_trigger
 {
@@ -10309,6 +10402,15 @@ run_test 228c  test_manual_run test_run.conf 5 run_migr "test manual policy runs
 run_test 228d  test_manual_run test_run.conf 5 run_migr_tgt "test manual policy runs (run migr with target)"
 run_test 228e  test_manual_run test_run.conf 5 run_migr_usage "test manual policy runs (run migr with target usage)"
 run_test 228f  test_manual_run test_run.conf 5 run_both "test manual policy runs (run migr and purge with targets)"
+run_test 229a  test_limits test_limits.conf trig_cnt "test trigger limit on count"
+run_test 229b  test_limits test_limits.conf trig_vol "test trigger limit on volume"
+run_test 229c  test_limits test_limits.conf param_cnt "test parameter limit on count"
+run_test 229d  test_limits test_limits.conf param_vol "test parameter limit on volume"
+run_test 229e  test_limits test_limits.conf run_cnt "test run limit on count"
+run_test 229f  test_limits test_limits.conf run_vol "test run limit on volume"
+run_test 229g  test_limits test_limits.conf trig_param "test limit on both trigger and param"
+run_test 229h  test_limits test_limits.conf trig_run "test limit on both trigger and run"
+run_test 229i  test_limits test_limits.conf param_run "test limit on both param and run"
 
 #### triggers ####
 
