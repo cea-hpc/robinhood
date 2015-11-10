@@ -140,9 +140,11 @@ static struct criteria_descr_t {
     int   parsing_flags;
 } const criteria_descr[] = {
     [CRITERIA_TREE] =  {"tree", ATTR_MASK_fullpath, PT_STRING,
-                        PFLG_ALLOW_ANY_DEPTH | PFLG_NOT_EMPTY},
+                        PFLG_ALLOW_ANY_DEPTH | PFLG_NOT_EMPTY
+                        | PFLG_REMOVE_FINAL_SLASH},
     [CRITERIA_PATH] =  {"path", ATTR_MASK_fullpath, PT_STRING,
-                        PFLG_ALLOW_ANY_DEPTH | PFLG_NOT_EMPTY},
+                        PFLG_ALLOW_ANY_DEPTH | PFLG_NOT_EMPTY
+                        | PFLG_REMOVE_FINAL_SLASH},
     [CRITERIA_FILENAME] = {"name", ATTR_MASK_name, PT_STRING,
                         PFLG_NOT_EMPTY | PFLG_NO_SLASH},
     [CRITERIA_TYPE] =  {"type", ATTR_MASK_type, PT_TYPE, 0},
@@ -359,6 +361,9 @@ static int criteria2condition(const type_key_value *key_value,
                     return EINVAL;
                 }
             }
+            if ((flags & PFLG_REMOVE_FINAL_SLASH) && FINAL_SLASH(p_triplet->val.str))
+                 REMOVE_FINAL_SLASH(p_triplet->val.str);
+
             break;
 
         case PT_SIZE:
