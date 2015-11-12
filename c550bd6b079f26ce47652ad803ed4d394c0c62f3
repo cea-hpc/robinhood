@@ -1,0 +1,61 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "7ac7a964_2be4580c",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 318,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2015-11-12T08:31:08Z",
+      "side": 1,
+      "message": "return void * to avoid useless casts afterwards",
+      "revId": "c550bd6b079f26ce47652ad803ed4d394c0c62f3",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7ac7a964_ebe26002",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 320,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2015-11-12T08:31:08Z",
+      "side": 1,
+      "message": "(style) I\u0027m not fond of the superfluous parenthesis. What about:\n\nreturn (char *)\u0026attrs-\u003eattr_values + ...",
+      "range": {
+        "startLine": 320,
+        "startChar": 20,
+        "endLine": 320,
+        "endChar": 21
+      },
+      "revId": "c550bd6b079f26ce47652ad803ed4d394c0c62f3",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7ac7a964_6bee50ee",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 324,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2015-11-12T08:31:08Z",
+      "side": 1,
+      "message": "idem void*",
+      "revId": "c550bd6b079f26ce47652ad803ed4d394c0c62f3",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
