@@ -44,11 +44,12 @@ typedef struct global_config_t
     /* lock file */
     char           lock_file[RBH_PATH_MAX];
 
-    fs_key_t      fs_key;
+    fs_key_t       fs_key;
 
     /* behavior flags */
     int            stay_in_fs:1;
     int            check_mounted:1;
+    int            last_access_only_atime:1;
 
 #if defined( _LUSTRE ) && defined ( _MDS_STAT_SUPPORT )
     /** Direct stat to MDS on Lustre filesystems */

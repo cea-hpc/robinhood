@@ -54,6 +54,7 @@ int SetDefaultGlobalConfig( void *module_config, char *msg_out )
     rh_strncpy(conf->lock_file, "/var/locks/robinhood.lock", RBH_PATH_MAX);
     conf->stay_in_fs = TRUE;
     conf->check_mounted = TRUE;
+    conf->last_access_only_atime = FALSE;
     conf->fs_key = FSKEY_FSNAME;
 
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
@@ -77,6 +78,7 @@ int WriteGlobalConfigDefault( FILE * output )
     print_line( output, 1, "lock_file     :  \"/var/locks/robinhood.lock\"" );
     print_line( output, 1, "stay_in_fs    :  TRUE" );
     print_line( output, 1, "check_mounted :  TRUE" );
+    print_line( output, 1, "last_access_only_atime :  FALSE" );
 
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
     print_line( output, 1, "direct_mds_stat :   FALSE" );
@@ -92,7 +94,7 @@ int ReadGlobalConfig( config_file_t config, void *module_config, char *msg_out, 
     global_config_t *conf = ( global_config_t * ) module_config;
 
     static const char *allowed_params[] = {
-        "fs_path", "fs_type", "lock_file", "stay_in_fs", "check_mounted",
+        "fs_path", "fs_type", "lock_file", "stay_in_fs", "check_mounted", "last_access_only_atime",
         "direct_mds_stat", "fs_key",
 NULL
     };
@@ -163,6 +165,14 @@ NULL
     else if ( rc != ENOENT )
         conf->check_mounted = tmpval;
 
+    /* /!\ last_access_only_atime is a piece of bit field, it should not be passed directly: using tmpval instead */
+    rc = GetBoolParam( general_block, GLOBAL_CONFIG_BLOCK, "last_access_only_atime",
+                       0, &tmpval, NULL, NULL, msg_out );
+    if ( ( rc != 0 ) && ( rc != ENOENT ) )
+        return rc;
+    else if ( rc != ENOENT )
+        conf->last_access_only_atime = tmpval;
+
     /* fs_key param */
     char tmpstr[128];
     rc = GetStringParam( general_block, GLOBAL_CONFIG_BLOCK, "fs_key",
@@ -231,6 +241,13 @@ int ReloadGlobalConfig( void *module_config )
         global_config.check_mounted = conf->check_mounted;
     }
 
+    if ( global_config.last_access_only_atime != conf->last_access_only_atime )
+    {
+        DisplayLog( LVL_EVENT, "GlobalConfig", GLOBAL_CONFIG_BLOCK "::last_access_only_atime updated: %s->%s",
+                    bool2str( global_config.last_access_only_atime ), bool2str( conf->last_access_only_atime ) );
+        global_config.last_access_only_atime = conf->last_access_only_atime;
+    }
+
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
     if ( conf->direct_mds_stat != global_config.direct_mds_stat )
     {
@@ -274,6 +291,10 @@ int WriteGlobalConfigTemplate( FILE * output )
     fprintf( output, "\n" );
     print_line( output, 1, "# check that the filesystem is mounted" );
     print_line( output, 1, "check_mounted = TRUE ;" );
+    fprintf( output, "\n" );
+    print_line( output, 1, "# Set the last_access time by only the atime variable, and not MAX3(atime,mtime,ctime)" );
+    print_line( output, 1, "# There are no guarantees that all filesystems will correctly store atime" );
+    print_line( output, 1, "last_access_only_atime = FALSE ;" );
 
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
     fprintf( output, "\n" );
