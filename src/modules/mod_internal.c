@@ -71,7 +71,7 @@ copy_flags_e params2flags(const action_params_t *params)
     for (curr_param = copy_params; curr_param->name != NULL; curr_param++)
     {
         const char *val = rbh_param_get(params, curr_param->name);
-        if (val != NULL)
+        if ((val != NULL) && (str2bool(val) != 0))
             flg |= curr_param->flag;
     }
 
