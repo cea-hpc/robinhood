@@ -992,7 +992,8 @@ action_func_t mod_get_action_by_name(const char *action_name)
         return lhsm_archive;
     else if (strcmp(action_name, "lhsm.release") == 0)
         return lhsm_release;
-    else if (strcmp(action_name, "lhsm.hsm_remove") == 0)
+    else if (strcmp(action_name, "lhsm.hsm_remove") == 0
+             || strcmp(action_name, "lhsm.remove") == 0)
         return lhsm_remove;
     else
         return NULL;
