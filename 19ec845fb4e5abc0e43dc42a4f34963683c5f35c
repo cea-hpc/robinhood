@@ -36,6 +36,24 @@
     },
     {
       "key": {
+        "uuid": "7ac7a964_65af3be4",
+        "filename": "src/include/policy_run.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 328,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2015-11-20T10:43:12Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "7ac7a964_aba6a8bf",
+      "revId": "19ec845fb4e5abc0e43dc42a4f34963683c5f35c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "7ac7a964_eb87c00d",
         "filename": "src/robinhood/rbh_daemon.c",
         "patchSetId": 1
@@ -47,6 +65,30 @@
       "writtenOn": "2015-11-12T10:01:37Z",
       "side": 1,
       "message": "use %i (and int) here",
+      "range": {
+        "startLine": 1288,
+        "startChar": 26,
+        "endLine": 1288,
+        "endChar": 28
+      },
+      "revId": "19ec845fb4e5abc0e43dc42a4f34963683c5f35c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7ac7a964_65965b96",
+        "filename": "src/robinhood/rbh_daemon.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1288,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2015-11-20T10:43:12Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "7ac7a964_eb87c00d",
       "range": {
         "startLine": 1288,
         "startChar": 26,
@@ -82,6 +124,30 @@
     },
     {
       "key": {
+        "uuid": "7ac7a964_859377a2",
+        "filename": "src/robinhood/rbh_daemon.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1291,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2015-11-20T10:43:12Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "7ac7a964_0b7cfc1f",
+      "range": {
+        "startLine": 1291,
+        "startChar": 21,
+        "endLine": 1291,
+        "endChar": 30
+      },
+      "revId": "19ec845fb4e5abc0e43dc42a4f34963683c5f35c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "7ac7a964_8b048c7f",
         "filename": "src/robinhood/rbh_daemon.c",
         "patchSetId": 1
@@ -93,6 +159,24 @@
       "writtenOn": "2015-11-12T10:01:37Z",
       "side": 1,
       "message": "check for allocation failures",
+      "revId": "19ec845fb4e5abc0e43dc42a4f34963683c5f35c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7ac7a964_05ef671f",
+        "filename": "src/robinhood/rbh_daemon.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1345,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2015-11-20T10:43:12Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "7ac7a964_8b048c7f",
       "revId": "19ec845fb4e5abc0e43dc42a4f34963683c5f35c",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -116,6 +200,24 @@
     },
     {
       "key": {
+        "uuid": "7ac7a964_25f463f1",
+        "filename": "src/robinhood/rbh_daemon.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1368,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2015-11-20T10:43:12Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "7ac7a964_4bf2749b",
+      "revId": "19ec845fb4e5abc0e43dc42a4f34963683c5f35c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "7ac7a964_ab306857",
         "filename": "src/robinhood/rbh_daemon.c",
         "patchSetId": 1
@@ -127,6 +229,24 @@
       "writtenOn": "2015-11-12T10:01:37Z",
       "side": 1,
       "message": "missing blank line",
+      "revId": "19ec845fb4e5abc0e43dc42a4f34963683c5f35c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7ac7a964_45f95fe8",
+        "filename": "src/robinhood/rbh_daemon.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1410,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2015-11-20T10:43:12Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "7ac7a964_ab306857",
       "revId": "19ec845fb4e5abc0e43dc42a4f34963683c5f35c",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -167,6 +287,30 @@
       "writtenOn": "2015-11-12T10:01:37Z",
       "side": 1,
       "message": "Beware the lack of consistency between functions. Some return positive errno codes, others negative ones... (see parse_policy_single_arg)",
+      "range": {
+        "startLine": 1623,
+        "startChar": 16,
+        "endLine": 1623,
+        "endChar": 22
+      },
+      "revId": "19ec845fb4e5abc0e43dc42a4f34963683c5f35c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7ac7a964_45d07f50",
+        "filename": "src/robinhood/rbh_daemon.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1623,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2015-11-20T10:43:12Z",
+      "side": 1,
+      "message": "Done. All return positive errno.",
+      "parentUuid": "7ac7a964_eb88a0e9",
       "range": {
         "startLine": 1623,
         "startChar": 16,
