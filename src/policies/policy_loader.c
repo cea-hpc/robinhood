@@ -1245,6 +1245,10 @@ static int read_fileclass_block(config_item_t class_cfg, policies_t *p_policies,
     /* get fileclass name */
     class_name = rh_config_GetBlockId(class_cfg);
 
+#ifdef _DEBUG_POLICIES
+    printf("parsing fileclass '%s'\n", class_name);
+#endif
+
     if ((class_name == NULL) || (strlen(class_name) == 0))
     {
         sprintf(msg_out, "Fileclass name expected for block "
@@ -1263,6 +1267,9 @@ static int read_fileclass_block(config_item_t class_cfg, policies_t *p_policies,
     }
 
     fset = &p_policies->fileset_list[curr_idx];
+
+    /* initialize the slot */
+    memset(fset, 0, sizeof(*fset));
 
     rh_strncpy(fset->fileset_id, class_name, FILESET_ID_LEN);
 
@@ -1392,6 +1399,21 @@ static int read_fileclass_block(config_item_t class_cfg, policies_t *p_policies,
     return 0;
 }
 
+/** Resize the fileset array by adding 'count' slots */
+static int add_fileset_slots(policies_t *p_policies, int count)
+{
+    if (unlikely(count <= 0))
+        return 0;
+
+    p_policies->fileset_list =
+        (fileset_item_t *)realloc(p_policies->fileset_list,
+              (p_policies->fileset_count + count) * sizeof(fileset_item_t));
+    if (p_policies->fileset_list == NULL)
+        return ENOMEM;
+    p_policies->fileset_count += count;
+
+    return 0;
+}
 
 /** Read filesets block */
 static int read_filesets(config_file_t config, policies_t *p_policies,
@@ -1399,65 +1421,91 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
 {
     unsigned int   i;
     int            rc;
-    config_item_t  fileset_block;
 
-    /* get Filesets block */
-    rc = get_cfg_block(config, FILESETS_SECTION, &fileset_block, msg_out);
-    if (rc)
-        return rc == ENOENT ? 0 : rc; /* not mandatory */
-
-    /* initialize global attributes mask */
+    /* initialize global attributes mask and fileset list */
     p_policies->global_fileset_mask = null_mask;
+    p_policies->fileset_list = NULL;
+    p_policies->fileset_count = 0;
 
-    p_policies->fileset_count = rh_config_GetNbItems(fileset_block);
-
-    /* allocate the fileset list (1/sub-block) */
-    if (p_policies->fileset_count > 0)
+    /* rbh v3: allow specifying fileclass blocks in config file root */
+    for (i = 0; i < rh_config_GetNbBlocks(config); i++)
     {
-        p_policies->fileset_list =
-            (fileset_item_t *) calloc(p_policies->fileset_count,
-                                         sizeof(fileset_item_t));
-        if (p_policies->fileset_list == NULL)
-            return ENOMEM;
-    }
-    else
-        p_policies->fileset_list = NULL;
+        char *block_name;
+        int curr_idx, j;
+        config_item_t  root_block = rh_config_GetBlockByIndex(config, i);
+        critical_err_check(root_block, "root");
 
-    for (i = 0; i < p_policies->fileset_count; i++)
-    {
-        char          *block_name;
-        config_item_t  curr_class = rh_config_GetItemByIndex(fileset_block, i);
+        if (rh_config_ItemType(root_block) != CONFIG_ITEM_BLOCK)
+            continue;
 
-        critical_err_check_goto(curr_class, FILESETS_SECTION, rc,
-                                clean_filesets);
-
-        if (rh_config_ItemType(curr_class) != CONFIG_ITEM_BLOCK)
-        {
-            strcpy(msg_out,
-                   "Only "FILESET_BLOCK" sub-blocks are expected in "
-                   FILESETS_SECTION" section");
-            rc = EINVAL;
-            goto clean_filesets;
-        }
-        block_name = rh_config_GetBlockName(curr_class);
-        critical_err_check_goto(block_name, FILESETS_SECTION, rc,
-                                clean_filesets);
+        block_name = rh_config_GetBlockName(root_block);
+        critical_err_check(block_name, "root");
 
         if (!strcasecmp(block_name, FILESET_BLOCK))
         {
+            /* index of the new fileset is the current count */
+            curr_idx = p_policies->fileset_count;
+
+            /* add 1 fileclass slot */
+            rc = add_fileset_slots(p_policies, 1);
+            if (rc)
+                goto clean_filesets;
+
             /* read fileclass block contents */
-            rc = read_fileclass_block(curr_class, p_policies, i, msg_out);
+            rc = read_fileclass_block(root_block, p_policies, curr_idx, msg_out);
             if (rc)
                 goto clean_filesets;
         }
-        else
+        else if (!strcasecmp(block_name, FILESETS_SECTION))
         {
-            sprintf(msg_out, "'%s' sub-block unexpected in %s section, line %d.",
-                    block_name, FILESETS_SECTION, rh_config_GetItemLine(curr_class));
-            rc = EINVAL;
-            goto clean_filesets;
-        }
-    } /* end of "filesets" section */
+            int nb_sub_items; /**< nbr of fileclasses in the block */
+
+            /* first index of new filesets is the current count */
+            curr_idx = p_policies->fileset_count;
+
+            /* add as many slots as sub-blocks oin Filesets blocks. */
+            nb_sub_items = rh_config_GetNbItems(root_block);
+            rc = add_fileset_slots(p_policies, nb_sub_items);
+            if (rc)
+                goto clean_filesets;
+
+            for (j = 0; j < nb_sub_items; j++)
+            {
+                char *sub_block_name;
+                config_item_t  sub_item = rh_config_GetItemByIndex(root_block, j);
+                critical_err_check_goto(sub_item, FILESETS_SECTION, rc,
+                                        clean_filesets);
+
+                if (rh_config_ItemType(sub_item) != CONFIG_ITEM_BLOCK)
+                {
+                    strcpy(msg_out,
+                           "Only "FILESET_BLOCK" sub-blocks are expected in "
+                           FILESETS_SECTION" section");
+                    rc = EINVAL;
+                    goto clean_filesets;
+                }
+                sub_block_name = rh_config_GetBlockName(sub_item);
+                critical_err_check_goto(sub_block_name, FILESETS_SECTION, rc,
+                                        clean_filesets);
+
+                if (!strcasecmp(sub_block_name, FILESET_BLOCK))
+                {
+                    /* read fileclass block contents */
+                    rc = read_fileclass_block(sub_item, p_policies,
+                                              curr_idx + j, msg_out);
+                    if (rc)
+                        goto clean_filesets;
+                }
+                else
+                {
+                    sprintf(msg_out, "'%s' sub-block unexpected in %s section, line %d.",
+                            sub_block_name, FILESETS_SECTION, rh_config_GetItemLine(sub_item));
+                    rc = EINVAL;
+                    goto clean_filesets;
+                }
+            }
+        } /* end of "filesets" section */
+    }
 
     return 0;
 
@@ -2098,6 +2146,11 @@ static int read_policies(config_file_t config, void *cfg, char *msg_out)
     rc = read_filesets(config, pol, msg_out);
     if (rc)
         return rc;
+
+#ifdef _DEBUG_POLICIES
+    for (i = 0; i < pol->fileset_count; i++)
+        printf("> Fileclass '%s'\n", pol->fileset_list[i].fileset_id);
+#endif
 
     /* iterate on declared policies */
     for (i = 0; i < pol->policy_count; i++)
