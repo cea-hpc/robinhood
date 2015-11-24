@@ -25,6 +25,7 @@ RBH_OPT=""
 if [ -d "../../src/robinhood" ]; then
     CFG_SCRIPT="../../scripts/rbh-config"
     RBH_BINDIR="../../src/robinhood"
+    RBH_SBINDIR="../../src/robinhood"
     RBH_MODDIR=$(readlink -m "../../src/modules/.libs")
     export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$RBH_MODDIR
     RBH_TEMPLATE_DIR="../../doc/templates"
@@ -32,7 +33,8 @@ if [ -d "../../src/robinhood" ]; then
     RBH_CFG_DIR="./cfg"
 else
     CFG_SCRIPT="rbh-config"
-    RBH_BINDIR=${RBH_BINDIR:-"/usr/sbin"}
+    RBH_BINDIR=${RBH_BINDIR:-"/usr/bin"}
+    RBH_SBINDIR=${RBH_SBINDIR:-"/usr/sbin"}
     RBH_INSTALL_DIR=${RBH_INSTALL_DIR:-"/usr/share/robinhood"}
     RBH_TESTS_DIR="${RBH_INSTALL_DIR}/tests"
     RBH_CFG_DIR="$RBH_TESTS_DIR/test_suite/cfg"
@@ -66,14 +68,14 @@ else
     VALGRIND="valgrind --gen-suppressions=all --suppressions=valgrind.supp --leak-check=full --log-file=vg-test_%q{index}-%p.log"
 fi
 
-RH="$VALGRIND $RBH_BINDIR/robinhood $RBH_OPT"
-REPORT="$VALGRIND $RBH_BINDIR/rbh-report $RBH_OPT"
+RH="$VALGRIND $RBH_SBINDIR/robinhood $RBH_OPT"
+REPORT="$VALGRIND $RBH_SBINDIR/rbh-report $RBH_OPT"
 FIND="$VALGRIND $RBH_BINDIR/rbh-find"
 DU="$VALGRIND $RBH_BINDIR/rbh-du"
-DIFF="$VALGRIND $RBH_BINDIR/rbh-diff"
-RECOV="$VALGRIND $RBH_BINDIR/rbh-recov $RBH_OPT"
-UNDELETE="$VALGRIND $RBH_BINDIR/rbh-undelete"
-IMPORT="$VALGRIND $RBH_BINDIR/rbh-import $RBH_OPT"
+DIFF="$VALGRIND $RBH_SBINDIR/rbh-diff"
+RECOV="$VALGRIND $RBH_SBINDIR/rbh-recov $RBH_OPT"
+UNDELETE="$VALGRIND $RBH_SBINDIR/rbh-undelete"
+IMPORT="$VALGRIND $RBH_SBINDIR/rbh-import $RBH_OPT"
 CMD=robinhood
 ARCH_STR="migration success for"
 REL_STR="purge success for"
