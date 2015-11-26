@@ -6567,25 +6567,38 @@ function test_cfg_parsing
         echo robinhood > /etc/robinhood.d/.dbpassword
     fi
 
+	GEN_TEMPLATE="/tmp/template.$CMD"
 	if [[ $flavor == "basic" ]]; then
-		TEMPLATE=$RBH_TEMPLATE_DIR"/basic.conf"
+		cp -f "$RBH_TEMPLATE_DIR"/basic.conf "$GEN_TEMPLATE"
+		sed -i "s/fs_type = .*;/fs_type = $FS_TYPE;/" $GEN_TEMPLATE
 	elif [[ $flavor == "example" ]]; then
-		TEMPLATE=$RBH_TEMPLATE_DIR"/example.conf"
+		# example contains references to Lustre/HSM actions
+		if (( lhsm == 0 )); then
+			echo "Example uses Lustre/HSM"
+		        set_skipped
+		        return 1
+		fi
+		cp -f "$RBH_TEMPLATE_DIR"/example.conf "$GEN_TEMPLATE"
+		sed -i "s/fs_type = .*;/fs_type = $FS_TYPE;/" $GEN_TEMPLATE
 	elif [[ $flavor == "generated" ]]; then
-		GEN_TEMPLATE="/tmp/template.$CMD"
-		TEMPLATE=$GEN_TEMPLATE
-		$RH --template=$TEMPLATE || error "generating config template"
+		$RH --template=$GEN_TEMPLATE || error "generating config template"
 	else
 		error "invalid test flavor"
 		return 1
 	fi
+	# link to needed files for %includes
+	rm -f "/tmp/includes"
+	ln -s "$(readlink -m $RBH_TEMPLATE_DIR)"/includes /tmp/includes
 
 	# test parsing
-	$RH --test-syntax -f "$TEMPLATE" 2>rh_syntax.log >rh_syntax.log || error " reading config file \"$TEMPLATE\""
+	$RH --test-syntax -f "$GEN_TEMPLATE" 2>rh_syntax.log >rh_syntax.log || error " reading config file \"$GEN_TEMPLATE\""
 
 	cat rh_syntax.log
 	grep "unknown parameter" rh_syntax.log > /dev/null && error "unexpected parameter"
 	grep "read successfully" rh_syntax.log > /dev/null && echo "OK: parsing succeeded"
+
+	rm -f "$GEN_TEMPLATE"
+	rm -f "/tmp/includes"
 }
 
 function check_recov_status
