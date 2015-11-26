@@ -85,7 +85,8 @@ EXTRA_DIST= robinhood.spec robinhood.spec.in \
 	doc/templates_v3/includes/alerts.inc \
 	doc/templates_v3/includes/backup.inc \
 	doc/templates_v3/includes/rmdir.inc \
-	doc/templates_v3/template.conf \
+	doc/templates_v3/example.conf \
+	doc/templates_v3/basic.conf \
 	ChangeLog \
 	man/*.1
 

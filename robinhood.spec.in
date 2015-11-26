@@ -138,7 +138,8 @@ $RPM_BUILD_ROOT/%{_prefix}/sbin/robinhood -T $RPM_BUILD_ROOT/%{_sysconfdir}/robi
 install -m 644 doc/templates_v3/includes/lhsm.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes/
 %endif
 install -m 644 doc/templates_v3/includes/tmpfs.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes/
-install -m 644 doc/templates_v3/template.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates/
+install -m 644 doc/templates_v3/example.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates/
+install -m 644 doc/templates_v3/basic.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates/
 
 %if %{defined suse_version}
 install -m 755 scripts/robinhood.init.sles $RPM_BUILD_ROOT/%{_initrddir}/robinhood
@@ -260,12 +261,12 @@ ldconfig
 %dir %{_sysconfdir}/ld.so.conf.d
 %{_sysconfdir}/ld.so.conf.d/robinhood.conf
 
-%config %{_sysconfdir}/robinhood.d/templates/robinhood_detailed.conf
 %if %{with lhsm}
 %config %{_sysconfdir}/robinhood.d/includes/lhsm.inc
 %endif
 %config %{_sysconfdir}/robinhood.d/includes/tmpfs.inc
-%config %{_sysconfdir}/robinhood.d/templates/template.conf
+%config %{_sysconfdir}/robinhood.d/templates/example.conf
+%config %{_sysconfdir}/robinhood.d/templates/basic.conf
 
 %{_initrddir}/robinhood
 
