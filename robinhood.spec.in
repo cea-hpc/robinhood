@@ -1,24 +1,9 @@
-##
-# rpm macros for old systems < el5
-# (defined if bcond_with does not already exist)
-#
-%if %{?bcond_with:0}%{!?bcond_with:1}
-%define nil                    %{!?nil}
-%define defined()      %{expand:%%{?%{1}:1}%%{!?%{1}:0}}
-%define undefined()    %{expand:%%{?%{1}:0}%%{!?%{1}:1}}
-%define with()         %{expand:%%{?with_%{1}:1}%%{!?with_%{1}:0}}
-%define without()      %{expand:%%{?with_%{1}:0}%%{!?with_%{1}:1}}
-%define bcond_with()           %{expand:%%{?_with_%{1}:%%global with_%{1} 1}}
-%define bcond_without()        %{expand:%%{!?_without_%{1}:%%global with_%{1} 1}}
-%endif
-
-#####################################
-# define 'with' conditions
-%bcond_with lustre
-%bcond_with lhsm
-%bcond_with mysql
-%bcond_with sqlite
-%bcond_with backup
+# default ON
+%bcond_without lustre
+%bcond_without lhsm
+%bcond_without mysql
+%bcond_without backup
+# default OFF
 %bcond_with shook
 %bcond_with recovtools
 
@@ -41,14 +26,10 @@ Prefix: %{_prefix}
 %endif
 %endif
 
-%if %{with sqlite}
-%define db_dependant .sqlite
-%endif
-
-Release: @RELEASE@%{?config_dependant}%{?db_dependant}%{?dist}
+Release: @RELEASE@%{?config_dependant}%{?dist}
 
 
-Summary: Policy engine and reporting tool for large filesystems
+Summary: Robinhood - Policy engine and reporting tool for large filesystems
 License: CeCILL-C
 Group: Applications/System
 Url: http://robinhood.sourceforge.net
@@ -58,10 +39,8 @@ BuildRequires: glib2-devel >= 2.16
 BuildRequires: libattr-devel
 BuildRequires: mailx
 %if %{with lustre}
-%if %{defined lpackage}
-Requires: %{lpackage} >= %{lversion}
-BuildRequires: %{lpackage} >= %{lversion}
-%endif
+Requires: lustre >= %{lversion}
+BuildRequires: lustre >= %{lversion}
 %endif
 %if %{with mysql}
 BuildRequires: /usr/include/mysql/mysql.h
@@ -133,7 +112,6 @@ mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes
 mkdir -p $RPM_BUILD_ROOT/%{_initrddir}
 mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/ld.so.conf.d
 
-$RPM_BUILD_ROOT/%{_prefix}/sbin/robinhood -T $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates/robinhood_detailed.conf
 %if %{with lhsm}
 install -m 644 doc/templates_v3/includes/lhsm.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes/
 %endif
