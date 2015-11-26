@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "5ac4a560_d7f8eec6",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 318,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2015-11-26T09:31:33Z",
+      "side": 1,
+      "message": "Precisely, it is used in a context where a \"char *\" is expected. Changing this to \"void *\" results in many:\n \"warning: cast to pointer from integer of different size\"\nWhich would oblige to cast everywhere \"void *\" to \"char *\".",
+      "parentUuid": "7ac7a964_2be4580c",
+      "revId": "c550bd6b079f26ce47652ad803ed4d394c0c62f3",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "7ac7a964_ebe26002",
         "filename": "src/list_mgr/listmgr_common.c",
         "patchSetId": 3
@@ -30,6 +48,30 @@
       "writtenOn": "2015-11-12T08:31:08Z",
       "side": 1,
       "message": "(style) I\u0027m not fond of the superfluous parenthesis. What about:\n\nreturn (char *)\u0026attrs-\u003eattr_values + ...",
+      "range": {
+        "startLine": 320,
+        "startChar": 20,
+        "endLine": 320,
+        "endChar": 21
+      },
+      "revId": "c550bd6b079f26ce47652ad803ed4d394c0c62f3",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5ac4a560_170346b9",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 320,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2015-11-26T09:31:33Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "7ac7a964_ebe26002",
       "range": {
         "startLine": 320,
         "startChar": 20,
