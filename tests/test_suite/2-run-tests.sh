@@ -8911,6 +8911,13 @@ function test_purge_tmp_fs_mgr
     purge_arr=$(echo $purge_list | tr ";" "\n")
     purgeOpt=$5
 
+
+	if (( $is_lhsm > 0 )); then
+		echo "No link purge for Lustre/HSM"
+		set_skipped
+		return 1
+	fi
+
 	needPurge=0
 	((needPurge=10-countFinal))
 
