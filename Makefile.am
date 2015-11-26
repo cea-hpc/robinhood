@@ -31,12 +31,18 @@ endif
 
 if LUSTRE_HSM
   rpmbuild_opt += --with lhsm
+else
+  rpmbuild_opt += --without lhsm
 endif
 if SHOOK
   rpmbuild_opt += --with shook
+else
+  rpmbuild_opt += --without shook
 endif
 if HSM_LITE
   rpmbuild_opt += --with backup
+else
+  rpmbuild_opt += --without backup
 endif
 
 new: clean all
