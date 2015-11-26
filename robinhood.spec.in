@@ -113,11 +113,11 @@ mkdir -p $RPM_BUILD_ROOT/%{_initrddir}
 mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/ld.so.conf.d
 
 %if %{with lhsm}
-install -m 644 doc/templates_v3/includes/lhsm.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes/
+install -m 644 doc/templates/includes/lhsm.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes/
 %endif
-install -m 644 doc/templates_v3/includes/tmpfs.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes/
-install -m 644 doc/templates_v3/example.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates/
-install -m 644 doc/templates_v3/basic.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates/
+install -m 644 doc/templates/includes/tmpfs.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes/
+install -m 644 doc/templates/example.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates/
+install -m 644 doc/templates/basic.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates/
 
 %if %{defined suse_version}
 install -m 755 scripts/robinhood.init.sles $RPM_BUILD_ROOT/%{_initrddir}/robinhood
@@ -139,7 +139,7 @@ rm -f $RPM_BUILD_ROOT/%{_libdir}/robinhood/librbh_mod_*.la
 
 # Add an unmutable copy of the templates for the tests
 mkdir -p $RPM_BUILD_ROOT/%{_datadir}/robinhood/doc
-cp -a doc/templates doc/templates_v3 $RPM_BUILD_ROOT/%{_datadir}/robinhood/doc
+cp -a doc/templates $RPM_BUILD_ROOT/%{_datadir}/robinhood/doc
 
 %clean
 rm -rf $RPM_BUILD_ROOT
