@@ -4,10 +4,10 @@
 
 AC_PREREQ(2.59)
 
-AC_INIT( [robinhood], [2.99], [robinhood-support@lists.sourceforge.net])
-RELEASE="0.dev"
+AC_INIT( [robinhood], [3.0], [robinhood-support@lists.sourceforge.net])
+RELEASE="0.alpha1"
 
-AC_DEFINE_UNQUOTED(RELEASE, "$RELEASE", [release info] )
+AC_DEFINE_UNQUOTED(RELEASE, "$RELEASE", [release info])
 AC_SUBST(RELEASE)
 
 AC_CONFIG_AUX_DIR([autotools])
