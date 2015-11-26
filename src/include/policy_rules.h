@@ -187,9 +187,6 @@ typedef struct policy_descr_t {
     bool                manage_deleted; /* does this policy manage deleted entries */
 } policy_descr_t;
 
-/* template policy name */
-#define TEMPL_POLICY_NAME "rm_tmp"
-
 typedef struct policies_t
 {
     policy_descr_t  *policy_list;
