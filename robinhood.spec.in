@@ -608,7 +608,7 @@ Details:
 - [misc.] a gap in OST index list should displays a warning, not an error
 - [pkg] common spec file for both el4, el5 and el6
 
-* Tue Aug 27 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.0
+* Fri Aug 27 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.2.0
 - [feature] fileclass union/intersection/negation
 - [feature] rbh-report displays last matched fileclass
 - [feature] new reporting command '--class-info' generates fileclass summary
@@ -652,7 +652,7 @@ Details:
 - SQLite support
 - Prompting for database admin password in rh-config script
 
-* Fri Mar 03 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.1.2
+* Fri Mar 05 2010 Thomas Leibovici <thomas.leibovici@cea.fr> 2.1.2
 - Made RPM relocatable
 - New configuration helper script: "rh-config"
 - New reporting commands: Dump all files (--dump-all) and dump files
