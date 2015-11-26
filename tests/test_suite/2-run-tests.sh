@@ -87,7 +87,7 @@ if [[ -z "$PURPOSE" || $PURPOSE = "TMP"* ]]; then
     PURPOSE="TMP_FS_MGR"
     STATUS_MGR=none
     # get include for this flavor
-    cp -f ${RBH_TEMPLATE_DIR}_v3/includes/tmpfs.inc $RBH_TEST_POLICIES || exit 1
+    cp -f ${RBH_TEMPLATE_DIR}/includes/tmpfs.inc $RBH_TEST_POLICIES || exit 1
     # change policy names to the test framework names
     sed -e "s/cleanup/purge/" -i $RBH_TEST_POLICIES
 elif [[ $PURPOSE = "LUSTRE_HSM" ]]; then
@@ -96,7 +96,7 @@ elif [[ $PURPOSE = "LUSTRE_HSM" ]]; then
     shook=0
     STATUS_MGR=lhsm
     # get include for this flavor
-    cp -f ${RBH_TEMPLATE_DIR}_v3/includes/lhsm.inc $RBH_TEST_POLICIES || exit 1
+    cp -f ${RBH_TEMPLATE_DIR}/includes/lhsm.inc $RBH_TEST_POLICIES || exit 1
     # change policy names to the test framework names
     sed -e "s/lhsm_archive/migration/" -i $RBH_TEST_POLICIES
     sed -e "s/lhsm_release/purge/" -i $RBH_TEST_POLICIES
@@ -108,7 +108,7 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
     is_hsmlite=1
     STATUS_MGR=backup
     # get include for this flavor
-    cp -f ${RBH_TEMPLATE_DIR}_v3/includes/backup.inc $RBH_TEST_POLICIES || exit 1
+    cp -f ${RBH_TEMPLATE_DIR}/includes/backup.inc $RBH_TEST_POLICIES || exit 1
     # change policy names to the test framework names
     sed -e "s/backup_archive/migration/" -i $RBH_TEST_POLICIES
     sed -e "s/backup_remove/hsm_remove/" -i $RBH_TEST_POLICIES
@@ -128,7 +128,7 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
     shook=1
     STATUS_MGR=shook
     # get include for this flavor
-    INCLUDE="${RBH_TEMPLATE_DIR}_v3/includes/shook.inc"
+    INCLUDE="${RBH_TEMPLATE_DIR}/includes/shook.inc"
     # change policy names to the test framework names
     sed -e "s/shook_archive/migration/" -i $RBH_TEST_POLICIES
     sed -e "s/shook_release/purge/" -i $RBH_TEST_POLICIES
@@ -1645,6 +1645,17 @@ function test_custom_purge
 	echo "Inital scan..."
 	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log
 	check_db_error rh_scan.log
+
+    if (( $is_lhsm != 0 )); then
+        # Archive files to be able to release them afterward
+        flush_data
+        $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "flushing data to backend"
+
+        echo "Waiting for end of data migration..."
+        wait_done 120 || error "Migration timeout"
+        echo "update db content..."
+        $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "reading chglog"
+    fi
 
 	echo "Sleeping $sleep_time seconds..."
 	sleep $sleep_time
@@ -6555,31 +6566,10 @@ function test_cfg_parsing
     fi
 
 	if [[ $flavor == "basic" ]]; then
-
-		if (($is_hsmlite)) ; then
-			TEMPLATE=$RBH_TEMPLATE_DIR"/hsmlite_basic.conf"
-		elif (($is_lhsm)); then
-			TEMPLATE=$RBH_TEMPLATE_DIR"/hsm_policy_basic.conf"
-		else
-			TEMPLATE=$RBH_TEMPLATE_DIR"/tmp_fs_mgr_basic.conf"
-		fi
-
-	elif [[ $flavor == "detailed" ]]; then
-
-		if (($is_hsmlite)) ; then
-			TEMPLATE=$RBH_TEMPLATE_DIR"/hsmlite_detailed.conf"
-		elif (($is_lhsm)); then
-			TEMPLATE=$RBH_TEMPLATE_DIR"/hsm_policy_detailed.conf"
-		else
-			TEMPLATE=$RBH_TEMPLATE_DIR"/tmp_fs_mgr_detailed.conf"
-		fi
-
-    elif [[ $flavor == "templatev3" ]]; then
-
-		TEMPLATE=${RBH_TEMPLATE_DIR}_v3"/template.conf"
-
+		TEMPLATE=$RBH_TEMPLATE_DIR"/basic.conf"
+	elif [[ $flavor == "example" ]]; then
+		TEMPLATE=$RBH_TEMPLATE_DIR"/example.conf"
 	elif [[ $flavor == "generated" ]]; then
-
 		GEN_TEMPLATE="/tmp/template.$CMD"
 		TEMPLATE=$GEN_TEMPLATE
 		$RH --template=$TEMPLATE || error "generating config template"
@@ -6594,7 +6584,6 @@ function test_cfg_parsing
 	cat rh_syntax.log
 	grep "unknown parameter" rh_syntax.log > /dev/null && error "unexpected parameter"
 	grep "read successfully" rh_syntax.log > /dev/null && echo "OK: parsing succeeded"
-
 }
 
 function check_recov_status
@@ -10405,10 +10394,9 @@ run_test 500c	test_logs log3.conf stdio_nobatch 	"stdout and stderr without aler
 run_test 500d	test_logs log1b.conf file_batch 	"file logging with alert batching"
 run_test 500e	test_logs log2b.conf syslog_batch 	"syslog with alert batching"
 run_test 500f	test_logs log3b.conf stdio_batch 	"stdout and stderr with alert batching"
-run_test 501a 	test_cfg_parsing basic none		"parsing of basic template"
-run_test 501b 	test_cfg_parsing detailed none		"parsing of detailed template"
+run_test 501a 	test_cfg_parsing basic none		"parsing of Robinhood v3 basic.conf"
+run_test 501b 	test_cfg_parsing example none		"parsing of Robinhood v3 example.conf"
 run_test 501c 	test_cfg_parsing generated none		"parsing of generated template"
-run_test 501d 	test_cfg_parsing templatev3 none	"parsing of Robinhood v3 template"
 run_test 502a    recovery_test	test_recov.conf  full    1 "FS recovery"
 run_test 502b    recovery_test	test_recov.conf  delta   1 "FS recovery with delta"
 run_test 502c    recovery_test	test_recov.conf  rename  1 "FS recovery with renamed entries"
