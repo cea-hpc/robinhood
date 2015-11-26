@@ -117,7 +117,7 @@ static void policy_run_cfg_write_default(FILE *output)
 
 static void policy_run_cfg_write_template(FILE *output)
 {
-    print_begin_block(output, 0, TEMPL_POLICY_NAME PARAM_SUFFIX, NULL);
+    print_line(output, 0, "#<policy>" PARAM_SUFFIX " {");
     print_line(output, 1, "# sort order for applying the policy (overrides ");
     print_line(output, 1, "# default_lru_sort_attr from policy definition)");
     print_line(output, 1, "#lru_sort_attr = last_access ;");
@@ -128,7 +128,7 @@ static void policy_run_cfg_write_template(FILE *output)
     print_line(output, 1, "#max_action_volume = 10TB ;");
     fprintf(output, "\n");
     print_line(output, 1, "# nbr of threads to execute policy actions" );
-    print_line(output, 1, "nb_threads = 8;");
+    print_line(output, 1, "#nb_threads = 8;");
     fprintf(output, "\n");
     print_line(output, 1, "# suspend current run if 50%% of actions fail (after 100 errors):");
     print_line(output, 1, "#suspend_error_pct = 50%% ;");
@@ -150,7 +150,7 @@ static void policy_run_cfg_write_template(FILE *output)
     print_line(output, 1, "#recheck_ignored_classes = no;" );
     fprintf(output, "\n");
     print_line(output, 1, "# report actions to report log file?");
-    print_line(output, 1, "report_actions = yes;");
+    print_line(output, 1, "# report_actions = yes;");
     fprintf(output, "\n");
     print_line(output, 1, "# pre-maintenance feature parameters");
     print_line(output, 1, "# 0 to disable this feature");
@@ -160,7 +160,7 @@ static void policy_run_cfg_write_template(FILE *output)
     print_line(output, 1, "# internal/tuning parameters");
     print_line(output, 1, "#queue_size = 4096;");
     print_line(output, 1, "#db_result_size_max = 100000;");
-    print_end_block(output, 0);
+    print_line(output, 0, "#}");
     fprintf(output, "\n");
 
     /* @TODO Add template triggers */

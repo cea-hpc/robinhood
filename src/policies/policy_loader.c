@@ -548,64 +548,61 @@ static int write_default_policy(FILE * output, policy_type_t policy_type)
 
 static int write_template_filesets(FILE * output)
 {
-    fprintf(output, "#### File Class definitions ####\n\n");
+    fprintf(output, "#### Fileclasses definitions ####\n\n");
+    print_begin_block(output, 0, FILESET_BLOCK, "Experiment_A");
 
-    print_begin_block(output, 0, FILESETS_SECTION, NULL);
-
-    print_begin_block(output, 1, FILESET_BLOCK, "Experiment_A");
-
-    print_begin_block(output, 2, DEFINITION_BLOCK, NULL);
+    print_begin_block(output, 1, DEFINITION_BLOCK, NULL);
     print_line(output, 3, "tree == \"/mnt/lustre/dir_A\"");
-    print_end_block(output, 2);
+    print_end_block(output, 1);
 
 #ifdef HAVE_MIGR_POLICY
-    print_line(output, 2, "# arbitrary parameters to pass to the migration command");
-    print_line(output, 2, "migration_action_params {");
-    print_line(output, 2, "    cos      = 3;");
-    print_line(output, 2, "    priority = 2;");
-    print_line(output, 2, "}");
+    print_line(output, 1, "# arbitrary parameters to pass to the migration command");
+    print_line(output, 1, "migration_action_params {");
+    print_line(output, 1, "    cos      = 3;");
+    print_line(output, 1, "    priority = 2;");
+    print_line(output, 1, "}");
 #endif
 #ifdef _LUSTRE_HSM
-    print_line(output, 2, "# target archive");
-    print_line(output, 2, "lhsm_archive_params { archive_id = 1; }");
+    print_line(output, 1, "# target archive");
+    print_line(output, 1, "lhsm_archive_action_params { archive_id = 1; }");
 #endif
-    print_end_block(output, 1);
+    print_end_block(output, 0);
 
     fprintf(output, "\n");
 
-    print_begin_block(output, 1, FILESET_BLOCK, "visualization");
+    print_begin_block(output, 0, FILESET_BLOCK, "visualization");
 
-    print_begin_block(output, 2, DEFINITION_BLOCK, NULL);
+    print_begin_block(output, 1, DEFINITION_BLOCK, NULL);
     print_line(output, 3, "tree == \"/mnt/lustre/dir_*\"");
     print_line(output, 3, "and");
     print_line(output, 3, "xattr.user.tag_visu == 1");
-    print_end_block(output, 2);
+    print_end_block(output, 1);
 
 #ifdef HAVE_MIGR_POLICY
-    print_line(output, 2, "# arbitrary parameters to pass to the migration command");
-    print_line(output, 2, "migration_action_params {");
-    print_line(output, 2, "    cos      = 4;");
-    print_line(output, 2, "    priority = 5;");
-    print_line(output, 2, "}");
+    print_line(output, 1, "# arbitrary parameters to pass to the migration command");
+    print_line(output, 1, "migration_action_params {");
+    print_line(output, 1, "    cos      = 4;");
+    print_line(output, 1, "    priority = 5;");
+    print_line(output, 1, "}");
 #endif
 #ifdef _LUSTRE_HSM
     fprintf(output, "\n");
-    print_line(output, 2, "# target archive");
-    print_line(output, 2, "lhsm_archive_action_params { \"archive_id=2\" ; }");
+    print_line(output, 1, "# target archive");
+    print_line(output, 1, "lhsm_archive_action_params { archive_id = 2 ; }");
 #endif
-    print_end_block(output, 1);
+    print_end_block(output, 0);
     fprintf(output, "\n");
 
 #ifdef _LUSTRE
-    print_begin_block(output, 1, FILESET_BLOCK, "pool_ssd");
+    print_begin_block(output, 0, FILESET_BLOCK, "pool_ssd");
 
-    print_begin_block(output, 2, DEFINITION_BLOCK, NULL);
+    print_begin_block(output, 1, DEFINITION_BLOCK, NULL);
     print_line(output, 3, "ost_pool == \"ssd*\"");
-    print_end_block(output, 2);
     print_end_block(output, 1);
+    print_end_block(output, 0);
     fprintf(output, "\n");
-    print_begin_block(output, 1, FILESET_BLOCK, "ost_set");
-    print_begin_block(output, 2, DEFINITION_BLOCK, NULL);
+    print_begin_block(output, 0, FILESET_BLOCK, "ost_set");
+    print_begin_block(output, 1, DEFINITION_BLOCK, NULL);
     print_line(output, 3, "# condition on ost_index is true");
     print_line(output, 3, "# if one of the storage objects of the file");
     print_line(output, 3, "# matches each condition:");
@@ -618,22 +615,19 @@ static int write_template_filesets(FILE * output)
     print_line(output, 3, "ost_index == 1 or ost_index == 2 or");
     print_line(output, 3, "ost_index == 1 or ost_index == 2 or");
     print_line(output, 3, "ost_index == 3 or ost_index == 4");
-    print_end_block(output, 2);
     print_end_block(output, 1);
+    print_end_block(output, 0);
     fprintf(output, "\n");
 #endif
 
-    print_line(output, 1, "# defining fileclass as a union or intersection:");
-    print_begin_block(output, 1, FILESET_BLOCK, "visu_expA");
-    print_begin_block(output, 2, DEFINITION_BLOCK, NULL);
+    print_line(output, 0, "# defining fileclass as a union or intersection:");
+    print_begin_block(output, 0, FILESET_BLOCK, "visu_expA");
+    print_begin_block(output, 1, DEFINITION_BLOCK, NULL);
     print_line(output, 2, "visualization inter Experiment_A");
-    print_end_block(output, 2);
     print_end_block(output, 1);
-    fprintf(output, "\n");
-
     print_end_block(output, 0);
-
     fprintf(output, "\n");
+
 
     return 0;
 }
@@ -2165,6 +2159,16 @@ static int read_policies(config_file_t config, void *cfg, char *msg_out)
 
 static void write_policy_template(FILE *output)
 {
+#ifdef _LUSTRE_HSM
+    print_line(output, 0, "# Load policy definitions for Lustre/HSM");
+    print_line(output, 0, "%%include \"includes/lhsm.inc\"");
+    fprintf(output, "\n");
+#else
+    print_line(output, 0, "# Load policy definitions for tmp filesystem cleanup");
+    print_line(output, 0, "%%include \"includes/tmpfs.inc\"");
+    fprintf(output, "\n");
+#endif
+
     write_template_filesets(output);
 
 // FIXME write policy templates
