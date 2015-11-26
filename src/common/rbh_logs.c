@@ -965,7 +965,7 @@ static void log_cfg_set_default(void *module_config)
 
     conf->debug_level = LVL_EVENT;
     rh_strncpy(conf->log_file, "/var/log/robinhood.log", RBH_PATH_MAX);
-    rh_strncpy(conf->report_file, "/var/log/robinhood_reports.log", RBH_PATH_MAX);
+    rh_strncpy(conf->report_file, "/var/log/robinhood_actions.log", RBH_PATH_MAX);
 
     rh_strncpy(conf->alert_file, "/var/log/robinhood_alerts.log", 1024);
     conf->alert_mail[0] = '\0';
@@ -987,7 +987,7 @@ static void log_cfg_write_default(FILE * output)
     print_begin_block(output, 0, RBH_LOG_CONFIG_BLOCK, NULL);
     print_line(output, 1, "debug_level    :   EVENT");
     print_line(output, 1, "log_file       :   \"/var/log/robinhood.log\"");
-    print_line(output, 1, "report_file    :   \"/var/log/robinhood_reports.log\"");
+    print_line(output, 1, "report_file    :   \"/var/log/robinhood_actions.log\"");
     print_line(output, 1, "alert_file     :   \"/var/log/robinhood_alerts.log\"");
     print_line(output, 1, "syslog_facility:   local1.info");
     print_line(output, 1, "stats_interval :   15min");
@@ -1010,7 +1010,7 @@ static void log_cfg_write_template(FILE * output)
     print_line(output, 1, "log_file = \"/var/log/robinhood.log\" ;");
     fprintf(output, "\n");
     print_line(output, 1, "# File for reporting purge events");
-    print_line(output, 1, "report_file = \"/var/log/robinhood_reports.log\" ;");
+    print_line(output, 1, "report_file = \"/var/log/robinhood_actions.log\" ;");
     fprintf(output, "\n");
     print_line(output, 1, "# set alert_file, alert_mail or both depending on the alert method you wish");
     print_line(output, 1, "alert_file = \"/var/log/robinhood_alerts.log\" ;");
