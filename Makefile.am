@@ -82,17 +82,11 @@ mans:
 
 EXTRA_DIST= robinhood.spec robinhood.spec.in \
 	autogen.sh \
-	doc/templates \
 	LICENSE.fr.txt LICENSE.en.txt README.tmp_fs_mgr README.Lustre_HSM \
 	doc/admin_guides \
 	doc/install_webgui.txt \
-	doc/templates_v3/includes/lhsm.inc \
-	doc/templates_v3/includes/tmpfs.inc \
-	doc/templates_v3/includes/alerts.inc \
-	doc/templates_v3/includes/backup.inc \
-	doc/templates_v3/includes/rmdir.inc \
-	doc/templates_v3/example.conf \
-	doc/templates_v3/basic.conf \
+	doc/templates/includes/*.inc \
+	doc/templates/*.conf \
 	ChangeLog \
 	man/*.1
 
