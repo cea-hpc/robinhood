@@ -196,6 +196,7 @@ stop_fs()
 			done
 			#[ -d /proc/$pid ] && initlog $INITLOG_ARGS -c "/bin/kill -9 $pid" "$label"
 			[ -d /proc/$pid ] && action "Force shutdown of Robinhood for $conf ..." /bin/kill -9 $pid
+			sleep 1
 			echo -n "Checking process status ..."
 			if [ -d /proc/$pid ] ; then
 				echo_failure
