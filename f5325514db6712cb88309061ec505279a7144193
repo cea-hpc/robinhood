@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5ac4a560_ea512fd9",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 262,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2015-12-15T10:16:31Z",
+      "side": 1,
+      "message": "Arf, landed to quickly...\nThis actually doesn\u0027t filter actions as expected.",
+      "range": {
+        "startLine": 262,
+        "startChar": 26,
+        "endLine": 262,
+        "endChar": 34
+      },
+      "revId": "f5325514db6712cb88309061ec505279a7144193",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
