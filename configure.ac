@@ -133,7 +133,7 @@ if test "x$support_lustre" = "xyes" ; then
             AC_DEFINE(_LUSTRE_IDL_HEADER, 1, [lustre_idl header exists])
         fi
 
-        # this defines LVERSION and LPACKAGE variables
+        # this defines LVERSION variable
         if test -z "$LDIR" ; then
             AX_LUSTRE_VERSION
         else
