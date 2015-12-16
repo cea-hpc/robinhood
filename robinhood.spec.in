@@ -45,7 +45,7 @@ BuildRequires: lustre >= %{lversion}
 %if %{with mysql}
 BuildRequires: /usr/include/mysql/mysql.h
 %endif
-
+Obsoletes: robinhood-tmpfs < 3.0, robinhood-backup < 3.0, robinhood-lhsm < 3.0
 
 %description
 Robinhood is a tool for monitoring and purging file systems. It is designed to
@@ -90,6 +90,7 @@ Tools for MDS recovery.
 Summary: Test suite for Robinhood
 Group: Applications/System
 Requires: robinhood robinhood-adm
+Release: @RELEASE@.noarch
 
 %description tests
 Lustre and Posix tests for Robinhood.
