@@ -257,9 +257,9 @@ function wait_done
 	max_sec=$1
 	sec=0
 	if [[ -n "$MDS" ]]; then
-		cmd="ssh $MDS egrep -v \"SUCCEED|CANCELED\" /proc/fs/lustre/mdt/lustre-MDT0000/hsm/actions"
+		cmd="ssh $MDS egrep -v SUCCEED|CANCELED /proc/fs/lustre/mdt/lustre-MDT0000/hsm/actions"
 	else
-		cmd="egrep -v \"SUCCEED|CANCELED\" /proc/fs/lustre/mdt/lustre-MDT0000/hsm/actions"
+		cmd="egrep -v SUCCEED|CANCELED /proc/fs/lustre/mdt/lustre-MDT0000/hsm/actions"
 	fi
 
 	action_count=`$cmd | wc -l`
