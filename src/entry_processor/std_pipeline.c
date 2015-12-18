@@ -1821,8 +1821,8 @@ int            EntryProc_chglog_clr( struct entry_proc_op_t * p_op, lmgr_t * lmg
     CL_REC_TYPE * logrec = p_op->extra_info.log_record.p_log_rec;
 
     if (p_op->extra_info.is_changelog_record)
-        DisplayLog( LVL_FULL, ENTRYPROC_TAG, "stage %s - record #%llu - id="DFID"\n", stage_info->stage_name,
-                logrec->cr_index, PFID(&p_op->entry_id) );
+        DisplayLog(LVL_FULL, ENTRYPROC_TAG, "stage %s - record #%llu - id="DFID,
+                   stage_info->stage_name, logrec->cr_index, PFID(&p_op->entry_id));
 
     if ( p_op->callback_func )
     {

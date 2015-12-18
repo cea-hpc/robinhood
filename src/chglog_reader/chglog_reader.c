@@ -256,7 +256,7 @@ static int log_record_callback( lmgr_t *lmgr, struct entry_proc_op_t * pop, void
          && ((logrec->cr_index - p_info->last_cleared_record)
              < cl_reader_config.batch_ack_count))
     {
-        DisplayLog(LVL_FULL, CHGLOG_TAG, "callback - %s cl_record: %llu, last_cleared: %llu, last_pushed: %llu\n",
+        DisplayLog(LVL_FULL, CHGLOG_TAG, "callback - %s cl_record: %llu, last_cleared: %llu, last_pushed: %llu",
                    p_info->mdtdevice, logrec->cr_index,
                    p_info->last_cleared_record,
                    p_info->last_pushed);
