@@ -792,9 +792,13 @@ int EntryProc_get_info_db( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
         p_op->db_attr_need = null_mask;
 
-        if (type_clue == TYPE_NONE)
+        if (type_clue == TYPE_NONE) {
             /* type is a useful information to take decisions (about getstripe, readlink, ...) */
             attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_type);
+        } else {
+            ATTR_MASK_SET(&p_op->fs_attrs, type);
+            strcpy(ATTR(&p_op->fs_attrs, type), type2db(type_clue));
+        }
 
         /* add diff mask for diff mode */
         p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &diff_mask);
