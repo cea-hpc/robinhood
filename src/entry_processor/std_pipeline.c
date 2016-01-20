@@ -305,6 +305,10 @@ static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
         attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_info);
         attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_items);
 
+        /* when a directory is created or deleted, directory is empty */
+        ATTR_MASK_SET(&p_op->fs_attrs, dircount);
+        ATTR(&p_op->fs_attrs, dircount) = 0;
+
         /* path info should be set */
         check_path_info(p_op, changelog_type2str(logrec->cr_type));
     }
