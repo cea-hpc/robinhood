@@ -146,6 +146,9 @@ if test "x$support_lustre" = "xyes" ; then
             LDEFINES="--define=\"lversion $LVERSION\""
             AC_DEFINE_UNQUOTED(LUSTRE_VERSION, "$LVERSION",  [Lustre version])
         fi
+        if test -n "$LPACKAGE"; then
+            LDEFINES="$LDEFINES --define=\"lpackage $LPACKAGE\""
+        fi
         AC_SUBST(LDEFINES)
 
         FS_LDFLAGS="-llustreapi"
