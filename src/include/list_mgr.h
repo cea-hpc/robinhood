@@ -1184,11 +1184,12 @@ struct time_modifier;
  * @param[in,out] filter    the output filter to be appended.
  * @param[in]     smi       the current status manager (if any).
  * @param[in]     time_mod  time modifier for maintenance mode.
- * @param[in]     tolerant  make the request tolerant to missing (NULL) attributes.
+ * @param[in]     flags     filter flags
  */
 int convert_boolexpr_to_simple_filter(struct bool_node_t *boolexpr, lmgr_filter_t *filter,
                                       const struct sm_instance *smi,
-                                      const struct time_modifier *time_mod, bool tolerant);
+                                      const struct time_modifier *time_mod,
+                                      int flags);
 
 /** Set a complex filter structure */
 int            lmgr_set_filter_expression( lmgr_filter_t * p_filter, struct bool_node_t *boolexpr );
