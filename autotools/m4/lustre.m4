@@ -4,11 +4,11 @@
 AC_DEFUN([AX_LUSTRE_VERSION],
 [
         AC_MSG_CHECKING(Lustre version)
-        # special m4 sequences to get square brackets in output:
-        # @<:@ => [
-        # @:>@ => ]
-        LVERSION=`rpm -q "lustre" --qf "%{Version}\n" 2>/dev/null | tail -1 | cut -d "." -f 1-2`
-        LPACKAGE=`rpm -q "lustre" --qf "%{Name}\n"  2>/dev/null | tail -1`
+
+	# use "sort" to ensure 'lustre-client' is returned after 'lustre',
+	# so it is selected by "tail -1"
+        LPACKAGE=`rpm -qa "lustre(-client)?" --qf "%{Name}\n"  2>/dev/null | sort | tail -1`
+        LVERSION=`rpm -qa "lustre(-client)?" --qf "%{Version}\n" 2>/dev/null | tail -1 | cut -d "." -f 1-2`
 
         if test -z "$LVERSION"; then
             AC_MSG_RESULT(none installed)
