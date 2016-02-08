@@ -804,7 +804,8 @@ static int set_optimization_filters(policy_info_t *policy,
         if (convert_boolexpr_to_simple_filter(&rules->rules[0].condition, p_filter,
                                               policy->descr->status_mgr,
                                               policy->time_modifier,
-                                              policy->descr->manage_deleted))
+                                              policy->descr->manage_deleted ?
+                                                FILTER_FLAG_ALLOW_NULL : 0))
         {
             DisplayLog(LVL_FULL, tag(policy),
                        "Could not convert purge rule '%s' to simple filter.",
@@ -815,12 +816,13 @@ static int set_optimization_filters(policy_info_t *policy,
     if (!policy->config->recheck_ignored_classes)
     {
         int i;
-        filter_value_t fval;
 
         /* don't select files in ignored classes */
         for (i = 0; i < rules->ignore_count; i++)
         {
+            filter_value_t fval;
             int flags = 0;
+
             fval.value.val_str = rules->ignore_list[i]->fileset_id;
             if (i == 0)
                 flags = FILTER_FLAG_NOT | FILTER_FLAG_ALLOW_NULL;
@@ -828,6 +830,25 @@ static int set_optimization_filters(policy_info_t *policy,
                 flags = FILTER_FLAG_NOT;
             lmgr_simple_filter_add(p_filter, ATTR_INDEX_fileclass, EQUAL,
                                    fval, flags);
+        }
+
+        /* don't select entries maching 'ignore' statements */
+        for (i = 0; i < rules->whitelist_count; i++)
+        {
+            if (convert_boolexpr_to_simple_filter(&rules->whitelist_rules[i].bool_expr,
+                                                  p_filter,
+                                                  policy->descr->status_mgr,
+                                                  policy->time_modifier,
+                                                  policy->descr->manage_deleted ?
+                                                    FILTER_FLAG_ALLOW_NULL | FILTER_FLAG_NOT:
+                                                    FILTER_FLAG_NOT))
+            {
+                DisplayLog(LVL_DEBUG, tag(policy),
+                           "Could not convert 'ignore' rule to simple filter.");
+                DisplayLog(LVL_EVENT, tag(policy),
+                           "Warning: 'ignore' rule is too complex and may "
+                           "affect policy run performance");
+            }
         }
     }
 
@@ -1633,7 +1654,8 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     if (convert_boolexpr_to_simple_filter(&p_pol_info->descr->scope, &filter,
                                           p_pol_info->descr->status_mgr,
                                           p_pol_info->time_modifier,
-                                          p_pol_info->descr->manage_deleted))
+                                          p_pol_info->descr->manage_deleted ?
+                                            FILTER_FLAG_ALLOW_NULL : 0))
     {
         DisplayLog(LVL_DEBUG, tag(p_pol_info),
                    "Could not convert policy scope to simple filter.");

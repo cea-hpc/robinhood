@@ -2,7 +2,7 @@
 
 define_policy alert {
     status_manager = alerter;
-    scope { last_check == 0 or last_check > 1d }
+    scope = all;
     default_lru_sort_attr = last_check; # oldest check first, 0==unchecked
     default_action = alerter.alert;
 }
@@ -10,6 +10,7 @@ define_policy alert {
 alert_parameters {
     action_params { alert = raise; }
     report_actions = no;
+    recheck_ignored_entries = no;
 }
 
 alert_trigger {

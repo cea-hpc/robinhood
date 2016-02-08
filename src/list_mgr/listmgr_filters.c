@@ -439,7 +439,7 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
             if (must_free)
                 flag |= FILTER_FLAG_ALLOC_STR;
 
-            /* propagate parenthesing flag + OR */
+            /* propagate parenthesing flag + OR (NOT?) */
             flag |= (expr_flag & (FILTER_FLAG_BEGIN | FILTER_FLAG_END
                                   | FILTER_FLAG_OR));
 
@@ -478,7 +478,7 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
             if (must_free)
                 flag |= FILTER_FLAG_ALLOC_STR;
 
-            /* propagate parenthesing flag + OR */
+            /* propagate parenthesing flag + OR (NOT?) */
             flag |= (expr_flag & (FILTER_FLAG_BEGIN | FILTER_FLAG_END
                                   | FILTER_FLAG_OR));
 
@@ -552,14 +552,30 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
 /** Convert simple expressions to ListMgr filter (append filter) */
 int convert_boolexpr_to_simple_filter(bool_node_t *boolexpr, lmgr_filter_t *filter,
                                       const sm_instance_t *smi,
-                                      const time_modifier_t *time_mod, bool tolerant)
+                                      const time_modifier_t *time_mod,
+                                      int flags)
 {
     if (!is_simple_expr(boolexpr, 0, BOOL_AND))
         return DB_INVALID_ARG;
 
+    /* create a boolexpr as 'NOT ( <expr> )' */
+    if (flags & FILTER_FLAG_NOT)
+    {
+        bool_node_t notexpr;
+
+        notexpr.node_type = NODE_UNARY_EXPR;
+        notexpr.content_u.bool_expr.bool_op = BOOL_NOT;
+        notexpr.content_u.bool_expr.expr1 = boolexpr;
+        notexpr.content_u.bool_expr.owner = 0;
+
+        /* default filter context is AND */
+        return append_simple_expr(&notexpr, filter, smi, time_mod,
+                                  flags & ~FILTER_FLAG_NOT, 0, BOOL_AND);
+    }
+
     /* default filter context is AND */
-    return append_simple_expr(boolexpr, filter, smi, time_mod,
-                              tolerant ? FILTER_FLAG_ALLOW_NULL : 0, 0, BOOL_AND);
+    return append_simple_expr(boolexpr, filter, smi, time_mod, flags,
+                              0, BOOL_AND);
 }
 
 
