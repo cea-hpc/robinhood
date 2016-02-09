@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "fa81d914_2b7156e0",
+        "filename": "autotools/m4/lustre.m4",
+        "patchSetId": 1
+      },
+      "lineNbr": 10,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-02-09T15:32:49Z",
+      "side": 1,
+      "message": "The lustre and lustre-client packages are mutually exclusive. You can\u0027t install both at the same time.\n\nI also don\u0027t see why the sort above is needed.",
+      "parentUuid": "fa81d914_558b8bc2",
+      "revId": "2737daaefc29d8677d8fb3797646674bd3219e7a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "fa81d914_d5be9b64",
         "filename": "robinhood.spec.in",
         "patchSetId": 1
@@ -30,6 +48,24 @@
       "writtenOn": "2016-02-09T10:32:01Z",
       "side": 1,
       "message": "Previous requirements on lustre package should probably be kept whenever lpackage is not defined (e.g. in case of build from lustre source package only, without either lustre or lustre-client packages installed)",
+      "revId": "2737daaefc29d8677d8fb3797646674bd3219e7a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fa81d914_6b76eed8",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 1
+      },
+      "lineNbr": 45,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-02-09T15:32:49Z",
+      "side": 1,
+      "message": "If Lustre is installed outside rpm, why build an rpm for robinhood either?",
+      "parentUuid": "fa81d914_d5be9b64",
       "revId": "2737daaefc29d8677d8fb3797646674bd3219e7a",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
