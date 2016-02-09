@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "fa81d914_558b8bc2",
+        "filename": "autotools/m4/lustre.m4",
+        "patchSetId": 1
+      },
+      "lineNbr": 10,
+      "author": {
+        "id": 1004377
+      },
+      "writtenOn": "2016-02-09T10:32:01Z",
+      "side": 1,
+      "message": "If both lustre and lustre-client packages have been installed, are we sure that their versions will match exactly? I mean, would\u0027nt be sort required for LVERSION as well?",
+      "revId": "2737daaefc29d8677d8fb3797646674bd3219e7a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fa81d914_d5be9b64",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 1
+      },
+      "lineNbr": 45,
+      "author": {
+        "id": 1004377
+      },
+      "writtenOn": "2016-02-09T10:32:01Z",
+      "side": 1,
+      "message": "Previous requirements on lustre package should probably be kept whenever lpackage is not defined (e.g. in case of build from lustre source package only, without either lustre or lustre-client packages installed)",
+      "revId": "2737daaefc29d8677d8fb3797646674bd3219e7a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
