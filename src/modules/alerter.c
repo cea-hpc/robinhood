@@ -2,7 +2,7 @@
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
 /*
- * Copyright (C) 2009, 2010 CEA/DAM
+ * Copyright (C) 2015,2016 CEA/DAM
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the CeCILL License.
@@ -33,14 +33,14 @@ typedef enum {
   STATUS_ALERT,                 /* alert raised */
 
   STATUS_COUNT,                 /* number of possible file status */
-} hsm_status_t;
+} alert_status_t;
 
 static const char *alerter_status_list[] = {
     [STATUS_CLEAR] = "clear",
     [STATUS_ALERT] = "alert",
 };
 
-static const char *alerter_status2str(hsm_status_t st)
+static const char *alerter_status2str(alert_status_t st)
 {
     switch (st)
     {
@@ -171,7 +171,7 @@ static int alerter_alert(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
 status_manager_t alerter_sm = {
     .name = "alerter",
     /* TODO can possibly raise alerts on file deletion? if so, must set a softrm_* fields */
-    .flags = SM_SHARED,
+    .flags = 0,
     .status_enum = alerter_status_list, /* initial state is empty(unset) status */
     .status_count = STATUS_COUNT,
     .nb_info = G_N_ELEMENTS(alerter_info),

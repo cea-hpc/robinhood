@@ -10,7 +10,7 @@ define_policy alert {
 alert_parameters {
     action_params { alert = raise; }
     report_actions = no;
-    recheck_ignored_entries = no;
+    recheck_ignored_classes = no;
 }
 
 alert_trigger {
