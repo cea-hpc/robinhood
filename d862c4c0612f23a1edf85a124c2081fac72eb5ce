@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "fa81d914_9c3287f0",
+        "filename": "autotools/m4/lustre.m4",
+        "patchSetId": 2
+      },
+      "lineNbr": 9,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-02-10T15:49:11Z",
+      "side": 1,
+      "message": "I wonder whether that\u0027s the right way to do it. We really want to depend on lustre-client, and if not present then on lustre. I don\u0027t think that command achieves that. \n\nThe test could use instead \"rpm -q --whatprovides lustre-client\" and \"rpm -q --whatprovides lustre\". If one of these commands succeed, then we can use the symbol.",
+      "revId": "d862c4c0612f23a1edf85a124c2081fac72eb5ce",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
