@@ -304,10 +304,10 @@ static int policy_action(policy_info_t *policy,
 
                 asprintf(&descr, "action command '%s'", actionp->action_u.command);
 
-                /* replaces placeholders in command and properly quote them. */
+                /* replaces placeholders in command */
                 cmd = subst_params(actionp->action_u.command, descr,
                                    id, p_attr_set, params, addl_params,
-                                   smi, true, true);
+                                   smi, false, true);
                 free(descr);
                 if (cmd)
                 {
