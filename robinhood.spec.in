@@ -151,6 +151,7 @@ install -m 644 doc/templates/includes/lhsm.inc $RPM_BUILD_ROOT/%{_sysconfdir}/ro
 %endif
 install -m 644 doc/templates/includes/tmpfs.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes/
 install -m 644 doc/templates/includes/alerts.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes/
+install -m 644 doc/templates/includes/check.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes/
 install -m 644 doc/templates/example.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates/
 install -m 644 doc/templates/basic.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates/
 
@@ -307,6 +308,7 @@ fi
 %endif
 %config %{_sysconfdir}/robinhood.d/includes/tmpfs.inc
 %config %{_sysconfdir}/robinhood.d/includes/alerts.inc
+%config %{_sysconfdir}/robinhood.d/includes/check.inc
 %config %{_sysconfdir}/robinhood.d/templates/example.conf
 %config %{_sysconfdir}/robinhood.d/templates/basic.conf
 
