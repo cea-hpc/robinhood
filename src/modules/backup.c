@@ -1652,7 +1652,7 @@ static int wrap_file_copy(sm_instance_t *smi,
     path_replace(&sav, p_attrs, srcpath);
 
     rc = action_helper(action, "copy", p_id, p_attrs, &tmp_params,
-                       smi, after, db_cb_fn, db_cb_arg);
+                       smi, NULL, after, db_cb_fn, db_cb_arg);
 
     /* restore real entry attributes */
     path_restore(&sav, p_attrs);
@@ -1865,8 +1865,8 @@ static int remove_executor(sm_instance_t *smi, const policy_action_t *action,
     /* replace the path argument by backend_path */
     path_replace(&sav, p_attrs, backend_path);
 
-    rc = action_helper(action, "remove", p_id, p_attrs, params, smi, after,
-                       db_cb_fn, db_cb_arg);
+    rc = action_helper(action, "remove", p_id, p_attrs, params, smi, NULL,
+                       after, db_cb_fn, db_cb_arg);
 
     /* restore real entry attributes */
     path_restore(&sav, p_attrs);
@@ -2250,7 +2250,7 @@ static recov_status_t recov_file(sm_instance_t *smi, const entry_id_t *p_id,
 
         /* perform the data copy (if needed) */
         rc = action_helper(&config.recovery_action, "recover", p_id, attrs,
-                           &recov_params, smi, &dummy_after, NULL, NULL);
+                           &recov_params, smi, NULL, &dummy_after, NULL, NULL);
 
         /* restore real entry attributes */
         path_restore(&sav, attrs);
