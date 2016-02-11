@@ -313,12 +313,12 @@ static int policy_action(policy_info_t *policy,
                     /* call custom purge command instead of unlink() */
                     DisplayLog(LVL_DEBUG, tag(policy), DFID": action: cmd(%s)",
                                PFID(id), cmd);
-                    rc = execute_shell_command(true, cmd, 0);
+                    rc = execute_shell_command(cmd, cb_stderr_to_log, (void *)LVL_DEBUG);
                     g_free(cmd);
                     /* @TODO handle other hardlinks to the same entry */
                 }
                 else
-                    rc = errno;
+                    rc = -errno;
 
                 /* external commands can't set 'after': default to update */
                 *after = PA_UPDATE;
@@ -2275,8 +2275,8 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     {
         const char *err_str;
 
-        if (abs(rc) < 126)
-            err_str = strerror(abs(rc));
+        if (rc < 0)
+            err_str = strerror(-rc);
         else
             err_str = "command execution failed";
 

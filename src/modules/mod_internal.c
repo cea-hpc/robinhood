@@ -366,7 +366,8 @@ static int run_command(const char *name, const char *cmd_in,
         /* call custom purge command instead of unlink() */
         DisplayLog(LVL_DEBUG, __func__, DFID": %s action: cmd(%s)", PFID(p_id),
                    name, cmd);
-        rc =  execute_shell_command(true, cmd, 0);
+        /** FIXME retrieve the contents of stdout if needed */
+        rc =  execute_shell_command(cmd, cb_stderr_to_log, (void *)LVL_DEBUG);
         g_free(cmd);
     }
     else

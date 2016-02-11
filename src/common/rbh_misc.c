@@ -125,7 +125,8 @@ static uint64_t fsidto64(fsid_t fsid)
     {
         memset(&out, 0, sizeof(out));
         memcpy((&out)+(sizeof(out)-sizeof(fsid_t)), &fsid, sizeof(fsid));
-        DisplayLog(LVL_DEBUG, __func__, "sizeof(fsid)=%lu <= 64bits, fsid as 64=%"PRIX64, sizeof(fsid_t), out);
+        DisplayLog(LVL_DEBUG, __func__, "sizeof(fsid)=%lu <= 64bits, "
+                   "fsid as 64=%"PRIX64, sizeof(fsid_t), out);
         return out;
     }
     else
@@ -138,7 +139,8 @@ static uint64_t fsidto64(fsid_t fsid)
             out = ( out << 5 ) - out + (unsigned int) ( str[i] );
 
         out = out % LAST_64PRIME;
-        DisplayLog(LVL_DEBUG, __func__, "sizeof(fsid)=%lu > 64bits, hash64(fsid)=%"PRIX64, sizeof(fsid_t), out);
+        DisplayLog(LVL_DEBUG, __func__, "sizeof(fsid)=%lu > 64bits, "
+                   "hash64(fsid)=%"PRIX64, sizeof(fsid_t), out);
         return out;
     }
 }
@@ -2032,7 +2034,6 @@ int str_subst(char *str_in_out, const char *to_be_replaced,
 }
 
 
-
 /**
  * extract relative path from full path
  */
@@ -2070,114 +2071,6 @@ int relative_path( const char * fullpath, const char * root, char * rel_path )
 
     strcpy( rel_path, fullpath+len );
     return 0;
-}
-
-/**
- * Put a string into double quotes and escape double quotes
- */
-static char * escape_shell_arg( const char * in, char * out )
-{
-    char * curr_out = out;
-    const char * curr_in = in;
-    curr_out[0] = '"';
-    curr_out++;
-
-    while (*curr_in)
-    {
-        if (*curr_in != '"')
-        {
-            *curr_out = *curr_in;
-            curr_out++;
-        }
-        else
-        {
-            curr_out[0] = '\\';
-            curr_out[1] = '"';
-            curr_out+=2;
-        }
-        curr_in++;
-    }
-    curr_out[0]='"';
-    curr_out[1]='\0';
-
-    return out;
-}
-
-int execute_shell_command(int quiet, const char * cmd, int argc, ...)
-{
-#define SHCMD "ShCmd"
-    static const char quiet_string[]  = ">/dev/null 2>/dev/null";
-    char argbuf[4096];
-    va_list arglist;
-    char *cmdline;
-    char *curr;
-    int rc, i;
-    int exrc;
-    size_t s = 0;
-
-    /* count needed bytes */
-    s = strlen(cmd);
-    va_start(arglist, argc);
-    for (i = 0; i < argc; i++)
-        s += 2*strlen(va_arg(arglist, char *)) + 3; /* 2N+2 for escaping, +1 for white space */
-    va_end(arglist);
-    s += sizeof(quiet_string) + 1; /* +1 for '\0' */
-
-    cmdline = MemAlloc(s);
-    if (cmdline == NULL)
-        return -ENOMEM;
-
-    curr = cmdline;
-    curr += sprintf(cmdline, "%s", cmd);
-
-    va_start(arglist, argc);
-    for (i = 0; i < argc; i++)
-        curr += sprintf(curr, " %s",
-                        escape_shell_arg(va_arg(arglist, char *), argbuf));
-    va_end(arglist);
-    if (quiet)
-        curr += sprintf(curr, " %s", quiet_string);
-
-    DisplayLog(LVL_DEBUG, SHCMD, "Executing command: %s", cmdline);
-    rc = system(cmdline);
-
-    if (WIFEXITED(rc))
-    {
-        const char *str_error;
-        exrc = WEXITSTATUS(rc);
-        if (exrc == 0)
-        {
-            DisplayLog(LVL_DEBUG, SHCMD, "Command successful");
-            rc = 0;
-            goto outfree;
-        }
-
-        /* shell special return values */
-        if (exrc == 126)
-            str_error = "permission problem or command is not an executable";
-        else if (exrc == 127)
-            str_error = "command not found";
-        else if (exrc == 128)
-            str_error = "invalid argument to exit";
-        else
-            str_error = "external command exited";
-
-        DisplayLog( LVL_CRIT, SHCMD,
-                    "ERROR: %s, error %d (cmdline=%s)",
-                    str_error, (signed char)exrc, cmdline );
-        rc = -exrc;
-    }
-    else if (WIFSIGNALED(rc))
-    {
-            DisplayLog( LVL_CRIT, SHCMD,
-                        "ERROR: command terminated by signal %d. cmdline=%s",
-                        WTERMSIG(rc), cmdline );
-            rc = -EINTR;
-    }
-
-outfree:
-    MemFree(cmdline);
-    return rc;
 }
 
 void upperstr(char *str)

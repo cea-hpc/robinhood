@@ -735,7 +735,7 @@ static int lhsm_rebind(const entry_id_t *old_id, const entry_id_t *new_id,
     }
 
     DisplayLog(LVL_EVENT, LHSM_TAG, "Executing rebind command: %s", cmd);
-    rc = execute_shell_command(true, cmd, 0);
+    rc = execute_shell_command(cmd, cb_stderr_to_log, (void *)LVL_DEBUG);
     free(cmd);
 
     return rc;
@@ -827,7 +827,7 @@ static recov_status_t lhsm_undelete(struct sm_instance *smi,
     rc = lhsm_rebind(p_old_id, p_new_id, p_attrs_new, archive_id);
     if (rc) {
         DisplayLog(LVL_CRIT, LHSM_TAG, "Failed to rebind entry in backend: %s",
-                   strerror(abs(rc)));
+                   rc < 0 ? strerror(-rc) : "command failed");
         return RS_ERROR;
     }
 
