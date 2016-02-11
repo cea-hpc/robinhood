@@ -313,7 +313,7 @@ static int policy_action(policy_info_t *policy,
                     /* call custom purge command instead of unlink() */
                     DisplayLog(LVL_DEBUG, tag(policy), DFID": action: cmd(%s)",
                                PFID(id), cmd);
-                    rc = execute_shell_command(true, cmd, 0);
+                    rc = execute_shell_command(cmd, cb_stderr_to_log, (void *)LVL_DEBUG);
                     g_free(cmd);
                     /* @TODO handle other hardlinks to the same entry */
                 }

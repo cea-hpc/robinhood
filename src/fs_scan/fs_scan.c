@@ -447,7 +447,7 @@ static int TerminateScan(int scan_complete, time_t end)
         if (cmd)
         {
             DisplayLog(LVL_MAJOR, FSSCAN_TAG, "Executing scan completion command: %s", cmd);
-            execute_shell_command(true, cmd, 0);
+            execute_shell_command(cmd, cb_stderr_to_log, (void*)LVL_EVENT);
             g_free(cmd);
         }
         else

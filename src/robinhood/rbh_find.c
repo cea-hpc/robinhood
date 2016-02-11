@@ -890,11 +890,11 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
                                   &id->id, attrs, NULL, vars, true, true);
         if (cmd)
         {
-            execute_shell_command(false, cmd, 0);
+            /* display both stdout and stderr */
+            execute_shell_command(cmd, cb_redirect_all, NULL);
             g_free(cmd);
         }
     }
-
 }
 
 /* directory callback */
