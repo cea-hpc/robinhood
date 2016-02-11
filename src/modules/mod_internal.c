@@ -348,38 +348,80 @@ close_src:
     return rc;
 }
 
+/** collect the first line of output */
+static int cb_collect_stdout(void *arg, char *line, size_t size, int stream)
+{
+    GString *out = (GString *)arg;
+    int       len;
 
-/** run a shell command to perform an action */
+    if (line == NULL || out == NULL)
+        return -EINVAL;
+
+    len = strnlen(line, size);
+    /* terminate the string */
+    if (len >= size)
+        line[len - 1] = '\0';
+
+    /* remove '\n' */
+    if ((len > 0) && (line[len - 1] == '\n'))
+        line[len - 1] = '\0';
+
+    switch (stream)
+    {
+        case STDOUT_FILENO:
+            if (out->len == 0)
+                g_string_append(out, line);
+            break;
+        case STDERR_FILENO:
+            DisplayLog(LVL_DEBUG, "cmd_stdout", line);
+            break;
+    }
+
+    return 0;
+}
+
+/**
+ * Run a shell command to perform an action.
+ * @param [in,out] out  Initialized GString to collect command stdout
+ *                      (NULL for no output).
+ */
 static int run_command(const char *name, const char *cmd_in,
                        const entry_id_t *p_id,
                        const attr_set_t *p_attrs,
                        const action_params_t *params,
-                       struct sm_instance *smi)
+                       struct sm_instance *smi,
+                       GString *out)
 {
     gchar *cmd;
     int rc = 0;
 
     /** @TODO set additional params */
     cmd = subst_params(cmd_in, "command", p_id, p_attrs, params, NULL,
-                       smi, true, true);
-    if (cmd != NULL)
-    {
-        /* call custom purge command instead of unlink() */
-        DisplayLog(LVL_DEBUG, __func__, DFID": %s action: cmd(%s)", PFID(p_id),
-                   name, cmd);
-        /** FIXME retrieve the contents of stdout if needed */
-        rc =  execute_shell_command(cmd, cb_stderr_to_log, (void *)LVL_DEBUG);
-        g_free(cmd);
-    }
+                       smi, false, true);
+    if (cmd == NULL)
+        return -EINVAL;
+
+    /* call custom purge command instead of unlink() */
+    DisplayLog(LVL_DEBUG, __func__, DFID": %s action: cmd(%s)", PFID(p_id),
+               name, cmd);
+
+    if (out == NULL)
+        /* do not collect output, just redirect command stderr to robinhood log */
+        rc = execute_shell_command(cmd, cb_stderr_to_log, (void *)LVL_DEBUG);
     else
-        rc = errno;
+        /* collect stdout in out Gstring */
+        rc = execute_shell_command(cmd, cb_collect_stdout, (void *)out);
+
+    g_free(cmd);
+
     return rc;
 }
 
 int action_helper(const policy_action_t *action, const char *name,
                   const entry_id_t *p_id, attr_set_t *p_attrs,
                   const action_params_t *params, struct sm_instance *smi,
-                  post_action_e *after, db_cb_func_t db_cb_fn, void *db_cb_arg)
+                  GString *out, post_action_e *after,
+                  db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     int rc;
 
@@ -387,7 +429,7 @@ int action_helper(const policy_action_t *action, const char *name,
     {
         case ACTION_COMMAND:
             rc = run_command(name, action->action_u.command, p_id, p_attrs,
-                             params, smi);
+                             params, smi, out);
             break;
 
         case ACTION_FUNCTION:
