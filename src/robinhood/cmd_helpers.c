@@ -22,6 +22,7 @@
 #endif
 
 #include <glib.h>
+#include <unistd.h>
 
 #include "uidgidcache.h"
 #include "cmd_helpers.h"
@@ -1126,3 +1127,32 @@ attr_mask_t list2mask(unsigned int *attr_list, int attr_count)
     return mask;
 }
 
+/** template callback to display stdout and stderr */
+int cb_redirect_all(void *arg, char *line, size_t size, int stream)
+{
+    int       len;
+
+    if (line == NULL)
+        return -EINVAL;
+
+    len = strnlen(line, size);
+    /* terminate the string */
+    if (len >= size)
+        line[len - 1] = '\0';
+
+    /* remove '\n' */
+    if ((len > 0) && (line[len - 1] == '\n'))
+        line[len - 1] = '\0';
+
+    switch (stream)
+    {
+        case STDOUT_FILENO:
+            printf("%s\n", line);
+            break;
+        case STDERR_FILENO:
+            fprintf(stderr, "%s\n", line);
+            break;
+    }
+
+    return 0;
+}

@@ -172,5 +172,7 @@ static inline const char *status_format(const char *name)
     return name;
 }
 
+/** callback to display stdout and stderr */
+int cb_redirect_all(void *arg, char *line, size_t size, int stream);
 
 #endif

@@ -429,9 +429,29 @@ static inline void subst_char(char *str, char c1, char c2)
 }
 
 /**
- * Execute a shell command and analyze the return code
+ * Callback function to parse command output.
+ * The function can freely modify line contents
+ * without impacting program working.
+ *
+ * \param[in,out] cb_arg    argument passed to command_call
+ * \param[in]     line      the line to be parsed
+ * \param[in]     size      size of the line buffer
+ * \param[in]     stream    fileno of the stream the line comes from
  */
-int execute_shell_command(int quiet, const char * cmd, int argc, ...);
+typedef int (*parse_cb_t)(void *cb_arg, char *line, size_t size, int stream);
+
+/**
+ * Callback function for execute_shell_command() that redirects stderr to
+ * to robinhood log.
+ * @param arg[in] arg   Desired log level, casted to (void *).
+ */
+int cb_stderr_to_log(void *arg, char *line, size_t size, int stream);
+
+/**
+ * Execute a shell command and call cb_func for each output line
+ * (ignore output if cb_func is null).
+ */
+int execute_shell_command(const char *cmd, parse_cb_t cb_func, void *cb_arg);
 
 /**
  * Quote an argument for shell commande line.

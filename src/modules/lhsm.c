@@ -735,7 +735,7 @@ static int lhsm_rebind(const entry_id_t *old_id, const entry_id_t *new_id,
     }
 
     DisplayLog(LVL_EVENT, LHSM_TAG, "Executing rebind command: %s", cmd);
-    rc = execute_shell_command(true, cmd, 0);
+    rc = execute_shell_command(cmd, cb_stderr_to_log, (void *)LVL_DEBUG);
     free(cmd);
 
     return rc;
