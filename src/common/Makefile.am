@@ -12,10 +12,10 @@ if SHOOK
 #PURPOSE_SRC=shook_wrap.c
 endif
 
-libcommontools_la_SOURCES= RW_Lock.c uidgidcache.c rbh_misc.c rbh_params.c \
-                           param_utils.c  global_config.c update_params.c \
-                           queue.c rbh_logs.c rbh_modules.c basename.c \
-                           $(FS_SRC) $(PURPOSE_SRC) $(COMPAT_SRC)
+libcommontools_la_SOURCES= RW_Lock.c uidgidcache.c rbh_misc.c rbh_cmd.c \
+			   rbh_params.c param_utils.c  global_config.c \
+		           update_params.c queue.c rbh_logs.c rbh_modules.c \
+			   basename.c $(FS_SRC) $(PURPOSE_SRC) $(COMPAT_SRC)
 
 indent:
 	$(top_srcdir)/scripts/indent.sh
