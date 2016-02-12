@@ -1903,6 +1903,9 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
                    "'%s_"POLICIES_BLOCK"'.", section_name,
                    policy_descr->name);
     }
+    else if (rc != 0)
+        return rc;
+
     msg_out[0] = '\0';
 
     /* prealloc config arrays */
