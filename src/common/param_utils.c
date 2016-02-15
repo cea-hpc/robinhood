@@ -17,6 +17,8 @@
 
 #include "rbh_misc.h"
 #include "rbh_logs.h"
+#include "status_manager.h"
+
 #include <ctype.h>
 
 #define PARAMS_TAG "params" /* tag for logs */
@@ -45,9 +47,9 @@ static bool match_varname(const char *str, int len)
     if (!isalpha(str[0]))
         return false;
 
-    /* letter, number or underscore expected */
+    /* letter, number, underscore or dot expected */
     for (i = 1; i < len; i++)
-        if (!isalnum(str[i]) && str[i] != '_')
+        if (!isalnum(str[i]) && str[i] != '_' && str[i] != '.')
             return false;
 
     return true;
@@ -363,6 +365,8 @@ struct build_cmd_args
     const struct rbh_params  *user_params;
     /** additional parameters */
     const char              **addl_params;
+    /** status manager instance from context */
+    const sm_instance_t      *smi;
     /** description of the string being parsed */
     const char               *str_descr;
     /** original string passed to subst_cmd_params() */
@@ -427,6 +431,7 @@ static int build_cmd(const char *name, int begin_idx, int end_idx, void *udata)
     const char                 *val = NULL;
     char                       *quoted_arg = NULL;
     bool                        free_val = false;
+    char                        buff[1024];
     int                         rc;
 
     if (unlikely(args == NULL))
@@ -439,11 +444,11 @@ static int build_cmd(const char *name, int begin_idx, int end_idx, void *udata)
 
     /* get value for the current parameter */
 
-    /* first, search in user parameters */
-    if (args->user_params != NULL)
+    /* 1) search in user parameters */
+    if (val == NULL && args->user_params != NULL)
         val = rbh_param_get(args->user_params, name);
 
-    /* then, search in std parameters */
+    /* 2) search in std parameters */
     if (val == NULL)
     {
         const struct param_descr *a = get_stdarg(name);
@@ -456,7 +461,7 @@ static int build_cmd(const char *name, int begin_idx, int end_idx, void *udata)
         }
     }
 
-    /* then search in additional parameters */
+    /* 3) search in additional parameters */
     if (val == NULL && args->addl_params != NULL)
     {
         const char **cp;
@@ -465,6 +470,28 @@ static int build_cmd(const char *name, int begin_idx, int end_idx, void *udata)
         {
             if (!strcasecmp(cp[0], name))
                 val = (char *)cp[1];
+        }
+    }
+
+    /* 4) search in policy-specific parameters (status, specific info...) */
+    if (val == NULL)
+    {
+        void *pval;
+        const sm_info_def_t *def;
+        unsigned int idx;
+
+        rc = sm_attr_get(args->smi, args->attrs, name, &pval, &def, &idx);
+        if (rc == 0)
+        {
+            ListMgr_PrintAttrPtr(buff, sizeof(buff), def->db_type, pval, "");
+            val = buff;
+        }
+        else if (rc == -ENODATA)
+        {
+            /* parameter exists but is not set.
+             * No previous value was found, use empty string instead.
+             */
+            val = "";
         }
     }
 
@@ -508,6 +535,7 @@ char *subst_params(const char *str_in,
                    const attr_set_t *p_attrs,
                    const action_params_t *params,
                    const char **subst_array,
+                   const struct sm_instance *smi,
                    bool quote, bool strict_braces)
 {
     struct build_cmd_args args = {
@@ -516,6 +544,7 @@ char *subst_params(const char *str_in,
         .attrs = p_attrs,
         .user_params = params,
         .addl_params = subst_array,
+        .smi = smi,
         .str_descr = str_descr,
         .orig_str = str_in,
         .last_idx = 0,

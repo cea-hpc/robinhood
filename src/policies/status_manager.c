@@ -170,12 +170,12 @@ static int get_smi_attr(const sm_instance_t *smi, const attr_set_t *p_attrs,
 
         /* XXX NULL or empty string? */
         if (!ATTR_MASK_STATUS_TEST(p_attrs, smi->smi_index))
-            return -ENOENT;
+            return -ENODATA;
         if (p_attrs->attr_values.sm_status == NULL)
-            return -ENOENT;
+            return -ENODATA;
 
         *val = (char *)STATUS_ATTR(p_attrs, smi->smi_index);
-        return *val != NULL ? 0 : -ENOENT;
+        return *val != NULL ? 0 : -ENODATA;
     }
 
     /* other attrs */
@@ -192,18 +192,20 @@ static int get_smi_attr(const sm_instance_t *smi, const attr_set_t *p_attrs,
                 return 0;
 
             if (!ATTR_MASK_INFO_TEST(p_attrs, smi, i))
-                return -ENOENT;
+                return -ENODATA;
             if (p_attrs->attr_values.sm_info == NULL)
-                return -ENOENT;
+                return -ENODATA;
 
             *val = SMI_INFO(p_attrs, smi, i);
-            return *val != NULL ? 0 : -ENOENT;
+            return *val != NULL ? 0 : -ENODATA;
         }
     }
     return -EINVAL;
 }
 
-/* -EINVAL: invalid argument, -ENOENT: missing attribute value */
+/* -EINVAL: invalid argument.
+ * -ENODATA: attribute exists, but is missing.
+ */
 int sm_attr_get(const sm_instance_t *smi, const attr_set_t *p_attrs,
                 const char *name, void **val, const sm_info_def_t **ppdef,
                 unsigned int *attr_index)
@@ -213,7 +215,7 @@ int sm_attr_get(const sm_instance_t *smi, const attr_set_t *p_attrs,
     /* if there is no smi in context, and no dot is found:
      * nothing can't match */
     if (!dot && !smi)
-        return -ENOENT;
+        return -EINVAL;
 
     if (dot)
     {
@@ -235,11 +237,7 @@ int sm_attr_get(const sm_instance_t *smi, const attr_set_t *p_attrs,
     }
     else
     {
-        int rc = get_smi_attr(smi, p_attrs, name, val, ppdef, attr_index);
-
-        /* If no smi is explicitely specified, it was just
-         * a try to match. So, change EINVAL to ENOENT. */
-        return (rc == -EINVAL) ? -ENOENT : rc;
+        return get_smi_attr(smi, p_attrs, name, val, ppdef, attr_index);
     }
 }
 

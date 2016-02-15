@@ -114,8 +114,8 @@ static int alerter_executor(struct sm_instance *smi,
     /* set it now, at it may be modified by the specified function */
     *what_after = PA_UPDATE;
 
-    rc = action_helper(action, "alert", p_id, p_attrs, params, what_after,
-                       db_cb_fn, db_cb_arg);
+    rc = action_helper(action, "alert", p_id, p_attrs, params, smi,
+                       what_after, db_cb_fn, db_cb_arg);
     if (rc)
         return rc;
 
