@@ -5257,23 +5257,26 @@ function test_completion
     # flavors:
     case "$flavor" in
         OK)
-            export TEST_CMD="$RBH_TESTS_DIR/completion.sh {cfg} {fspath} out"
+            export TEST_CMD="$RBH_TESTS_DIR/completion.sh '{cfg}' '{fspath}' out"
             ;;
         unmatched)
-            export TEST_CMD="$RBH_TESTS_DIR/completion.sh {cfg"
+            export TEST_CMD="$RBH_TESTS_DIR/completion.sh '{cfg'"
             err="ERROR: unmatched '{' in scan completion command"
             ;;
         invalid_ctx_id)
-            export TEST_CMD="$RBH_TESTS_DIR/completion.sh {fid}"
+            export TEST_CMD="$RBH_TESTS_DIR/completion.sh '{fid}'"
             err="fid is not available in this context"
             ;;
         invalid_ctx_attr)
-            export TEST_CMD="$RBH_TESTS_DIR/completion.sh {fullpath}"
+            export TEST_CMD="$RBH_TESTS_DIR/completion.sh '{fullpath}'"
             err="entry attributes are not available in this context"
             ;;
         invalid_attr)
-            export TEST_CMD="$RBH_TESTS_DIR/completion.sh {foo}"
+            export TEST_CMD="$RBH_TESTS_DIR/completion.sh '{foo}'"
             err="unexpected variable 'foo' in scan completion command"
+#        non_quoted)
+#            export TEST_CMD="$RBH_TESTS_DIR/completion.sh {fspath}"
+#            err="unexpected variable 'foo' in scan completion command"
             ;;
     esac
 

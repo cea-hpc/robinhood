@@ -9,6 +9,6 @@ define_policy rmdir_empty {
 define_policy rmdir_recurse {
     scope {type == directory}
     status_manager = none;
-    default_action = cmd("rm -rf {fullpath}");
+    default_action = cmd("rm -rf '{fullpath}'");
     default_lru_sort_attr = last_mod;
 }
