@@ -353,14 +353,15 @@ close_src:
 static int run_command(const char *name, const char *cmd_in,
                        const entry_id_t *p_id,
                        const attr_set_t *p_attrs,
-                       const action_params_t *params)
+                       const action_params_t *params,
+                       struct sm_instance *smi)
 {
     gchar *cmd;
     int rc = 0;
 
     /** @TODO set additional params */
     cmd = subst_params(cmd_in, "command", p_id, p_attrs, params, NULL,
-                       true, true);
+                       smi, true, true);
     if (cmd != NULL)
     {
         /* call custom purge command instead of unlink() */
@@ -377,8 +378,8 @@ static int run_command(const char *name, const char *cmd_in,
 
 int action_helper(const policy_action_t *action, const char *name,
                   const entry_id_t *p_id, attr_set_t *p_attrs,
-                  const action_params_t *params, post_action_e *after,
-                  db_cb_func_t db_cb_fn, void *db_cb_arg)
+                  const action_params_t *params, struct sm_instance *smi,
+                  post_action_e *after, db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     int rc;
 
@@ -386,7 +387,7 @@ int action_helper(const policy_action_t *action, const char *name,
     {
         case ACTION_COMMAND:
             rc = run_command(name, action->action_u.command, p_id, p_attrs,
-                             params);
+                             params, smi);
             break;
 
         case ACTION_FUNCTION:

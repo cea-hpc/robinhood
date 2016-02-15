@@ -84,6 +84,7 @@ typedef struct subst_args {
     const entry_id_t *id;
     const attr_set_t *attrs;
     const char **subst_array;
+    const sm_instance_t *smi;
 } subst_args_t;
 
 /** substitute placeholders in a param value */
@@ -95,9 +96,8 @@ static int subst_one_param(const char *key, const char *val, void *udata)
     int           rc;
 
     asprintf(&descr, "parameter %s='%s'", key, val);
-
     new_val = subst_params(val, descr, args->id, args->attrs, args->params,
-                           args->subst_array, false, false);
+                           args->subst_array, args->smi, false, false);
     free(descr);
 
     if (!new_val)
@@ -167,7 +167,8 @@ static int build_action_params(action_params_t *params,
     subst_args_t subst_param_args = {
         .params = params,
         .id = id,
-        .attrs = attrs
+        .attrs = attrs,
+        .smi = policy->descr->status_mgr
     };
 
     if (params == NULL)
@@ -306,7 +307,7 @@ static int policy_action(policy_info_t *policy,
                 /* replaces placeholders in command and properly quote them. */
                 cmd = subst_params(actionp->action_u.command, descr,
                                    id, p_attr_set, params, addl_params,
-                                   true, true);
+                                   smi, true, true);
                 free(descr);
                 if (cmd)
                 {

@@ -47,6 +47,14 @@ void DisplayLogFn(log_level debug_level, const char *tag, const char *format, ..
 const char *config_file_path(void) { return "someconfigfile"; }
 const char *get_fsname(void) { return "somefsname"; }
 
+/* dummy ListMgr_PrintAttrPtr() function: avoid linking with all libs */
+int ListMgr_PrintAttrPtr(char *str, int size, db_type_t type,
+                         void *value_ptr, const char *quote)
+{
+    snprintf(str, size, "%p", value_ptr);
+    return 0;
+}
+
 /* Will substitute values in first column with values in second
  * column. */
 static const char *vars[] = {
@@ -85,11 +93,11 @@ static void test_braces(const char *cmd, const char* weak_res)
     char *newcmd;
 
     /* strict braces mode: should be an error */
-    newcmd = subst_params(cmd, descr, NULL, NULL, NULL, vars, false, true);
+    newcmd = subst_params(cmd, descr, NULL, NULL, NULL, vars, NULL, false, true);
     assert(newcmd == NULL);
 
     /* weak braces mode: no error */
-    newcmd = subst_params(cmd, descr, NULL, NULL, NULL, vars, false, false);
+    newcmd = subst_params(cmd, descr, NULL, NULL, NULL, vars, NULL, false, false);
     assert_str_equal(newcmd, weak_res ? weak_res : cmd);
     g_free(newcmd);
 }
@@ -126,49 +134,49 @@ static void test_subst_params(void)
      */
 
     /* Empty string */
-    newcmd = subst_params("", descr, NULL, NULL, NULL, NULL, false, true);
+    newcmd = subst_params("", descr, NULL, NULL, NULL, NULL, NULL, false, true);
     if (strcmp(newcmd, ""))
         abort();
     g_free(newcmd);
 
     /* Nothing interresting */
     cmd = "hello";
-    newcmd = subst_params(cmd, descr, NULL, NULL, NULL, NULL, false, true);
+    newcmd = subst_params(cmd, descr, NULL, NULL, NULL, NULL, NULL, false, true);
     assert_str_equal(newcmd, cmd);
     g_free(newcmd);
 
     /* Empty variable */
     /* should fail if empty string is not a param */
-    newcmd = subst_params("{}", descr, NULL, NULL, NULL, NULL, false, true);
+    newcmd = subst_params("{}", descr, NULL, NULL, NULL, NULL, NULL, false, true);
     assert(newcmd == NULL);
 
     /* case of 'rbh-find': {} is expended to path */
-    newcmd = subst_params("{}", descr, NULL, NULL, NULL, find_vars, false, true);
+    newcmd = subst_params("{}", descr, NULL, NULL, NULL, find_vars, NULL, false, true);
     assert_str_equal(newcmd, "somepath");
     g_free(newcmd);
 
     /* One unknown variable */
-    newcmd = subst_params("{hello}", descr, NULL, NULL, NULL, NULL, false, true);
+    newcmd = subst_params("{hello}", descr, NULL, NULL, NULL, NULL, NULL, false, true);
     assert(newcmd == NULL);
 
     /* One unknown variable with text before */
-    newcmd = subst_params("qwerty{hello}", descr, NULL, NULL, NULL, NULL, false, true);
+    newcmd = subst_params("qwerty{hello}", descr, NULL, NULL, NULL, NULL, NULL, false, true);
     assert(newcmd == NULL);
 
     /* One unknown variable with text after */
-    newcmd = subst_params("{hello}cvbn", descr, NULL, NULL, NULL, NULL, false, true);
+    newcmd = subst_params("{hello}cvbn", descr, NULL, NULL, NULL, NULL, NULL, false, true);
     assert(newcmd == NULL);
 
     /* One unknown variable with text around */
-    newcmd = subst_params("qwerty{hello}cvbn", descr, NULL, NULL, NULL, NULL, false, true);
+    newcmd = subst_params("qwerty{hello}cvbn", descr, NULL, NULL, NULL, NULL, NULL, false, true);
     assert(newcmd == NULL);
 
     /* two unknown variables */
-    newcmd = subst_params("{azerty}{hello}", descr, NULL, NULL, NULL, NULL, false, true);
+    newcmd = subst_params("{azerty}{hello}", descr, NULL, NULL, NULL, NULL, NULL, false, true);
     assert(newcmd == NULL);
 
     /* two unknown variables with text around */
-    newcmd = subst_params("jgds{azerty}lgkfhd{hello}iub", descr, NULL, NULL, NULL, NULL, false, true);
+    newcmd = subst_params("jgds{azerty}lgkfhd{hello}iub", descr, NULL, NULL, NULL, NULL, NULL, false, true);
     assert(newcmd == NULL);
 
     /* string with lone { */
@@ -204,44 +212,44 @@ static void test_subst_params(void)
      */
 
     /* One standard variable */
-    newcmd = subst_params("{name}", descr, NULL, &attrs, NULL, NULL, false, true);
+    newcmd = subst_params("{name}", descr, NULL, &attrs, NULL, NULL, NULL, false, true);
     assert_str_equal(newcmd, attrs.attr_values.name);
     g_free(newcmd);
 
-    newcmd = subst_params("{fid}", "", &id, &attrs, NULL, NULL, false, true);
+    newcmd = subst_params("{fid}", "", &id, &attrs, NULL, NULL, NULL, false, true);
     assert_str_equal(newcmd, fid_str);
     g_free(newcmd);
 
-    newcmd = subst_params("{fsname}", "", &id, &attrs, NULL, NULL, false, true);
+    newcmd = subst_params("{fsname}", "", &id, &attrs, NULL, NULL, NULL, false, true);
     assert_str_equal(newcmd, "somefsname");
     g_free(newcmd);
 
-    newcmd = subst_params("{fsroot}", "", &id, &attrs, NULL, NULL, false, true);
+    newcmd = subst_params("{fsroot}", "", &id, &attrs, NULL, NULL, NULL, false, true);
     assert_str_equal(newcmd, "somefspath");
     g_free(newcmd);
 
-    newcmd = subst_params("{cfg}", "", &id, &attrs, NULL, NULL, false, true);
+    newcmd = subst_params("{cfg}", "", &id, &attrs, NULL, NULL, NULL, false, true);
     assert_str_equal(newcmd, "someconfigfile");
     g_free(newcmd);
 
     /* try to resolve fid without passing id argument */
-    newcmd = subst_params("{fid}", descr, NULL, &attrs, NULL, NULL, false, true);
+    newcmd = subst_params("{fid}", descr, NULL, &attrs, NULL, NULL, NULL, false, true);
     assert(newcmd == NULL);
 
     /* try to resolve missing attribute */
-    newcmd = subst_params("{ost_pool}", descr, NULL, &attrs, NULL, NULL, false, true);
+    newcmd = subst_params("{ost_pool}", descr, NULL, &attrs, NULL, NULL, NULL, false, true);
     assert(newcmd == NULL);
 
     /* Partial standard variable name */
-    newcmd = subst_params("{nam}", descr, NULL, &attrs, NULL, NULL, false, true);
+    newcmd = subst_params("{nam}", descr, NULL, &attrs, NULL, NULL, NULL, false, true);
     assert(newcmd == NULL);
 
     /* Standard variable name with an extra letter */
-    newcmd = subst_params("{namee}", descr, NULL, &attrs, NULL, NULL, false, true);
+    newcmd = subst_params("{namee}", descr, NULL, &attrs, NULL, NULL, NULL, false, true);
     assert(newcmd == NULL);
 
     /* Two standard variables */
-    newcmd = subst_params("{name} {fullpath}", descr, NULL, &attrs, NULL, NULL, false, true);
+    newcmd = subst_params("{name} {fullpath}", descr, NULL, &attrs, NULL, NULL, NULL, false, true);
     assert_str_equal(newcmd, "somename somepath");
     g_free(newcmd);
 
@@ -250,15 +258,15 @@ static void test_subst_params(void)
      */
 
     /* Simple replacement */
-    newcmd = subst_params("{foo}", descr, NULL, NULL, NULL, vars, false, true);
+    newcmd = subst_params("{foo}", descr, NULL, NULL, NULL, vars, NULL, false, true);
     assert_str_equal(newcmd, "barbar");
     g_free(newcmd);
 
-    newcmd = subst_params("{hello}", descr, NULL, NULL, NULL, vars, false, true);
+    newcmd = subst_params("{hello}", descr, NULL, NULL, NULL, vars, NULL, false, true);
     assert_str_equal(newcmd, "bye");
     g_free(newcmd);
 
-    newcmd = subst_params("{marco}", descr, NULL, NULL, NULL, vars, false, true);
+    newcmd = subst_params("{marco}", descr, NULL, NULL, NULL, vars, NULL, false, true);
     assert_str_equal(newcmd, "polo");
     g_free(newcmd);
 
@@ -266,75 +274,75 @@ static void test_subst_params(void)
      * With some real variables (user params).
      */
     /* Simple replacement */
-    newcmd = subst_params("{foo}", descr, NULL, NULL, &params, NULL, false, true);
+    newcmd = subst_params("{foo}", descr, NULL, NULL, &params, NULL, NULL, false, true);
     assert_str_equal(newcmd, "barbar");
     g_free(newcmd);
 
-    newcmd = subst_params("{hello}", descr, NULL, NULL, &params, NULL, false, true);
+    newcmd = subst_params("{hello}", descr, NULL, NULL, &params, NULL, NULL, false, true);
     assert_str_equal(newcmd, "bye");
     g_free(newcmd);
 
-    newcmd = subst_params("{marco}", descr, NULL, NULL, &params, NULL, false, true);
+    newcmd = subst_params("{marco}", descr, NULL, NULL, &params, NULL, NULL, false, true);
     assert_str_equal(newcmd, "polo");
     g_free(newcmd);
 
     /* With quotes */
-    newcmd = subst_params("{foo}", descr, NULL, NULL, NULL, vars, true, true);
+    newcmd = subst_params("{foo}", descr, NULL, NULL, NULL, vars, NULL, true, true);
     assert_str_equal(newcmd, "'barbar'");
     g_free(newcmd);
 
-    newcmd = subst_params("{quote1}", descr, NULL, NULL, NULL, vars, false, true);
+    newcmd = subst_params("{quote1}", descr, NULL, NULL, NULL, vars, NULL, false, true);
     assert_str_equal(newcmd, "a'b");
     g_free(newcmd);
 
-    newcmd = subst_params("{quote1}", descr, NULL, NULL, NULL, vars, true, true);
+    newcmd = subst_params("{quote1}", descr, NULL, NULL, NULL, vars, NULL, true, true);
     assert_str_equal(newcmd, "'a'\\''b'");
     g_free(newcmd);
 
-    newcmd = subst_params("az {quote1}", descr, NULL, NULL, NULL, vars, true, true);
+    newcmd = subst_params("az {quote1}", descr, NULL, NULL, NULL, vars, NULL, true, true);
     assert_str_equal(newcmd, "az 'a'\\''b'");
     g_free(newcmd);
 
-    newcmd = subst_params("{quote1} sx", descr, NULL, NULL, NULL, vars, true, true);
+    newcmd = subst_params("{quote1} sx", descr, NULL, NULL, NULL, vars, NULL, true, true);
     assert_str_equal(newcmd, "'a'\\''b' sx");
     g_free(newcmd);
 
-    newcmd = subst_params("az {quote1} sx", descr, NULL, NULL, NULL, vars, true, true);
+    newcmd = subst_params("az {quote1} sx", descr, NULL, NULL, NULL, vars, NULL, true, true);
     assert_str_equal(newcmd, "az 'a'\\''b' sx");
     g_free(newcmd);
 
     /* Non-existent variable in first column, but present in 2nd column */
-    newcmd = subst_params("{barbar}", descr, NULL, NULL, NULL, vars, false, true);
+    newcmd = subst_params("{barbar}", descr, NULL, NULL, NULL, vars, NULL, false, true);
     assert(newcmd == NULL);
 
-    newcmd = subst_params("{bye}", descr, NULL, NULL, NULL, vars, false, true);
+    newcmd = subst_params("{bye}", descr, NULL, NULL, NULL, vars, NULL, false, true);
     assert(newcmd == NULL);
 
-    newcmd = subst_params("{polo}", descr, NULL, NULL, NULL, vars, false, true);
+    newcmd = subst_params("{polo}", descr, NULL, NULL, NULL, vars, NULL, false, true);
     assert(newcmd == NULL);
 
     /* 2 variables */
-    newcmd = subst_params("{foo} {hello}", descr, NULL, NULL, NULL, vars, false, true);
+    newcmd = subst_params("{foo} {hello}", descr, NULL, NULL, NULL, vars, NULL, false, true);
     assert_str_equal(newcmd, "barbar bye");
     g_free(newcmd);
 
     /* twice the same variable */
-    newcmd = subst_params("{hello}{hello}", descr, NULL, NULL, NULL, vars, false, true);
+    newcmd = subst_params("{hello}{hello}", descr, NULL, NULL, NULL, vars, NULL, false, true);
     assert_str_equal(newcmd, "byebye");
     g_free(newcmd);
 
     /* 3 variables */
-    newcmd = subst_params("{marco}{hello}{foo}", descr, NULL, NULL, NULL, vars, false, true);
+    newcmd = subst_params("{marco}{hello}{foo}", descr, NULL, NULL, NULL, vars, NULL, false, true);
     assert_str_equal(newcmd, "polobyebarbar");
     g_free(newcmd);
 
     /* 2 + 3 variables */
-    newcmd = subst_params("A{marco} {hello} {marco}d{hello}w{hello}", descr, NULL, NULL, NULL, vars, false, true);
+    newcmd = subst_params("A{marco} {hello} {marco}d{hello}w{hello}", descr, NULL, NULL, NULL, vars, NULL, false, true);
     assert_str_equal(newcmd, "Apolo bye polodbyewbye");
     g_free(newcmd);
 
     /* 5 times the same variable */
-    newcmd = subst_params("{marco}{marco}{marco}{marco}{marco}", descr, NULL, NULL, NULL, vars, false, true);
+    newcmd = subst_params("{marco}{marco}{marco}{marco}{marco}", descr, NULL, NULL, NULL, vars, NULL, false, true);
     assert_str_equal(newcmd, "polopolopolopolopolo");
     g_free(newcmd);
 
@@ -343,12 +351,12 @@ static void test_subst_params(void)
      */
 
     /* One of each */
-    newcmd = subst_params("{marco} {fullpath}", descr, NULL, &attrs, NULL, vars, false, true);
+    newcmd = subst_params("{marco} {fullpath}", descr, NULL, &attrs, NULL, vars, NULL, false, true);
     assert_str_equal(newcmd, "polo somepath");
     g_free(newcmd);
 
     /* Several of each */
-    newcmd = subst_params("{marco} {fullpath} {hello} {name} ", descr, NULL, &attrs, NULL, vars, false, true);
+    newcmd = subst_params("{marco} {fullpath} {hello} {name} ", descr, NULL, &attrs, NULL, vars, NULL, false, true);
     assert_str_equal(newcmd, "polo somepath bye somename ");
     g_free(newcmd);
 
@@ -357,12 +365,12 @@ static void test_subst_params(void)
      */
 
     /* One of each */
-    newcmd = subst_params("{marco} {fullpath}", descr, NULL, &attrs, &params, NULL, false, true);
+    newcmd = subst_params("{marco} {fullpath}", descr, NULL, &attrs, &params, NULL, NULL, false, true);
     assert_str_equal(newcmd, "polo somepath");
     g_free(newcmd);
 
     /* Several of each */
-    newcmd = subst_params("{marco} {fullpath} {hello} {name} ", descr, NULL, &attrs, &params, NULL, false, true);
+    newcmd = subst_params("{marco} {fullpath} {hello} {name} ", descr, NULL, &attrs, &params, NULL, NULL, false, true);
     assert_str_equal(newcmd, "polo somepath bye somename ");
     g_free(newcmd);
 
@@ -375,12 +383,12 @@ static void test_subst_params(void)
     assert(rc == 0);
 
     /* user params priority on std params */
-    newcmd = subst_params("{fid}", descr, &id, &attrs, &p, NULL, false, true);
+    newcmd = subst_params("{fid}", descr, &id, &attrs, &p, NULL, NULL, false, true);
     assert_str_equal(newcmd, "override");
     g_free(newcmd);
 
     /* user params priority on additional params */
-    newcmd = subst_params("{hello}", descr, &id, &attrs, &p, vars, false, true);
+    newcmd = subst_params("{hello}", descr, &id, &attrs, &p, vars, NULL, false, true);
     assert_str_equal(newcmd, "goodbye");
     g_free(newcmd);
 
@@ -393,7 +401,7 @@ static void test_subst_params(void)
 
     /* "{triple}" -> "{double}" --> "{marco}" --> "polo" */
     /* TODO: is it an abuse -- should that work? Is it something we want to work? */
-    newcmd = subst_params("{triple} ", descr, NULL, &attrs, NULL, vars, false);
+    newcmd = subst_params("{triple} ", descr, NULL, &attrs, NULL, vars, NULL, false);
     assert_str_equal(newcmd, "polo");
     g_free(newcmd);
 #endif
@@ -401,7 +409,7 @@ static void test_subst_params(void)
 #if 0
     /* "{{explorer}}" -> "{marco}" --> "polo" */
     /* TODO: is it an abuse -- should that work? Is it something we want to work? */
-    newcmd = subst_params("{{explorer}} ", descr, NULL, &attrs, NULL, vars, false);
+    newcmd = subst_params("{{explorer}} ", descr, NULL, &attrs, NULL, vars, NULL, false);
     assert_str_equal(newcmd, "polo");
     g_free(newcmd);
 #endif
