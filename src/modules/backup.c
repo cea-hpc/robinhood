@@ -1652,7 +1652,7 @@ static int wrap_file_copy(sm_instance_t *smi,
     path_replace(&sav, p_attrs, srcpath);
 
     rc = action_helper(action, "copy", p_id, p_attrs, &tmp_params,
-                       after, db_cb_fn, db_cb_arg);
+                       smi, after, db_cb_fn, db_cb_arg);
 
     /* restore real entry attributes */
     path_restore(&sav, p_attrs);
@@ -1865,8 +1865,8 @@ static int remove_executor(sm_instance_t *smi, const policy_action_t *action,
     /* replace the path argument by backend_path */
     path_replace(&sav, p_attrs, backend_path);
 
-    rc = action_helper(action, "remove", p_id, p_attrs, params, after, db_cb_fn,
-                       db_cb_arg);
+    rc = action_helper(action, "remove", p_id, p_attrs, params, smi, after,
+                       db_cb_fn, db_cb_arg);
 
     /* restore real entry attributes */
     path_restore(&sav, p_attrs);
@@ -2100,7 +2100,7 @@ static recov_status_t recov_symlink(const char *backend_path, const char *fspath
 }
 
 /** recover a regular file */
-static recov_status_t recov_file(const entry_id_t *p_id,
+static recov_status_t recov_file(sm_instance_t *smi, const entry_id_t *p_id,
                                  const char *backend_path, const char *fspath,
                                  attr_set_t *attrs, bool *set_mode, bool *compressed,
                                  bool *stat_done, struct stat *bk_stat, bool *no_copy)
@@ -2250,7 +2250,7 @@ static recov_status_t recov_file(const entry_id_t *p_id,
 
         /* perform the data copy (if needed) */
         rc = action_helper(&config.recovery_action, "recover", p_id, attrs,
-                           &recov_params, &dummy_after, NULL, NULL);
+                           &recov_params, smi, &dummy_after, NULL, NULL);
 
         /* restore real entry attributes */
         path_restore(&sav, attrs);
@@ -2442,7 +2442,7 @@ static recov_status_t backup_recover(struct sm_instance *smi,
     }
     else if (!strcasecmp(ATTR(&attrs_old, type), STR_TYPE_FILE))
     {
-        success_status = recov_file(p_old_id, backend_path, fspath, &attrs_old,
+        success_status = recov_file(smi, p_old_id, backend_path, fspath, &attrs_old,
                                     &set_mode, &compressed, &stat_done, &st_bk, &no_copy);
         if ((success_status != RS_FILE_EMPTY) && (success_status != RS_FILE_OK))
             goto out;
