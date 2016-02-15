@@ -467,6 +467,7 @@ char *quote_shell_arg(const char *arg);
  */
 attr_mask_t params_mask(const char *str, const char *str_descr, bool *err);
 
+struct sm_instance;
 /**
  * Replace special parameters {cfg}, {fspath}, ... in the given string.
  * Result string is allocated by the function and must be released using g_free().
@@ -476,6 +477,7 @@ attr_mask_t params_mask(const char *str, const char *str_descr, bool *err);
  * @param[in] p_attrs   Pointer to entry attrs (if the command is executed on an entry).
  * @param[in] params    List of action parameters.
  * @param[in] subst_array char** of param1, value1, param2, value2, ..., NULL, NULL.
+ * @param[in] smi       When applying a policy, pointer to the current status manager instance.
  * @param[in] quote     If true, escape and quote the replaced values as shell arguments.
  * @param[in] strict_braces If true, only allow braces for variable names like {var}.
  */
@@ -485,6 +487,7 @@ char *subst_params(const char *str_in,
                    const attr_set_t *p_attrs,
                    const action_params_t *params,
                    const char **subst_array,
+                   const struct sm_instance *smi,
                    bool quote, bool strict_braces);
 
 /** convert to upper case */

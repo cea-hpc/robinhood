@@ -117,8 +117,8 @@ static inline int set_uint_info(const sm_instance_t *smi, attr_set_t *pattrs,
 /** Helper to run a configurable action. */
 int action_helper(const policy_action_t *action, const char *name,
                   const entry_id_t *p_id, attr_set_t *p_attrs,
-                  const action_params_t *params, post_action_e *after,
-                  db_cb_func_t db_cb_fn, void *db_cb_arg);
+                  const action_params_t *params, struct sm_instance *smi,
+                  post_action_e *after, db_cb_func_t db_cb_fn, void *db_cb_arg);
 
 
 /* ---- Public module interface ---- */

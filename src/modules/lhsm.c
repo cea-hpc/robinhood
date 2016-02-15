@@ -705,6 +705,7 @@ static proc_action_e lhsm_softrm_filter(struct sm_instance *smi, const entry_id_
 /** rebind an entry to a new fid in HSM backend */
 static int lhsm_rebind(const entry_id_t *old_id, const entry_id_t *new_id,
                        const attr_set_t *new_attrs,
+                       struct sm_instance *smi,
                        unsigned int archive_id)
 {
     const char descr[] = "rebind command";
@@ -725,7 +726,7 @@ static int lhsm_rebind(const entry_id_t *old_id, const entry_id_t *new_id,
     rbh_param_set(&cmd_params, "newfid", tmp, true);
 
     cmd = subst_params(config.rebind_cmd, descr, new_id, new_attrs,
-                       &cmd_params, NULL, true, true); /* quote, strict bracing */
+                       &cmd_params, NULL, smi, true, true); /* quote, strict bracing */
     rbh_params_free(&cmd_params);
 
     if (!cmd) {
@@ -824,7 +825,7 @@ static recov_status_t lhsm_undelete(struct sm_instance *smi,
 
     /** TODO If another status manager recovered it, just rebind in the backend. */
 
-    rc = lhsm_rebind(p_old_id, p_new_id, p_attrs_new, archive_id);
+    rc = lhsm_rebind(p_old_id, p_new_id, p_attrs_new, smi, archive_id);
     if (rc) {
         DisplayLog(LVL_CRIT, LHSM_TAG, "Failed to rebind entry in backend: %s",
                    rc < 0 ? strerror(-rc) : "command failed");
