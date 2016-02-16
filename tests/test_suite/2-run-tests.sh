@@ -1626,6 +1626,35 @@ function purge_test
 #	kill %1
 }
 
+# helper for test_custom_purge
+function grep_and_split
+{
+    local log="$1"
+    local fname="$2"
+
+    line=$(grep "Executing policy action on" $log | grep 'purge' | grep "$fname"')')
+    if [ -z "$line" ]; then
+        error "No 'Executing policy action' found about $fname"
+        return 1
+    fi
+
+    # Executing policy action on: 0x200000400:0x216f:0x0 (/mnt/lustre/foo1 `pkill -9 robinhood`)
+    id=$(echo "$line" | sed -e "s/.*Executing policy action on: //" | awk '{print $1}')
+    p=$(echo "$line" | sed -e "s/.*Executing policy action on: //" | sed -e 's/.*(\(.*\).*)/\1/')
+
+    # purge | [0x200000400:0x2171:0x0]: action: cmd(./rm_script 'lustre' '0x200000400:0x2171:0x0'
+    #            '/mnt/lustre/foo3'\'' '\'';'\'' '\''exit'\'' '\''1'\''')
+    # split args
+    line=$(grep  "action: cmd" $log | grep 'purge' | grep "$id" | sed -e "s/.*action: cmd(//" | sed -e 's/)$//')
+    if [ -z "$line" ]; then
+        error "No 'action: cmd' found on '$id'"
+        return 1
+    fi
+    echo "$line" | tr -d "'"
+    return 0
+}
+
+
 function test_custom_purge
 {
 	config_file=$1
@@ -1694,19 +1723,14 @@ function test_custom_purge
 
 	# checking that the custom command was called for each file
 	for  i in `seq 1 10`; do
-		line=$(grep "Executing " rh_purge.log | grep 'rm_script' | grep $RH_ROOT/file.$i)
-        if [ -z "$line" ]; then
-            error "No action found on $RH_ROOT/file.$i"
-            continue
-        fi
-        # split args
-        args=($(echo "$line" | sed -e "s/.*rm_script//" | tr -d "'"))
-        fn=${args[0]}
-        id=${args[1]}
-        p=${args[2]}
+        args=($(grep_and_split rh_purge.log "$RH_ROOT/file.$i"))
+        [ -z "${args[*]}" ] && continue
+        fn=${args[1]}
+        id=${args[2]}
+        p=${args[3]}
         [ "$DEBUG" = "1" ] && echo "action: fsname=$fn, fid=$id, path=$p"
 
-        [ $fn = $fsname ] || error "invalid fsname $fn != $fsname"
+        [ x$fn = x$fsname ] || error "invalid fsname $fn != $fsname"
         # only compare fids for lustre 2.x
         if (( $no_log == 0 )); then
             [ $id = ${fids[$i]} ] || error "invalid fid $id != ${fids[$i]}"
@@ -1719,28 +1743,24 @@ function test_custom_purge
     # same test for special file names
     i=11
     for f in  "$RH_ROOT/foo1 \`pkill -9 $CMD\`" "$RH_ROOT/foo2 ; exit 1" "$RH_ROOT/foo3' ';' 'exit' '1'" ; do
-        f0=$(echo "$f" | awk '{print $1}')
-		line=$(grep "Executing " rh_purge.log | grep 'rm_script' | grep "$f0")
-        if [ -z "$line" ]; then
-            error "No action found on $f"
-            continue
-        fi
-        # split args
-        args=($(echo "$line" | sed -e "s/.*rm_script//" | tr -d "'" | tr -d '\\' | cut -d '>' -f 1))
-        fn=${args[0]}
-        id=${args[1]}
+        args=($(grep_and_split rh_purge.log "$f"))
+        [ -z "${args[*]}" ] && continue
+        fn=${args[1]}
+        id=${args[2]}
         unset args[0]
         unset args[1]
+        unset args[2]
         p=${args[@]}
         [ "$DEBUG" = "1" ] && echo "action: fsname=$fn, fid=$id, path=$p"
 
-        [ $fn = $fsname ] || error "invalid fsname $fn != $fsname"
+        [ x$fn = x$fsname ] || error "invalid fsname $fn != $fsname"
         # only compare fids for lustre 2.x
         if (( $no_log == 0 )); then
             [ $id = ${fids[$i]} ] || error "invalid fid $id != ${fids[$i]}"
         fi
+        cleand=$(echo "$p" | tr -d '\\')
         f2=$(echo $f | tr -d "'")
-        [ "$p" = "$f2" ] || error "invalid path $p != $f2"
+        [ "$cleand" = "$f2" ] || error "invalid path '$cleand' != '$f2'"
 
         [ -f "$f" ] && error "$f still exists after purge command"
         ((i=$i+1))
