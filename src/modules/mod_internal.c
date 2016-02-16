@@ -397,7 +397,7 @@ static int run_command(const char *name, const char *cmd_in,
 
     /** @TODO set additional params */
     cmd = subst_params(cmd_in, "command", p_id, p_attrs, params, NULL,
-                       smi, false, true);
+                       smi, SBST_FLG_ESCAPE | SBST_FLG_STRICT_BRACES);
     if (cmd == NULL)
         return -EINVAL;
 

@@ -887,7 +887,8 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
             NULL, NULL
         };
         gchar *cmd = subst_params(prog_options.exec_cmd, "exec option",
-                                  &id->id, attrs, NULL, vars, NULL, true, true);
+                                  &id->id, attrs, NULL, vars, NULL,
+                                  SBST_FLG_ESCAPE | SBST_FLG_STRICT_BRACES);
         if (cmd)
         {
             /* display both stdout and stderr */

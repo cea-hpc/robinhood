@@ -97,7 +97,7 @@ static int subst_one_param(const char *key, const char *val, void *udata)
 
     asprintf(&descr, "parameter %s='%s'", key, val);
     new_val = subst_params(val, descr, args->id, args->attrs, args->params,
-                           args->subst_array, args->smi, false, false);
+                           args->subst_array, args->smi, 0);
     free(descr);
 
     if (!new_val)
@@ -307,7 +307,7 @@ static int policy_action(policy_info_t *policy,
                 /* replaces placeholders in command */
                 cmd = subst_params(actionp->action_u.command, descr,
                                    id, p_attr_set, params, addl_params,
-                                   smi, false, true);
+                                   smi, SBST_FLG_ESCAPE | SBST_FLG_STRICT_BRACES);
                 free(descr);
                 if (cmd)
                 {

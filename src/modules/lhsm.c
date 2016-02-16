@@ -726,7 +726,8 @@ static int lhsm_rebind(const entry_id_t *old_id, const entry_id_t *new_id,
     rbh_param_set(&cmd_params, "newfid", tmp, true);
 
     cmd = subst_params(config.rebind_cmd, descr, new_id, new_attrs,
-                       &cmd_params, NULL, smi, true, true); /* quote, strict bracing */
+                       &cmd_params, NULL, smi,
+                       SBST_FLG_ESCAPE | SBST_FLG_STRICT_BRACES);
     rbh_params_free(&cmd_params);
 
     if (!cmd) {

@@ -456,7 +456,7 @@ int execute_shell_command(const char *cmd, parse_cb_t cb_func, void *cb_arg);
 /**
  * Quote an argument for shell commande line.
  * The caller must free the returned string. */
-char *quote_shell_arg(const char *arg);
+char *escape_shell_arg(const char *arg);
 
 /**
  * Get the mask for placeholders in the given string.
@@ -466,6 +466,11 @@ char *quote_shell_arg(const char *arg);
  * @param[our] err this boolean is set to true if an syntax in encountered.
  */
 attr_mask_t params_mask(const char *str, const char *str_descr, bool *err);
+
+enum subst_flags {
+    SBST_FLG_ESCAPE        = (1 << 0), /* escape the replaced values as shell arguments */
+    SBST_FLG_STRICT_BRACES = (1 << 1), /* only allow braces for variable names like {var} */
+};
 
 struct sm_instance;
 /**
@@ -478,6 +483,7 @@ struct sm_instance;
  * @param[in] params    List of action parameters.
  * @param[in] subst_array char** of param1, value1, param2, value2, ..., NULL, NULL.
  * @param[in] smi       When applying a policy, pointer to the current status manager instance.
+ * @param[in] flags     Behavior flags (enum subst_flags).
  * @param[in] quote     If true, escape and quote the replaced values as shell arguments.
  * @param[in] strict_braces If true, only allow braces for variable names like {var}.
  */
@@ -488,7 +494,7 @@ char *subst_params(const char *str_in,
                    const action_params_t *params,
                    const char **subst_array,
                    const struct sm_instance *smi,
-                   bool quote, bool strict_braces);
+                   enum subst_flags flags);
 
 /** convert to upper case */
 void upperstr(char *str);

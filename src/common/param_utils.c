@@ -356,7 +356,7 @@ attr_mask_t params_mask(const char *str, const char *str_descr, bool *err)
 /** argument structure for build_cmd() callback */
 struct build_cmd_args
 {
-    bool quote;
+    enum subst_flags        flags;
 
     /** entry id, attrs, ... */
     const entry_id_t *id;
@@ -378,10 +378,10 @@ struct build_cmd_args
     GString                  *out_str;
 };
 
-char *quote_shell_arg(const char *arg)
+char *escape_shell_arg(const char *arg)
 {
     const char *replace_with = "'\\''";
-    char *arg_walk, *quoted, *quoted_walk;
+    char *arg_walk, *escd, *escd_walk;
     int count = 0;
 
     arg_walk = (char *) arg;
@@ -396,32 +396,28 @@ char *quote_shell_arg(const char *arg)
         ++arg_walk;
     }
 
-    quoted = (char *)calloc(1, strlen(arg) +
-                            (count * strlen(replace_with)) + 2 + 1);
-    if (!quoted)
+    escd = (char *)calloc(1, strlen(arg) +
+                            (count * strlen(replace_with)) + 1);
+    if (!escd)
         return NULL;
 
-    quoted_walk = quoted;
-    *quoted_walk = '\'';
-    ++quoted_walk;
+    escd_walk = escd;
+    arg_walk = (char *)arg;
 
-    arg_walk = (char *) arg;
     while (*arg_walk) {
         if (*arg_walk == '\'') {
-            strcat(quoted_walk, replace_with);
-            quoted_walk += strlen(replace_with);
+            strcat(escd_walk, replace_with);
+            escd_walk += strlen(replace_with);
         } else {
-            *quoted_walk = *arg_walk;
-            ++quoted_walk;
+            *escd_walk = *arg_walk;
+            ++escd_walk;
         }
         ++arg_walk;
     }
 
-    *quoted_walk = '\'';
-    ++quoted_walk;
-    *quoted_walk = '\0';
+    *escd_walk = '\0';
 
-    return quoted;
+    return escd;
 }
 
 /** callback function to build a command by replacing placeholders. */
@@ -429,7 +425,7 @@ static int build_cmd(const char *name, int begin_idx, int end_idx, void *udata)
 {
     struct build_cmd_args      *args = udata;
     const char                 *val = NULL;
-    char                       *quoted_arg = NULL;
+    char                       *escaped_arg = NULL;
     bool                        free_val = false;
     char                        buff[1024];
     int                         rc;
@@ -503,17 +499,17 @@ static int build_cmd(const char *name, int begin_idx, int end_idx, void *udata)
         return -EINVAL;
     }
 
-    if (args->quote)
+    if (args->flags & SBST_FLG_ESCAPE)
     {
         /* quote the value and append it to command line */
-        quoted_arg = quote_shell_arg(val);
-        if (!quoted_arg)
+        escaped_arg = escape_shell_arg(val);
+        if (!escaped_arg)
         {
             rc = -ENOMEM;
             goto out_free;
         }
 
-        g_string_append(args->out_str, quoted_arg);
+        g_string_append(args->out_str, escaped_arg);
     }
     else
         g_string_append(args->out_str, val);
@@ -522,7 +518,7 @@ static int build_cmd(const char *name, int begin_idx, int end_idx, void *udata)
     rc = 0;
 
 out_free:
-    free(quoted_arg);
+    free(escaped_arg);
     if (free_val)
         free((char*)val);
     return rc;
@@ -536,10 +532,10 @@ char *subst_params(const char *str_in,
                    const action_params_t *params,
                    const char **subst_array,
                    const struct sm_instance *smi,
-                   bool quote, bool strict_braces)
+                   enum subst_flags flags)
 {
     struct build_cmd_args args = {
-        .quote = quote,
+        .flags = flags,
         .id = p_id,
         .attrs = p_attrs,
         .user_params = params,
@@ -558,7 +554,8 @@ char *subst_params(const char *str_in,
         goto err_free;
 
     if (placeholder_foreach(str_in, args.str_descr, build_cmd, (void*)&args,
-                       PH_ALLOW_EMPTY | (strict_braces ? PH_STRICT_BRACES : 0)))
+                       PH_ALLOW_EMPTY | (flags & SBST_FLG_STRICT_BRACES ?
+                                            PH_STRICT_BRACES : 0)))
         goto err_free;
 
     /* append the end of the string */
