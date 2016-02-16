@@ -2,6 +2,23 @@
   "comments": [
     {
       "key": {
+        "uuid": "da86d52c_43d51a42",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 58,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-02-16T17:00:30Z",
+      "side": 1,
+      "message": "Usually that stuff needs to be atomic.",
+      "revId": "82b3c6857f82eeb82a3d4a6ef4c3af09cbe96025",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "da86d52c_c3abcad4",
         "filename": "src/common/rbh_cmd.c",
         "patchSetId": 1
