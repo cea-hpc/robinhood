@@ -1,0 +1,140 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "da86d52c_c3abcad4",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 131,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-02-16T16:41:16Z",
+      "side": 1,
+      "message": "That doesn\u0027t need to be set.",
+      "revId": "82b3c6857f82eeb82a3d4a6ef4c3af09cbe96025",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "da86d52c_a3aed6e5",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 143,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-02-16T16:41:16Z",
+      "side": 1,
+      "message": "The way the rest uses the line, I don\u0027t think size is needed, and could be NULL instead.",
+      "revId": "82b3c6857f82eeb82a3d4a6ef4c3af09cbe96025",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "da86d52c_035fa20f",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 144,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-02-16T16:41:16Z",
+      "side": 1,
+      "message": "Is that correct? The doc says to check that the return of g_io_channel_read_line is G_IO_STATUS_NORMAL.",
+      "revId": "82b3c6857f82eeb82a3d4a6ef4c3af09cbe96025",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "da86d52c_a3125656",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 201,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-02-16T16:41:16Z",
+      "side": 1,
+      "message": "If cb_func is NULL, is there a need to set these 2 variables?",
+      "revId": "82b3c6857f82eeb82a3d4a6ef4c3af09cbe96025",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "da86d52c_43a0baf4",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 276,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-02-16T16:41:16Z",
+      "side": 1,
+      "message": "The string is already terminated.",
+      "revId": "82b3c6857f82eeb82a3d4a6ef4c3af09cbe96025",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "da86d52c_033162ec",
+        "filename": "src/common/rbh_misc.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 143,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-02-16T16:41:16Z",
+      "side": 1,
+      "message": "Both changes unrelated to this patch.",
+      "revId": "82b3c6857f82eeb82a3d4a6ef4c3af09cbe96025",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "da86d52c_43527a14",
+        "filename": "src/include/rbh_misc.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 446,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-02-16T16:41:16Z",
+      "side": 1,
+      "message": "cast, not casted",
+      "revId": "82b3c6857f82eeb82a3d4a6ef4c3af09cbe96025",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "da86d52c_e34a8e54",
+        "filename": "src/robinhood/cmd_helpers.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1133,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-02-16T16:41:16Z",
+      "side": 1,
+      "message": "extra spaces?",
+      "revId": "82b3c6857f82eeb82a3d4a6ef4c3af09cbe96025",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
