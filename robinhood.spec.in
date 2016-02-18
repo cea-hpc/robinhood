@@ -28,7 +28,6 @@ Prefix: %{_prefix}
 
 Release: @RELEASE@%{?config_dependant}%{?dist}
 
-
 Summary: Robinhood - Policy engine and reporting tool for large filesystems
 License: CeCILL-C
 Group: Applications/System
@@ -39,23 +38,53 @@ BuildRequires: glib2-devel >= 2.16
 BuildRequires: libattr-devel
 BuildRequires: mailx
 %if %{with lustre}
-Requires: %{lpackage} >= %{lversion}
 BuildRequires: %{lpackage} >= %{lversion}
 %endif
 %if %{with mysql}
 BuildRequires: /usr/include/mysql/mysql.h
 %endif
-Obsoletes: robinhood-tmpfs < 3.0, robinhood-backup < 3.0, robinhood-lhsm < 3.0
 
 %description
-Robinhood is a tool for monitoring and purging file systems. It is designed to
-process all its tasks in parallel, so it is particularly adapted for managing
-large file systems with millions of entries and petabytes of data.
+Robinhood is a tool for monitoring and applying policies to file system entries.
+It is designed to process all its tasks in parallel, so it is particularly adapted
+for managing large file systems with millions of entries and petabytes of data.
 
 With support for: %{?with_lustre:Lustre} %{?with_backup:Backup} %{?with_shook:shook}
 
 Generated using options: @ac_configure_args@
 
+%if %{with lustre}
+# Package robinhood-lustre includes robinhood for Lustre filesystem
+# which is not compatible with robinhood-posix.
+%package lustre
+
+Summary: Robinhood Policy Engine for Lustre filesystems
+Group: Applications/System
+Requires: %{lpackage} >= %{lversion}
+Conflicts: robinhood-posix
+Provides: robinhood
+Obsoletes: robinhood-tmpfs < 3.0, robinhood-tmpfs-lustre < 3.0
+Obsoletes: robinhood-backup < 3.0, robinhood-lhsm < 3.0
+
+%description lustre
+Policy engine for Lustre filesystems.
+
+%else
+
+# Package robinhood-posix includes robinhood for other POSIX filesystems
+# It is not compatible with robinhood-lustre.
+%package posix
+
+Summary: Robinhood Policy engine for POSIX filesystems
+Group: Applications/System
+Conflicts: robinhood-lustre
+Provides: robinhood
+Obsoletes: robinhood-tmpfs < 3.0, robinhood-tmpfs-posix < 3.0
+
+%description posix
+Policy engine for POSIX filesystems.
+
+%endif
 
 %package adm
 Summary: admin/config helper for Robinhood PolicyEngine
@@ -200,7 +229,14 @@ ldconfig
 %{_datadir}/robinhood/tests/
 %{_datadir}/robinhood/doc/
 
-%files
+# robinhood RPM name for lustre is robinhood-lustre
+%if %{with lustre}
+%files lustre
+%else
+# robinhood RPM name for posix is robinhood-posix
+%files posix
+%endif
+
 %defattr(-,root,root,-)
 #%doc README
 #%doc COPYING
