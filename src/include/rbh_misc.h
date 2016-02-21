@@ -451,7 +451,7 @@ int cb_stderr_to_log(void *arg, char *line, size_t size, int stream);
  * Execute a shell command and call cb_func for each output line
  * (ignore output if cb_func is null).
  */
-int execute_shell_command(const char *cmd, parse_cb_t cb_func, void *cb_arg);
+int execute_shell_command(char **cmd, parse_cb_t cb_func, void *cb_arg);
 
 /**
  * Quote an argument for shell commande line.
@@ -489,6 +489,40 @@ char *subst_params(const char *str_in,
                    const char **subst_array,
                    const struct sm_instance *smi,
                    bool quote, bool strict_braces);
+
+/**
+ * Replace special parameters {cfg}, {fspath}, ... in the given string.
+ * Result is formated as argc/argv for shell by the function in cmd_out,
+ * cmd_out.av must be released using g_strfreev().
+ * returns 0 on success, -errno on error.
+ * @param[in] cmd_in    Input command, av contains strings with {} placeholders.
+ * @param[in] str_descr String description (for logging).
+ * @param[in] p_id      Pointer to entry id (if the command is executed on an entry).
+ * @param[in] p_attrs   Pointer to entry attrs (if the command is executed on an entry).
+ * @param[in] params    List of action parameters.
+ * @param[in] subst_array char** of param1, value1, param2, value2, ..., NULL, NULL.
+ * @param[in] smi       When applying a policy, pointer to the current status manager instance.
+ * @param[in] strict_braces If true, only allow braces for variable names like {var}.
+ * @param[out] cmd_out  parsed argc/argv after subst
+ */
+int subst_shell_params(char **cmd_in,
+                       const char *str_descr,
+                       const entry_id_t *p_id,
+                       const attr_set_t *p_attrs,
+                       const action_params_t *params,
+                       const char **subst_array,
+                       const struct sm_instance *smi,
+                       bool strict_braces,
+                       char ***cmd_out);
+
+/**
+ * concatenate a string array into a string
+ * The returned string must be freed with free().
+ */
+char *concat_cmd(char **argv);
+
+/** compare commands */
+int compare_cmd(char **c1, char **c2);
 
 /** convert to upper case */
 void upperstr(char *str);

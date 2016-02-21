@@ -429,30 +429,40 @@ static int TerminateScan(int scan_complete, time_t end)
     DisplayLog( LVL_VERB, FSSCAN_TAG, "Sending batched alerts, if any" );
     Alert_EndBatching();
 
-    if (scan_complete && !EMPTY_STRING(fs_scan_config.completion_command))
+    if (scan_complete && fs_scan_config.completion_command != NULL)
     {
         char  *descr = NULL;
-        gchar *cmd = NULL;
+        char **cmd;
+        char  *log_cmd;
+        int    rc;
 
         /* substitute special args in completion command.
          * only use global std parameters (no entry attrs, nor action params,
          * nor additional specific parameters).
          */
         asprintf(&descr, "scan completion command '%s'",
-                 fs_scan_config.completion_command);
+                 fs_scan_config.completion_command[0]);
 
-        cmd = subst_params(fs_scan_config.completion_command, descr,
-                           NULL, NULL, NULL, NULL, NULL, true, true);
+        rc = subst_shell_params(fs_scan_config.completion_command, descr,
+                NULL, NULL, NULL, NULL, NULL, true, &cmd);
         free(descr);
-        if (cmd)
+        if (rc)
         {
-            DisplayLog(LVL_MAJOR, FSSCAN_TAG, "Executing scan completion command: %s", cmd);
-            execute_shell_command(cmd, cb_stderr_to_log, (void*)LVL_EVENT);
-            g_free(cmd);
+            log_cmd = concat_cmd(fs_scan_config.completion_command);
+            DisplayLog(LVL_MAJOR, FSSCAN_TAG, "Invalid scan completion command: %s",
+                       log_cmd);
+            free(log_cmd);
+            /* return rc? */
         }
         else
-            DisplayLog(LVL_MAJOR, FSSCAN_TAG, "Invalid scan completion command: %s",
-                       fs_scan_config.completion_command);
+        {
+            log_cmd = concat_cmd(cmd);
+            DisplayLog(LVL_MAJOR, FSSCAN_TAG, "Executing scan completion command: %s", log_cmd);
+            free(log_cmd);
+
+            execute_shell_command(cmd, cb_stderr_to_log, (void*)LVL_EVENT);
+            g_strfreev(cmd);
+        }
     }
 
     if ( fsscan_once )
