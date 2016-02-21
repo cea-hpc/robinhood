@@ -431,8 +431,9 @@ static int TerminateScan(int scan_complete, time_t end)
 
     if (scan_complete && !EMPTY_STRING(fs_scan_config.completion_command))
     {
-        char  *descr = NULL;
-        gchar *cmd = NULL;
+        char   *descr = NULL;
+        int     ac, rc;
+        gchar **av = NULL;
 
         /* substitute special args in completion command.
          * only use global std parameters (no entry attrs, nor action params,
@@ -441,18 +442,20 @@ static int TerminateScan(int scan_complete, time_t end)
         asprintf(&descr, "scan completion command '%s'",
                  fs_scan_config.completion_command);
 
-        cmd = subst_params(fs_scan_config.completion_command, descr,
-                           NULL, NULL, NULL, NULL, NULL, true, true);
+        rc = subst_shell_params(fs_scan_config.completion_command, descr,
+                                NULL, NULL, NULL, NULL, NULL, true, &ac, &av);
         free(descr);
-        if (cmd)
+        if (rc)
         {
-            DisplayLog(LVL_MAJOR, FSSCAN_TAG, "Executing scan completion command: %s", cmd);
-            execute_shell_command(cmd, cb_stderr_to_log, (void*)LVL_EVENT);
-            g_free(cmd);
-        }
-        else
             DisplayLog(LVL_MAJOR, FSSCAN_TAG, "Invalid scan completion command: %s",
                        fs_scan_config.completion_command);
+        }
+        else
+        {
+            DisplayLog(LVL_MAJOR, FSSCAN_TAG, "Executing scan completion command: %s", av[0]);
+            execute_shell_command(ac, av, cb_stderr_to_log, (void*)LVL_EVENT);
+            g_strfreev(av);
+        }
     }
 
     if ( fsscan_once )

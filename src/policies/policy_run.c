@@ -296,7 +296,8 @@ static int policy_action(policy_info_t *policy,
             case ACTION_COMMAND: /* execute custom action */
             {
                 char *descr = NULL;
-                gchar *cmd = NULL;
+                int ac;
+                gchar **av = NULL;
                 char const* addl_params[5];
 
                 set_addl_params(addl_params, sizeof(addl_params)/sizeof(char *),
@@ -305,22 +306,19 @@ static int policy_action(policy_info_t *policy,
                 asprintf(&descr, "action command '%s'", actionp->action_u.command);
 
                 /* replaces placeholders in command */
-                cmd = subst_params(actionp->action_u.command, descr,
-                                   id, p_attr_set, params, addl_params,
-                                   smi, false, true);
+                rc = subst_shell_params(actionp->action_u.command, descr,
+                                        id, p_attr_set, params, addl_params,
+                                        smi, true, &ac, &av);
                 free(descr);
-                if (cmd)
+                if (rc == 0)
                 {
                     /* call custom purge command instead of unlink() */
                     DisplayLog(LVL_DEBUG, tag(policy), DFID": action: cmd(%s)",
-                               PFID(id), cmd);
-                    rc = execute_shell_command(cmd, cb_stderr_to_log, (void *)LVL_DEBUG);
-                    g_free(cmd);
+                               PFID(id), av[0]);
+                    rc = execute_shell_command(ac, av, cb_stderr_to_log, (void *)LVL_DEBUG);
+                    g_strfreev(av);
                     /* @TODO handle other hardlinks to the same entry */
                 }
-                else
-                    rc = -errno;
-
                 /* external commands can't set 'after': default to update */
                 *after = PA_UPDATE;
 

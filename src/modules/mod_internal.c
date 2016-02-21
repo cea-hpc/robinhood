@@ -392,27 +392,28 @@ static int run_command(const char *name, const char *cmd_in,
                        struct sm_instance *smi,
                        GString *out)
 {
-    gchar *cmd;
+    int ac;
+    gchar **av;
     int rc = 0;
 
     /** @TODO set additional params */
-    cmd = subst_params(cmd_in, "command", p_id, p_attrs, params, NULL,
-                       smi, false, true);
-    if (cmd == NULL)
+    rc = subst_shell_params(cmd_in, "command", p_id, p_attrs, params, NULL,
+                            smi, true, &ac, &av);
+    if (rc)
         return -EINVAL;
 
     /* call custom purge command instead of unlink() */
     DisplayLog(LVL_DEBUG, __func__, DFID": %s action: cmd(%s)", PFID(p_id),
-               name, cmd);
+               name, av[0]);
 
     if (out == NULL)
         /* do not collect output, just redirect command stderr to robinhood log */
-        rc = execute_shell_command(cmd, cb_stderr_to_log, (void *)LVL_DEBUG);
+        rc = execute_shell_command(ac, av, cb_stderr_to_log, (void *)LVL_DEBUG);
     else
         /* collect stdout in out Gstring */
-        rc = execute_shell_command(cmd, cb_collect_stdout, (void *)out);
+        rc = execute_shell_command(ac, av, cb_collect_stdout, (void *)out);
 
-    g_free(cmd);
+    g_strfreev(av);
 
     return rc;
 }
