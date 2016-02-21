@@ -133,7 +133,7 @@ struct find_opt
     compare_direction_t acc_compar;
     time_t              acc_val;
 
-    const char * exec_cmd;
+    char              **exec_cmd;
 
     /* query option */
     enum { bulk_unspec = 0,
@@ -917,13 +917,17 @@ static void print_entry(const wagon_t *id, const attr_set_t * attrs)
             "", id->fullname,
             NULL, NULL
         };
-        gchar *cmd = subst_params(prog_options.exec_cmd, "exec option",
-                                  &id->id, attrs, NULL, vars, NULL, true, true);
-        if (cmd)
+        int rc;
+        char **cmd;
+
+        rc = subst_shell_params(prog_options.exec_cmd, "exec option",
+                                &id->id, attrs, NULL, vars, NULL, true,
+                                &cmd);
+        if (!rc)
         {
             /* display both stdout and stderr */
             execute_shell_command(cmd, cb_redirect_all, NULL);
-            g_free(cmd);
+            g_strfreev(cmd);
         }
     }
 }
@@ -1225,6 +1229,7 @@ int main(int argc, char **argv)
     bool           chgd = false;
     char           badcfg[RBH_PATH_MAX];
     bool           neg = false;
+    GError        *err_desc = NULL;
 
     bin = rh_basename(argv[0]);
 
@@ -1450,7 +1455,13 @@ int main(int argc, char **argv)
 
         case 'E':
             toggle_option(exec, "exec");
-            prog_options.exec_cmd = optarg;
+            if (!g_shell_parse_argv(optarg, NULL, &prog_options.exec_cmd,
+                                    &err_desc)) {
+                fprintf(stderr, "Could not parse command %s: %s\n",
+                        optarg, err_desc->message);
+                g_error_free(err_desc);
+                exit(1);
+            }
             prog_options.print = 0;
             break;
 
