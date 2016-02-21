@@ -149,6 +149,7 @@ typedef enum {
     PT_INT,
     PT_INT64,
     PT_FLOAT,
+    PT_CMD,
     PT_TYPE
 } cfg_param_type;
 

@@ -40,7 +40,7 @@
 
 typedef struct lhsm_config_t
 {
-    char rebind_cmd[RBH_PATH_MAX];
+    char **rebind_cmd;
 } lhsm_config_t;
 
 /* lhsm config is global as the status manager is shared */
@@ -709,7 +709,8 @@ static int lhsm_rebind(const entry_id_t *old_id, const entry_id_t *new_id,
                        unsigned int archive_id)
 {
     const char descr[] = "rebind command";
-    char  *cmd = NULL;
+    char **cmd = NULL;
+    char *log_cmd;
     char tmp[256]; /* max length for fid */
     action_params_t cmd_params = {0};
     int rc;
@@ -725,19 +726,27 @@ static int lhsm_rebind(const entry_id_t *old_id, const entry_id_t *new_id,
     snprintf(tmp, sizeof(tmp), DFID_NOBRACE, PFID(new_id));
     rbh_param_set(&cmd_params, "newfid", tmp, true);
 
-    cmd = subst_params(config.rebind_cmd, descr, new_id, new_attrs,
-                       &cmd_params, NULL, smi, true, true); /* quote, strict bracing */
+    rc = subst_shell_params(config.rebind_cmd, descr, new_id, new_attrs,
+                            &cmd_params, NULL, smi, true, &cmd);
     rbh_params_free(&cmd_params);
 
-    if (!cmd) {
+    if (rc) {
+        log_cmd = concat_cmd(config.rebind_cmd);
         DisplayLog(LVL_MAJOR, LHSM_TAG, "Invalid rebind command: %s",
-                   config.rebind_cmd);
-        return -EINVAL;
+                   log_cmd);
+        free(log_cmd);
+        return rc;
     }
 
-    DisplayLog(LVL_EVENT, LHSM_TAG, "Executing rebind command: %s", cmd);
+    if (log_config.debug_level >= LVL_EVENT) {
+        log_cmd = concat_cmd(cmd);
+        DisplayLog(LVL_EVENT, LHSM_TAG, "Executing rebind command: %s",
+                   log_cmd);
+        free(log_cmd);
+    }
+
     rc = execute_shell_command(cmd, cb_stderr_to_log, (void *)LVL_DEBUG);
-    free(cmd);
+    g_strfreev(cmd);
 
     return rc;
 }
@@ -842,7 +851,7 @@ static void lhsm_cfg_set_default(void *module_config)
 {
     lhsm_config_t *conf = (lhsm_config_t *) module_config;
 
-    rh_strncpy(conf->rebind_cmd, DEFAULT_REBIND_CMD, sizeof(conf->rebind_cmd));
+    conf->rebind_cmd = NULL;
 }
 
 static void lhsm_cfg_write_default(FILE *output)
@@ -859,8 +868,8 @@ static int lhsm_cfg_read(config_file_t config, void *module_config, char *msg_ou
     config_item_t    block;
 
     const cfg_param_t hsm_params[] = {
-        {"rebind_cmd", PT_STRING, 0, /* can contain wildcards: {fsroot} {oldfid} {newfid}... */
-         conf->rebind_cmd, sizeof(conf->rebind_cmd)},
+        {"rebind_cmd", PT_CMD, 0, /* can contain wildcards: {fsroot} {oldfid} {newfid}... */
+         &conf->rebind_cmd, 0},
         END_OF_PARAMS
     };
 
@@ -914,7 +923,7 @@ static int lhsm_cfg_set(void *cfg,  bool reload)
         return 0;
     }
 
-    if (strcmp(new->rebind_cmd, config.rebind_cmd))
+    if (compare_cmd(new->rebind_cmd, config.rebind_cmd))
     {
         DisplayLog(LVL_MAJOR, LHSM_TAG,
                    LHSM_BLOCK"::rebind_cmd changed in config file "

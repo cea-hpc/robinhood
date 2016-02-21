@@ -158,6 +158,88 @@ int            GetStringParam(config_item_t block, const char *block_name,
 
 }
 
+int GetCommandParam(config_item_t block, const char *block_name,
+                    const char *var_name, param_flags_t flags, char ***target,
+                    char ***extra_args_tab, unsigned int *nb_extra_args,
+                    char *err_msg)
+{
+    config_item_t  curr_item;
+    int            rc, ac;
+    int            extra = 0;
+    char          *name;
+    char          *value;
+    GError        *err_desc;
+
+    err_msg[0] = '\0';
+
+    if (nb_extra_args)
+        *nb_extra_args = 0;
+    if (extra_args_tab)
+        *extra_args_tab = NULL;
+
+    rc = get_cfg_param(block, block_name, var_name, flags, &name, &value,
+                       &extra, &curr_item, err_msg);
+    if (rc)
+        return rc;
+
+
+    /* Early check */
+    if ((flags & PFLG_NO_WILDCARDS) && WILDCARDS_IN(value))
+    {
+        sprintf( err_msg, "Wildcards are not allowed in '%s::%s', line %d", block_name,
+                 var_name, rh_config_GetItemLine( curr_item ) );
+        return EINVAL;
+    }
+
+    /* Split argv */
+    if (value[0] == '\0')
+    {
+        *target = NULL;
+    }
+    else
+    {
+        rc = g_shell_parse_argv(value, &ac, target, &err_desc);
+        if (!rc)
+        {
+            sprintf(err_msg, "Cannot parse '%s': %s", value, err_desc->message);
+            g_error_free(err_desc);
+            return EINVAL;
+        }
+        if (ac == 0)
+        {
+            g_strfreev(*target);
+            *target = NULL;
+        }
+    }
+
+    if (extra)
+    {
+        if (!extra_args_tab || !nb_extra_args)
+        {
+            sprintf( err_msg, "Unexpected options for parameter '%s::%s', line %d", block_name,
+                     var_name, rh_config_GetItemLine( curr_item ) );
+            return EINVAL;
+        }
+        else
+        {
+            *nb_extra_args = rh_config_GetExtraArgs( curr_item, extra_args_tab );
+        }
+    }
+
+    /* Post checks */
+
+    /* empty string? */
+    if ((flags & PFLG_NOT_EMPTY) && *target == NULL)
+    {
+        sprintf(err_msg, "Unexpected empty parameter '%s::%s', line %d",
+                block_name, var_name, rh_config_GetItemLine(curr_item));
+        return EINVAL;
+    }
+
+    return 0;
+
+}
+
 int  GetBoolParam(config_item_t block, const char *block_name,
                   const char *var_name, param_flags_t flags, bool *target,
                   char ***extra_args_tab, unsigned int *nb_extra_args,
@@ -428,7 +510,7 @@ int GetInt64Param(config_item_t block, const char *block_name,
 {
     config_item_t  curr_item;
     int            rc, extra, nb_read;
-    uint64_t	   intval;
+    uint64_t       intval;
     char          *name;
     char          *value;
     char           tmpbuf[256];
@@ -664,6 +746,14 @@ int read_scalar_params(config_item_t block, const char *block_name,
                 rc = GetStringParam(block, block_name, params[i].name,
                                     params[i].flags, (char*)params[i].ptr, params[i].ptrsize,
                                     NULL, NULL, msgout);
+                if cfg_is_err(rc, params[i].flags)
+                    return rc;
+                break;
+
+            case PT_CMD:
+                rc = GetCommandParam(block, block_name, params[i].name,
+                                     params[i].flags, (char***)params[i].ptr,
+                                     NULL, NULL, msgout);
                 if cfg_is_err(rc, params[i].flags)
                     return rc;
                 break;

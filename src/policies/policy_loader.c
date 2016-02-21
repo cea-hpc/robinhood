@@ -173,6 +173,9 @@ int parse_policy_action(const char *name, const char *value,
     {
         attr_mask_t m;
         bool error = false;
+        GError *err_desc = NULL;
+        int i;
+
 
         /* external command */
         /* 1 single argument expected */
@@ -182,19 +185,25 @@ int parse_policy_action(const char *name, const char *value,
             return EINVAL;
         }
         action->type = ACTION_COMMAND;
-        action->action_u.command = strdup(extra[0]);
-        if (action->action_u.command == NULL)
-            return ENOMEM;
+        if (!g_shell_parse_argv(extra[0], NULL,
+                                &action->action_u.command, &err_desc)) {
+            sprintf(msg_out, "Could not parse command %s: %s\n",
+                    extra[0], err_desc->message);
+            g_error_free(err_desc);
+            return EINVAL;
+        }
 
         /* Get attribute mask for this command, in case it contains attribute
          * placeholder */
-        m = params_mask(action->action_u.command, name, &error);
-        if (error)
-        {
-            sprintf(msg_out, "Unexpected parameters in %s cmd", name);
-            return EINVAL;
+        for (i = 0; action->action_u.command[i]; i++) {
+	        m = params_mask(action->action_u.command[i], name, &error);
+	        if (error)
+	        {
+	            sprintf(msg_out, "Unexpected parameters in %s cmd", name);
+	            return EINVAL;
+	        }
+	        *mask = attr_mask_or(mask, &m);
         }
-        *mask = attr_mask_or(mask, &m);
     }
     else /* <module>.<action_name> expected */
     {
@@ -1782,7 +1791,7 @@ static void free_policy_action(policy_action_t *action)
             free(action->action_u.func.name);
             break;
         case ACTION_COMMAND:
-            free(action->action_u.command);
+            g_strfreev(action->action_u.command);
             break;
     }
 }
