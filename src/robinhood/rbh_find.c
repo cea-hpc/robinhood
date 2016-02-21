@@ -886,13 +886,16 @@ static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
             "", id->fullname,
             NULL, NULL
         };
-        gchar *cmd = subst_params(prog_options.exec_cmd, "exec option",
-                                  &id->id, attrs, NULL, vars, NULL, true, true);
-        if (cmd)
+        int rc, ac;
+        char **av;
+        rc = subst_shell_params(prog_options.exec_cmd, "exec option",
+                                &id->id, attrs, NULL, vars, NULL, true,
+                                &ac, &av);
+        if (!rc)
         {
             /* display both stdout and stderr */
-            execute_shell_command(cmd, cb_redirect_all, NULL);
-            g_free(cmd);
+            execute_shell_command(ac, av, cb_redirect_all, NULL);
+            g_strfreev(av);
         }
     }
 }

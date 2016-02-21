@@ -709,7 +709,8 @@ static int lhsm_rebind(const entry_id_t *old_id, const entry_id_t *new_id,
                        unsigned int archive_id)
 {
     const char descr[] = "rebind command";
-    char  *cmd = NULL;
+    int ac = 0;
+    char **av = NULL;
     char tmp[256]; /* max length for fid */
     action_params_t cmd_params = {0};
     int rc;
@@ -725,19 +726,19 @@ static int lhsm_rebind(const entry_id_t *old_id, const entry_id_t *new_id,
     snprintf(tmp, sizeof(tmp), DFID_NOBRACE, PFID(new_id));
     rbh_param_set(&cmd_params, "newfid", tmp, true);
 
-    cmd = subst_params(config.rebind_cmd, descr, new_id, new_attrs,
-                       &cmd_params, NULL, smi, true, true); /* quote, strict bracing */
+    rc = subst_shell_params(config.rebind_cmd, descr, new_id, new_attrs,
+                            &cmd_params, NULL, smi, true, &ac, &av);
     rbh_params_free(&cmd_params);
 
-    if (!cmd) {
+    if (rc) {
         DisplayLog(LVL_MAJOR, LHSM_TAG, "Invalid rebind command: %s",
                    config.rebind_cmd);
         return -EINVAL;
     }
 
     DisplayLog(LVL_EVENT, LHSM_TAG, "Executing rebind command: %s", cmd);
-    rc = execute_shell_command(cmd, cb_stderr_to_log, (void *)LVL_DEBUG);
-    free(cmd);
+    rc = execute_shell_command(ac, av, cb_stderr_to_log, (void *)LVL_DEBUG);
+    g_strfreev(av);
 
     return rc;
 }

@@ -577,3 +577,56 @@ err_free:
         g_string_free(args.out_str, TRUE);
     return NULL;
 }
+
+int subst_shell_params(const char *str_in,
+                       const char *str_descr,
+                       const entry_id_t *p_id,
+                       const attr_set_t *p_attrs,
+                       const action_params_t *params,
+                       const char **subst_array,
+                       const struct sm_instance *smi,
+                       bool strict_braces,
+                       gint *p_ac, gchar ***p_av)
+{
+    int rc, ac, i;
+    char **av = NULL, **out_av = NULL;
+    GError *err_desc = NULL;
+
+    /* split string in argc/argv before parameter expansion so we don't
+ *      * have to worry about quoting substitutions */
+    rc = g_shell_parse_argv(str_in, &ac, &av, &err_desc);
+    if (!rc)
+    {
+        /* err_descr->code may be zero, even on failure! */
+        rc = (err_desc->code != 0) ? -err_desc->code : -EINVAL;
+        DisplayLog(LVL_MAJOR, PARAMS_TAG, "Cannot parse '%s': %s", str_in,
+                   err_desc->message);
+        goto err_free;
+    }
+
+    if (!av || !str_descr)
+        goto err_free;
+
+    /* allocate out_av, NULL terminated char array */
+    out_av = calloc(sizeof(*out_av), ac + 1);
+    for (i=0; i<ac; i++) {
+        out_av[i] = subst_params(av[i], str_descr, p_id, p_attrs, params,
+                                 subst_array, smi, false, strict_braces);
+        if (out_av[i] == NULL)
+            goto err_free;
+    }
+
+
+    *p_ac = ac;
+    *p_av = out_av;
+
+    /* don't release out_av (freed by the caller) */
+    g_strfreev(av);
+    DisplayLog(LVL_FULL, PARAMS_TAG, "'%s'->'%s' in %s", str_in, out_av[0], str_descr);
+    return 0;
+
+err_free:
+    g_strfreev(av);
+    g_strfreev(out_av);
+    return rc;
+}

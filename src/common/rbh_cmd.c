@@ -160,12 +160,10 @@ static gboolean readline_cb(GIOChannel *channel, GIOCondition cond, gpointer ud)
  * Execute synchronously an external command, read its output and invoke
  * a user-provided filter function on every line of it.
  */
-int execute_shell_command(const char *cmd, parse_cb_t cb_func, void *cb_arg)
+int execute_shell_command(int ac, char **av, parse_cb_t cb_func, void *cb_arg)
 {
     struct exec_ctx   ctx = { 0 };
     GPid              pid;
-    gint              ac;
-    gchar           **av = NULL;
     GError           *err_desc = NULL;
     GSpawnFlags       flags = G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD;
     GIOChannel       *out_chan = NULL;
@@ -175,20 +173,10 @@ int execute_shell_command(const char *cmd, parse_cb_t cb_func, void *cb_arg)
     bool              success;
     int               rc = 0;
 
-    success = g_shell_parse_argv(cmd, &ac, &av, &err_desc);
-    if (!success)
-    {
-        /* err_descr->code may be zero, even on failure! */
-        rc = (err_desc->code != 0) ? -err_desc->code : -EINVAL;
-        DisplayLog(LVL_MAJOR, TAG, "Cannot parse '%s': %s", cmd,
-                   err_desc->message);
-        goto out_err_free;
-    }
-
     ctx.loop = g_main_loop_new(NULL, false);
     ctx.ref  = 0;
 
-    DisplayLog(LVL_DEBUG, TAG, "Spawning external command \"%s\"", cmd);
+    DisplayLog(LVL_DEBUG, TAG, "Spawning external command \"%s\"", av[0]);
 
     success = g_spawn_async_with_pipes(NULL,   /* Working dir */
                                        av,     /* Parameters */
@@ -205,7 +193,7 @@ int execute_shell_command(const char *cmd, parse_cb_t cb_func, void *cb_arg)
     {
         rc = -err_desc->code;
         DisplayLog(LVL_MAJOR, TAG, "Failed to execute \"%s\": %s",
-                   cmd, err_desc->message);
+                   av[0], err_desc->message);
         goto out_free;
     }
 
@@ -247,9 +235,7 @@ int execute_shell_command(const char *cmd, parse_cb_t cb_func, void *cb_arg)
 
 out_free:
     g_main_loop_unref(ctx.loop);
-    g_strfreev(av);
 
-out_err_free:
     if (err_desc)
         g_error_free(err_desc);
 
