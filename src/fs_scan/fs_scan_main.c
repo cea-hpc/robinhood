@@ -257,7 +257,7 @@ static void fs_scan_cfg_set_default(void *module_config)
 
     conf->ignore_list = NULL;
     conf->ignore_count = 0;
-    rh_strncpy(conf->completion_command, "", RBH_PATH_MAX);
+    conf->completion_command = NULL;
 }
 
 static void fs_scan_cfg_write_default(FILE *output)
@@ -316,8 +316,8 @@ static int fs_scan_cfg_read(config_file_t config, void *module_config, char *msg
             &conf->spooler_check_interval, 0},
         {"nb_prealloc_tasks", PT_INT, PFLG_POSITIVE | PFLG_NOT_NULL,
             &conf->nb_prealloc_tasks, 0},
-        {"completion_command", PT_STRING, 0, /* can contain wildcards: {cfg}, {fspath} ... */
-            conf->completion_command, sizeof(conf->completion_command)},
+        {"completion_command", PT_CMD, 0, /* can contain wildcards: {cfg}, {fspath} ... */
+            conf->completion_command, 0},
         END_OF_PARAMS
     };
 
@@ -463,7 +463,6 @@ static void free_ignore( whitelist_item_t * p_items, unsigned int count )
         free(p_items);
 }
 
-
 static int fs_scan_cfg_reload(fs_scan_config_t *conf)
 {
     /* Parameters that can be modified dynamically */
@@ -517,12 +516,13 @@ static int fs_scan_cfg_reload(fs_scan_config_t *conf)
         fs_scan_config.spooler_check_interval = conf->spooler_check_interval;
     }
 
-    if ( strcmp( conf->completion_command, fs_scan_config.completion_command ) )
+    if ( compare_cmd( conf->completion_command, fs_scan_config.completion_command ) )
     {
-        DisplayLog( LVL_EVENT, "FS_Scan_Config",
-                    FSSCAN_CONFIG_BLOCK "::completion_command updated: '%s'->'%s'",
-                    fs_scan_config.completion_command, conf->completion_command );
-        strcpy( fs_scan_config.completion_command, conf->completion_command);
+        DisplayLog( LVL_MAJOR, "FS_Scan_Config",
+                    FSSCAN_CONFIG_BLOCK
+                    "::completion_command changed in config file, but cannot be modified dynamically" );
+        g_strfreev(conf->completion_command);
+        conf->completion_command = NULL;
     }
 
 
