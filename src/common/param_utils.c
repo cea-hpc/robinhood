@@ -577,3 +577,74 @@ err_free:
         g_string_free(args.out_str, TRUE);
     return NULL;
 }
+
+/*
+ * Ideally would want cmd_in to be char const * const *, but
+ * implicit casts don't work well with these in standard C
+ */
+int subst_shell_params(char **cmd_in,
+                       const char *str_descr,
+                       const entry_id_t *p_id,
+                       const attr_set_t *p_attrs,
+                       const action_params_t *params,
+                       const char **subst_array,
+                       const struct sm_instance *smi,
+                       bool strict_braces,
+                       char ***cmd_out)
+{
+    int i;
+    char **av, **out_av;
+    int ac;
+
+    if (!cmd_in || !cmd_in[0] || !str_descr)
+        return -EINVAL;
+
+    /* count ac once to allocate properly */
+    ac = 0;
+    for (av = cmd_in; av; av++)
+        ac++;
+
+    /* allocate out_av, NULL terminated char array */
+    out_av = calloc(sizeof(*out_av), ac + 1);
+    for (i = 0; i < ac; i++) {
+        out_av[i] = subst_params(cmd_in[i], str_descr, p_id, p_attrs,
+                                 params, subst_array, smi, false,
+                                 strict_braces);
+        if (out_av[i] == NULL)
+            goto err_free;
+
+        DisplayLog(LVL_FULL, PARAMS_TAG, "[%d] '%s'->'%s' in %s", i,
+                   cmd_in[i], out_av[i], str_descr);
+    }
+
+
+    *cmd_out = out_av;
+
+    /* don't release out_av (freed by the caller) */
+    return 0;
+
+err_free:
+    g_strfreev(out_av);
+    /* only EINVAL for now, might expand that if we explode subst_params */
+    return -EINVAL;
+}
+
+char *concat_cmd(char **cmd) {
+    GString *built_command;
+    char *out_str;
+    int i;
+
+    if (!cmd || !cmd[0])
+        return NULL;
+
+    built_command = g_string_new(cmd[0]);
+    for (i=1; cmd[i]; i++) {
+        g_string_append_c(built_command, ' ');
+        g_string_append(built_command, cmd[i]);
+    }
+
+    out_str = built_command->str;
+    g_string_free(built_command, FALSE);
+
+    return out_str;
+}

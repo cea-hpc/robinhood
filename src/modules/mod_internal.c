@@ -385,25 +385,28 @@ static int cb_collect_stdout(void *arg, char *line, size_t size, int stream)
  * @param [in,out] out  Initialized GString to collect command stdout
  *                      (NULL for no output).
  */
-static int run_command(const char *name, const char *cmd_in,
+static int run_command(const char *name, char **cmd_in,
                        const entry_id_t *p_id,
                        const attr_set_t *p_attrs,
                        const action_params_t *params,
                        struct sm_instance *smi,
                        GString *out)
 {
-    gchar *cmd;
-    int rc = 0;
+    gchar **cmd;
+    char   *log_cmd;
+    int     rc = 0;
 
     /** @TODO set additional params */
-    cmd = subst_params(cmd_in, "command", p_id, p_attrs, params, NULL,
-                       smi, false, true);
-    if (cmd == NULL)
+    rc = subst_shell_params(cmd_in, "command", p_id, p_attrs, params, NULL,
+                            smi, true, &cmd);
+    if (rc)
         return -EINVAL;
 
     /* call custom purge command instead of unlink() */
+    log_cmd = concat_cmd(cmd);
     DisplayLog(LVL_DEBUG, __func__, DFID": %s action: cmd(%s)", PFID(p_id),
-               name, cmd);
+               name, log_cmd);
+    free(log_cmd);
 
     if (out == NULL)
         /* do not collect output, just redirect command stderr to robinhood log */
@@ -412,7 +415,7 @@ static int run_command(const char *name, const char *cmd_in,
         /* collect stdout in out Gstring */
         rc = execute_shell_command(cmd, cb_collect_stdout, (void *)out);
 
-    g_free(cmd);
+    g_strfreev(cmd);
 
     return rc;
 }

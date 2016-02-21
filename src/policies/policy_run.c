@@ -296,31 +296,31 @@ static int policy_action(policy_info_t *policy,
             case ACTION_COMMAND: /* execute custom action */
             {
                 char *descr = NULL;
-                gchar *cmd = NULL;
+                char **cmd;
                 char const* addl_params[5];
 
                 set_addl_params(addl_params, sizeof(addl_params)/sizeof(char *),
                                 rule, fileset);
 
-                asprintf(&descr, "action command '%s'", actionp->action_u.command);
+                asprintf(&descr, "action command '%s'", actionp->action_u.command[0]);
 
                 /* replaces placeholders in command */
-                cmd = subst_params(actionp->action_u.command, descr,
-                                   id, p_attr_set, params, addl_params,
-                                   smi, false, true);
+                rc = subst_shell_params(actionp->action_u.command, descr,
+                                        id, p_attr_set, params, addl_params,
+                                        smi, true, &cmd);
                 free(descr);
-                if (cmd)
+                if (rc == 0)
                 {
                     /* call custom purge command instead of unlink() */
                     DisplayLog(LVL_DEBUG, tag(policy), DFID": action: cmd(%s)",
-                               PFID(id), cmd);
+                               PFID(id), cmd[0]);
                     rc = execute_shell_command(cmd, cb_stderr_to_log, (void *)LVL_DEBUG);
-                    g_free(cmd);
+                    g_strfreev(cmd);
                     /* @TODO handle other hardlinks to the same entry */
                 }
-                else
+                else {
                     rc = -errno;
-
+                }
                 /* external commands can't set 'after': default to update */
                 *after = PA_UPDATE;
 
