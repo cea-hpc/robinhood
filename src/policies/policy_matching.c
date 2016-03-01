@@ -1321,7 +1321,7 @@ int match_classes(const entry_id_t *id, attr_set_t *p_attrs_new,
                 }
                 break;
             case POLICY_MISSING_ATTR:
-                DisplayLog(LVL_MAJOR, POLICY_TAG, "Attribute is missing for checking fileset %s",
+                DisplayLog(LVL_EVENT, POLICY_TAG, "Attribute is missing for checking fileset %s",
                            fset->fileset_id);
                 break;
             case POLICY_ERR:
