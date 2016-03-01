@@ -2,6 +2,29 @@
   "comments": [
     {
       "key": {
+        "uuid": "5a72e520_c172cfe4",
+        "filename": "src/common/param_utils.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 596,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-03-01T11:09:30Z",
+      "side": 1,
+      "message": "(style) issue with comment formatting",
+      "range": {
+        "startLine": 596,
+        "startChar": 2,
+        "endLine": 596,
+        "endChar": 8
+      },
+      "revId": "14a6a5600ff5353ee1468fbf3c0797fc6c2262db",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "5a72e520_b2836bcb",
         "filename": "src/common/param_utils.c",
         "patchSetId": 1
@@ -13,6 +36,143 @@
       "writtenOn": "2016-02-29T11:44:17Z",
       "side": 1,
       "message": "Code is not an errno but a GShellError, ie:\nG_SHELL_ERROR_BAD_QUOTING\nG_SHELL_ERROR_EMPTY_STRING\nG_SHELL_ERROR_FAILED\n\nEither return -EINVAL systematically or remap the codes above to the closest errno.\n\nSee:\nhttps://developer.gnome.org/glib/stable/glib-Shell-related-Utilities.html#g-shell-parse-argv\nand\nhttps://developer.gnome.org/glib/stable/glib-Shell-related-Utilities.html#G-SHELL-ERROR:CAPS",
+      "revId": "14a6a5600ff5353ee1468fbf3c0797fc6c2262db",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5a72e520_61ee7b8d",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 179,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-03-01T11:09:30Z",
+      "side": 1,
+      "message": "(minor) loosing information. Consider adding a routine to display the entire command - even non quoted(like echo $*).",
+      "revId": "14a6a5600ff5353ee1468fbf3c0797fc6c2262db",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5a72e520_81f37772",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 196,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-03-01T11:09:30Z",
+      "side": 1,
+      "message": "idem",
+      "revId": "14a6a5600ff5353ee1468fbf3c0797fc6c2262db",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5a72e520_214e43c2",
+        "filename": "src/include/rbh_misc.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 496,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-03-01T11:09:30Z",
+      "side": 1,
+      "message": "(minor) @return 0 ...\n\nsomething like -errno on error?",
+      "range": {
+        "startLine": 496,
+        "startChar": 3,
+        "endLine": 496,
+        "endChar": 10
+      },
+      "revId": "14a6a5600ff5353ee1468fbf3c0797fc6c2262db",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5a72e520_61c75b13",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 736,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-03-01T11:09:30Z",
+      "side": 1,
+      "message": "now the returned error is meaningful. you could return rc.",
+      "range": {
+        "startLine": 736,
+        "startChar": 22,
+        "endLine": 736,
+        "endChar": 23
+      },
+      "revId": "14a6a5600ff5353ee1468fbf3c0797fc6c2262db",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5a72e520_81cc5737",
+        "filename": "src/modules/mod_internal.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 403,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-03-01T11:09:30Z",
+      "side": 1,
+      "message": "return rc",
+      "range": {
+        "startLine": 403,
+        "startChar": 16,
+        "endLine": 403,
+        "endChar": 22
+      },
+      "revId": "14a6a5600ff5353ee1468fbf3c0797fc6c2262db",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5a72e520_a1e8737d",
+        "filename": "src/policies/policy_run.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 315,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-03-01T11:09:30Z",
+      "side": 1,
+      "message": "rc is now meaningful, no need to replace it by errno",
+      "revId": "14a6a5600ff5353ee1468fbf3c0797fc6c2262db",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5a72e520_8168d7f6",
+        "filename": "src/robinhood/rbh_find.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 890,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-03-01T11:09:30Z",
+      "side": 1,
+      "message": "insert new line",
       "revId": "14a6a5600ff5353ee1468fbf3c0797fc6c2262db",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
