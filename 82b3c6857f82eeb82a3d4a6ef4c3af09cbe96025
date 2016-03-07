@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "5a72e520_ec5ec9e8",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 58,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-03-07T14:51:08Z",
+      "side": 1,
+      "message": "In this context this is thread-specific. No need for atomic (although it would not hurt).",
+      "parentUuid": "da86d52c_43d51a42",
+      "revId": "82b3c6857f82eeb82a3d4a6ef4c3af09cbe96025",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "da86d52c_c3abcad4",
         "filename": "src/common/rbh_cmd.c",
         "patchSetId": 1
@@ -30,6 +48,24 @@
       "writtenOn": "2016-02-16T16:41:16Z",
       "side": 1,
       "message": "That doesn\u0027t need to be set.",
+      "revId": "82b3c6857f82eeb82a3d4a6ef4c3af09cbe96025",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5a72e520_2c59c1fe",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 131,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-03-07T14:51:08Z",
+      "side": 1,
+      "message": "Yes it does. g_io_channel_read_line() asserts on \u0027(error \u003d\u003d NULL) || (*error \u003d\u003d NULL)\u0027",
+      "parentUuid": "da86d52c_c3abcad4",
       "revId": "82b3c6857f82eeb82a3d4a6ef4c3af09cbe96025",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -53,6 +89,24 @@
     },
     {
       "key": {
+        "uuid": "5a72e520_4c5efde7",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 143,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-03-07T14:51:08Z",
+      "side": 1,
+      "message": "This can be useful for the callback. Or maybe I\u0027m missing your point?",
+      "parentUuid": "da86d52c_a3aed6e5",
+      "revId": "82b3c6857f82eeb82a3d4a6ef4c3af09cbe96025",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "da86d52c_035fa20f",
         "filename": "src/common/rbh_cmd.c",
         "patchSetId": 1
@@ -70,6 +124,41 @@
     },
     {
       "key": {
+        "uuid": "5a72e520_6c72d97d",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 144,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-03-07T14:51:08Z",
+      "side": 1,
+      "message": "You\u0027re right, it should be cleaner to check for G_IO_STATUS_NORMAL, although the error should be set then.",
+      "parentUuid": "da86d52c_035fa20f",
+      "revId": "82b3c6857f82eeb82a3d4a6ef4c3af09cbe96025",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5a72e520_8c6f1592",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 182,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-03-07T14:51:08Z",
+      "side": 1,
+      "message": "(defect) GLib error codes are domain-specific enums, not errno values.",
+      "revId": "82b3c6857f82eeb82a3d4a6ef4c3af09cbe96025",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "da86d52c_a3125656",
         "filename": "src/common/rbh_cmd.c",
         "patchSetId": 1
@@ -81,6 +170,23 @@
       "writtenOn": "2016-02-16T16:41:16Z",
       "side": 1,
       "message": "If cb_func is NULL, is there a need to set these 2 variables?",
+      "revId": "82b3c6857f82eeb82a3d4a6ef4c3af09cbe96025",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5a72e520_ec05e9c2",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 206,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-03-07T14:51:08Z",
+      "side": 1,
+      "message": "(defect) idem error code",
       "revId": "82b3c6857f82eeb82a3d4a6ef4c3af09cbe96025",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
