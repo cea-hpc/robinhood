@@ -34,6 +34,23 @@
       "revId": "6cc195fcb0e0b423ff3c4fb9eb22329c95ba18b3",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "3a6ff13c_d9057f15",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 179,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-03-11T16:33:09Z",
+      "side": 1,
+      "message": "Is err_desc set to NULL on success? The manual is not clear.",
+      "revId": "6cc195fcb0e0b423ff3c4fb9eb22329c95ba18b3",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
