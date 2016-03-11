@@ -16,6 +16,24 @@
       "revId": "6cc195fcb0e0b423ff3c4fb9eb22329c95ba18b3",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5a72e520_7330f09e",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 89,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-03-11T07:57:21Z",
+      "side": 1,
+      "message": "The goal is to pass command return code to the caller.\nSo, perhaps we should return rc in that case, instead of -rc.",
+      "parentUuid": "5a72e520_6d4e4d98",
+      "revId": "6cc195fcb0e0b423ff3c4fb9eb22329c95ba18b3",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
