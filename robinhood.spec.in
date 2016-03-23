@@ -245,6 +245,7 @@ ldconfig
 # robinhood RPM name for lustre is robinhood-lustre
 %if %{with lustre}
 %files lustre
+%{_sbindir}/lhsmtool_cmd
 %else
 # robinhood RPM name for posix is robinhood-posix
 %files posix
