@@ -167,6 +167,12 @@ if test "x$support_lustre" = "xyes" ; then
         test "x$have_llapi_error_callback_set" = "xyes" &&
             AC_DEFINE(HAVE_LLAPI_LOG_CALLBACKS, 1, [llapi log callbacks are available])
 
+        AC_CHECK_LIB([lustreapi], [llapi_get_mdt_index_by_fid],
+                     [have_llapi_get_mdt_index_by_fid="yes"])
+        test "x$have_llapi_get_mdt_index_by_fid" = "xyes" &&
+            AC_DEFINE(HAVE_LLAPI_GET_MDT_INDEX_BY_FID, 1,
+                      [llapi_get_mdt_index_by_fid available])
+
         # check if struct statfs is defined in lustre user
         AC_CHECK_TYPE(struct obd_statfs,[have_obd_statfs="yes"],[have_obd_statfs="no"],[
             #define LPX64 "%#llx"
