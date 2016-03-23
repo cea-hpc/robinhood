@@ -250,6 +250,10 @@ ldconfig
 %files posix
 %endif
 
+%if %{with lhsm}
+%{_sbindir}/lhsmtool_cmd
+%endif
+
 %defattr(-,root,root,-)
 #%doc README
 #%doc COPYING
