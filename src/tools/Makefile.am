@@ -18,8 +18,10 @@ all_libs += ../robinhood/librbhhelpers.la ../list_mgr/liblistmgr.la \
 
 #Lustre 2.x only
 if LUSTRE
+sbin_PROGRAMS=lhsmtool_cmd
+
 if USER_LOVEA
-sbin_PROGRAMS=read_lovea set_lovea gen_lov_objid ost_fids_remap
+sbin_PROGRAMS+=read_lovea set_lovea gen_lov_objid ost_fids_remap
 
 set_lovea_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 read_lovea_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
@@ -31,6 +33,10 @@ gen_lov_objid_LDADD=$(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
 ost_fids_remap_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 ost_fids_remap_LDADD=../common/basename.o
-
 endif
+
+lhsmtool_cmd_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+lhsmtool_cmd_LDFLAGS=-lrt
+lhsmtool_cmd_LDADD=$(FS_LDFLAGS)
+
 endif
