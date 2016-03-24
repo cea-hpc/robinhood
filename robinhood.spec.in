@@ -180,7 +180,7 @@ rm -rf $RPM_BUILD_ROOT
 %else
 %post posix
 %endif
-ldconfig
+/sbin/ldconfig
 if [ -x %{_initrddir}/robinhood ]; then
   if %{_initrddir}/robinhood status | grep running | grep -v "not running"  >/dev/null 2>&1; then
     %{_initrddir}/robinhood stop
@@ -213,7 +213,7 @@ fi
 %else
 %postun posix
 %endif
-ldconfig
+/sbin/ldconfig
 
 %files adm
 %{_sbindir}/rbh-config
