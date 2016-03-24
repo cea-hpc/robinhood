@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "da9b358b_83ac95ee",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 3
+      },
+      "lineNbr": 248,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-03-24T19:27:06Z",
+      "side": 1,
+      "message": "This is only for lustre 2.5+, move this below in %if %{with lhsm}",
+      "revId": "657494df31219480ea7cba35706dfc076fc0ea81",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
