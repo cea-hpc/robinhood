@@ -217,11 +217,10 @@ if [ "$1" = 0 ]; then
 fi
 
 %if %{with lustre}
-%postun lustre
+%postun lustre -p /sbin/ldconfig
 %else
 %postun posix -p /sbin/ldconfig
 %endif
-/sbin/ldconfig
 
 %if %{with common_rpms}
 
@@ -313,6 +312,9 @@ fi
 %{_initrddir}/robinhood
 
 %changelog
+
+* Fri Mar 25 2016 Thomas Leibovici <thomas.leibovici@cea.fr> 3.0-0.alpha2
+- Robinhood v3 alpha2
 
 * Wed Dec 16 2015 Thomas Leibovici <thomas.leibovici@cea.fr> 3.0-0.alpha1
 - Robinhood v3 alpha1
