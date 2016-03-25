@@ -1,6 +1,6 @@
-
 pkgdatadir=@datarootdir@/@PACKAGE_NAME@/tests
 
+if COMMON_RPMS
 nobase_dist_pkgdata_DATA =              \
     test_suite/README.rst               \
     test_suite/cfg/*.conf               \
@@ -22,4 +22,4 @@ nobase_dist_pkgdata_SCRIPTS = \
     test_compil_switches.sh             \
     fill_fs.sh                          \
     completion.sh
-
+endif

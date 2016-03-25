@@ -18,6 +18,9 @@ else
   rpmbuild_opt=--without lustre
 endif
 
+if !COMMON_RPMS
+  rpmbuild_opt+=--without common_rpms
+endif
 
 if USE_MYSQL_DB
   rpmbuild_opt += --with mysql

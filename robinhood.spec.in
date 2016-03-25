@@ -3,6 +3,7 @@
 %bcond_without lhsm
 %bcond_without mysql
 %bcond_without backup
+%bcond_without common_rpms
 # default OFF
 %bcond_with shook
 %bcond_with recovtools
@@ -86,6 +87,7 @@ Policy engine for POSIX filesystems.
 
 %endif
 
+%if %{with common_rpms}
 %package adm
 Summary: admin/config helper for Robinhood PolicyEngine
 Group: Applications/System
@@ -124,6 +126,8 @@ Release: @RELEASE@.noarch
 %description tests
 Lustre and Posix tests for Robinhood.
 
+%endif
+
 %prep
 %setup -q -n @PACKAGE@-%{version}
 
@@ -161,16 +165,20 @@ install -m 644 scripts/sysconfig_robinhood $RPM_BUILD_ROOT/%{_sysconfdir}/syscon
 
 install -m 644 scripts/ld.so.robinhood.conf $RPM_BUILD_ROOT/%{_sysconfdir}/ld.so.conf.d/robinhood.conf
 
+%if %{with common_rpms}
 mkdir -p $RPM_BUILD_ROOT/%{installdir_www}/robinhood
 cp -r web_gui/acct/* $RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
 cp    web_gui/acct/.htaccess $RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
+%endif
 
 rm -f $RPM_BUILD_ROOT/%{_libdir}/robinhood/librbh_mod_*.a
 rm -f $RPM_BUILD_ROOT/%{_libdir}/robinhood/librbh_mod_*.la
 
 # Add an unmutable copy of the templates for the tests
+%if %{with common_rpms}
 mkdir -p $RPM_BUILD_ROOT/%{_datadir}/robinhood/doc
 cp -a doc/templates $RPM_BUILD_ROOT/%{_datadir}/robinhood/doc
+%endif
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -211,9 +219,11 @@ fi
 %if %{with lustre}
 %postun lustre
 %else
-%postun posix
+%postun posix -p /sbin/ldconfig
 %endif
 ldconfig
+
+%if %{with common_rpms}
 
 %files adm
 %{_sbindir}/rbh-config
@@ -241,6 +251,8 @@ ldconfig
 %dir %{_datadir}/robinhood/
 %{_datadir}/robinhood/tests/
 %{_datadir}/robinhood/doc/
+
+%endif
 
 # robinhood RPM name for lustre is robinhood-lustre
 %if %{with lustre}
