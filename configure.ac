@@ -82,15 +82,19 @@ AX_ENABLE_FLAG( [fid2path-leading-slash], [must be enabled if fid2path() returns
 # program to be used for mailing
 AX_PROG_MAIL
 
+AC_ARG_ENABLE([common-rpms], AS_HELP_STRING([--disable-common-rpms],
+              [Disable build of common RPMs, only build FS specific packages]),
+              [common_rpms="$enableval"],[common_rpms="yes"])
+AM_CONDITIONAL(COMMON_RPMS,test  "x$common_rpms" = "xyes")
 
 build_lustre="OFF"
 build_backup="OFF"
 build_lhsm="OFF"
 build_shook="OFF"
 
-AC_ARG_ENABLE( [lustre], AS_HELP_STRING([--disable-lustre],
-               [Disable all lustre specific features]),
-               [support_lustre="$enableval"],[support_lustre="yes"] )
+AC_ARG_ENABLE([lustre], AS_HELP_STRING([--disable-lustre],
+              [Disable all lustre specific features]),
+              [support_lustre="$enableval"],[support_lustre="yes"])
 
 # shook requires Lustre + FID support + shook library
 # hsm_lite requires Lustre + FID support

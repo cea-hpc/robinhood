@@ -14,14 +14,14 @@ AC_DEFUN([AX_LUSTRE_VERSION],
             # Assume we want the same version as this package,
             # whatever 'lustre' or 'lustre-client'
             AC_MSG_CHECKING(Lustre version)
-            LVERSION=`rpm -q --whatprovides lustre-client --qf "%{Version}\n" 2>/dev/null | cut -d "." -f 1-2`
+            LVERSION=`rpm -q --whatprovides lustre-client --qf "%{Version}\n" 2>/dev/null | grep -v "no package" | cut -d "." -f 1-2`
             AC_MSG_RESULT($LVERSION)
         else
             AC_MSG_RESULT(no)
             AC_MSG_CHECKING(if lustre is installed)
 
             # fallback to lustre package
-            LPACKAGE=`rpm -q --whatprovides lustre --qf "%{Name}\n" 2>/dev/null`
+            LPACKAGE=`rpm -q --whatprovides lustre --qf "%{Name}\n" 2>/dev/null | grep -v "no package"`
             if test -n "$LPACKAGE"; then
                 LVERSION=`rpm -q $LPACKAGE --qf "%{Version}\n" 2>/dev/null | cut -d "." -f 1-2`
                 AC_MSG_RESULT(found version $LVERSION)
