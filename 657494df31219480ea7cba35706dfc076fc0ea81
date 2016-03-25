@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "da9b358b_791dc265",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 3
+      },
+      "lineNbr": 248,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-03-25T08:02:37Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "da9b358b_83ac95ee",
+      "revId": "657494df31219480ea7cba35706dfc076fc0ea81",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "da9b358b_63aab11b",
         "filename": "src/tools/Makefile.am",
         "patchSetId": 3
@@ -53,6 +71,30 @@
       "writtenOn": "2016-03-24T22:31:13Z",
       "side": 1,
       "message": "I know it is just an example, but what about using:\n\n archive \u003d dd of\u003d/tmp/arch/%s\n\ninstead?\n\nThe problem with tee is that it will also redirect stdin to stdout, messing up lhsmtool_cmd stdout...",
+      "range": {
+        "startLine": 41,
+        "startChar": 13,
+        "endLine": 41,
+        "endChar": 29
+      },
+      "revId": "657494df31219480ea7cba35706dfc076fc0ea81",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "da9b358b_b9134a5c",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 41,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-03-25T08:02:37Z",
+      "side": 1,
+      "message": "Right! How come I did not even think of it! (although it should not be used in production as is, it\u0027s a better way to quickly test)",
+      "parentUuid": "da9b358b_83fff533",
       "range": {
         "startLine": 41,
         "startChar": 13,
@@ -111,6 +153,30 @@
     },
     {
       "key": {
+        "uuid": "da9b358b_99108650",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 489,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-03-25T08:02:37Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "da9b358b_43a7ad4f",
+      "range": {
+        "startLine": 489,
+        "startChar": 34,
+        "endLine": 489,
+        "endChar": 45
+      },
+      "revId": "657494df31219480ea7cba35706dfc076fc0ea81",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "da9b358b_c3a3bd4e",
         "filename": "src/tools/lhsmtool_cmd.c",
         "patchSetId": 3
@@ -134,6 +200,30 @@
     },
     {
       "key": {
+        "uuid": "da9b358b_d90dee38",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 518,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-03-25T08:02:37Z",
+      "side": 1,
+      "message": "Yes, I want an errno. We could to some conversion but ECHILD is fine I think",
+      "parentUuid": "da9b358b_c3a3bd4e",
+      "range": {
+        "startLine": 515,
+        "startChar": 1,
+        "endLine": 518,
+        "endChar": 26
+      },
+      "revId": "657494df31219480ea7cba35706dfc076fc0ea81",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "da9b358b_6393d1fb",
         "filename": "src/tools/lhsmtool_cmd.c",
         "patchSetId": 3
@@ -145,6 +235,30 @@
       "writtenOn": "2016-03-24T22:31:13Z",
       "side": 1,
       "message": "finally, I\u0027m not sure listening for G_IO_ERR is needed... are you? I\u0027m running without right now. I told you that first, so I don\u0027t want to be the guy to blame later. :)",
+      "range": {
+        "startLine": 631,
+        "startChar": 49,
+        "endLine": 631,
+        "endChar": 57
+      },
+      "revId": "657494df31219480ea7cba35706dfc076fc0ea81",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "da9b358b_f908b22a",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 631,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-03-25T08:02:37Z",
+      "side": 1,
+      "message": "I\u0027ll keep it, makes sense to have it",
+      "parentUuid": "da9b358b_6393d1fb",
       "range": {
         "startLine": 631,
         "startChar": 49,
