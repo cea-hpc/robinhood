@@ -152,14 +152,40 @@ static gboolean readline_cb(GIOChannel *channel, GIOCondition cond, gpointer ud)
         DisplayLog(LVL_MAJOR, TAG, "Cannot read from child: %s",
                    error->message);
         g_error_free(error);
+        g_io_channel_unref(channel);
+        ctx_decref(args->exec_ctx);
+        return false;
     }
-    else
-    {
-        if (args->cb != NULL)
-            args->cb(args->udata, line, size, args->ident);
-        g_free(line);
-    }
+
+    if (args->cb != NULL)
+        args->cb(args->udata, line, size, args->ident);
+    g_free(line);
     return true;
+}
+
+/**
+ * Wrapper to set io channel encoding to NULL
+ */
+static int iochan_null_enc(GIOChannel *chan) {
+    GError *err_desc = NULL;
+    int rc = 0;
+
+    if (g_io_channel_set_encoding(chan, NULL, &err_desc) != G_IO_STATUS_NORMAL)
+    {
+/* G_CONVERT_ERROR_NO_MEMORY exists since glib 2.40 */
+#if GLIB_CHECK_VERSION(2,40,0)
+        if (err_desc->code == G_CONVERT_ERROR_NO_MEMORY)
+            rc = -ENOMEM;
+        else
+#endif
+            rc = -EINVAL;
+
+        DisplayLog(LVL_MAJOR, TAG, "Could not set channel encoding: %s",
+                   err_desc->message);
+        g_error_free(err_desc);
+    }
+
+    return rc;
 }
 
 /**
@@ -240,6 +266,10 @@ int execute_shell_command(const char *cmd, parse_cb_t cb_func, void *cb_arg)
         /* instruct the refcount system to close the channels when unused */
         g_io_channel_set_close_on_unref(out_chan, true);
         g_io_channel_set_close_on_unref(err_chan, true);
+
+        if ((rc = iochan_null_enc(out_chan)) ||
+            (rc = iochan_null_enc(err_chan)))
+            goto out_free;
 
         /* update refcount for the two watchers */
         ctx_incref(&ctx);
