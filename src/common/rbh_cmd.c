@@ -152,13 +152,13 @@ static gboolean readline_cb(GIOChannel *channel, GIOCondition cond, gpointer ud)
         DisplayLog(LVL_MAJOR, TAG, "Cannot read from child: %s",
                    error->message);
         g_error_free(error);
+        g_io_channel_unref(channel);
+        ctx_decref(args->exec_ctx);
+        return false;
     }
-    else
-    {
-        if (args->cb != NULL)
-            args->cb(args->udata, line, size, args->ident);
-        g_free(line);
-    }
+    if (args->cb != NULL)
+        args->cb(args->udata, line, size, args->ident);
+    g_free(line);
     return true;
 }
 
@@ -244,6 +244,21 @@ int execute_shell_command(const char *cmd, parse_cb_t cb_func, void *cb_arg)
         /* update refcount for the two watchers */
         ctx_incref(&ctx);
         ctx_incref(&ctx);
+
+        if ((g_io_channel_set_encoding(out_chan, NULL, &err_desc)
+                != G_IO_STATUS_NORMAL) ||
+            (g_io_channel_set_encoding(err_chan, NULL, &err_desc)
+                != G_IO_STATUS_NORMAL))
+        {
+            if (err_desc->code == G_CONVERT_ERROR_NO_MEMORY)
+                rc = -ENOMEM;
+            else
+                rc = -EINVAL;
+
+            DisplayLog(LVL_MAJOR, TAG, "Could not set channel encoding: %s",
+                       err_desc->message);
+            goto out_free;
+        }
 
         g_io_add_watch(out_chan, G_IO_IN | G_IO_HUP, readline_cb, &out_args);
         g_io_add_watch(err_chan, G_IO_IN | G_IO_HUP, readline_cb, &err_args);
