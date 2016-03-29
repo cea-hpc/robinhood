@@ -549,7 +549,7 @@ static int lhsm_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
         switch (hsm_get_cl_event(logrec->cr_flags))
         {
             case HE_ARCHIVE:
-                /* is it a successfull copy? */
+                /* is it a successful copy? */
                 if (hsm_get_cl_error(logrec->cr_flags) == CLF_HSM_SUCCESS)
                 {
                      /* save last archive time (non-critical: ignore errors) */

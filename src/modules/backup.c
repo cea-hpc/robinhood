@@ -1034,7 +1034,7 @@ static int backup_status(struct sm_instance *smi,
             rc = -errno;
             if (rc == -ENOENT)
             {
-                /* entry disapeared */
+                /* entry disappeared */
                 return set_backup_status(smi, p_attrs_changed, STATUS_NEW);
             }
             else

@@ -203,7 +203,7 @@ EOF
     fi
 
     echo
-    echo "Database sucessfully created!"
+    echo "Database successfully created!"
 }
 
 

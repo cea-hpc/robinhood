@@ -975,7 +975,7 @@ static int list_bulk(void)
     struct stat st;
     struct lmgr_iterator_t *it;
 
-    /* no tranvsersal => no wagon
+    /* no transversal => no wagon
      * so we need the path from the DB.
      */
     query_mask.std |= ATTR_MASK_fullpath;

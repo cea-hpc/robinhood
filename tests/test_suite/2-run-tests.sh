@@ -3552,7 +3552,7 @@ function test_manual_run
         $RH -f $RBH_CFG_DIR/$config_file $cmd -l DEBUG -L rh_migr.log || \
             error "starting run"
     fi
-    
+
     c=$(grep migration rh_migr.log | grep "Starting policy run" | wc -l)
     (( c == $nb_run_migr )) || error "$nb_run_migr migration runs expected (found: $c)"
     c=$(grep purge rh_migr.log | grep "Starting policy run" | wc -l)
@@ -3647,7 +3647,7 @@ function test_limits
     # we should get 5 actions / 5MB in all cases
     $RH -f $RBH_CFG_DIR/$config_file $run_opt -l DEBUG -L rh_migr.log || \
         error "starting run"
-    
+
     [ "$DEBUG" = "1" ] && grep "run summary" rh_migr.log
 
     c=$(grep "run summary" rh_migr.log | cut -d ";" -f 3 | awk '{print $1}')
@@ -9173,7 +9173,7 @@ function test_removing
 	if (( $res == 1 )); then
 		error "Test for RemovingDir_$testKey failed"
     else
-        echo "OK: Test successfull"
+        echo "OK: Test successful"
 	fi
 }
 
@@ -9239,7 +9239,7 @@ function test_rmdir_mix
     if (( $res == 1 )); then
         error "Test for RemovingDir_mixed failed"
     else
-        echo "OK: Test successfull"
+        echo "OK: Test successful"
     fi
 }
 
