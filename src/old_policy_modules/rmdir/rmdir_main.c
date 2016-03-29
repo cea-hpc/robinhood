@@ -1231,7 +1231,7 @@ static void   *Thr_Rmdir( void *arg )
                            /* free entry resources */
                            FreeRmdirItem( p_item );
                      }
-                     else /* recursive rmdir successfull */
+                     else /* recursive rmdir successful */
                      {
                         char volstr[256];
 

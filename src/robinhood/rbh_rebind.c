@@ -214,7 +214,7 @@ static inline int rebind_helper(const char       *old_backend_path,
     }
     else
     {
-        printf("'%s' sucessfully rebound to '%s'\n", rp, new_backend_path);
+        printf("'%s' successfully rebound to '%s'\n", rp, new_backend_path);
         return 0;
     }
 }

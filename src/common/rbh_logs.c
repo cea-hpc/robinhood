@@ -408,7 +408,7 @@ static void test_log_descr( const char * logname, log_stream_t * p_log )
     {
         if ( errno == ENOENT )
         {
-            /* the file disapeared, or has been renamed: opening a new one */
+            /* the file disappeared, or has been renamed: opening a new one */
             fclose( p_log->f_log );
             p_log->f_log = fopen( logname, "a" );
 

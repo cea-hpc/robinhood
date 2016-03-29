@@ -2298,7 +2298,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
         char           strstorage[24576]="";
         bool           is_stor = false;
 
-        /* Action was sucessful */
+        /* Action was successful */
         /* display attribute values just before the action,
          * as we used them to match the policy.
          */
