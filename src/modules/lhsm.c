@@ -29,6 +29,9 @@
 
 #include <stdbool.h>
 #include <glib.h>
+#include <sys/types.h>
+#include <attr/xattr.h>
+#include <uuid/uuid.h>
 
 /* config block name */
 #define LHSM_BLOCK "lhsm_config"
@@ -38,9 +41,14 @@
 #define DEFAULT_ARCHIVE_ID  0
 #define ARCHIVE_PARAM "archive_id"
 
+/* Length of a UUID as a string, without trailing NUL. */
+#define UUID_XATTR_STRLEN 36
+
 typedef struct lhsm_config_t
 {
     char **rebind_cmd;
+
+    char uuid_xattr[XATTR_NAME_MAX+1];
 } lhsm_config_t;
 
 /* lhsm config is global as the status manager is shared */
@@ -72,7 +80,6 @@ static int get_archive_id(const action_params_t *params)
 
     return arch_id;
 }
-
 
 /** Initialize action related global information.
  * Prepare exclude set once to avoid reinitializing it for each action.
@@ -274,7 +281,8 @@ enum lhsm_info_e
     ATTR_NO_RELEASE,
     ATTR_NO_ARCHIVE,
     ATTR_LAST_ARCHIVE,
-    ATTR_LAST_RESTORE
+    ATTR_LAST_RESTORE,
+    ATTR_UUID,
 };
 
 /** size of specific info to be stored in DB:
@@ -283,6 +291,7 @@ enum lhsm_info_e
  * no_archive: 0 or 1
  * last_archive: unix epoch
  * last_restore: unix epoch
+ * uuid: 36 characters representing a 16 bytes UUID
  */
 static sm_info_def_t lhsm_info[] = {
     [ATTR_ARCHIVE_ID] = { ARCHIVE_PARAM, "archid", DB_UINT, 0, {.val_uint = 0}, PT_INT },
@@ -290,7 +299,68 @@ static sm_info_def_t lhsm_info[] = {
     [ATTR_NO_ARCHIVE] = { "no_archive", "noarch", DB_BOOL, 0, {.val_bool = false}, PT_BOOL },
     [ATTR_LAST_ARCHIVE] = { "last_archive", "lstarc", DB_UINT, 0, {.val_uint = 0}, PT_DURATION },
     [ATTR_LAST_RESTORE] = { "last_restore", "lstrst", DB_UINT, 0, {.val_uint = 0}, PT_DURATION },
+    [ATTR_UUID] = { "uuid", "uuid", DB_TEXT, UUID_XATTR_STRLEN, {.val_str = NULL}, PT_STRING },
 };
+
+static bool cfg_has_uuid(const lhsm_config_t *cfg)
+{
+    return cfg->uuid_xattr[0] != '\0';
+}
+
+/* Get the UUID for the fid.
+ * Return 0 on success, an errno on failure. uuid must be at least 37
+ * bytes long. */
+static int get_uuid(const entry_id_t *id, char *uuid)
+{
+    char fid_path[RBH_PATH_MAX];
+    int rc;
+
+    rc = BuildFidPath(id, fid_path);
+    if (rc)
+        return rc;
+
+    rc = lgetxattr(fid_path, config.uuid_xattr, uuid, UUID_XATTR_STRLEN + 1);
+    if (rc == -1) {
+        rc = errno;
+        if (rc != ENODATA)
+            DisplayLog(LVL_MAJOR, LHSM_TAG,
+                       "Cannot get UUID for fid " DFID_NOBRACE " : %s",
+                       PFID(id), strerror(rc));
+        return rc;
+    }
+
+    if (rc != UUID_XATTR_STRLEN) {
+        DisplayLog(LVL_MAJOR, LHSM_TAG,
+                   "Invalid size %d for UUID for fid " DFID_NOBRACE,
+                   rc, PFID(id));
+        return E2BIG;
+    }
+
+    uuid[UUID_XATTR_STRLEN] = 0;
+
+    return 0;
+}
+
+/* Get the UUID from the file and set the SM attribute. Do not return
+ * an error if the file doesn't have a UUID, as it is better to still
+ * have it up to date in the database than not at all. */
+static void set_uuid_info(struct sm_instance *smi, const entry_id_t *id,
+                          attr_set_t *refreshed_attrs)
+{
+    char *uuid;
+
+    uuid = malloc(UUID_XATTR_STRLEN + 1);
+    if (uuid == NULL)
+        return;
+
+    if (get_uuid(id, uuid) != 0) {
+        free(uuid);
+        return;
+    }
+
+    if (set_sm_info(smi, refreshed_attrs, ATTR_UUID, uuid) != 0)
+        free(uuid);
+}
 
 /** get Lustre status and convert it to an internal scalar status */
 static int lhsm_get_status(const char *path, hsm_status_t *p_status,
@@ -439,6 +509,9 @@ static int lhsm_status(struct sm_instance *smi,
     if (rc)
         goto clean_status;
 
+    if (cfg_has_uuid(&config))
+        set_uuid_info(smi, id, refreshed_attrs);
+
     /* update no_archive/no_release (non critical: ignore errors) */
     set_bool_info(smi, refreshed_attrs, ATTR_NO_ARCHIVE, no_archive);
     set_bool_info(smi, refreshed_attrs, ATTR_NO_RELEASE, no_release);
@@ -557,6 +630,10 @@ static int lhsm_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
                      /* save last archive time (non-critical: ignore errors) */
                      set_uint_info(smi, refreshed_attrs, ATTR_LAST_ARCHIVE,
                                    cltime2sec(logrec->cr_time));
+
+                    /* Save UUID */
+                     if (cfg_has_uuid(&config))
+                         set_uuid_info(smi, id, refreshed_attrs);
 
                     /* if dirty flag is set in the changelog record, the entry is dirty,
                      * else, it is up to date. */
@@ -775,6 +852,7 @@ static recov_status_t lhsm_undelete(struct sm_instance *smi,
     unsigned int archive_id = DEFAULT_ARCHIVE_ID;
     int rc;
     const char *path;
+    char *uuid = NULL;
 
     /* Lustre/HSM only archive files */
     if (ATTR_MASK_TEST(p_attrs_old_in, type) &&
@@ -811,12 +889,26 @@ static recov_status_t lhsm_undelete(struct sm_instance *smi,
             archive_id = *tmp;
     }
 
+    rc = sm_attr_get(smi, p_attrs_old_in, "lhsm.uuid", (void **)&uuid,
+                     &def, &idx);
+    if (rc == 0)
+    {
+        /* sanity check of returned type */
+        if (def->db_type != DB_TEXT) {
+            DisplayLog(LVL_CRIT, LHSM_TAG,
+                       "Unexpected type for 'lhsm.uuid': %d", def->db_type);
+            free(uuid);
+            uuid = NULL;
+        }
+    }
+
     /* create parent directory if it does not already exist */
     rc = create_parent_of(path, NULL);
     if (rc != 0 && rc != -EEXIST) {
         DisplayLog(LVL_CRIT, LHSM_TAG, "Failed to create parent directory for "
                    "file '%s': %s", path, strerror(-rc));
-            return RS_ERROR;
+        free(uuid);
+        return RS_ERROR;
     }
 
     /* create the file in 'released' state */
@@ -825,7 +917,21 @@ static recov_status_t lhsm_undelete(struct sm_instance *smi,
     if (rc) {
         DisplayLog(LVL_CRIT, LHSM_TAG, "Failed to import file '%s': %s", path,
                    strerror(-rc));
+        free(uuid);
         return RS_ERROR;
+    }
+
+    /* Set the UUID back */
+    if (uuid) {
+        rc = lsetxattr(path, config.uuid_xattr, uuid, UUID_XATTR_STRLEN, 0);
+        rc = rc ? errno : 0;
+        free(uuid);
+        if (rc) {
+            DisplayLog(LVL_CRIT, LHSM_TAG,
+                       "Failed to set UUID for file '%s': %s",
+                       path, strerror(rc));
+            return RS_ERROR;
+        }
     }
 
     /* get the new entry attributes */
@@ -838,11 +944,13 @@ static recov_status_t lhsm_undelete(struct sm_instance *smi,
 
     /** TODO If another status manager recovered it, just rebind in the backend. */
 
-    rc = lhsm_rebind(p_old_id, p_new_id, p_attrs_new, smi, archive_id);
-    if (rc) {
-        DisplayLog(LVL_CRIT, LHSM_TAG, "Failed to rebind entry in backend: %s",
-                   rc < 0 ? strerror(-rc) : "command failed");
-        return RS_ERROR;
+    if (!cfg_has_uuid(&config)) {
+        rc = lhsm_rebind(p_old_id, p_new_id, p_attrs_new, smi, archive_id);
+        if (rc) {
+            DisplayLog(LVL_CRIT, LHSM_TAG, "Failed to rebind entry in backend: %s",
+                       rc < 0 ? strerror(-rc) : "command failed");
+            return RS_ERROR;
+        }
     }
 
     return RS_FILE_OK;
@@ -879,11 +987,15 @@ static void lhsm_cfg_write_default(FILE *output)
     print_end_block(output, 0);
 }
 
+#define UUID_CONFIG_BLOCK "uuid"
+
 static int lhsm_cfg_read(config_file_t config, void *module_config, char *msg_out)
 {
-    int              rc;
+    int rc;
     lhsm_config_t *conf = module_config;
-    config_item_t    block;
+    config_item_t block;
+    config_item_t uuid_block;
+    bool unique = true;
 
     const cfg_param_t hsm_params[] = {
         {"rebind_cmd", PT_CMD, 0, /* can contain wildcards: {fsroot} {oldfid} {newfid}... */
@@ -891,11 +1003,20 @@ static int lhsm_cfg_read(config_file_t config, void *module_config, char *msg_ou
         END_OF_PARAMS
     };
 
-    static const char *allowed_params[] = {
-        "rebind_cmd", NULL
+    const cfg_param_t uuid_params[] = {
+        {"xattr", PT_STRING, 0, conf->uuid_xattr, sizeof(conf->uuid_xattr)},
+        END_OF_PARAMS
     };
 
-    /* get Backup block */
+    static const char *uuid_allowed[] = {
+        "xattr", NULL
+    };
+
+    static const char *allowed_params[] = {
+        "rebind_cmd", "uuid", NULL
+    };
+
+    /* get lhsm_config block */
     rc = get_cfg_block(config, LHSM_BLOCK, &block, msg_out);
     if (rc)
         return rc == ENOENT ? 0 : rc; /* not mandatory */
@@ -906,6 +1027,20 @@ static int lhsm_cfg_read(config_file_t config, void *module_config, char *msg_ou
         return rc;
 
     CheckUnknownParameters(block, LHSM_BLOCK, allowed_params);
+
+    /* Read uuid block if present */
+    uuid_block = rh_config_FindItemByName(config, LHSM_BLOCK"::"UUID_CONFIG_BLOCK, &unique);
+    if (uuid_block) {
+        rc = get_cfg_block(config, LHSM_BLOCK"::"UUID_CONFIG_BLOCK, &uuid_block, msg_out);
+        if (rc)
+            return rc;
+
+        rc = read_scalar_params(uuid_block, UUID_CONFIG_BLOCK, uuid_params, msg_out);
+        if (rc)
+            return rc;
+
+        CheckUnknownParameters(uuid_block, UUID_CONFIG_BLOCK, uuid_allowed);
+    }
 
     return 0;
 }
@@ -991,8 +1126,12 @@ static status_manager_t lhsm_sm = {
     /** needed attributes for undelete in addition to POSIX and fullpath:
      * - lhsm_status: to know the original status of the 'undeleted' entry.
      * - archive_id: to know what archive the hsm_remove order must be sent to.
+     * - uuid
      */
-    .softrm_table_mask = {.status = SMI_MASK(0), .sm_info = GENERIC_INFO_BIT(ATTR_ARCHIVE_ID)},
+    .softrm_table_mask = {.status = SMI_MASK(0),
+                          .sm_info = GENERIC_INFO_BIT(ATTR_ARCHIVE_ID) |
+                                     GENERIC_INFO_BIT(ATTR_UUID)
+                         },
     .undelete_func = lhsm_undelete,
 
     /* XXX about full disaster recovery: must recreate all metadata (incl. symlinks => need link field)

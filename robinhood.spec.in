@@ -36,7 +36,7 @@ Url: http://robinhood.sourceforge.net
 Source0: @PACKAGE@-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires: glib2-devel >= 2.16
-BuildRequires: libattr-devel
+BuildRequires: libattr-devel libuuid-devel
 BuildRequires: mailx
 %if %{with lustre}
 BuildRequires: %{lpackage} >= %{lversion}
