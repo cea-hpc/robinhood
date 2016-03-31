@@ -125,7 +125,15 @@ Release: @RELEASE@.noarch
 
 %description tests
 Lustre and Posix tests for Robinhood.
+%endif
 
+%if %{with lhsm} || %{with shook}
+%package tools
+Summary: Annex tools for robinhood.
+Group: Applications/System
+
+%description tools
+Annex tools for robinhood.
 %endif
 
 %prep
@@ -236,9 +244,14 @@ fi
 %{_sbindir}/ost_fids_remap
 %endif
 
+%if %{with lhsm} || %{with shook}
+%files tools
+%if %{with lhsm}
+%{_sbindir}/lhsmtool_cmd
+%endif
 %if %{with shook}
-%files robinhood-annex
 %{_sbindir}/rbh-rebind
+%endif
 %endif
 
 %files webgui
@@ -261,10 +274,6 @@ fi
 %else
 # robinhood RPM name for posix is robinhood-posix
 %files posix
-%endif
-
-%if %{with lhsm}
-%{_sbindir}/lhsmtool_cmd
 %endif
 
 %defattr(-,root,root,-)
