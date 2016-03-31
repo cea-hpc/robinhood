@@ -283,6 +283,19 @@ function wait_done
 	return 0
 }
 
+# Wait for a file to reach a given HSM state
+# arg 1 = full file name
+# arg 2 = HSM state (such as 0x00000001)
+function wait_hsm_state {
+    # Poll state for 10 seconds
+    LIM=$((`date +%s`+10))
+    while :
+    do
+        [ `date +%s` -ge $LIM ] && error "HSM state for file \"$1\" isn't $2"
+        $LFS hsm_state $1 | grep --quiet $2 && break
+        sleep .5
+    done
+}
 
 
 function clean_fs
@@ -499,6 +512,80 @@ function migration_test
         [ "$DEBUG" = "1" ] && cat report.out
         check_status_count report.out synchro $expected_migr
     fi
+
+    rm -f report.out
+}
+
+# Create a file with a UUID, archive it and delete. Make sure that its
+# UUID makes it to the ENTRIES and SOFT_RM tables. Do the same test
+# for a file without UUID to test some bad paths.
+function migration_uuid
+{
+	config_file=$1
+
+	if (( $is_lhsm + $is_hsmlite == 0 )); then
+		echo "HSM test only: skipped"
+		set_skipped
+		return 1
+	fi
+
+	clean_logs
+	echo "Initial scan of empty filesystem"
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+
+	# create 2 files
+	echo "1-Creating files..."
+	for i in a `seq 1 2`; do
+        rm -f $RH_ROOT/file.$i
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1k count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+	done
+
+    # Set a fake UUID only on the first file
+    local fake_uuid="2363c3ed-5a7e-49f2-ad32-adc4147d31a2"
+    setfattr -n trusted.tascon.uuid -v "$fake_uuid" $RH_ROOT/file.1
+    getfattr -n trusted.tascon.uuid $RH_ROOT/file.1 || error "UUID wasn't set"
+
+    local fid1=$(get_id "$RH_ROOT/file.1")
+    local fid2=$(get_id "$RH_ROOT/file.2")
+
+	echo "2-Reading changelogs..."
+	$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+   	check_db_error rh_chglogs.log
+
+	echo "3-Archiving the files"
+	$LFS hsm_archive $RH_ROOT/file.1 || error "executing lfs hsm_archive"
+	$LFS hsm_archive $RH_ROOT/file.2 || error "executing lfs hsm_archive"
+
+    wait_hsm_state $RH_ROOT/file.1 0x00000009
+    wait_hsm_state $RH_ROOT/file.2 0x00000009
+
+	echo "4-Reading changelogs..."
+	$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+
+    mysql $RH_DB -e "SELECT lhsm_uuid FROM ENTRIES WHERE id='$fid1'" | grep "$fake_uuid" || error "UUID not found in ENTRIES for file1"
+    mysql $RH_DB -e "SELECT lhsm_uuid FROM ENTRIES WHERE id='$fid2'" | grep "NULL" || error "UUID found in ENTRIES for file2"
+
+    echo "5-Test soft rm"
+    rm -f $RH_ROOT/file.1
+    rm -f $RH_ROOT/file.2
+
+	$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+
+    mysql $RH_DB -e "SELECT lhsm_uuid FROM SOFT_RM WHERE id='$fid1'" | grep "$fake_uuid" || error "UUID not found in SOFT_RM for file1"
+    mysql $RH_DB -e "SELECT lhsm_uuid FROM SOFT_RM WHERE id='$fid2'" | grep "NULL" || error "UUID found in SOFT_RM for file2"
+
+    echo "6-Test undelete"
+    $UNDELETE -f $RBH_CFG_DIR/$config_file -L | grep 'file'
+    $UNDELETE -f $RBH_CFG_DIR/$config_file -R $RH_ROOT/file.1
+
+    $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+
+    getfattr -n trusted.tascon.uuid $RH_ROOT/file.1 || error "UUID wasn't set"
+    getfattr -n trusted.tascon.uuid $RH_ROOT/file.1 | grep "$fake_uuid" || error "Bad UUID undeleted"
+
+    local fid1=$(get_id "$RH_ROOT/file.1")
+    mysql $RH_DB -e "SELECT lhsm_uuid FROM ENTRIES WHERE id='$fid1'" | grep "$fake_uuid" || error "UUID not found in ENTRIES for file1"
+    mysql $RH_DB -e "SELECT lhsm_uuid FROM SOFT_RM WHERE id='$fid2'" | grep "NULL" || error "UUID found in SOFT_RM for file2"
 
     rm -f report.out
 }
@@ -10525,6 +10612,8 @@ run_test 622 TEST_OTHER_PARAMETERS_4 OtherParameters_4.conf "TEST_OTHER_PARAMETE
 run_test 623 TEST_OTHER_PARAMETERS_5 OtherParameters_5.conf "TEST_OTHER_PARAMETERS_5"
 
 run_test 700 test_changelog common.conf "Changelog record suppression"
+
+run_test 800 migration_uuid test1.conf "Archive file with UUID"
 
 echo
 echo "========== TEST SUMMARY ($PURPOSE) =========="
