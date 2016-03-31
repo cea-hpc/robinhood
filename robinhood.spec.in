@@ -128,6 +128,15 @@ Lustre and Posix tests for Robinhood.
 
 %endif
 
+%if %{with lhsm} || %{with shook}
+%package tools
+Summary: Annex tools for robinhood.
+Group: Applications/System
+
+%description tools
+Annex tools for robinhood.
+%endif
+
 %prep
 %setup -q -n @PACKAGE@-%{version}
 
@@ -236,11 +245,6 @@ fi
 %{_sbindir}/ost_fids_remap
 %endif
 
-%if %{with shook}
-%files robinhood-annex
-%{_sbindir}/rbh-rebind
-%endif
-
 %files webgui
 
 # set apache permissions
@@ -261,10 +265,6 @@ fi
 %else
 # robinhood RPM name for posix is robinhood-posix
 %files posix
-%endif
-
-%if %{with lhsm}
-%{_sbindir}/lhsmtool_cmd
 %endif
 
 %defattr(-,root,root,-)
@@ -318,6 +318,16 @@ fi
 %config %{_sysconfdir}/robinhood.d/templates/basic.conf
 
 %{_initrddir}/robinhood
+
+%if %{with lhsm} || %{with shook}
+%files tools
+%if %{with lhsm}
+%{_sbindir}/lhsmtool_cmd
+%endif
+%if %{with shook}
+%{_sbindir}/rbh-rebind
+%endif
+%endif
 
 %changelog
 
