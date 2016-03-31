@@ -515,6 +515,83 @@ function migration_test
     rm -f report.out
 }
 
+# Create a file with a UUID, archive it and delete. Make sure that its
+# UUID makes it to the ENTRIES and SOFT_RM tables. Do the same test
+# for a file without UUID to test some bad paths.
+function migration_uuid
+{
+    config_file=$1
+
+    if (( $is_lhsm + $is_hsmlite == 0 )); then
+        echo "HSM test only: skipped"
+        set_skipped
+        return 1
+    fi
+
+    clean_logs
+    echo "Initial scan of empty filesystem"
+    $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+
+    # create 2 files
+    echo "1-Creating files..."
+    for i in a `seq 1 2`; do
+        rm -f $RH_ROOT/file.$i
+        dd if=/dev/zero of=$RH_ROOT/file.$i bs=1k count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+    done
+
+    # Set a fake UUID only on the first file
+    local fake_uuid="2363c3ed-5a7e-49f2-ad32-adc4147d31a2"
+    setfattr -n trusted.tascon.uuid -v "$fake_uuid" $RH_ROOT/file.1
+    getfattr -n trusted.tascon.uuid $RH_ROOT/file.1 || error "UUID wasn't set"
+
+    local fid1=$(get_id "$RH_ROOT/file.1")
+    local fid2=$(get_id "$RH_ROOT/file.2")
+
+    echo "2-Reading changelogs..."
+    $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+    check_db_error rh_chglogs.log
+
+    echo "3-Archiving the files"
+    $LFS hsm_archive $RH_ROOT/file.1 || error "executing lfs hsm_archive"
+    $LFS hsm_archive $RH_ROOT/file.2 || error "executing lfs hsm_archive"
+
+    wait_hsm_state $RH_ROOT/file.1 0x00000009
+    wait_hsm_state $RH_ROOT/file.2 0x00000009
+
+    echo "4-Reading changelogs..."
+    $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+
+    $REPORT -f $RBH_CFG_DIR/$config_file -e $fid1 | egrep "lhsm\.uuid\s+:\s+$fake_uuid" || error "UUID not found in ENTRIES for file1"
+    $REPORT -f $RBH_CFG_DIR/$config_file -e $fid2 | grep "lhsm\.uuid" && error "UUID found in ENTRIES for file2"
+
+    echo "5-Test soft rm"
+    rm -f $RH_ROOT/file.1
+    rm -f $RH_ROOT/file.2
+
+    $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+
+    mysql $RH_DB -e "SELECT lhsm_uuid FROM SOFT_RM WHERE id='$fid1'" | grep "$fake_uuid" || error "UUID not found in SOFT_RM for file1"
+    mysql $RH_DB -e "SELECT lhsm_uuid FROM SOFT_RM WHERE id='$fid2'" | grep "NULL" || error "UUID found in SOFT_RM for file2"
+
+    echo "6-Test undelete"
+    $UNDELETE -f $RBH_CFG_DIR/$config_file -L | grep 'file'
+    $UNDELETE -f $RBH_CFG_DIR/$config_file -R $RH_ROOT/file.1
+
+    $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+
+    getfattr -n trusted.tascon.uuid $RH_ROOT/file.1 || error "UUID wasn't set"
+    getfattr -n trusted.tascon.uuid $RH_ROOT/file.1 | grep "$fake_uuid" || error "Bad UUID undeleted"
+
+    local fid1=$(get_id "$RH_ROOT/file.1")
+    $REPORT -f $RBH_CFG_DIR/$config_file -e $fid1 | egrep "lhsm\.uuid\s+:\s+$fake_uuid" || error "UUID not found in ENTRIES for file1"
+    mysql $RH_DB -e "SELECT lhsm_uuid FROM SOFT_RM WHERE id='$fid2'" | grep "NULL" || error "UUID found in SOFT_RM for file2"
+
+    echo "7-Test rbh-find with UUID"
+    $FIND -f $RBH_CFG_DIR/$config_file -printf "%p %Rm{lhsm.uuid}\\n" | grep "$fake_uuid" || error "UUID not found by rbh-find for file1"
+
+    rm -f report.out
+}
+
 # migrate a single file
 function migration_test_single
 {
@@ -10604,6 +10681,7 @@ run_test 507b     recov_filters  test_recov2.conf  dir    "FS recovery with dir 
 run_test 508    test_tokudb "Test TokuDB compression"
 run_test 509    test_cfg_overflow "config options too long"
 run_test 510    test_rbh_find_printf test1.conf "Test rbh-find with -printf option"
+run_test 511    migration_uuid test1.conf "Archive file with UUID"
 
 #### Tests by Sogeti ####
 run_test 600a test_alerts alert.conf "file1" 0 "TEST_ALERT_PATH_NAME"
