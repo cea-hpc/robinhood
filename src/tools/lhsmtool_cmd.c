@@ -421,10 +421,12 @@ struct copy_cb_args {
 	int				 fd_in;
 	int				 fd_out;
 	loff_t				 offset;
+	off_t				 fsize;
 	time_t				 last_report;
 	GMainLoop			*loop;
 	int				 retcode;
 	struct refcnt			 references;
+	char				 iobuf[0];
 };
 
 static void loop_exit_noref(struct refcnt *ref)
@@ -464,20 +466,8 @@ static int report_progress(struct copy_cb_args *args)
 static gboolean cmd_send_cb(GIOChannel *channel, GIOCondition cond, gpointer ud)
 {
 	struct copy_cb_args	*args = ud;
-	loff_t			*p_off_i;
-	loff_t			*p_off_o;
-	ssize_t			 written;
+	ssize_t			 nbytes;
 	int			 rc = 0;
-
-	/* offset of the pipe must be NULL for splice (see below) and filled
-	 * appropriately for the file. This is indeed operation-specific. */
-	if (args->hai->hai_action == HSMA_ARCHIVE) {
-		p_off_i = &args->offset;
-		p_off_o = NULL;
-	} else {
-		p_off_i = NULL;
-		p_off_o = &args->offset;
-	}
 
 	if (cond == G_IO_HUP || cond == G_IO_ERR)
 		goto out_finished;
@@ -487,19 +477,26 @@ static gboolean cmd_send_cb(GIOChannel *channel, GIOCondition cond, gpointer ud)
 	if (rc)
 		goto out_finished;
 
-	written = splice(args->fd_in, p_off_i, args->fd_out, p_off_o,
-			 COPY_CHUNK_SIZE, SPLICE_F_NONBLOCK);
-	if (written == -1) {
+	/* splice/sendfile API would be a more elegant, but sometimes returned
+	 * EOF before the end of file...
+ 	 */ 
+	nbytes = read(args->fd_in, args->iobuf, COPY_CHUNK_SIZE);
+	if (nbytes > 0) {
+		nbytes = write(args->fd_out, args->iobuf, nbytes);
+		args->offset += nbytes;
+	}
+	if (nbytes == -1) {
 		/* This is undocumented but splice() can return EAGAIN
 		 * when operating in non-blocking mode. Just ignore it. */
 		if (errno == EAGAIN)
 			return true;
 		rc = -errno;
 		goto out_finished;
-	} else if (written == 0) {
+	} else if (nbytes == 0) {
+		LOG_DEBUG("cmd_send_cb: EOF at offset=%lu", args->offset);
 		goto out_finished;
 	} else {
-		args->he.length += written;
+		args->he.length += nbytes;
 		rc = report_progress(args);
 		if (rc)
 			goto out_finished;
@@ -508,6 +505,7 @@ static gboolean cmd_send_cb(GIOChannel *channel, GIOCondition cond, gpointer ud)
 	return true;
 
 out_finished:
+	LOG_DEBUG("cmd_send_cb: out_finished rc=%d", rc);
 	args->retcode = rc;
 	g_io_channel_unref(channel);
 	ref_dec(&args->references, loop_exit_noref);
@@ -518,9 +516,17 @@ static void cmd_termination_cb(GPid pid, gint status, gpointer ud)
 {
 	struct copy_cb_args	*args = ud;
 
-	if (WIFEXITED(status) && WEXITSTATUS(status) == 0)
-		args->retcode = 0;
-	else
+	if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+		/* force retcode to be non-zero if transfer is incomplete */
+		if (args->fsize >= 0 && args->offset != args->fsize) {
+			LOG_ERROR(EFAULT,"incomplete copy offset=%lu fsize=%lu",
+				  args->offset, args->fsize);
+			args->retcode = -EFAULT;
+		} else {
+			LOG_DEBUG("archive successful fsize=%lu", args->fsize);
+			args->retcode = 0;
+		}
+	} else
 		args->retcode = -ECHILD;
 
         g_spawn_close_pid(pid);
@@ -559,6 +565,7 @@ static int ct_archive(GMainLoop *loop, const struct hsm_action_item *hai,
 		      const long hal_flags)
 {
 	struct copy_cb_args	 *copy_args;
+	struct stat		  st;
 	GError			 *err;
 	GIOChannel	 	 *input;
 	GPid			  pid;
@@ -569,7 +576,7 @@ static int ct_archive(GMainLoop *loop, const struct hsm_action_item *hai,
 	int			  rc;
 	int			  f_in;
 
-	copy_args = calloc(1, sizeof(*copy_args));
+	copy_args = calloc(1, sizeof(*copy_args) + COPY_CHUNK_SIZE);
 	if (copy_args == NULL) {
 	rc = -ENOMEM;
 		LOG_ERROR(rc, "cannot allocate context to archive "DFID,
@@ -633,6 +640,14 @@ static int ct_archive(GMainLoop *loop, const struct hsm_action_item *hai,
 	copy_args->fd_out    = g_io_channel_unix_get_fd(input);
 	copy_args->loop      = loop;
 
+	/* get file size for sanity check */
+	rc = fstat(copy_args->fd_in, &st);
+	if (rc < 0) {
+		err_major++;
+		goto out;
+	}
+	copy_args->fsize     = st.st_size; 
+
 	/* register a subprocess write-ready callback */
 	io_subscribe(loop, input, G_IO_OUT | G_IO_HUP | G_IO_ERR, cmd_send_cb,
 		     copy_args);
@@ -673,7 +688,7 @@ static int ct_restore(GMainLoop *loop, const struct hsm_action_item *hai,
 	int			  rc;
 	int			  f_out;
 
-	copy_args = calloc(1, sizeof(*copy_args));
+	copy_args = calloc(1, sizeof(*copy_args) + COPY_CHUNK_SIZE);
 	if (copy_args == NULL) {
 		rc = -ENOMEM;
 		LOG_ERROR(rc, "cannot allocate context to restore "DFID,
@@ -748,6 +763,11 @@ static int ct_restore(GMainLoop *loop, const struct hsm_action_item *hai,
 	copy_args->fd_in     = g_io_channel_unix_get_fd(output);
 	copy_args->fd_out    = llapi_hsm_action_get_fd(copy_args->hcp);
 	copy_args->loop      = loop;
+
+    /* During restore, file size of volatile is not set as original file size
+     * TODO: get original file size from FID
+     */
+	copy_args->fsize     = -1; /* do not check file size */
 
 	/* register a subprocess read-ready callback */
 	io_subscribe(loop, output, G_IO_IN | G_IO_HUP | G_IO_ERR, cmd_send_cb,
