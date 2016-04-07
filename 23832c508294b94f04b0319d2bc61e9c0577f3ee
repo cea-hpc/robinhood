@@ -1,0 +1,209 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_8ce71d40",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 429,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-07T16:28:12Z",
+      "side": 1,
+      "message": "Add a size_t field to describe the length of this one",
+      "revId": "23832c508294b94f04b0319d2bc61e9c0577f3ee",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_0c7c2d71",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 480,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-07T16:28:12Z",
+      "side": 1,
+      "message": "(style) mixed spaces \u0026 tabs",
+      "revId": "23832c508294b94f04b0319d2bc61e9c0577f3ee",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_6ce4d93a",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 483,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-07T16:28:12Z",
+      "side": 1,
+      "message": "args-\u003eiobuf_len",
+      "range": {
+        "startLine": 483,
+        "startChar": 41,
+        "endLine": 483,
+        "endChar": 56
+      },
+      "revId": "23832c508294b94f04b0319d2bc61e9c0577f3ee",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_4cd0f553",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 486,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-07T16:28:12Z",
+      "side": 1,
+      "message": "(defect) you have a problem if nbytes as returned by write() is smaller than the value returned by read()... Wrap in a do/while loop for safety.",
+      "revId": "23832c508294b94f04b0319d2bc61e9c0577f3ee",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_2cd5b142",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 489,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-07T16:28:12Z",
+      "side": 1,
+      "message": "Update stale comment",
+      "range": {
+        "startLine": 489,
+        "startChar": 30,
+        "endLine": 489,
+        "endChar": 36
+      },
+      "revId": "23832c508294b94f04b0319d2bc61e9c0577f3ee",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_8cbefdfd",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 524,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-07T16:28:12Z",
+      "side": 1,
+      "message": "EIO?",
+      "range": {
+        "startLine": 524,
+        "startChar": 20,
+        "endLine": 524,
+        "endChar": 26
+      },
+      "revId": "23832c508294b94f04b0319d2bc61e9c0577f3ee",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_6cbbb90f",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 529,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-07T16:28:12Z",
+      "side": 1,
+      "message": "(style) missing brackets",
+      "revId": "23832c508294b94f04b0319d2bc61e9c0577f3ee",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_2c6371b3",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 646,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-07T16:28:12Z",
+      "side": 1,
+      "message": "rc \u003d -errno;\ngoto out_close; // before close(copy_args-\u003efd_in)",
+      "revId": "23832c508294b94f04b0319d2bc61e9c0577f3ee",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_ec458917",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 648,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-07T16:28:12Z",
+      "side": 1,
+      "message": "(style) missing blank line",
+      "revId": "23832c508294b94f04b0319d2bc61e9c0577f3ee",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_0c0f8de2",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 767,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-07T16:28:12Z",
+      "side": 1,
+      "message": "(style) No spaces please",
+      "revId": "23832c508294b94f04b0319d2bc61e9c0577f3ee",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_4c2c754a",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 769,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-07T16:28:12Z",
+      "side": 1,
+      "message": "(style, übernitpick) align closing \"*/\"",
+      "revId": "23832c508294b94f04b0319d2bc61e9c0577f3ee",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
