@@ -27,19 +27,23 @@
 /*
  * HSM copytool program for user-defined external commands.
  * Receives orders from coordinator and execute subprocesses accordingly.
- *
- * Data from lustre to archive is read and piped into command's STDIN.
- * Data from archive to lustre is read from command's STDOUT and written into
- * lustre.
+ * Pass lustre file descriptor and fid as command arguments.
  *
  * Example configuration file:
  * #
- * # Each command _must_ include a %s that will be the FID of the file to
- * # archive/restore.
- * # for a posix copytool:
+ * # Each command should include the following variables related to the file
+ * # to archive/restore:
+ * # - {fd} will be the file descriptor number (seekable)
+ * # - {fid} will be the Lustre FID
+ * #
+ * # Note that for restore, the file descriptor is a volatile file and thus
+ * # is NOT set to the original file size.
+ * #
+ * # For a very basic posix copytool:
  * [commands]
- * archive = dd of=/tmp/arch/%s
- * restore = dd if=/tmp/arch/%s
+ * archive = dd if=/proc/self/{fd} of=/tmp/arch/{fid}
+ * restore = dd if=/tmp/arch/{fid} of=/proc/self/{fd}
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -79,27 +83,14 @@
 /* Default configuration file path */
 #define CONFIG_FILE_DEFAULT	"/etc/lhsm_cmd.conf"
 
-/* Protect us from uglyness */
-#define ONE_MB 0x100000
-
 /* .ini group label under which to define the commands format strings */
 #define CFG_GROUP_COMMANDS	"commands"
 
-/* Nanoseconds in a second.
- * Some env may have defined it already. */
-#ifndef NSEC_PER_SEC
-#define NSEC_PER_SEC 1000000000UL
-#endif
-
-/* Number of commands to execute in parallel.
- * XXX make it an option. */
-#define MAX_PARALLELISM	8
+/* Default max number of commands to execute in parallel */
+#define FANOUT_DEFAULT		8
 
 /* GLib spawn flags to execute subprocesses */
-#define CMD_EXEC_FLAGS	(G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD)
-
-/* copy blocks of 1MB, lustre likes it, so do I */
-#define COPY_CHUNK_SIZE	ONE_MB
+#define CMD_EXEC_FLAGS	(G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_LEAVE_DESCRIPTORS_OPEN)
 
 #ifndef LL_HSM_MAX_ARCHIVE
 #define LL_HSM_MAX_ARCHIVE (sizeof(uint32_t) * 8)
@@ -108,13 +99,6 @@
 /* long long presentation macro used to represent FIDs */
 #ifndef LPX64
 #define LPX64 "%#llx"
-#endif
-
-
-#ifndef container_of
-#define container_of(ptr, type, member) ({                      \
-	const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
-	(type *)( (char *)__mptr - offsetof(type,member) );})
 #endif
 
 
@@ -130,6 +114,7 @@ struct options {
 	int			 o_dry_run;
 	int			 o_abort_on_error;
 	int			 o_verbose;
+	int			 o_fanout;
 	int			 o_report_int;
 	int			 o_archive_cnt;
 	int			 o_archive_id[LL_HSM_MAX_ARCHIVE];
@@ -144,8 +129,8 @@ struct options {
 /* Everything else is zeroed */
 static struct options opt = {
 	.o_verbose 	= LLAPI_MSG_INFO,
+	.o_fanout	= FANOUT_DEFAULT,
 	.o_report_int	= REPORT_INTERVAL_DEFAULT,
-	.o_chunk_size	= ONE_MB,
 	.o_config	= CONFIG_FILE_DEFAULT,
 };
 
@@ -165,9 +150,10 @@ static char fs_name[MAX_OBD_NAME + 1];
 
 static struct hsm_copytool_private *ctdata;
 
-
 static GAsyncQueue	*mqueue;
 static bool		 stop;
+static GRegex		*fd_regex;
+static GRegex		*fid_regex;
 
 
 static inline double ct_now(void)
@@ -199,15 +185,14 @@ static void usage(const char *name, int rc)
 	" Usage: %s [options] <lustre_mount_point>\n"
 	"   --daemon		  Daemon mode, run in background\n"
 	"   --abort-on-error	  Abort operation on major error\n"
-	"   -A, --archive <#>	 Archive number (repeatable)\n"
-	"   --dry-run		 Don't run, just show what would be done\n"
-	"   -c, --chunk-size <sz>     I/O size used during data copy\n"
-	"			     (unit can be used, default is MB)\n"
+	"   -A, --archive <#>	  Archive number (repeatable)\n"
+	"   --dry-run		  Don't run, just show what would be done\n"
 	"   -f, --event-fifo <path>   Write events stream to fifo\n"
-	"   -q, --quiet	       Produce less verbose output\n"
+	"   -F, --fanout <n>	  Max parallel commands (number of threads)\n"
+	"   -q, --quiet		  Produce less verbose output\n"
 	"   -u, --update-interval <s> Interval between progress reports sent\n"
 	"			     to Coordinator\n"
-	"   -v, --verbose	     Produce more verbose output\n", cmd_name);
+	"   -v, --verbose	  Produce more verbose output\n", cmd_name);
 	exit(rc);
 }
 
@@ -217,11 +202,12 @@ static int ct_parseopts(int argc, char * const *argv)
 		{"abort-on-error", no_argument,	      &opt.o_abort_on_error, 1},
 		{"abort_on_error", no_argument,	      &opt.o_abort_on_error, 1},
 		{"archive",	   required_argument, NULL,		   'A'},
-		{"daemon",	   no_argument,	      &opt.o_daemonize,	    1},
+		{"daemon",	   no_argument,	      &opt.o_daemonize,	     1},
 		{"config",	   required_argument, NULL,		   'c'},
 		{"event-fifo",	   required_argument, NULL,		   'f'},
 		{"event_fifo",	   required_argument, NULL,		   'f'},
-		{"dry-run",	   no_argument,	      &opt.o_dry_run,	    1},
+		{"dry-run",	   no_argument,	      &opt.o_dry_run,	     1},
+		{"fanout",	   required_argument, NULL,		   'F'},
 		{"help",	   no_argument,	      NULL,		   'h'},
 		{"quiet",	   no_argument,	      NULL,		   'q'},
 		{"update-interval", required_argument,	NULL,		   'u'},
@@ -252,6 +238,15 @@ static int ct_parseopts(int argc, char * const *argv)
 			break;
 		case 'f':
 			opt.o_event_fifo = optarg;
+			break;
+		case 'F':
+			opt.o_fanout = atoi(optarg);
+			if (opt.o_fanout < 1) {
+				rc = -EINVAL;
+				LOG_ERROR(rc, "bad value for -%c '%s'", c,
+					  optarg);
+				return rc;
+			}
 			break;
 		case 'h':
 			usage(argv[0], 0);
@@ -357,83 +352,49 @@ static int ct_fini(struct hsm_copyaction_private **phcp,
 	return rc;
 }
 
-static int ct_build_archive_cmd(char *cmd, size_t cmdlen,
-				const struct hsm_action_item *hai)
+static int ct_build_cmd(const enum hsm_copytool_action hsma, char *cmd,
+			size_t cmdlen, const struct hsm_action_item *hai,
+			int fd)
 {
-	const char	*cmd_format = ct_commands[HSMA_ARCHIVE];
+	const char	*cmd_format = ct_commands[hsma];
+	gchar		*res_cmd_fd, *res_cmd_fid, *fdstr;
 	char		 fidstr[128];
 
 	if (cmd_format == NULL)
 		return -ENOSYS;
 
+	/* replace all {fd} placeholders by fd number */
+	fdstr = g_strdup_printf("%i", fd);
+	res_cmd_fd = g_regex_replace_literal(fd_regex, cmd_format, -1, 0, fdstr,
+					     0, NULL);
+
+	/* replace all {fid} placeholders by lustre fid */
 	snprintf(fidstr, sizeof(fidstr), DFID, PFID(&hai->hai_dfid));
-	snprintf(cmd, cmdlen, cmd_format, fidstr);
+	res_cmd_fid = g_regex_replace_literal(fid_regex, res_cmd_fd, -1, 0,
+					      fidstr,
+					      0, NULL);
+
+	strncpy(cmd, res_cmd_fid, cmdlen - 1);
 	cmd[cmdlen - 1] = '\0';
+
+	g_free(res_cmd_fd);
+	g_free(res_cmd_fid);
+	g_free(fdstr);
 	return 0;
 }
 
-static int ct_build_restore_cmd(char *cmd, size_t cmdlen,
-				const struct hsm_action_item *hai)
-{
-	const char	*cmd_format = ct_commands[HSMA_RESTORE];
-	char		 fidstr[128];
 
-	if (cmd_format == NULL)
-		return -ENOSYS;
-
-	snprintf(fidstr, sizeof(fidstr), DFID, PFID(&hai->hai_dfid));
-	snprintf(cmd, cmdlen, cmd_format, fidstr);
-	cmd[cmdlen - 1] = '\0';
-	return 0;
-}
-
-
-/**
- * Simple reference counting mechanism to keep track of the users of a main loop
- * and exit it only when all expected events have happened.
- */
-struct refcnt {
-        int	count;
-};
-
-/** Callback invoked on a refcnt when count reaches zero */
-typedef void (*ref_clean_cb_t)(struct refcnt *);
-
-static void ref_inc(struct refcnt *ref)
-{
-	assert(ref->count >= 0);
-	ref->count++;
-}
-
-static void ref_dec(struct refcnt *ref, ref_clean_cb_t clean)
-{
-	assert(ref->count > 0);
-	if (--ref->count == 0 && clean != NULL)
-		clean(ref);
-}
-
-
-struct copy_cb_args {
+struct cmd_cb_args {
 	struct hsm_copyaction_private	*hcp;
 	const struct hsm_action_item	*hai;
 	struct hsm_extent		 he;
 	size_t				 length;
-	int				 fd_in;
-	int				 fd_out;
+	int				 fd;
 	loff_t				 offset;
 	time_t				 last_report;
 	GMainLoop			*loop;
 	int				 retcode;
-	struct refcnt			 references;
 };
-
-static void loop_exit_noref(struct refcnt *ref)
-{
-	struct copy_cb_args *args = container_of(ref, struct copy_cb_args,
-						 references);
-
-	g_main_loop_quit(args->loop);
-}
 
 /**
  * Report progress to the coordinator.
@@ -441,7 +402,7 @@ static void loop_exit_noref(struct refcnt *ref)
  * then periodically (every opt.o_report_int seconds).
  * We only report written bytes since last report (relative value).
  */
-static int report_progress(struct copy_cb_args *args)
+static int report_progress(struct cmd_cb_args *args)
 {
 	struct hsm_extent	*phe = &args->he;
 	time_t			 now = time(NULL);
@@ -461,84 +422,19 @@ static int report_progress(struct copy_cb_args *args)
 	return 0;
 }
 
-static gboolean cmd_send_cb(GIOChannel *channel, GIOCondition cond, gpointer ud)
-{
-	struct copy_cb_args	*args = ud;
-	loff_t			*p_off_i;
-	loff_t			*p_off_o;
-	ssize_t			 written;
-	int			 rc = 0;
-
-	/* offset of the pipe must be NULL for splice (see below) and filled
-	 * appropriately for the file. This is indeed operation-specific. */
-	if (args->hai->hai_action == HSMA_ARCHIVE) {
-		p_off_i = &args->offset;
-		p_off_o = NULL;
-	} else {
-		p_off_i = NULL;
-		p_off_o = &args->offset;
-	}
-
-	if (cond == G_IO_HUP || cond == G_IO_ERR)
-		goto out_finished;
-
-	/* initial progress to notify coordinator */
-	rc = report_progress(args);
-	if (rc)
-		goto out_finished;
-
-	written = splice(args->fd_in, p_off_i, args->fd_out, p_off_o,
-			 COPY_CHUNK_SIZE, SPLICE_F_NONBLOCK);
-	if (written == -1) {
-		/* This is undocumented but splice() can return EAGAIN
-		 * when operating in non-blocking mode. Just ignore it. */
-		if (errno == EAGAIN)
-			return true;
-		rc = -errno;
-		goto out_finished;
-	} else if (written == 0) {
-		goto out_finished;
-	} else {
-		args->he.length += written;
-		rc = report_progress(args);
-		if (rc)
-			goto out_finished;
-	}
-
-	return true;
-
-out_finished:
-	args->retcode = rc;
-	g_io_channel_unref(channel);
-	ref_dec(&args->references, loop_exit_noref);
-	return false;
-}
-
 static void cmd_termination_cb(GPid pid, gint status, gpointer ud)
 {
-	struct copy_cb_args	*args = ud;
+	struct cmd_cb_args	*args = ud;
 
-	if (WIFEXITED(status) && WEXITSTATUS(status) == 0)
+	if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
 		args->retcode = 0;
-	else
+	} else {
+		LOG_DEBUG("archive cmd failed");
 		args->retcode = -ECHILD;
+	}
 
-        g_spawn_close_pid(pid);
-	ref_dec(&args->references, loop_exit_noref);
-}
-
-/**
- * Register a subprocess write-ready callback to the thread-local context.
- */
-static void io_subscribe(GMainLoop *loop, GIOChannel *channel,
-			 GIOCondition condition, GIOFunc func, gpointer udata)
-{
-	GSource	*gsrc;
-
-	gsrc = g_io_create_watch(channel, condition);
-	g_source_set_callback(gsrc, (GSourceFunc)func, udata, NULL);
-	g_source_attach(gsrc, g_main_loop_get_context(loop));
-	g_source_unref(gsrc);
+	g_spawn_close_pid(pid);
+	g_main_loop_quit(args->loop);
 }
 
 /**
@@ -555,158 +451,70 @@ static void term_subscribe(GMainLoop *loop, GPid pid, GChildWatchFunc func,
 	g_source_unref(gsrc);
 }
 
-static int ct_archive(GMainLoop *loop, const struct hsm_action_item *hai,
-		      const long hal_flags)
+/**
+ * Start a new HSM copytool I/O command: archive or restore.
+ */
+static int ct_hsm_io_cmd(const enum hsm_copytool_action hsma, GMainLoop *loop,
+		   	 const struct hsm_action_item *hai, const long hal_flags)
 {
-	struct copy_cb_args	 *copy_args;
+	struct cmd_cb_args	 *cb_args;
 	GError			 *err;
-	GIOChannel	 	 *input;
 	GPid			  pid;
 	gint			  ac;
-	gchar			**av;
+	gchar			**av = NULL;
+	const char		 *hsma_name = hsm_copytool_action2name(hsma);
 	bool		 	  ok;
 	char			  cmd[PATH_MAX] = "(undef)";
+	int                       mdt_idx = -1;
 	int			  rc;
-	int			  f_in;
 
-	copy_args = calloc(1, sizeof(*copy_args));
-	if (copy_args == NULL) {
-	rc = -ENOMEM;
+	cb_args = calloc(1, sizeof(*cb_args));
+	if (cb_args == NULL) {
+		rc = -ENOMEM;
 		LOG_ERROR(rc, "cannot allocate context to archive "DFID,
 			  PFID(&hai->hai_fid));
 		err_major++;
 		goto out;
 	}
+	cb_args->fd = -1;
+	
+	if (hsma == HSMA_ARCHIVE) {
 
-	rc = ct_begin(&copy_args->hcp, hai);
-	if (rc < 0) {
-		err_major++;
-		goto out;
-	}
+	    rc = ct_begin(&cb_args->hcp, hai);
+	    if (rc < 0) {
+		    LOG_ERROR(rc, "ct_begin failed for "DFID, PFID(&hai->hai_fid));
+		    err_major++;
+		    goto out;
+	    }
 
-	copy_args->hai = hai;
-
-	rc = ct_build_archive_cmd(cmd, sizeof(cmd), hai);
-	LOG_DEBUG("Running archive command: '%s'", cmd);
-	if (opt.o_dry_run || rc == -ENOSYS) {
-		err_major++;
-		goto out;
-	}
-
-	ok = g_shell_parse_argv(cmd, &ac, &av, &err);
-	if (!ok) {
-		LOG_ERROR(EINVAL, "Invalid cmd '%s': %s", cmd, err->message);
-		g_error_free(err);
-		err_major++;
-		goto out;
-	}
-
-	ok = g_spawn_async_with_pipes(NULL,	      /* working directory */
-				      av,	      /* parsed command line */
-				      NULL,	      /* environment vars */
-				      CMD_EXEC_FLAGS, /* execution flags */
-				      NULL,	      /* child setup function */
-				      NULL,	      /* user data pointer */
-				      &pid,	      /* child pid address */
-				      &f_in,	      /* STDIN fd destination */
-				      NULL,	      /* STDOUT fd location */
-				      NULL,	      /* STDERR fd location */
-				      &err);	      /* error marker */
-	if (!ok) {
-		LOG_ERROR(ECHILD, "Cannot spawn subprocess: %s", err->message);
-		g_error_free(err);
-		err_major++;
-		goto out;
-	}
-
-	/* register a subprocess termination callback */
-	term_subscribe(loop, pid, cmd_termination_cb, copy_args);
-	ref_inc(&copy_args->references);
-
-	/* create an IO channel to push data to child STDIN */
-	input = g_io_channel_unix_new(f_in);
-	g_io_channel_set_close_on_unref(input, true);
-
-	copy_args->he.offset = hai->hai_extent.offset;
-	copy_args->length    = hai->hai_extent.length;
-	copy_args->fd_in     = llapi_hsm_action_get_fd(copy_args->hcp);
-	copy_args->fd_out    = g_io_channel_unix_get_fd(input);
-	copy_args->loop      = loop;
-
-	/* register a subprocess write-ready callback */
-	io_subscribe(loop, input, G_IO_OUT | G_IO_HUP | G_IO_ERR, cmd_send_cb,
-		     copy_args);
-	ref_inc(&copy_args->references);
-
-	g_main_loop_run(loop);
-
-	close(copy_args->fd_in);
-
-out:
-	g_strfreev(av);
-
-	rc = ct_fini(&copy_args->hcp, hai, 0,
-		 copy_args ? copy_args->retcode : -ENOMEM);
-
-	free(copy_args);
-
-    return rc;
-}
-
-/**
- * Restore file in lustre using data from the archive.
- * src = command STDOUT, using lustre FID in the backend
- * dst = data FID (volatile file)
- */
-static int ct_restore(GMainLoop *loop, const struct hsm_action_item *hai,
-		      const long hal_flags)
-{
-	struct copy_cb_args	 *copy_args;
-	GError			 *err;
-	GIOChannel		 *output;
-	GPid			  pid;
-	gint			  ac;
-	gchar			**av;
-	bool		 	  ok;
-	char			  cmd[PATH_MAX] = "(undef)";
-	int			  mdt_idx = -1;
-	int			  rc;
-	int			  f_out;
-
-	copy_args = calloc(1, sizeof(*copy_args));
-	if (copy_args == NULL) {
-		rc = -ENOMEM;
-		LOG_ERROR(rc, "cannot allocate context to restore "DFID,
-			  PFID(&hai->hai_fid));
-		return rc;
-	}
-
-	copy_args->fd_out = -1;
-	copy_args->hai    = hai;
+	} else if (hsma == HSMA_RESTORE) {
 
 #if HAVE_LLAPI_GET_MDT_INDEX_BY_FID
-	rc = llapi_get_mdt_index_by_fid(opt.o_mnt_fd, &hai->hai_fid, &mdt_idx);
-	if (rc < 0) {
-		LOG_ERROR(rc, "cannot get MDT index for "DFID,
-			  PFID(&hai->hai_fid));
-		err_major++;
-		goto out_early;
-	}
+	    rc = llapi_get_mdt_index_by_fid(opt.o_mnt_fd, &hai->hai_fid, &mdt_idx);
+	    if (rc < 0) {
+		    LOG_ERROR(rc, "cannot get MDT index for "DFID,
+			      PFID(&hai->hai_fid));
+		    err_major++;
+		    goto out;
+	    }
 #endif
-
-	rc = ct_begin_restore(&copy_args->hcp, hai, mdt_idx, 0);
-	if (rc < 0) {
-		LOG_ERROR(rc, "cannot start restore operation for "DFID,
-			  PFID(&hai->hai_fid));
-		err_major++;
-		goto out_early;
+	    rc = ct_begin_restore(&cb_args->hcp, hai, mdt_idx, 0);
+	    if (rc < 0) {
+		    LOG_ERROR(rc, "cannot start restore operation for "DFID,
+			      PFID(&hai->hai_fid));
+		    err_major++;
+		    goto out;
+	    }
 	}
 
-	rc = ct_build_restore_cmd(cmd, sizeof(cmd), hai);
-	LOG_DEBUG("Running restore command: '%s'", cmd);
+	cb_args->hai = hai;
+	cb_args->fd = llapi_hsm_action_get_fd(cb_args->hcp);
+
+	rc = ct_build_cmd(hsma, cmd, sizeof(cmd), hai, cb_args->fd);
+	LOG_DEBUG("Running %s command: '%s'", hsma_name, cmd);
 	if (opt.o_dry_run || rc == -ENOSYS) {
 		err_major++;
-		goto out_early;
+		goto out;
 	}
 
 	ok = g_shell_parse_argv(cmd, &ac, &av, &err);
@@ -725,7 +533,7 @@ static int ct_restore(GMainLoop *loop, const struct hsm_action_item *hai,
 				      NULL,	      /* user data pointer */
 				      &pid,	      /* child pid address */
 				      NULL,	      /* STDIN fd destination */
-				      &f_out,	      /* STDOUT fd location */
+				      NULL,	      /* STDOUT fd location */
 				      NULL,	      /* STDERR fd location */
 				      &err);	      /* error marker */
 	if (!ok) {
@@ -736,39 +544,27 @@ static int ct_restore(GMainLoop *loop, const struct hsm_action_item *hai,
 	}
 
 	/* register a subprocess termination callback */
-	term_subscribe(loop, pid, cmd_termination_cb, copy_args);
-	ref_inc(&copy_args->references);
+	term_subscribe(loop, pid, cmd_termination_cb, cb_args);
 
-	/* create an IO channel to retrieve data from child STDOUT */
-	output = g_io_channel_unix_new(f_out);
-	g_io_channel_set_close_on_unref(output, true);
-
-	copy_args->he.offset = hai->hai_extent.offset;
-	copy_args->length    = hai->hai_extent.length;
-	copy_args->fd_in     = g_io_channel_unix_get_fd(output);
-	copy_args->fd_out    = llapi_hsm_action_get_fd(copy_args->hcp);
-	copy_args->loop      = loop;
-
-	/* register a subprocess read-ready callback */
-	io_subscribe(loop, output, G_IO_IN | G_IO_HUP | G_IO_ERR, cmd_send_cb,
-		     copy_args);
-	ref_inc(&copy_args->references);
+	cb_args->he.offset = hai->hai_extent.offset;
+	cb_args->length    = hai->hai_extent.length;
+	cb_args->loop      = loop;
 
 	g_main_loop_run(loop);
 
-	fsync(copy_args->fd_out);
-
 out:
-	g_strfreev(av);
-	rc = copy_args ? copy_args->retcode : -ENOMEM;
+	if (av)
+		g_strfreev(av);
 
-out_early:
 	/* Obscure voodoo forces are summoned in this function in the
 	 * restore case. Do not close the volatile before! */
-	rc = ct_fini(&copy_args->hcp, hai, 0, rc);
+	rc = ct_fini(&cb_args->hcp, hai, 0,
+		     cb_args ? cb_args->retcode : -ENOMEM);
 
-	close(copy_args->fd_out);
-	free(copy_args);
+	if (cb_args->fd >= 0)
+		close(cb_args->fd);
+
+	free(cb_args);
 
 	return rc;
 }
@@ -820,6 +616,7 @@ static int ct_run(void)
 		return rc;
 	}
 
+	signal(SIGPIPE, SIG_IGN);
 	signal(SIGINT, handler);
 	signal(SIGTERM, handler);
 
@@ -888,8 +685,10 @@ static int ct_run(void)
 			hai = hai_next(hai);
 		}
 
-		if (opt.o_abort_on_error && err_major)
+		if (opt.o_abort_on_error && err_major) {
+			LOG_DEBUG("copytool aborting on error");
 			break;
+		}
 	}
 
 	stop = true;
@@ -925,10 +724,8 @@ static gpointer subproc_mgr_main(gpointer data)
 		hai = (struct hsm_action_item *)hd->hd_data;
 		switch (hai->hai_action) {
 		case HSMA_ARCHIVE:
-			ct_archive(loop, hai, hd->hd_flags);
-			break;
 		case HSMA_RESTORE:
-			ct_restore(loop, hai, hd->hd_flags);
+			ct_hsm_io_cmd(hai->hai_action, loop, hai, hd->hd_flags);
 			break;
 		case HSMA_REMOVE:
 		case HSMA_CANCEL:
@@ -1033,6 +830,12 @@ static int ct_setup(void)
 	int i;
 	int rc;
 
+	/* Initialize regular expression patterns for argument substitution */
+	fd_regex  = g_regex_new(g_strdup("{fd}"), G_REGEX_OPTIMIZE,
+				0, NULL);
+	fid_regex = g_regex_new(g_strdup("{fid}"), G_REGEX_OPTIMIZE,
+				0, NULL);
+
 	g_thread_init(NULL);
 
 	llapi_msg_set_level(opt.o_verbose);
@@ -1047,7 +850,7 @@ static int ct_setup(void)
 	/* Start working threads and communication channel */
 	mqueue = g_async_queue_new();
 
-	for (i = 0; i < MAX_PARALLELISM; i++)
+	for (i = 0; i < opt.o_fanout; i++)
 		g_thread_create(subproc_mgr_main, NULL, false, NULL);
 
 	return 0;
@@ -1060,6 +863,9 @@ static int ct_cleanup(void)
 {
 	if (mqueue != NULL)
 		g_async_queue_unref(mqueue);
+
+	g_regex_unref(fd_regex);
+	g_regex_unref(fid_regex);
 
 	g_free(ct_commands[HSMA_ARCHIVE]);
 	g_free(ct_commands[HSMA_RESTORE]);
