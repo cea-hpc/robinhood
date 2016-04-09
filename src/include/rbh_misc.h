@@ -149,9 +149,9 @@ char          *gid2str( gid_t gid, char *groupname );
  * Also return the associated device number.
  * (for STAY_IN_FS security option).
  */
-int            CheckFSInfo(char *path, char *expected_type,
-                           dev_t *p_fs_dev, char *fsname,
-                           bool check_mounted, bool save_fs);
+int check_fs_info(const char *path, const char *expected_type,
+                  dev_t *p_fs_dev, char *fsname_out,
+                  bool check_mounted, bool save_fs);
 
 
 /**
