@@ -814,7 +814,7 @@ static int set_optimization_filters(policy_info_t *policy,
         }
     }
 
-    if (!policy->config->recheck_ignored_classes)
+    if (!policy->config->recheck_ignored_entries)
     {
         int i;
 
