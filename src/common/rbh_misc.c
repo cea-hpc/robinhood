@@ -201,16 +201,20 @@ static int set_fs_info(char *name, char *mountp, dev_t dev, fsid_t fsid)
     {
         case FSKEY_FSNAME:
             fs_key = hash_name(name);
-            DisplayLog(LVL_DEBUG, "FSInfo", "fs_key: hash(fsname)=%"PRIX64, fs_key);
+            DisplayLog(LVL_DEBUG, "FSInfo", "fs_key: hash(fsname=%s)=%"PRIX64,
+                       name, fs_key);
             break;
+
         case FSKEY_FSID:
             fs_key = fsidto64(fsid);
             DisplayLog(LVL_DEBUG, "FSInfo", "fs_key: fsid as 64=%"PRIX64, fs_key);
             break;
+
         case FSKEY_DEVID:
             fs_key = dev_id;
             DisplayLog(LVL_DEBUG, "FSInfo", "fs_key: devid=%"PRIX64, fs_key);
             break;
+
         default:
             DisplayLog(LVL_MAJOR, "FSInfo", "Invalid fs_key type %#x", global_config.fs_key);
             fs_key = 0;
@@ -634,212 +638,218 @@ static struct mntent *getmntent_r(FILE *fp, struct mntent *mntbuf,
 }
 #endif
 
+/**
+ * Check if the given input path matches or in under
+ * a mount entry.
+ * @param[in] in_path       Path to be matched.
+ * @param[in] p_mnt         Mount entry to be matched against.
+ * @param[in] allow_root    Allow matching root filesystem.
+ */
+static bool match_mount_path(const char *in_path, const struct mntent *p_mnt,
+                             bool allow_root)
+{
+    int pathlen = strlen(p_mnt->mnt_dir);
+
+    /* Matching root filesystem. */
+    if (!strcmp(p_mnt->mnt_dir, "/"))
+    {
+        DisplayLog(LVL_DEBUG, "CheckFS",
+                   "Root mountpoint is%s allowed for matching %s, type=%s, fs=%s",
+                   allow_root ? "" : " NOT", in_path, p_mnt->mnt_type, p_mnt->mnt_fsname);
+        return allow_root;
+    }
+
+    /* In other cases The filesystem must be <mountpoint>/<smthg> or <mountpoint>\0 */
+    if (!strncmp(in_path, p_mnt->mnt_dir, pathlen) &&
+        ((in_path[pathlen] == '/') || (in_path[pathlen] == '\0')))
+    {
+        DisplayLog(LVL_DEBUG, "CheckFS",
+                   "%s is under mountpoint %s, type=%s, fs=%s",
+                   in_path, p_mnt->mnt_dir, p_mnt->mnt_type, p_mnt->mnt_fsname);
+        return true;
+    }
+    /* don't match */
+    return false;
+}
+
+
 /* Check mount point and FS type.
  * Also return the associated device number.
  * (for STAY_IN_FS security option).
  */
-int CheckFSInfo(char *path, char *expected_type,
+int check_fs_info(const char *path, const char *expected_type,
                 dev_t *p_fs_dev, char *fsname_out,
                 bool check_mounted, bool save_fs)
 {
     FILE          *fp;
     struct mntent *p_mnt;
     struct mntent  mnt_ent;
+    char *match_dir  = NULL;
+    char *match_type = NULL;
+    char *match_fs   = NULL;
     char           mnt_buff[4096];
-
-    char           rpath[RBH_PATH_MAX];
-    char           mntdir[RBH_PATH_MAX];
-    char           tmp_buff[RBH_PATH_MAX];
+    char          *rpath = NULL;
     char          *parentmntdir;
-    char           fs_spec[RBH_PATH_MAX];
-
-    char           type[256];
-
+    char          *name = NULL;
+    char          *tmp_buff;
     struct stat    pathstat;
     struct stat    parentmntstat;
+    int            rc = 0;
 
-    size_t         pathlen, outlen;
-    char * name = NULL;
-
-
-    if ( ( expected_type == NULL ) || ( expected_type[0] == '\0' ) )
+    if ((expected_type == NULL) || (expected_type[0] == '\0'))
     {
-        DisplayLog( LVL_CRIT, "CheckFS", "/!\\ ERROR /!\\ No filesystem type specified" );
+        DisplayLog(LVL_CRIT, "CheckFS", "/!\\ ERROR /!\\ No filesystem type specified");
         return EINVAL;
     }
 
-    /* convert to canonic path */
-    /* let realpath determine the output length (NULL argument) */
-    char * tmp_path = realpath( path, NULL );
-    if ( tmp_path == NULL )
+    /* Convert to canonic path. */
+    /* Let realpath determine the output length (NULL argument). */
+    rpath = realpath(path, NULL);
+    if (rpath == NULL)
     {
-        DisplayLog( LVL_CRIT, "CheckFS", "Error %d in realpath(%s): %s",
-                    errno, ( path ? path : "<null>" ), strerror( errno ) );
+        DisplayLog(LVL_CRIT, "CheckFS", "Error %d in realpath(%s): %s",
+                   errno, (path ? path : "<null>"), strerror(errno));
         return errno;
     }
-    if (strlen(tmp_path) >= RBH_PATH_MAX)
+    if (strlen(rpath) >= RBH_PATH_MAX)
     {
-        free(tmp_path);
-        DisplayLog( LVL_CRIT, "CheckFS", "Path length is too long!" );
-        return ENAMETOOLONG;
+        rc = -ENAMETOOLONG;
+        DisplayLog(LVL_CRIT, "CheckFS", "Path length is too long!");
+        goto out_free;
     }
-    /* safe because of previous check */
-    strcpy(rpath, tmp_path);
-    /* now can release tmp path */
-    free(tmp_path);
 
     /* open mount tab and look for the given path */
-    outlen = 0;
-
-    fp = setmntent( MOUNTED, "r" );
-
-    if ( fp == NULL )
+    fp = setmntent(MOUNTED, "r");
+    if (fp == NULL)
     {
-        DisplayLog( LVL_CRIT, "CheckFS", "Error %d in setmntent(%s): %s",
-                    errno, MOUNTED, strerror( errno ) );
-        return errno;
+        rc = -errno;
+        DisplayLog(LVL_CRIT, "CheckFS", "Error in setmntent(%s): %s",
+                   MOUNTED, strerror(-rc));
+        goto out_free;
     }
 
-    while ( ( p_mnt = getmntent_r( fp, &mnt_ent, mnt_buff, 4096 ) ) != NULL )
+    while ((p_mnt = getmntent_r(fp, &mnt_ent, mnt_buff,
+                                sizeof(mnt_buff))) != NULL)
     {
-        /* get the longest matching path */
+        if (p_mnt->mnt_dir == NULL)
+            continue;
 
-        if ( p_mnt->mnt_dir != NULL )
-        {
+        /* allow matching root if 'check_mounted' is disabled */
+        if (match_mount_path(rpath, p_mnt, !check_mounted)) {
+            /* free previous paths */
+            free(match_dir);
+            free(match_type);
+            free(match_fs);
 
-            pathlen = strlen( p_mnt->mnt_dir );
-
-            /* if check_mounted is false, root filesystem is allowed */
-            if (!check_mounted && (pathlen > outlen)
-                && !strcmp(p_mnt->mnt_dir, "/"))
-            {
-                DisplayLog( LVL_DEBUG, "CheckFS",
-                            "Root mountpoint is allowed for matching %s, type=%s, fs=%s",
-                            rpath, p_mnt->mnt_type, p_mnt->mnt_fsname );
-                outlen = pathlen;
-                rh_strncpy(mntdir, p_mnt->mnt_dir, RBH_PATH_MAX);
-                rh_strncpy(type, p_mnt->mnt_type, 256);
-                rh_strncpy(fs_spec, p_mnt->mnt_fsname, RBH_PATH_MAX);
-            }
-            /* in other cases, the filesystem must be <mountpoint>/<smthg> or <mountpoint>\0 */
-            else if ( ( pathlen > outlen ) &&
-                      !strncmp( rpath, p_mnt->mnt_dir, pathlen ) &&
-                      ( ( rpath[pathlen] == '/' ) || ( rpath[pathlen] == '\0' ) ) )
-            {
-                DisplayLog( LVL_FULL, "CheckFS",
-                            "%s is under mountpoint %s, type=%s, fs=%s",
-                            rpath, p_mnt->mnt_dir, p_mnt->mnt_type, p_mnt->mnt_fsname );
-
-                outlen = pathlen;
-                rh_strncpy(mntdir, p_mnt->mnt_dir, RBH_PATH_MAX);
-                rh_strncpy(type, p_mnt->mnt_type, 256);
-                rh_strncpy(fs_spec, p_mnt->mnt_fsname, RBH_PATH_MAX);
-            }
+            /* duplicate new values */
+            match_dir = strdup(p_mnt->mnt_dir);
+            match_type = strdup(p_mnt->mnt_type);
+            match_fs = strdup(p_mnt->mnt_fsname);
         }
     }
+    endmntent(fp);
 
-    if (outlen <= 0)
+    if (match_dir == NULL)
     {
         DisplayLog(LVL_CRIT, "CheckFS", "No mount entry matches '%s' in %s",
                    rpath, MOUNTED);
         DisplayLog(LVL_CRIT, "CheckFS",
                    "Set 'check_mounted = no' in configuration to force using root filesystem");
-        endmntent(fp);
-        return ENOENT;
+        rc = -ENOENT;
+        goto out_free;
     }
 
     /* display the matching entry */
-    DisplayLog( LVL_EVENT, "CheckFS",
-                "'%s' matches mount point '%s', type=%s, fs=%s", rpath, mntdir, type, fs_spec );
+    DisplayLog(LVL_EVENT, "CheckFS",
+               "'%s' matches mount point '%s', type=%s, fs=%s", rpath,
+               match_dir, match_type, match_fs);
 
     /* check filesystem type */
-    if ( strcasecmp( type, expected_type ) )
+    if (strcasecmp(match_type, expected_type) != 0)
     {
         if (check_mounted)
         {
-            DisplayLog( LVL_CRIT, "CheckFS",
-                        "/!\\ ERROR /!\\ The specified type for '%s' (%s) does not match actual filesystem type (%s)",
-                        rpath, expected_type, type );
-            endmntent( fp );
-            return EINVAL;
+            DisplayLog(LVL_CRIT, "CheckFS",
+                       "/!\\ ERROR /!\\ The specified type for '%s' (%s) does not match actual filesystem type (%s)",
+                       rpath, expected_type, match_type);
+            rc = -EINVAL;
+            goto out_free;
         }
         else
         {
-            DisplayLog( LVL_MAJOR, "CheckFS",
+            DisplayLog(LVL_MAJOR, "CheckFS",
                         "/!\\ WARNING /!\\ The specified type for '%s' (%s) "
                         "does not match actual filesystem type (%s).",
-                        rpath, expected_type, type );
-            DisplayLog( LVL_MAJOR, "CheckFS", "check_mounted is disabled: continuing." );
+                        rpath, expected_type, match_type);
+            DisplayLog(LVL_MAJOR, "CheckFS", "check_mounted is disabled: continuing.");
         }
     }
 
     /* stat the given fs_path */
-    if ( stat( rpath, &pathstat ) != 0 )
+    if (stat(rpath, &pathstat) != 0)
     {
-        DisplayLog( LVL_CRIT, "CheckFS",
-                    "/!\\ ERROR /!\\ Couldn't stat '%s': %s", rpath, strerror( errno ) );
-        endmntent( fp );
-        return errno;
+        rc = -errno;
+        DisplayLog(LVL_CRIT, "CheckFS",
+                   "/!\\ ERROR /!\\ Couldn't stat '%s': %s", rpath, strerror(-rc));
+        goto out_free;
     }
 
     /* Stat upper level of mount point, to check if
-     * the filesystem is mounted (device  must be different).
+     * the filesystem is mounted (device must be different).
      * (dirname modifies string content, so we work on a copy
      * in tmp_buff).
      */
-    strcpy( tmp_buff, mntdir );
-    parentmntdir = dirname( tmp_buff );
+    tmp_buff = strdup(match_dir);
+    parentmntdir = dirname(tmp_buff);
 
-    if ( lstat( parentmntdir, &parentmntstat ) != 0 )
+    if (lstat(parentmntdir, &parentmntstat) != 0)
     {
-        DisplayLog( LVL_CRIT, "CheckFS",
-                    "/!\\ ERROR /!\\ Couldn't stat %s: %s", parentmntdir, strerror( errno ) );
-        endmntent( fp );
-        return errno;
+        rc = -errno;
+        DisplayLog(LVL_CRIT, "CheckFS",
+                   "/!\\ ERROR /!\\ Couldn't stat %s: %s", parentmntdir,
+                   strerror(-rc));
+        goto out_free;
     }
 
     /* check that filesystem device is different from root (except if check_mounted is disabled) */
-    if ( ( pathstat.st_dev == parentmntstat.st_dev ) && check_mounted )
+    if ((pathstat.st_dev == parentmntstat.st_dev) && check_mounted)
     {
-        DisplayLog( LVL_CRIT, "CheckFS",
-                    "/!\\ ERROR /!\\ Filesystem '%s' is not mounted ! dev(%s)=dev(%s)=%#"
-                    PRIx64, mntdir, parentmntdir, rpath, (uint64_t)parentmntstat.st_dev );
-        endmntent( fp );
-        return ENOENT;
+        rc = -ENOENT;
+        DisplayLog(LVL_CRIT, "CheckFS",
+                   "/!\\ ERROR /!\\ Filesystem '%s' is not mounted ! dev(%s)=dev(%s)=%#"
+                   PRIx64, match_dir, parentmntdir, rpath,
+                   (uint64_t)parentmntstat.st_dev);
+        goto out_free;
     }
 
 #ifdef _LUSTRE
-    if (!strcmp(type, "lustre"))
+    if (!strcmp(match_type, "lustre"))
     {
-        char *ptr;
-        ptr = strstr( fs_spec, ":/" );
-        if ( ptr != NULL )
-        {
+        char *ptr = strstr(match_fs, ":/");
+
+        if (ptr != NULL)
             name = ptr + 2;
-        }
         else
-            name = fs_spec;
+            name = match_fs;
     }
     else
 #endif
-        name = fs_spec;
+        name = match_fs;
 
     /* all checks are OK */
-
-    if ( save_fs )
+    if (save_fs)
     {
-        int rc;
-
         /* getting filesystem fsid (needed for fskey) */
         if (global_config.fs_key == FSKEY_FSID)
         {
             struct statfs stf;
-            if (statfs(mntdir, &stf))
+
+            if (statfs(match_dir, &stf))
             {
-                int rc = -errno;
-                DisplayLog( LVL_CRIT, "CheckFS", "ERROR calling statfs(%s): %s",
-                    mntdir, strerror(-rc) );
-                    return rc;
+                rc = -errno;
+                DisplayLog(LVL_CRIT, "CheckFS", "ERROR calling statfs(%s): %s",
+                           match_dir, strerror(-rc));
+                goto out_free;
             }
             /* if fsid == 0, it may mean that fsid is not significant on the current system
              * => DISPLAY A WARNING */
@@ -847,27 +857,36 @@ int CheckFSInfo(char *path, char *expected_type,
                 DisplayLog(LVL_MAJOR, "CheckFS", "WARNING: fsid(0) doesn't look significant on this system."
                            "It should not be used as fs_key!");
 
-            rc = set_fs_info(name, mntdir, pathstat.st_dev, stf.f_fsid);
+            rc = set_fs_info(name, match_dir, pathstat.st_dev,
+                             stf.f_fsid);
         }
         else
         {
             fsid_t dummy_fsid;
+
             memset(&dummy_fsid, 0, sizeof(fsid_t));
-            rc = set_fs_info(name, mntdir, pathstat.st_dev, dummy_fsid);
+            rc = set_fs_info(name, match_dir, pathstat.st_dev,
+                             dummy_fsid);
         }
         if (rc)
-            return rc;
+            goto out_free;
     }
 
-    if ( p_fs_dev != NULL )
+    if (p_fs_dev != NULL)
         *p_fs_dev = pathstat.st_dev;
 
-    if ( fsname_out != NULL )
+    if (fsname_out != NULL)
         strcpy(fsname_out, name);
 
-    endmntent( fp );
-    return 0;
-}                               /* CheckFSInfo */
+    rc = 0;
+
+out_free:
+    free(match_dir);
+    free(match_type);
+    free(match_fs);
+    free(rpath);
+    return rc;
+}
 
 /**
  * Initialize filesystem access and retrieve current devid/fs_key
@@ -894,7 +913,7 @@ int InitFS( void )
     }
 #endif
 
-    rc = CheckFSInfo(global_config.fs_path, global_config.fs_type, NULL, NULL,
+    rc = check_fs_info(global_config.fs_path, global_config.fs_type, NULL, NULL,
                      global_config.check_mounted, true);
     if (rc)
     {
@@ -910,7 +929,7 @@ int InitFS( void )
 /**
  * This is to be called after a dev_id change was detected
  * return 0 if fskey is unchanged and update mount_point, fsname and dev_id
- * else, return -1
+ * else, return != 0
  */
 int ResetFS( void )
 {
@@ -927,7 +946,7 @@ int ResetFS( void )
     {
         case FSKEY_FSNAME:
             /* get and compare FS name */
-            rc = CheckFSInfo(global_config.fs_path, global_config.fs_type, NULL, name,
+            rc = check_fs_info(global_config.fs_path, global_config.fs_type, NULL, name,
                              global_config.check_mounted, false);
             if (rc)
                 return rc;
@@ -942,7 +961,7 @@ int ResetFS( void )
                 return -1;
             }
             /* update fsid and devid */
-            rc = CheckFSInfo(global_config.fs_path, global_config.fs_type, NULL, NULL,
+            rc = check_fs_info(global_config.fs_path, global_config.fs_type, NULL, NULL,
                              global_config.check_mounted, true);
             return rc;
 
@@ -965,13 +984,13 @@ int ResetFS( void )
                 return -1;
             }
             /* update fsname and devid */
-            rc = CheckFSInfo(global_config.fs_path, global_config.fs_type, NULL, NULL,
+            rc = check_fs_info(global_config.fs_path, global_config.fs_type, NULL, NULL,
                              global_config.check_mounted, true);
             return rc;
 
         case FSKEY_DEVID:
             /* get and compare dev id */
-            rc = CheckFSInfo(global_config.fs_path, global_config.fs_type, &dev, NULL,
+            rc = check_fs_info(global_config.fs_path, global_config.fs_type, &dev, NULL,
                              global_config.check_mounted, false);
             if (rc)
                 return rc;
@@ -987,7 +1006,7 @@ int ResetFS( void )
                 return -1;
             }
             /* update fsname and fsid */
-            rc = CheckFSInfo(global_config.fs_path, global_config.fs_type, NULL, NULL,
+            rc = check_fs_info(global_config.fs_path, global_config.fs_type, NULL, NULL,
                              global_config.check_mounted, true);
             return rc;
 
