@@ -447,15 +447,19 @@ static void running_mask2str(int mask, uint64_t pol_mask, char *str)
 #endif
     if (mask & MODULE_MASK_POLICY_RUN)
     {
-        int i;
+        bool first_pol = true;
+        int  i;
+
         strcat(str, "policy_run(");
         for (i = 0; i < policy_run_cpt; i++)
         {
             if ((pol_mask) & (1LL<<i))
             {
-                strcat(str, policy_run[i].descr->name);
-                if (i != policy_run_cpt - 1)
+                if (!first_pol)
                     strcat(str, ",");
+
+                strcat(str, policy_run[i].descr->name);
+                first_pol = false;
             }
         }
         strcat(str, "),");
