@@ -375,7 +375,7 @@ static int backup_init(struct sm_instance *smi, run_flags_t flags)
     rc = CheckFSInfo(config.root, config.mnt_type, &backend_dev,
                      backend_name, config.check_mounted, false);
     if (rc)
-        return -rc;
+        return rc;
 
     return 0;
 }
