@@ -188,7 +188,7 @@ typedef struct policy_run_config_t
     attr_mask_t     run_attr_mask;
 
     bool   check_action_status_on_startup;
-    bool   recheck_ignored_classes;
+    bool   recheck_ignored_enrties;
 
     /** report policy actions in report file? */
     bool   report_actions;
