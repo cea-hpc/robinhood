@@ -60,7 +60,7 @@ static int polrun_set_default(const policy_descr_t *pol, policy_run_config_t *cf
     cfg->run_attr_mask = null_mask;
 
     cfg->check_action_status_on_startup = true;
-    cfg->recheck_ignored_classes = false;
+    cfg->recheck_ignored_entries = false;
     cfg->report_actions = true;
 
     return 0;
@@ -104,7 +104,7 @@ static void policy_run_cfg_write_default(FILE *output)
     print_line(output, 1, "action_timeout          : 2h");
     print_line(output, 1, "check_actions_interval  : 30min");
     print_line(output, 1, "check_actions_on_startup: yes");
-    print_line(output, 1, "recheck_ignored_classes : no" );
+    print_line(output, 1, "recheck_ignored_entries : no" );
     print_line(output, 1, "report_actions          : yes" );
     print_line(output, 1, "nb_threads              : 4");
     print_line(output, 1, "queue_size              : 4096");
@@ -142,12 +142,11 @@ static void policy_run_cfg_write_template(FILE *output)
     print_line(output, 1, "# check the status of previously started actions on startup:");
     print_line(output, 1, "#check_actions_on_startup = yes;");
     fprintf(output, "\n");
-    print_line(output, 1, "# When applying policies, recheck entries that previously");
-    print_line(output, 1, "# matched ignored classes.");
-    print_line(output, 1, "# Enable it after changing fileclass definitions");
+    print_line(output, 1, "# When applying policies, recheck entries that were previously");
+    print_line(output, 1, "# ignored. Enable it after changing fileclass definitions,");
     print_line(output, 1, "# or if entries move from one class to another.");
     print_line(output, 1, "# This can significantly slow down policy application.");
-    print_line(output, 1, "#recheck_ignored_classes = no;" );
+    print_line(output, 1, "#recheck_ignored_entries = no;" );
     fprintf(output, "\n");
     print_line(output, 1, "# report actions to report log file?");
     print_line(output, 1, "# report_actions = yes;");
@@ -539,9 +538,10 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
         "max_action_volume", "nb_threads", "suspend_error_pct",
         "suspend_error_min", "report_interval", "action_timeout",
         "check_actions_interval", "check_actions_on_startup",
-        "recheck_ignored_classes", "report_actions",
+        "recheck_ignored_entries", "report_actions",
         "pre_maintenance_window", "maint_min_apply_delay", "queue_size",
         "db_result_size_max", "action_params", "action",
+        "recheck_ignored_classes", /* for compat */
         NULL
     };
 
@@ -565,8 +565,8 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
             &conf->check_action_status_delay, 0},
         {"check_actions_on_startup",    PT_BOOL,     0,
             &conf->check_action_status_on_startup, 0},
-        {"recheck_ignored_classes",     PT_BOOL,     0,
-            &conf->recheck_ignored_classes, 0},
+        {"recheck_ignored_entries",     PT_BOOL,     0,
+            &conf->recheck_ignored_entries, 0},
         {"report_actions",     PT_BOOL,     0, &conf->report_actions, 0},
         {"pre_maintenance_window",      PT_DURATION, PFLG_POSITIVE,
             &conf->pre_maintenance_window, 0},
@@ -585,6 +585,14 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
     rc = get_cfg_block(config, block_name, &param_block, msg_out);
     if (rc)
         return rc == ENOENT ? 0 : rc; /* not mandatory */
+
+    /* check deprecated parameters */
+    rc = GetBoolParam(param_block, block_name, "recheck_ignored_classes", 0,
+                      &conf->recheck_ignored_entries, NULL, NULL, msg_out);
+    if (rc == 0)
+        DisplayLog(LVL_CRIT, TAG, "WARNING: parameter %s::%s' is deprecated. "
+                   "Use 'recheck_ignored_entries' instead.",
+                   block_name, "recheck_ignored_classes");
 
     /* read all scalar params */
     rc = read_scalar_params(param_block, block_name, cfg_params, msg_out);
@@ -1034,12 +1042,12 @@ static int polrun_reload(const char *blkname, policy_run_config_t *cfg_tgt,
         cfg_tgt->check_action_status_on_startup = cfg_new->check_action_status_on_startup;
     }
 
-    if (cfg_tgt->recheck_ignored_classes != cfg_new->recheck_ignored_classes)
+    if (cfg_tgt->recheck_ignored_entries != cfg_new->recheck_ignored_entries)
     {
-        PARAM_UPDT_MSG(blkname, "recheck_ignored_classes", "%s",
-                       bool2str(cfg_tgt->recheck_ignored_classes),
-                       bool2str(cfg_new->recheck_ignored_classes));
-        cfg_tgt->recheck_ignored_classes = cfg_new->recheck_ignored_classes;
+        PARAM_UPDT_MSG(blkname, "recheck_ignored_entries", "%s",
+                       bool2str(cfg_tgt->recheck_ignored_entries),
+                       bool2str(cfg_new->recheck_ignored_entries));
+        cfg_tgt->recheck_ignored_entries = cfg_new->recheck_ignored_entries;
     }
 
     if (cfg_tgt->report_actions != cfg_new->report_actions)
