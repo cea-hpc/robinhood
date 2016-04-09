@@ -709,22 +709,25 @@ int CheckFSInfo(char *path, char *expected_type,
 
             pathlen = strlen( p_mnt->mnt_dir );
 
-            /* if check_mounted is false, root filesystem is allowed */
-            if (!check_mounted && (pathlen > outlen)
+            /* If check_mounted is false, root filesystem is allowed.
+             * If multiple '/' are present, the last one is the actual one. */
+            if (!check_mounted && (pathlen >= outlen)
                 && !strcmp(p_mnt->mnt_dir, "/"))
             {
-                DisplayLog( LVL_DEBUG, "CheckFS",
-                            "Root mountpoint is allowed for matching %s, type=%s, fs=%s",
-                            rpath, p_mnt->mnt_type, p_mnt->mnt_fsname );
+                DisplayLog(LVL_DEBUG, "CheckFS",
+                           "Root mountpoint is allowed for matching %s, type=%s, fs=%s",
+                           rpath, p_mnt->mnt_type, p_mnt->mnt_fsname);
                 outlen = pathlen;
                 rh_strncpy(mntdir, p_mnt->mnt_dir, RBH_PATH_MAX);
                 rh_strncpy(type, p_mnt->mnt_type, 256);
                 rh_strncpy(fs_spec, p_mnt->mnt_fsname, RBH_PATH_MAX);
             }
-            /* in other cases, the filesystem must be <mountpoint>/<smthg> or <mountpoint>\0 */
-            else if ( ( pathlen > outlen ) &&
-                      !strncmp( rpath, p_mnt->mnt_dir, pathlen ) &&
-                      ( ( rpath[pathlen] == '/' ) || ( rpath[pathlen] == '\0' ) ) )
+            /* In other cases, the filesystem must be <mountpoint>/<smthg> or <mountpoint>\0,
+             * If multiple paths (of same size) match the fs_path, the last one is the
+             * actual one. */
+            else if ((pathlen >= outlen) &&
+                     !strncmp(rpath, p_mnt->mnt_dir, pathlen) &&
+                     ((rpath[pathlen] == '/') || (rpath[pathlen] == '\0')))
             {
                 DisplayLog( LVL_FULL, "CheckFS",
                             "%s is under mountpoint %s, type=%s, fs=%s",
