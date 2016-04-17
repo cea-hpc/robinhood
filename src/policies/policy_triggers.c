@@ -373,6 +373,7 @@ static int total_blocks(unsigned long long *total_user_blocks,
     }
     /* number of blocks available to users */
     *total_user_blocks = (stfs.f_blocks + stfs.f_bavail - stfs.f_bfree);
+    *bsize = stfs.f_bsize;
     return 0;
 }
 
