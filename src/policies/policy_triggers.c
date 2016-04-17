@@ -373,6 +373,7 @@ static int total_blocks(unsigned long long *total_user_blocks,
     }
     /* number of blocks available to users */
     *total_user_blocks = (stfs.f_blocks + stfs.f_bavail - stfs.f_bfree);
+    *bsize = stfs.f_bsize;
     return 0;
 }
 
@@ -934,7 +935,9 @@ static int trig_target_next(target_iterator_t *it, target_u *tgt,
 {
     struct statfs stfs;
     int rc;
+#ifdef _LUSTRE
     char tgtname[128];
+#endif
 
     memset(limit, 0, sizeof(*limit));
 
