@@ -14,7 +14,7 @@ EXTRA_DIST= robinhood.init			\
     cmd2man.sh make_mans.sh fix_man_options.sh \
     ld.so.robinhood.conf.in
 
-dist_sbin_SCRIPTS=rbh_md5_wrap.sh
+dist_sbin_SCRIPTS=rbh_cksum.sh
 
 if COMMON_RPMS
 dist_sbin_SCRIPTS+=rbh-config
