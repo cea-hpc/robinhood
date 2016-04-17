@@ -3,5 +3,5 @@ define_policy md5_check {
     scope { type == file }
     default_lru_sort_attr = last_check; # oldest check first, 0==unchecked
     # 'output' stands for previous value
-    default_action = cmd("/usr/sbin/rbh_md5_wrap.sh '{output}' '{path}'");
+    default_action = cmd("/usr/sbin/rbh_cksum.sh '{output}' '{path}'");
 }

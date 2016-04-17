@@ -291,7 +291,7 @@ fi
 %{_sbindir}/rbh-report
 %{_sbindir}/rbh-diff
 %{_sbindir}/rbh-undelete
-%{_sbindir}/rbh_md5_wrap.sh
+%{_sbindir}/rbh_cksum.sh
 %{_bindir}/rbh-du
 %{_bindir}/rbh-find
 
