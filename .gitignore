@@ -89,3 +89,8 @@ TAGS
 /TODO
 /src/include/db_schema.h
 /scripts/make_mans.sh
+Makefile
+cscope.*
+\#*\#
+.dirstamp
+/autotools
