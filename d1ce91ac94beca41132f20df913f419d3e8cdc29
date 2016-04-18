@@ -1,0 +1,50 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_f882b9ff",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 531,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-18T08:37:02Z",
+      "side": 1,
+      "message": "(style) missing space after comma",
+      "range": {
+        "startLine": 531,
+        "startChar": 16,
+        "endLine": 531,
+        "endChar": 18
+      },
+      "revId": "d1ce91ac94beca41132f20df913f419d3e8cdc29",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_98784d2d",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 663,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-18T08:37:02Z",
+      "side": 1,
+      "message": "(style) bad alignment",
+      "range": {
+        "startLine": 663,
+        "startChar": 17,
+        "endLine": 663,
+        "endChar": 22
+      },
+      "revId": "d1ce91ac94beca41132f20df913f419d3e8cdc29",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
