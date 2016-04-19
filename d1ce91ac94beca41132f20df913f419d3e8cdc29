@@ -2,6 +2,40 @@
   "comments": [
     {
       "key": {
+        "uuid": "baa041b7_a7788c2c",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 491,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-04-19T06:11:51Z",
+      "side": 1,
+      "message": "Careful here you\u0027ve not written everything but don\u0027t log anything and return true e.g. read more stuff after skipping some write.\nYou need to check if it\u0027s a retryable error and either return false or retry imo",
+      "revId": "d1ce91ac94beca41132f20df913f419d3e8cdc29",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_278c7c34",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 498,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-04-19T06:11:51Z",
+      "side": 1,
+      "message": "I\u0027m surprised you don\u0027t need the EAGAIN check here again, stuff like gdb/ptrace could cause that on read/write too afaik",
+      "revId": "d1ce91ac94beca41132f20df913f419d3e8cdc29",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_f882b9ff",
         "filename": "src/tools/lhsmtool_cmd.c",
         "patchSetId": 4
