@@ -48,7 +48,7 @@ rbh_report_SOURCES=rbh_report.c
 rbh_report_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_report_LDFLAGS=-rdynamic $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
-rbh_find_SOURCES=rbh_find.c
+rbh_find_SOURCES=rbh_find.c rbh_find_printf.c rbh_find.h
 rbh_find_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 rbh_find_LDFLAGS=-rdynamic $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS)
 
