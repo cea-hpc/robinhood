@@ -283,7 +283,19 @@ function wait_done
 	return 0
 }
 
-
+# Wait for a file to reach a given HSM state
+# arg 1 = full file name
+# arg 2 = HSM state (such as 0x00000001)
+function wait_hsm_state {
+    # Poll state for 10 seconds
+    LIM=$((`date +%s`+10))
+    while :
+    do
+        [ `date +%s` -ge $LIM ] && error "HSM state for file \"$1\" isn't $2"
+        $LFS hsm_state $1 | grep --quiet $2 && break
+        sleep .5
+    done
+}
 
 function clean_fs
 {
@@ -7108,6 +7120,159 @@ function test_cfg_overflow
 
 }
 
+# Test various aspects of rbh-find -printf
+function test_rbh_find_printf
+{
+    # Populate the database with a single file
+    config_file=$1
+
+    if (( $is_lhsm + $is_hsmlite == 0 )); then
+        echo "HSM test only: skipped"
+        set_skipped
+        return 1
+    fi
+
+    clean_logs
+
+    echo "Initial scan of empty filesystem"
+    $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+
+    # create a file
+    echo "1-Creating file..."
+    rm -f $RH_ROOT/testf
+    dd if=/dev/zero of=$RH_ROOT/testf bs=1k count=1 >/dev/null 2>/dev/null || error "writing file"
+
+    local fid=$(get_id "$RH_ROOT/testf")
+
+    echo "2-Reading changelogs..."
+    $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+    check_db_error rh_chglogs.log
+
+    echo "3-Archiving the files"
+    $LFS hsm_archive $RH_ROOT/testf || error "executing lfs hsm_archive"
+
+    wait_hsm_state $RH_ROOT/testf 0x00000009
+
+    echo "4-Reading changelogs..."
+    $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+    check_db_error rh_chglogs.log
+
+    echo "5-rbh-find checks"
+
+    # Basic functionnality
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "")
+    [[ $STR == "" ]] || error "unexpected rbh-find result (001): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "some string")
+    [[ $STR == "some string" ]] || error "unexpected rbh-find result (002): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "some string %p")
+    [[ $STR == "some string $RH_ROOT/testf" ]] || error "unexpected rbh-find result (003): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "some string %p after")
+    [[ $STR == "some string $RH_ROOT/testf after" ]] || error "unexpected rbh-find result (004): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "X%%Y")
+    [[ $STR == "X%Y" ]] || error "unexpected rbh-find result (005): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "some string %%%p after")
+    [[ $STR == "some string %$RH_ROOT/testf after" ]] || error "unexpected rbh-find result (006): $STR"
+
+    # Test each directive
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "blocks=%b")
+    #[[ $STR == "blocks=8" ]] || error "unexpected rbh-find result (100): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%f bar")
+    [[ $STR == "testf bar" ]] || error "unexpected rbh-find result (101): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "group is %g")
+    [[ $STR == "group is root" ]] || error "unexpected rbh-find result (102): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "hi   %M is mask")
+    [[ $STR == "hi   rw-r--r-- is mask" ]] || error "unexpected rbh-find result (103): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "octal mask twice : %m %m")
+    [[ $STR == "octal mask twice : 644 644" ]] || error "unexpected rbh-find result (104): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "nlinks: %n")
+    [[ $STR == "nlinks: 1" ]] || error "unexpected rbh-find result (105): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%p\n")
+    [[ $STR == "$RH_ROOT/testf" ]] || error "unexpected rbh-find result (106): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "size %s\n")
+    [[ $STR == "size 1024" ]] || error "unexpected rbh-find result (107): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "owner %u\n")
+    [[ $STR == "owner root" ]] || error "unexpected rbh-find result (108): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "type %Y\n")
+    [[ $STR == "type file" ]] || error "unexpected rbh-find result (109): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "short type %y\n")
+    [[ $STR == "short type f" ]] || error "unexpected rbh-find result (110): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "short type %y\n")
+    [[ $STR == "short type f" ]] || error "unexpected rbh-find result (111): $STR"
+
+    # Test each Robinhood sub-directive
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf " %Rc rh class\n")
+    [[ $STR == " [n/a] rh class" ]] || error "unexpected rbh-find result (200): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf " %Rf fid\n")
+    [[ $STR == " $fid fid" ]] || error "unexpected rbh-find result (201): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf " %Ro osts\n")
+    #[[ $STR == "ost#0:1044 osts" ]] || error "unexpected rbh-find result (202): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "parent fid=%Rp\n")
+    #[[ $STR == "parent fid=0x200000007:0x1:0x0" ]] || error "unexpected rbh-find result (203): $STR"
+
+    # Test various combinations
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "FILE %p %s %Y %y %Rc %u %n and stop\n")
+    [[ $STR == "FILE $RH_ROOT/testf 1024 file f [n/a] root 1 and stop" ]] || error "unexpected rbh-find result (300): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%s\t%d\t%y")
+    [[ $STR == "1024	0	f" ]] || error "unexpected rbh-find result (301): $STR"
+
+    # Test module attributes
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{}" 2>&1)
+    [[ $STR == *"Error: cannot extract module attribute name"* ]] || error "unexpected rbh-find result (400): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{nonexistentmod}" 2>&1)
+    [[ $STR == *"Error: cannot extract module attribute name"* ]] || error "unexpected rbh-find result (401): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{lhsm.no_such_sym}" 2>&1)
+    [[ $STR == *"Error: cannot extract module attribute name"* ]] || error "unexpected rbh-find result (402): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{lhsm.archive_id}")
+    [[ $STR == "1" ]] || error "unexpected rbh-find result (403): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{lhsm.no_release}")
+    [[ $STR == "0" ]] || error "unexpected rbh-find result (404): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{lhsm.no_archive}")
+    [[ $STR == "0" ]] || error "unexpected rbh-find result (405): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{lhsm.status}")
+    [[ $STR == "synchro" ]] || error "unexpected rbh-find result (406): $STR"
+
+    # With some formatting options
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "file='%15f' size=%09s")
+    [[ $STR == "file='          testf' size=000001024" ]] || error "unexpected rbh-find result (500): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%7Rm{lhsm.archive_id}")
+    [[ $STR == "      1" ]] || error "unexpected rbh-find result (501): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%07Rm{lhsm.archive_id}")
+    [[ $STR == "0000001" ]] || error "unexpected rbh-find result (502): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%-Rm{lhsm.archive_id}")
+    [[ $STR == "1" ]] || error "unexpected rbh-find result (503): $STR"
+
+    rm -f report.out
+}
+
 function import_test
 {
 	config_file=$1
@@ -10438,7 +10603,7 @@ run_test 507a     recov_filters  test_recov.conf  dir    "FS recovery with dir f
 run_test 507b     recov_filters  test_recov2.conf  dir    "FS recovery with dir filter (archive_symlinks=FALSE)"
 run_test 508    test_tokudb "Test TokuDB compression"
 run_test 509    test_cfg_overflow "config options too long"
-
+run_test 510    test_rbh_find_printf test1.conf "Test rbh-find with -printf option"
 
 #### Tests by Sogeti ####
 run_test 600a test_alerts alert.conf "file1" 0 "TEST_ALERT_PATH_NAME"
