@@ -40,6 +40,7 @@
 #define FIND_TAG "find"
 
 #define LSSTATUS_OPT 260
+#define PRINTF_OPT 261
 
 static struct option option_tab[] =
 {
@@ -67,6 +68,7 @@ static struct option option_tab[] =
 
     {"ls", no_argument, NULL, 'l'},
     {"print", no_argument, NULL, 'p'},
+    {"printf", required_argument, NULL, PRINTF_OPT},
     {"exec", required_argument, NULL, 'E'},
     /* TODO dry-run mode for exec ? */
 
@@ -145,6 +147,7 @@ struct find_opt
     unsigned int lsclass:1;
     unsigned int lsstatus:1;
     unsigned int print:1;
+    unsigned int printf:1;
     /* condition flags */
     unsigned int match_user:1;
     unsigned int match_group:1;
@@ -181,7 +184,7 @@ struct find_opt
 #endif
     .filter_smi = NULL, .filter_status_name = NULL, .filter_status_value = NULL,
     .bulk = bulk_unspec,
-    .ls = 0, .lsost = 0, .lsclass = 0, .lsstatus = 0, .print = 1,
+    .ls = 0, .lsost = 0, .lsclass = 0, .lsstatus = 0, .print = 1, .printf = 0,
     .match_user = 0, .match_group = 0,
     .match_type = 0, .match_size = 0, .match_name = 0,
     .match_crtime = 0, .match_mtime = 0, .match_atime = 0,
@@ -212,6 +215,9 @@ static lmgr_filter_t    entry_filter;
 /* post filter for all entries */
 static bool_node_t      match_expr;
 static int              is_expr = 0; /* is it set? */
+
+/* printf string, when prog_options.printf is set. */
+const char *printf_str;
 
 /* build filters depending on program options */
 static int mkfilters(bool exclude_dirs)
@@ -453,6 +459,7 @@ static const char *help_string =
     "    " _B "-lsclass" B_" \t Display fileclass information\n"
     "    " _B "-lsstatus" B_"[="_U"policy"U_"] \t Display status information (optionally: only for the given "_U"policy"U_").\n"
     "    " _B "-print" B_" \t Display the fullpath of matching entries (this is the default, unless -ls, -lsost or -exec are used).\n"
+    "    " _B "-printf" B_" \t Format string used to display the matching entries.\n"
     "\n"
     _B "Actions:" B_ "\n"
     "    " _B "-exec" B_" "_U "\"cmd\"" U_ "\n"
@@ -544,6 +551,26 @@ static const char * type2char(const char * type)
     else if (!strcasecmp(type, STR_TYPE_SOCK))
         return "sock";
     return "?";
+}
+
+/* Return the type of the file like find does. */
+static const char type2onechar(const char *type)
+{
+    if (!strcasecmp(type, STR_TYPE_DIR))
+        return 'd';
+    else if (!strcasecmp(type, STR_TYPE_FILE))
+        return 'f';
+    else if (!strcasecmp(type, STR_TYPE_LINK))
+        return 'l';
+    else if (!strcasecmp(type, STR_TYPE_CHR))
+        return 'c';
+    else if (!strcasecmp(type, STR_TYPE_BLK))
+        return 'b';
+    else if (!strcasecmp(type, STR_TYPE_FIFO))
+        return 'p';
+    else if (!strcasecmp(type, STR_TYPE_SOCK))
+        return 's';
+    return '?';
 }
 
 static const char * opt2type(const char * type_opt)
@@ -738,14 +765,245 @@ static int set_time_filter(char * str, unsigned int multiplier,
     return 0;
 }
 
+/* From the printf argument string, retrieve the attributes to get. */
+static int get_printf_attrs(void)
+{
+    const char *p = printf_str;
 
-static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
+    while (*p) {
+        if (*p == '%') {
+            p++;
+
+            switch (*p) {
+            case '%': break;
+            case 'b': disp_mask.std |= ATTR_MASK_blocks; break;
+            case 'd': disp_mask.std |= ATTR_MASK_depth; break;
+            case 'f': disp_mask.std |= ATTR_MASK_name; break;
+            case 'g': disp_mask.std |= ATTR_MASK_gr_name; break;
+            case 'M':
+            case 'm': disp_mask.std |= ATTR_MASK_mode; break;
+            case 'n': disp_mask.std |= ATTR_MASK_nlink; break;
+            case 'p': break;
+            case 's': disp_mask.std |= ATTR_MASK_size; break;
+            case 'u': disp_mask.std |= ATTR_MASK_owner; break;
+            case 'Y':
+            case 'y': disp_mask.std |= ATTR_MASK_type; break;
+
+            case 'R':
+                p++;
+                switch (*p) {
+
+                case 'c': disp_mask.std |= ATTR_MASK_fileclass; break;
+                case 'f': break;
+                case 'o': disp_mask.std |= ATTR_MASK_stripe_items; break;
+                case 'p': disp_mask.std |= ATTR_MASK_parent_id; break;
+
+                case 0:
+                    DisplayLog(LVL_CRIT, FIND_TAG, "Error: lone %%R at end of format string");
+                    return 1;
+
+                default:
+                    DisplayLog(LVL_CRIT, FIND_TAG, "Error: unrecognized format %%R%c", *p);
+                    return 1;
+                }
+                break;
+
+            case 0:
+                DisplayLog(LVL_CRIT, FIND_TAG, "Error: lone %% at end of format string");
+                return 1;
+
+            default:
+                DisplayLog(LVL_CRIT, FIND_TAG, "Error: unrecognized format %%%c", *p);
+                return 1;
+            }
+        } else if (*p == '\\') {
+            p++;
+
+            switch(*p) {
+            case '\\': break;
+            case 'n': break;
+
+            case 0:
+                DisplayLog(LVL_CRIT, FIND_TAG, "Error: lone \\ at end of format string");
+                return 1;
+
+            default:
+                DisplayLog(LVL_CRIT, FIND_TAG, "Error: unrecognized escape code \\%c", *p);
+                return 1;
+            }
+        }
+
+        p++;
+    }
+
+    return 0;
+}
+
+static void printf_entry(const wagon_t *id, const attr_set_t * attrs)
+{
+    const char *p = printf_str;
+    static GString *line;
+
+    if (line == NULL)
+        line = g_string_sized_new(1000);
+
+    g_string_truncate(line, 0);
+
+    while (*p) {
+        if (*p == '%') {
+            p++;
+
+            switch (*p) {
+            case '%':
+                g_string_append_c(line, *p);
+                break;
+
+            case 'b':
+                g_string_append_printf(line, "%zu", ATTR(attrs, blocks));
+                break;
+
+            case 'd':
+                g_string_append_printf(line, "%u", ATTR(attrs, depth));
+                break;
+
+            case 'f':
+                g_string_append(line, ATTR(attrs, name));
+                break;
+
+            case 'g':
+                g_string_append(line, ATTR(attrs, gr_name));
+                break;
+
+            case 'm':
+                g_string_append_printf(line, "%o", ATTR(attrs, mode));
+                break;
+
+            case 'M': {
+                char mode_str[9];
+
+                mode_str[8] = 0;
+                mode_string(ATTR(attrs, mode), mode_str);
+                g_string_append(line, mode_str);
+            }
+                break;
+
+            case 'n':
+                g_string_append_printf(line, "%u", ATTR(attrs, nlink));
+                break;
+
+            case 'p':
+                g_string_append(line, id->fullname);
+                break;
+
+            case 's':
+                g_string_append_printf(line, "%zu", ATTR(attrs, size));
+                break;
+
+            case 'u':
+                g_string_append(line, ATTR(attrs, owner));
+                break;
+
+            case 'Y': {
+                const char * type;
+
+                if (!ATTR_MASK_TEST(attrs, type))
+                    type = "?";
+                else
+                    type = type2char(ATTR(attrs, type));
+
+                g_string_append(line, type);
+            }
+                break;
+
+            case 'y': {
+                char type;
+
+                if (!ATTR_MASK_TEST(attrs, type))
+                    type = '?';
+                else
+                    type = type2onechar(ATTR(attrs, type));
+
+                g_string_append_c(line, type);
+            }
+                break;
+
+            case 'R':
+                /* Robinhood specifiers */
+                p++;
+                switch (*p) {
+
+                case 'c':
+                    g_string_append_printf(line, "%s",
+                                           class_format(ATTR_MASK_TEST(attrs, fileclass)?
+                                                        ATTR(attrs, fileclass) : NULL));
+                    break;
+
+                case 'f': {
+                    char fid_str[FID_NOBRACE_LEN+1];
+                    sprintf(fid_str, DFID_NOBRACE, PFID(&id->id));
+                    g_string_append(line, fid_str);
+                }
+                    break;
+
+                case 'o':
+#ifdef _LUSTRE
+                    if (ATTR_MASK_TEST(attrs, stripe_items) &&
+                        (ATTR(attrs, stripe_items).count > 0))
+                    {
+                        char ostbuf[24576] = "";
+
+                        FormatStripeList(ostbuf, sizeof(ostbuf), &ATTR(attrs, stripe_items), true);
+                        g_string_append(line, ostbuf);
+                    }
+#endif
+                    break;
+
+                case 'p': {
+                    char fid_str[FID_NOBRACE_LEN+1];
+                    sprintf(fid_str, DFID_NOBRACE, PFID(&ATTR(attrs, parent_id)));
+                    g_string_append(line, fid_str);
+                    break;
+                }
+                }
+
+                break;
+            }
+        } else if (*p == '\\') {
+            p++;
+
+            switch(*p) {
+            case '\\':
+                g_string_append_c(line, *p);
+                break;
+
+            case 'n':
+                puts(line->str);
+                g_string_truncate(line, 0);
+                break;
+            }
+        } else {
+            g_string_append_c(line, *p);
+        }
+
+        p++;
+    }
+
+    if (line->len)
+        printf("%s", line->str);
+}
+
+static void print_entry(const wagon_t *id, const attr_set_t * attrs)
 {
     char ostbuf[24576] = "";
     char classbuf[1024] = "";
     char statusbuf[1024] = "";
 
     /* HERE: post-filter attributes that are not part of the DB request */
+
+    if (prog_options.printf) {
+        printf_entry(id, attrs);
+        return;
+    }
 
 #ifdef _LUSTRE
     /* prepare OST display buffer */
@@ -1407,6 +1665,16 @@ int main(int argc, char **argv)
             }
             break;
 
+        case PRINTF_OPT:
+            prog_options.print = 0;
+            prog_options.printf = 1;
+            printf_str = optarg;
+            if (neg) {
+                fprintf(stderr, "! (-not) unexpected before -printf option\n");
+                exit(1);
+            }
+            break;
+
         case 'E':
             toggle_option(exec, "exec");
             prog_options.exec_cmd = optarg;
@@ -1560,6 +1828,13 @@ int main(int argc, char **argv)
         /* add it to display mask */
         disp_mask.status |= SMI_MASK(prog_options.filter_smi->smi_index);
         prog_options.filter_status_value = (char *)strval;
+    }
+
+    if (prog_options.printf)
+    {
+        rc = get_printf_attrs();
+        if (rc)
+            exit(rc);
     }
 
     if (argc == optind)
