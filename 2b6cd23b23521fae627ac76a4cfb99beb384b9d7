@@ -1,0 +1,55 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_ced96485",
+        "filename": "scripts/rbh_cksum.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-04-20T12:06:54Z",
+      "side": 1,
+      "message": "Override only if not specified in environment.\n\nToo generic names. suggest \"RBH_CHKSUM_CMD\", \"RBH_CHKSUM_XATTR\"",
+      "revId": "2b6cd23b23521fae627ac76a4cfb99beb384b9d7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_627a6ff3",
+        "filename": "scripts/rbh_cksum.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 24,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-04-20T12:06:54Z",
+      "side": 1,
+      "message": "This doesn\u0027t work for lustre \u003c 2.4.\nPerhaps we should have 2 scripts in the repo, and install the appropriate one depending on ./configure detections.",
+      "revId": "2b6cd23b23521fae627ac76a4cfb99beb384b9d7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_eede686c",
+        "filename": "scripts/rbh_cksum.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 78,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-04-20T12:06:54Z",
+      "side": 1,
+      "message": "Is this so different than the case dv changed since last output? Why tagging the file as errorneous then? What about returning dv_old and checksum (and no error). Anyhow the checksum will be recomputed the next time because dv changed.",
+      "revId": "2b6cd23b23521fae627ac76a4cfb99beb384b9d7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
