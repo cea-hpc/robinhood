@@ -765,14 +765,54 @@ static int set_time_filter(char * str, unsigned int multiplier,
     return 0;
 }
 
+/* Extract the field length from a printf specifier. e.g. "%-20s" will
+ * set the field to "-20" and return the next position in the string. */
+static const char *extract_field_width(const char *str, char *format, size_t format_len)
+{
+    if (format_len == 0)
+        return NULL;
+
+    if (*str == '-') {
+        *format = '-';
+        str++;
+        format++;
+        format_len --;
+
+        if (format_len == 0)
+            return NULL;
+    }
+
+    while (*str && *str >= '0' && *str <= '9') {
+        *format = *str;
+        format++;
+        str++;
+        format_len--;
+
+        if (format_len == 0)
+            return NULL;
+    }
+
+    *format = 0;
+
+    return str;
+}
+
 /* From the printf argument string, retrieve the attributes to get. */
 static int get_printf_attrs(void)
 {
     const char *p = printf_str;
+    char format[20];
 
     while (*p) {
         if (*p == '%') {
             p++;
+
+            format[0] = '%';
+            p = extract_field_width(p, &format[1], 8);
+            if (p == NULL) {
+                DisplayLog(LVL_CRIT, FIND_TAG, "Error: invalid length field in format string");
+                return 1;
+            }
 
             switch (*p) {
             case '%': break;
@@ -843,6 +883,7 @@ static void printf_entry(const wagon_t *id, const attr_set_t * attrs)
 {
     const char *p = printf_str;
     static GString *line;
+    char format[20];
 
     if (line == NULL)
         line = g_string_sized_new(1000);
@@ -853,29 +894,37 @@ static void printf_entry(const wagon_t *id, const attr_set_t * attrs)
         if (*p == '%') {
             p++;
 
+            format[0] = '%';
+            p = extract_field_width(p, &format[1], 8);
+
             switch (*p) {
             case '%':
                 g_string_append_c(line, *p);
                 break;
 
             case 'b':
-                g_string_append_printf(line, "%zu", ATTR(attrs, blocks));
+                strcat(format, "zu");
+                g_string_append_printf(line, format, ATTR(attrs, blocks));
                 break;
 
             case 'd':
-                g_string_append_printf(line, "%u", ATTR(attrs, depth));
+                strcat(format, "u");
+                g_string_append_printf(line, format, ATTR(attrs, depth));
                 break;
 
             case 'f':
-                g_string_append(line, ATTR(attrs, name));
+                strcat(format, "s");
+                g_string_append_printf(line, format, ATTR(attrs, name));
                 break;
 
             case 'g':
-                g_string_append(line, ATTR(attrs, gr_name));
+                strcat(format, "s");
+                g_string_append_printf(line, format, ATTR(attrs, gr_name));
                 break;
 
             case 'm':
-                g_string_append_printf(line, "%o", ATTR(attrs, mode));
+                strcat(format, "o");
+                g_string_append_printf(line, format, ATTR(attrs, mode));
                 break;
 
             case 'M': {
@@ -883,24 +932,29 @@ static void printf_entry(const wagon_t *id, const attr_set_t * attrs)
 
                 mode_str[8] = 0;
                 mode_string(ATTR(attrs, mode), mode_str);
-                g_string_append(line, mode_str);
+                strcat(format, "s");
+                g_string_append_printf(line, format, mode_str);
             }
                 break;
 
             case 'n':
-                g_string_append_printf(line, "%u", ATTR(attrs, nlink));
+                strcat(format, "u");
+                g_string_append_printf(line, format, ATTR(attrs, nlink));
                 break;
 
             case 'p':
-                g_string_append(line, id->fullname);
+                strcat(format, "s");
+                g_string_append_printf(line, format, ATTR(attrs, fullpath));
                 break;
 
             case 's':
-                g_string_append_printf(line, "%zu", ATTR(attrs, size));
+                strcat(format, "zu");
+                g_string_append_printf(line, format, ATTR(attrs, size));
                 break;
 
             case 'u':
-                g_string_append(line, ATTR(attrs, owner));
+                strcat(format, "s");
+                g_string_append_printf(line, format, ATTR(attrs, owner));
                 break;
 
             case 'Y': {
@@ -911,7 +965,8 @@ static void printf_entry(const wagon_t *id, const attr_set_t * attrs)
                 else
                     type = type2char(ATTR(attrs, type));
 
-                g_string_append(line, type);
+                strcat(format, "s");
+                g_string_append_printf(line, format, type);
             }
                 break;
 
@@ -923,7 +978,8 @@ static void printf_entry(const wagon_t *id, const attr_set_t * attrs)
                 else
                     type = type2onechar(ATTR(attrs, type));
 
-                g_string_append_c(line, type);
+                strcat(format, "c");
+                g_string_append_printf(line, format, type);
             }
                 break;
 
@@ -933,7 +989,8 @@ static void printf_entry(const wagon_t *id, const attr_set_t * attrs)
                 switch (*p) {
 
                 case 'c':
-                    g_string_append_printf(line, "%s",
+                    strcat(format, "s");
+                    g_string_append_printf(line, format,
                                            class_format(ATTR_MASK_TEST(attrs, fileclass)?
                                                         ATTR(attrs, fileclass) : NULL));
                     break;
@@ -941,7 +998,8 @@ static void printf_entry(const wagon_t *id, const attr_set_t * attrs)
                 case 'f': {
                     char fid_str[FID_NOBRACE_LEN+1];
                     sprintf(fid_str, DFID_NOBRACE, PFID(&id->id));
-                    g_string_append(line, fid_str);
+                    strcat(format, "s");
+                    g_string_append_printf(line, format, fid_str);
                 }
                     break;
 
@@ -953,7 +1011,8 @@ static void printf_entry(const wagon_t *id, const attr_set_t * attrs)
                         char ostbuf[24576] = "";
 
                         FormatStripeList(ostbuf, sizeof(ostbuf), &ATTR(attrs, stripe_items), true);
-                        g_string_append(line, ostbuf);
+                        strcat(format, "s");
+                        g_string_append_printf(line, format, ostbuf);
                     }
 #endif
                     break;
@@ -961,7 +1020,8 @@ static void printf_entry(const wagon_t *id, const attr_set_t * attrs)
                 case 'p': {
                     char fid_str[FID_NOBRACE_LEN+1];
                     sprintf(fid_str, DFID_NOBRACE, PFID(&ATTR(attrs, parent_id)));
-                    g_string_append(line, fid_str);
+                    strcat(format, "s");
+                    g_string_append_printf(line, format, fid_str);
                     break;
                 }
                 }
