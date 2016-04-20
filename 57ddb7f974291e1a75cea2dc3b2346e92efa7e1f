@@ -1,0 +1,89 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_e93b02d0",
+        "filename": "src/cfg_parsing/rbh_cfg_helpers.c",
+        "patchSetId": 6
+      },
+      "lineNbr": 175,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-04-20T15:01:44Z",
+      "side": 1,
+      "message": "(style, minor) In new code, you can remove spaces after \u0027(\u0027 and before \u0027)\u0027.",
+      "revId": "57ddb7f974291e1a75cea2dc3b2346e92efa7e1f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_e942e23d",
+        "filename": "src/cfg_parsing/rbh_cfg_helpers.c",
+        "patchSetId": 6
+      },
+      "lineNbr": 215,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-04-20T15:01:44Z",
+      "side": 1,
+      "message": "AFAIK, extra parameters are supported for all parameters types (even if not used for every type).\nSo you can still support it for commands. One day it could be useful (e.g. to specify specific behaviors to launch the command?).\nSo you can remove this comment.",
+      "revId": "57ddb7f974291e1a75cea2dc3b2346e92efa7e1f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_a9917a9b",
+        "filename": "src/fs_scan/fs_scan_main.c",
+        "patchSetId": 6
+      },
+      "lineNbr": 524,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-04-20T15:01:44Z",
+      "side": 1,
+      "message": "This is not safe (can segfault if a thread is currently accessing the array).\n\nIt is safer to display:\nFSSCAN_CONFIG_BLOCK\"::completion_command changed in config file, but cannot be modified dynamically\"",
+      "revId": "57ddb7f974291e1a75cea2dc3b2346e92efa7e1f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_c9ab9ed5",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 6
+      },
+      "lineNbr": 741,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-04-20T15:01:44Z",
+      "side": 1,
+      "message": "if (log_config.debug_level \u003e\u003d LVL_EVENT)",
+      "revId": "57ddb7f974291e1a75cea2dc3b2346e92efa7e1f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_a9ba9a21",
+        "filename": "src/modules/mod_internal.c",
+        "patchSetId": 6
+      },
+      "lineNbr": 405,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-04-20T15:01:44Z",
+      "side": 1,
+      "message": "if (log_config.debug_level \u003e\u003d LVL_DEBUG)",
+      "revId": "57ddb7f974291e1a75cea2dc3b2346e92efa7e1f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
