@@ -28,7 +28,7 @@ static sm_instance_t **sm_inst = NULL;
 unsigned int sm_inst_count = 0; /* must be available from other modules to handle attribute masks */
 
 /** list of status manager info */
-struct _sm_attr_info *sm_attr_info;
+struct _sm_attr_info *sm_attr_info = NULL;
 unsigned int sm_attr_count;
 
 
