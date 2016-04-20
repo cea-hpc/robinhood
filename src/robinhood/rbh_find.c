@@ -37,9 +37,10 @@
 #include <errno.h>
 #include <pthread.h>
 
-#define FIND_TAG "find"
+#include "rbh_find.h"
 
 #define LSSTATUS_OPT 260
+#define PRINTF_OPT 261
 
 static struct option option_tab[] =
 {
@@ -67,6 +68,7 @@ static struct option option_tab[] =
 
     {"ls", no_argument, NULL, 'l'},
     {"print", no_argument, NULL, 'p'},
+    {"printf", required_argument, NULL, PRINTF_OPT},
     {"exec", required_argument, NULL, 'E'},
     /* TODO dry-run mode for exec ? */
 
@@ -145,6 +147,7 @@ struct find_opt
     unsigned int lsclass:1;
     unsigned int lsstatus:1;
     unsigned int print:1;
+    unsigned int printf:1;
     /* condition flags */
     unsigned int match_user:1;
     unsigned int match_group:1;
@@ -181,7 +184,7 @@ struct find_opt
 #endif
     .filter_smi = NULL, .filter_status_name = NULL, .filter_status_value = NULL,
     .bulk = bulk_unspec,
-    .ls = 0, .lsost = 0, .lsclass = 0, .lsstatus = 0, .print = 1,
+    .ls = 0, .lsost = 0, .lsclass = 0, .lsstatus = 0, .print = 1, .printf = 0,
     .match_user = 0, .match_group = 0,
     .match_type = 0, .match_size = 0, .match_name = 0,
     .match_crtime = 0, .match_mtime = 0, .match_atime = 0,
@@ -201,7 +204,7 @@ static const attr_mask_t LSOST_DISPLAY_MASK = {.std = ATTR_MASK_type
 static const attr_mask_t LSCLASS_DISPLAY_MASK = {.std = ATTR_MASK_type
                                      | ATTR_MASK_size | ATTR_MASK_fileclass};
 
-static attr_mask_t disp_mask = {.std = ATTR_MASK_type};
+attr_mask_t disp_mask = {.std = ATTR_MASK_type};
 static attr_mask_t query_mask = {0};
 
 //static lmgr_filter_t    dir_filter;
@@ -212,6 +215,10 @@ static lmgr_filter_t    entry_filter;
 /* post filter for all entries */
 static bool_node_t      match_expr;
 static int              is_expr = 0; /* is it set? */
+
+/* printf string, when prog_options.printf is set. */
+const char *printf_str;
+GArray *printf_chunks;
 
 /* build filters depending on program options */
 static int mkfilters(bool exclude_dirs)
@@ -453,6 +460,7 @@ static const char *help_string =
     "    " _B "-lsclass" B_" \t Display fileclass information\n"
     "    " _B "-lsstatus" B_"[="_U"policy"U_"] \t Display status information (optionally: only for the given "_U"policy"U_").\n"
     "    " _B "-print" B_" \t Display the fullpath of matching entries (this is the default, unless -ls, -lsost or -exec are used).\n"
+    "    " _B "-printf" B_" \t Format string used to display the matching entries.\n"
     "\n"
     _B "Actions:" B_ "\n"
     "    " _B "-exec" B_" "_U "\"cmd\"" U_ "\n"
@@ -527,7 +535,7 @@ static inline void display_version(const char *bin_name)
     printf("\n");
 }
 
-static const char * type2char(const char * type)
+const char *type2char(const char *type)
 {
     if (!strcasecmp(type, STR_TYPE_DIR))
         return "dir";
@@ -544,6 +552,26 @@ static const char * type2char(const char * type)
     else if (!strcasecmp(type, STR_TYPE_SOCK))
         return "sock";
     return "?";
+}
+
+/* Return the type of the file like find does. */
+const char type2onechar(const char *type)
+{
+    if (!strcasecmp(type, STR_TYPE_DIR))
+        return 'd';
+    else if (!strcasecmp(type, STR_TYPE_FILE))
+        return 'f';
+    else if (!strcasecmp(type, STR_TYPE_LINK))
+        return 'l';
+    else if (!strcasecmp(type, STR_TYPE_CHR))
+        return 'c';
+    else if (!strcasecmp(type, STR_TYPE_BLK))
+        return 'b';
+    else if (!strcasecmp(type, STR_TYPE_FIFO))
+        return 'p';
+    else if (!strcasecmp(type, STR_TYPE_SOCK))
+        return 's';
+    return '?';
 }
 
 static const char * opt2type(const char * type_opt)
@@ -738,14 +766,18 @@ static int set_time_filter(char * str, unsigned int multiplier,
     return 0;
 }
 
-
-static inline void print_entry(const wagon_t *id, const attr_set_t * attrs)
+static void print_entry(const wagon_t *id, const attr_set_t * attrs)
 {
     char ostbuf[24576] = "";
     char classbuf[1024] = "";
     char statusbuf[1024] = "";
 
     /* HERE: post-filter attributes that are not part of the DB request */
+
+    if (prog_options.printf) {
+        printf_entry(printf_chunks, id, attrs);
+        return;
+    }
 
 #ifdef _LUSTRE
     /* prepare OST display buffer */
@@ -1407,6 +1439,16 @@ int main(int argc, char **argv)
             }
             break;
 
+        case PRINTF_OPT:
+            prog_options.print = 0;
+            prog_options.printf = 1;
+            printf_str = optarg;
+            if (neg) {
+                fprintf(stderr, "! (-not) unexpected before -printf option\n");
+                exit(1);
+            }
+            break;
+
         case 'E':
             toggle_option(exec, "exec");
             prog_options.exec_cmd = optarg;
@@ -1562,6 +1604,13 @@ int main(int argc, char **argv)
         prog_options.filter_status_value = (char *)strval;
     }
 
+    if (prog_options.printf)
+    {
+        printf_chunks = prepare_printf_format(printf_str);
+        if (printf_chunks == NULL)
+            exit(EINVAL);
+    }
+
     if (argc == optind)
     {
         /* no argument: default is root
@@ -1590,6 +1639,7 @@ int main(int argc, char **argv)
     ListMgr_CloseAccess(&lmgr);
 
     lmgr_simple_filter_free(&entry_filter);
+    free_printf_formats(printf_chunks);
 
     return rc;
 }

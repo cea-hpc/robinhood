@@ -86,6 +86,58 @@ Display \fIstatus\fP information (optionally: only for the given policy).
 .B
 \fB-print\fP
 Display the fullpath of matching entries (this is the default, unless \fB-ls\fP, \fB-lsost\fP or \fB-exec\fP are used).
+.TP
+.B
+\fB-printf\fP
+Format string to display the matching entries.
+The supported escapes and directives are a subset of those of `find`,
+with some Robinhood additions prefixed with %R:
+.RS
+.IP %%
+Escapes %
+.IP %b
+Number of blocks
+.IP %d
+Depth
+.IP %f
+File name, without its path
+.IP %g
+Group name
+.IP %M
+File mode as a string, similar to the output of `ls`
+.IP %m
+File mode in octal
+.IP %n
+Number of hard links
+.IP %p
+Full file name
+.IP %s
+File size
+.IP %u
+File owner
+.IP %Y
+Full file type (file, dir, fifo, ...)
+.IP %y
+File type as one letter (f, d, p, ...)
+.IP %Rc
+File class
+.IP %Rf
+Lustre FID
+.IP %Rm
+Status manager module attribute, with the name specified between curly
+bracket, followed by the format directive 's' or 'u' to display it as
+a string or an unsigned integer respectively. For example:
+\fB%Rm{lhsm.archive_id}u\fP.
+.IP %Ro
+Lustre OSTS
+.IP %Rp
+Lustre parent FID
+.IP \e\e
+Escapes \\
+.IP \en
+Newline
+.IP \et
+Tab
 .SH ACTIONS
 
 .TP
