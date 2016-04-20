@@ -74,11 +74,11 @@ enum check_info_e
 
 /** definition of specific info  */
 static sm_info_def_t check_info[] = {
-    [ATTR_LAST_CHECK]   = { "last_check",   "lstchk",  DB_UINT, 0, {.val_uint = 0}, PT_DURATION },
-    [ATTR_LAST_SUCCESS] = { "last_success", "lstsuc",  DB_UINT, 0, {.val_uint = 0}, PT_DURATION },
+    [ATTR_LAST_CHECK]   = { "last_check",   "lstchk",  DB_UINT, 0, {.val_uint = 0}, .crit_type = PT_DURATION },
+    [ATTR_LAST_SUCCESS] = { "last_success", "lstsuc",  DB_UINT, 0, {.val_uint = 0}, .crit_type = PT_DURATION },
 /** Define a limited output size to reduce de DB footprint. If the user needs to attach more
  * information for each file, he can still store it as an xattr, or in an annex database. */
-    [ATTR_OUTPUT]       = { "output",       "out",     DB_TEXT, 255, {.val_str = NULL}, PT_STRING},
+    [ATTR_OUTPUT]       = { "output",       "out",     DB_TEXT, 255, {.val_str = NULL}, .crit_type = PT_STRING},
 };
 
 static int check_executor(struct sm_instance *smi,
