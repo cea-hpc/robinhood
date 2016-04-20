@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_6e7a58f3",
+        "filename": "scripts/rbh_cksum.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-04-20T13:45:46Z",
+      "side": 1,
+      "message": "OK",
+      "parentUuid": "baa041b7_ced96485",
+      "revId": "2b6cd23b23521fae627ac76a4cfb99beb384b9d7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_627a6ff3",
         "filename": "scripts/rbh_cksum.sh",
         "patchSetId": 2
@@ -36,6 +54,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_ce9f244f",
+        "filename": "scripts/rbh_cksum.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 24,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-04-20T13:45:46Z",
+      "side": 1,
+      "message": "Need to look at what we know at config time, I\u0027ll switch to a variable up top of script then.",
+      "parentUuid": "baa041b7_627a6ff3",
+      "revId": "2b6cd23b23521fae627ac76a4cfb99beb384b9d7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_eede686c",
         "filename": "scripts/rbh_cksum.sh",
         "patchSetId": 2
@@ -47,6 +83,24 @@
       "writtenOn": "2016-04-20T12:06:54Z",
       "side": 1,
       "message": "Is this so different than the case dv changed since last output? Why tagging the file as errorneous then? What about returning dv_old and checksum (and no error). Anyhow the checksum will be recomputed the next time because dv changed.",
+      "revId": "2b6cd23b23521fae627ac76a4cfb99beb384b9d7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_ae2180fd",
+        "filename": "scripts/rbh_cksum.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 78,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-04-20T13:45:46Z",
+      "side": 1,
+      "message": "I\u0027d love to not fail, but I don\u0027t think storing anything makes sense - if someone is able to get the file from the old dv back through black magic the checksum won\u0027t necessarily match...\nCan we just exit 0 with no output (+ eventually clear xattr)? If no output is given again to the script then it\u0027ll know to start from 0.",
+      "parentUuid": "baa041b7_eede686c",
       "revId": "2b6cd23b23521fae627ac76a4cfb99beb384b9d7",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
