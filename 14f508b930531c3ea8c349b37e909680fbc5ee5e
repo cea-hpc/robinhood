@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_8e735c15",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 158,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-04-20T13:50:15Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "baa041b7_6e901844",
+      "revId": "14f508b930531c3ea8c349b37e909680fbc5ee5e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_ae774039",
         "filename": "src/common/rbh_cmd.c",
         "patchSetId": 1
@@ -36,6 +54,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_ae7860f3",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 248,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-04-20T13:50:15Z",
+      "side": 1,
+      "message": "Not sure I see the point given there\u0027s no logic here at all and execute_shell_command will still need to check return values, print error etc.\n\nAfraid I can\u0027t think of any better way to wrap this though, but making another function with a shorter name just because the glib function\u0027s name is long doesn\u0027t quite appeal to me.",
+      "parentUuid": "baa041b7_ae774039",
+      "revId": "14f508b930531c3ea8c349b37e909680fbc5ee5e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_0e9d0c59",
         "filename": "src/common/rbh_cmd.c",
         "patchSetId": 1
@@ -47,6 +83,24 @@
       "writtenOn": "2016-04-20T13:06:04Z",
       "side": 1,
       "message": "(defect) we still hold two references on ctx here",
+      "revId": "14f508b930531c3ea8c349b37e909680fbc5ee5e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_ce696427",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 260,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-04-20T13:50:15Z",
+      "side": 1,
+      "message": "ctx is local to this function and doesn\u0027t mean anything if we return, doesn\u0027t it?\n\n(happy to move the calls higher with g_io_channel_set_close_on_unref though, that won\u0027t have the problem)",
+      "parentUuid": "baa041b7_0e9d0c59",
       "revId": "14f508b930531c3ea8c349b37e909680fbc5ee5e",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
