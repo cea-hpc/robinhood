@@ -25,6 +25,30 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_d998051e",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 246,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2016-04-21T23:55:41Z",
+      "side": 1,
+      "message": "hey, it\u0027s not my fault :D, I just did a copy/paste from the \u0027u\u0027 option below! :) maybe we should just change both to %s ? what is exactly %c anyway, I didn\u0027t see that format option very often...",
+      "parentUuid": "baa041b7_3045c6b2",
+      "range": {
+        "startLine": 246,
+        "startChar": 34,
+        "endLine": 246,
+        "endChar": 36
+      },
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_1013e2b9",
         "filename": "src/tools/lhsmtool_cmd.c",
         "patchSetId": 5
@@ -42,6 +66,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_044e046f",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 360,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2016-04-21T23:55:41Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "baa041b7_1013e2b9",
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_d00c5a96",
         "filename": "src/tools/lhsmtool_cmd.c",
         "patchSetId": 5
@@ -53,6 +95,24 @@
       "writtenOn": "2016-04-21T10:57:00Z",
       "side": 1,
       "message": "Are all fields still needed?",
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_8442143d",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 397,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2016-04-21T23:55:41Z",
+      "side": 1,
+      "message": "I kept fields needed for report_progress(), but I will double-check that there is no orphan when report_progress() is done.",
+      "parentUuid": "baa041b7_d00c5a96",
       "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -82,6 +142,30 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_643dd0ba",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 405,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2016-04-21T23:55:41Z",
+      "side": 1,
+      "message": "Yes, as discussed on Slack, I will evaluate the use of lseek(fd, 0, SEEK_CUR) to get the current cursor position of the file (same fd in parent and child).",
+      "parentUuid": "baa041b7_70690e25",
+      "range": {
+        "startLine": 405,
+        "startChar": 11,
+        "endLine": 405,
+        "endChar": 26
+      },
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_ed1b0b7f",
         "filename": "src/tools/lhsmtool_cmd.c",
         "patchSetId": 5
@@ -93,6 +177,24 @@
       "writtenOn": "2016-04-21T08:25:40Z",
       "side": 1,
       "message": "(nitpick) !!!",
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_444c0c70",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 480,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2016-04-21T23:55:41Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "baa041b7_ed1b0b7f",
       "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -134,6 +236,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_2447c84c",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 483,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2016-04-21T23:55:41Z",
+      "side": 1,
+      "message": "will do",
+      "parentUuid": "baa041b7_cd128762",
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_1061a239",
         "filename": "src/tools/lhsmtool_cmd.c",
         "patchSetId": 5
@@ -145,6 +265,24 @@
       "writtenOn": "2016-04-21T10:57:00Z",
       "side": 1,
       "message": "check not needed",
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_0475e496",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 556,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2016-04-21T23:55:41Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "baa041b7_1061a239",
       "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -168,6 +306,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_e477a09d",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 564,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2016-04-21T23:55:41Z",
+      "side": 1,
+      "message": "Done - of course, thx!!",
+      "parentUuid": "baa041b7_107ac2f1",
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_4d07971c",
         "filename": "src/tools/lhsmtool_cmd.c",
         "patchSetId": 5
@@ -179,6 +335,24 @@
       "writtenOn": "2016-04-21T08:25:40Z",
       "side": 1,
       "message": "Do you still need to ignore SIGPIPE?",
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_c46edcc8",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 619,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2016-04-21T23:55:41Z",
+      "side": 1,
+      "message": "Right, we don\u0027t need that anymore!",
+      "parentUuid": "baa041b7_4d07971c",
       "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -208,6 +382,30 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_a47198aa",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 834,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2016-04-21T23:55:41Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "baa041b7_b08676d9",
+      "range": {
+        "startLine": 834,
+        "startChar": 25,
+        "endLine": 834,
+        "endChar": 33
+      },
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_906ed22d",
         "filename": "src/tools/lhsmtool_cmd.c",
         "patchSetId": 5
@@ -219,6 +417,30 @@
       "writtenOn": "2016-04-21T10:57:00Z",
       "side": 1,
       "message": "...",
+      "range": {
+        "startLine": 836,
+        "startChar": 25,
+        "endLine": 836,
+        "endChar": 33
+      },
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_8469f4c0",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 836,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2016-04-21T23:55:41Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "baa041b7_906ed22d",
       "range": {
         "startLine": 836,
         "startChar": 25,
