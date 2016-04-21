@@ -1,0 +1,55 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_ed1b0b7f",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 480,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-04-21T08:25:40Z",
+      "side": 1,
+      "message": "(nitpick) !!!",
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_cd128762",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 483,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-04-21T08:25:40Z",
+      "side": 1,
+      "message": "(nitpick) Rest of code looks tab-indented.\nActually indents are odd all around the place. Run some form of checkpatch :)",
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_4d07971c",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 619,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-04-21T08:25:40Z",
+      "side": 1,
+      "message": "Do you still need to ignore SIGPIPE?",
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
