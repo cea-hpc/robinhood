@@ -72,6 +72,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_296faac6",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 248,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-21T06:41:24Z",
+      "side": 1,
+      "message": "shorter name and error conversion. I\u0027m ok with this version but I would find a wrapper nicer.",
+      "parentUuid": "baa041b7_ae7860f3",
+      "revId": "14f508b930531c3ea8c349b37e909680fbc5ee5e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_0e9d0c59",
         "filename": "src/common/rbh_cmd.c",
         "patchSetId": 1
@@ -101,6 +119,24 @@
       "side": 1,
       "message": "ctx is local to this function and doesn\u0027t mean anything if we return, doesn\u0027t it?\n\n(happy to move the calls higher with g_io_channel_set_close_on_unref though, that won\u0027t have the problem)",
       "parentUuid": "baa041b7_0e9d0c59",
+      "revId": "14f508b930531c3ea8c349b37e909680fbc5ee5e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_0d898f26",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 260,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-21T06:41:24Z",
+      "side": 1,
+      "message": "ok, \"defect\" was too strong here, but conceptually I quite disklike it (not future proof, likely to fail if dynamic allocations introduced somewhere in ctx). Please move that above the ctx_incref() calls.",
+      "parentUuid": "baa041b7_ce696427",
       "revId": "14f508b930531c3ea8c349b37e909680fbc5ee5e",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
