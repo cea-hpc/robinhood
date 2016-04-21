@@ -2,6 +2,86 @@
   "comments": [
     {
       "key": {
+        "uuid": "baa041b7_3045c6b2",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 246,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-21T10:57:00Z",
+      "side": 1,
+      "message": "mouarf! :)",
+      "range": {
+        "startLine": 246,
+        "startChar": 34,
+        "endLine": 246,
+        "endChar": 36
+      },
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_1013e2b9",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 360,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-21T10:57:00Z",
+      "side": 1,
+      "message": "(style) one per line",
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_d00c5a96",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 397,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-21T10:57:00Z",
+      "side": 1,
+      "message": "Are all fields still needed?",
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_70690e25",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 405,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-21T10:57:00Z",
+      "side": 1,
+      "message": "So we no longer have progress reports... Do you have suggestions for it to work with this new (and very nice!) model?",
+      "range": {
+        "startLine": 405,
+        "startChar": 11,
+        "endLine": 405,
+        "endChar": 26
+      },
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_ed1b0b7f",
         "filename": "src/tools/lhsmtool_cmd.c",
         "patchSetId": 5
@@ -36,6 +116,58 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_50784af2",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 483,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-21T10:57:00Z",
+      "side": 1,
+      "message": "+1",
+      "parentUuid": "baa041b7_cd128762",
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_1061a239",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 556,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-21T10:57:00Z",
+      "side": 1,
+      "message": "check not needed",
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_107ac2f1",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 564,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-21T10:57:00Z",
+      "side": 1,
+      "message": "why checking this? Negative values will fail with EBADF and close return value is not checked anyway.",
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_4d07971c",
         "filename": "src/tools/lhsmtool_cmd.c",
         "patchSetId": 5
@@ -47,6 +179,52 @@
       "writtenOn": "2016-04-21T08:25:40Z",
       "side": 1,
       "message": "Do you still need to ignore SIGPIPE?",
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_b08676d9",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 834,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-21T10:57:00Z",
+      "side": 1,
+      "message": "This is not needed (and it leaks)",
+      "range": {
+        "startLine": 834,
+        "startChar": 25,
+        "endLine": 834,
+        "endChar": 33
+      },
+      "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_906ed22d",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 836,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-21T10:57:00Z",
+      "side": 1,
+      "message": "...",
+      "range": {
+        "startLine": 836,
+        "startChar": 25,
+        "endLine": 836,
+        "endChar": 33
+      },
       "revId": "a6d114fc5a7cf648aaccc62694c4ec5d3f162d9e",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
