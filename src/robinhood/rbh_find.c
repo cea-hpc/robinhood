@@ -1589,5 +1589,7 @@ int main(int argc, char **argv)
 
     ListMgr_CloseAccess(&lmgr);
 
+    lmgr_simple_filter_free(&entry_filter);
+
     return rc;
 }
