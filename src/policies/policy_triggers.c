@@ -150,8 +150,10 @@ static int check_blocks_thresholds(trigger_item_t *p_trigger, const char *storag
                             const struct statfs *p_statfs, unsigned long long *to_be_purged_512,
                             double *p_used_pct)
 {
-    unsigned long long  total_user_blocks, block_target, used_vol;
-    double              used_pct;
+    unsigned long long  total_user_blocks = 0,
+                        block_target = 0,
+                        used_vol = 0;
+    double              used_pct = 0;
     char                tmp1[128];
     char                tmp2[128];
     char                buff[1024];
@@ -567,9 +569,9 @@ static int get_ost_max(struct statfs *df, trigger_value_type_t tr_type,
     struct statfs       stat_max,
                         stat_tmp;
     double              max_pct = 0.0,
-                        curr_pct;
+                        curr_pct = 0.0;
     unsigned long long  max_vol = 0LL,
-                        curr_vol;
+                        curr_vol = 0;
     char                ostname[128];
 
     for (ost_index = 0;; ost_index++)
@@ -831,7 +833,8 @@ typedef struct target_iterator_t {
 static int compute_user_blocks(trigger_item_t *trig, target_iterator_t *it)
 {
     int rc;
-    unsigned long long tb, bs;
+    unsigned long long tb = 0,
+                       bs = 0;
 
     /* check users or groups (possible filter on specified users) */
     /* build the DB report iterator */

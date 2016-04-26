@@ -384,7 +384,7 @@ static int read_threshold_params(config_item_t config_blk, const char *block_nam
 
     /* count threshold is only support for global FS usage */
     if ((*type == COUNT_THRESHOLD)
-         && (p_trigger->trigger_type != TGT_FS)
+         && (p_trigger->target_type != TGT_FS)
          && (p_trigger->target_type != TGT_USER)
          && (p_trigger->target_type != TGT_GROUP))
     {
