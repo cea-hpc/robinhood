@@ -56,12 +56,12 @@ if [[ $PURPOSE = "LUSTRE_HSM" ]]; then
     # test if lustre2 is mounted
     mount | grep "/mnt/lustre2 "
     if (( $? != 0 )); then
-        mnt_str=$(mount | grep "/mnt/lustre " | awk '{print $1}')
+        mnt_str=$(mount | grep "/mnt/lustre " | awk '{print $1}' | head -n 1)
         if [[ -z "$mnt_str" ]]; then
             echo "/mnt/lustre is not mounted"
             exit 1
         fi
-        mnt_opt=$(mount | grep "/mnt/lustre " | sed -e 's/.*(\([^)]*\))/\1/')
+        mnt_opt=$(mount | grep "/mnt/lustre " | sed -e 's/.*(\([^)]*\))/\1/' | head -n 1 | sed -e "s/rw,//" | sed -e "s/seclabel,//")
         mount -t lustre -o $mnt_opt $mnt_str /mnt/lustre2 || exit 1
     fi
 
