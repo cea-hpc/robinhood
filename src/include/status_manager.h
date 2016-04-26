@@ -229,7 +229,7 @@ extern unsigned int sm_attr_count;
 
 static inline bool is_std_attr(unsigned int index)
 {
-    return (((index & ATTR_INDEX_FLG_MASK) == 0) && index < ATTR_COUNT);
+    return (((index & ATTR_INDEX_FLG_MASK) == 0) && (index < ATTR_COUNT));
 }
 
 static inline bool is_status(unsigned int index)
