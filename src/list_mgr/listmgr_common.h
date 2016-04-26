@@ -590,7 +590,7 @@ static inline const char *field_name(unsigned int index)
 
 static inline db_type_t field_type(unsigned int index)
 {
-    if (is_std_attr(index))
+    if (is_std_attr(index)) /* ensure index < ATTR_COUNT */
         return field_infos[index].db_type;
     else if (is_status(index))
         return DB_TEXT;
