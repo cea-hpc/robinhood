@@ -16,6 +16,24 @@
       "revId": "5439caf0b3c2cca8bdf6e64f8cea9a4ae29b64ef",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_296e7195",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 7
+      },
+      "lineNbr": 412,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2016-04-27T15:23:19Z",
+      "side": 1,
+      "message": "this has been fixed in latest patchset :)",
+      "parentUuid": "baa041b7_a49cf85d",
+      "revId": "5439caf0b3c2cca8bdf6e64f8cea9a4ae29b64ef",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
