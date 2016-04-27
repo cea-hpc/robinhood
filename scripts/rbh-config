@@ -46,25 +46,27 @@ function db_check
     fi
     echo "MySQL version is $version."
 
-    /sbin/service mysqld status | grep running >/dev/null 2>/dev/null
-    if (( $? )); then
-        running=1
-        pgrep mysqld >/dev/null || running=0
-
-        if (( $running == 0 )); then
-            echo "Service 'mysqld' is not running."
-            echo "It must be started to run this script."
-            exit 2
-        else
-            echo "mysqld is running"
-        fi
+    service=mysqld
+    rpm -q mariadb > /dev/null && service=mariadb
+    running=0
+    echo "Checking service $service..."
+    if [ -x /usr/bin/systemctl ]; then
+        /usr/bin/systemctl status $service && running=1
     else
-        echo "mysqld service OK."
+        /sbin/service $service status && running=1
     fi
 
+    if (( $running == 0 )); then
+        echo "Service '$service' is not running."
+        echo "It must be started to run this script."
+        exit 2
+    else
+        echo "$service is running"
+    fi
+    
     if [[ ! -x `which mysql` ]]; then
         echo "Command 'mysql' not found."
-        echo "Install 'mysql' package on your system."
+        echo "Install 'mysql' or 'mariadb' package on your system."
         exit 2
     fi
     echo "mysql command OK."
