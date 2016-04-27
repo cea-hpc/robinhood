@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_487413ce",
+        "filename": "src/robinhood/rbh_find_printf.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 107,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-04-27T07:51:30Z",
+      "side": 1,
+      "message": "All of this (split after dot, smi_by_name, ...) is already implemented by sm_attr_get.\nYou can directly call:\nsm_attr_get(NULL, NULL, name, ...)\n\n....after reading the end of the code:\nOK, understood. You need to keep a reference to \"smi\" in chunk-\u003esmi for a later use.",
+      "revId": "000ff154d94b9a837d7d608a07443e2c89fcaaac",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_c33b649b",
+        "filename": "src/robinhood/rbh_find_printf.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 307,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-04-27T07:51:30Z",
+      "side": 1,
+      "message": "If you want the output to be more human readable, you can use crit_type to determine how to display it. For example, for times, crit_type is PT_DURATION which allows displaying it as hh:mm:ss, whereas db_type is DB_UINT.",
+      "revId": "000ff154d94b9a837d7d608a07443e2c89fcaaac",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
