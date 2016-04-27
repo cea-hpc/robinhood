@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_a49cf85d",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 7
+      },
+      "lineNbr": 412,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-04-27T07:11:50Z",
+      "side": 1,
+      "message": "nope",
+      "revId": "5439caf0b3c2cca8bdf6e64f8cea9a4ae29b64ef",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
