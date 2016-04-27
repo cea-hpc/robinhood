@@ -26,7 +26,21 @@ else
 	COPYTOOL=$lutils_dir/lhsmtool_posix
 fi
 
-service mysqld start
+function start_service {
+if [ -x /usr/bin/systemctl ]; then
+	#RHEL7
+	systemctl start $1
+else
+	#RHEL6 or less
+	service $1 start
+fi
+}
+
+if rpm -q mariadb; then
+	start_service mariadb
+else
+	start_service mysqld
+fi
 
 $CFG_SCRIPT test_db  robinhood_lustre robinhood || $CFG_SCRIPT create_db robinhood_lustre localhost robinhood
 $CFG_SCRIPT empty_db robinhood_lustre
