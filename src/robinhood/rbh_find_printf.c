@@ -132,6 +132,61 @@ err:
     return NULL;
 }
 
+/* Append a time format, for %RA, %RC and %RM. */
+static const char *append_time_format(const char *str, struct fchunk *chunk)
+{
+    str++;
+    if (*str == 0)
+    {
+        DisplayLog(LVL_CRIT, FIND_TAG, "Error: incomplete time format at end of format string");
+        return NULL;
+    }
+
+    /* Make sure it's supported by strftime. Only the directives that
+     * print something are allowed. ie. %, n and t are not
+     * allowed. Support modifiers E and O. */
+    if (*str == 'E')
+    {
+        g_string_append_c(chunk->format, *str);
+        str++;
+        if (*str == 0)
+        {
+            DisplayLog(LVL_CRIT, FIND_TAG, "Error: incomplete time format at end of format string");
+            return NULL;
+        }
+
+        if (strchr("cCxXyY", *str) == NULL)
+        {
+            DisplayLog(LVL_CRIT, FIND_TAG, "Error: invalid time specifier found: %c", *str);
+            return NULL;
+        }
+    }
+    else if (*str == 'O')
+    {
+        g_string_append_c(chunk->format, *str);
+        str++;
+        if (*str == 0)
+        {
+            DisplayLog(LVL_CRIT, FIND_TAG, "Error: incomplete time format at end of format string");
+            return NULL;
+        }
+
+        if (strchr("deHImMSuUVwWy", *str) == NULL)
+        {
+            DisplayLog(LVL_CRIT, FIND_TAG, "Error: invalid time specifier found: %c", *str);
+            return NULL;
+        }
+    }
+    else if (strchr("aAbBcCdDeFGghHIjklmMpPrRsSTuUVwWxXyYzZ", *str) == NULL) {
+        DisplayLog(LVL_CRIT, FIND_TAG, "Error: invalid time specifier found: %c", *str);
+        return NULL;
+    }
+
+    g_string_append_c(chunk->format, *str);
+
+    return str;
+}
+
 /* Analyze a format string, and find the next chunk. Each argument is
  * transformed into its real printf type. For instance "%s" means the
  * size, and is stored as an large integer in the database, needs to
@@ -281,6 +336,27 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
 
             switch (*str)
             {
+            case 'C':
+                disp_mask.std |= ATTR_MASK_creation_time;
+                str = append_time_format(str, chunk);
+                if (str == NULL)
+                    return NULL;
+                break;
+
+            case 'A':
+                disp_mask.std |= ATTR_MASK_last_access;
+                str = append_time_format(str, chunk);
+                if (str == NULL)
+                    return NULL;
+                break;
+
+            case 'M':
+                disp_mask.std |= ATTR_MASK_last_mod;
+                str = append_time_format(str, chunk);
+                if (str == NULL)
+                    return NULL;
+                break;
+
             case 'c':
                 disp_mask.std |= ATTR_MASK_fileclass;
                 g_string_append_c(chunk->format, 's');
@@ -374,6 +450,36 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
 
 
     return str;
+}
+
+static void printf_date(const struct fchunk *chunk, time_t date)
+{
+    char str[1000];
+    struct tm *tmp;
+    size_t sret;
+
+    tmp = localtime(&date);
+    if (tmp == NULL) {
+        printf("(none)");
+        return;
+    }
+
+    sret = strftime(str, sizeof(str), chunk->format->str, tmp);
+    if (sret >= sizeof(str)-1)
+    {
+        /* Overflow. 1000 bytes should be big enough for that to never
+         * happen in any locale. */
+        printf("(date output truncated)");
+    }
+    else if (sret == 0)
+    {
+        /* According to the man page, a return 0 is either an error or
+         * an empty string. In both cases, don't print anything. */
+    }
+    else
+    {
+        printf("%s", str);
+    }
 }
 
 /**
@@ -471,6 +577,18 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
             /* Robinhood specifiers */
             switch (chunk->sub_directive)
             {
+            case 'C':
+                printf_date(chunk, ATTR(attrs, creation_time));
+                break;
+
+            case 'A':
+                printf_date(chunk, ATTR(attrs, last_access));
+                break;
+
+            case 'M':
+                printf_date(chunk, ATTR(attrs, last_mod));
+                break;
+
             case 'c':
                 printf(format,
                        class_format(ATTR_MASK_TEST(attrs, fileclass)?
