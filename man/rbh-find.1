@@ -119,6 +119,15 @@ File owner
 Full file type (file, dir, fifo, ...)
 .IP %y
 File type as one letter (f, d, p, ...)
+.IP %RA
+.IP %RC
+.IP %RM
+Print Robinhood's "last access time", "creation time" and
+"modification time". These are not always the same as the file's
+atime/ctime/mtime attributes. An \fBstrftime\fP(1) directive must be
+added. For example: \fB%RCc %RMA %RAp %RAT\fP.
+This option can also take an strftime format option between
+brackets. For instance: \fB%RC{%A, %B %dth, %Y %F}\fP.
 .IP %Rc
 File class
 .IP %Rf
