@@ -7228,6 +7228,33 @@ function test_rbh_find_printf
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "parent fid=%Rp\n")
     #[[ $STR == "parent fid=0x200000007:0x1:0x0" ]] || error "unexpected rbh-find result (203): $STR"
 
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%RCF")
+    [[ $STR == "$(date +%F)" ]] || error "unexpected rbh-find result (204): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%RAF")
+    [[ $STR == "$(date +%F)" ]] || error "unexpected rbh-find result (205): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%RMF")
+    [[ $STR == "$(date +%F)" ]] || error "unexpected rbh-find result (206): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%RA-" 2>&1)
+    [[ $STR == *"Error: invalid time specifier found: -"* ]] || error "unexpected rbh-find result (207): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%RMG")
+    [[ $STR == "$(date +%G)" ]] || error "unexpected rbh-find result (208): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RCc %RMA %RAp %RAT" 2>&1)
+    [[ $STR == *"QWERTY"* ]] || error "unexpected rbh-find result (209): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RCOe %RMOS %RAEx %RAEY" 2>&1)
+    [[ $STR == *"QWERTY"* ]] || error "unexpected rbh-find result (211): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RCOA" 2>&1)
+    [[ $STR == *"Error: invalid time specifier found: A"* ]] || error "unexpected rbh-find result (212): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RCEB" 2>&1)
+    [[ $STR == *"Error: invalid time specifier found: B"* ]] || error "unexpected rbh-find result (213): $STR"
+
     # Test various combinations
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "FILE %p %s %Y %y %Rc %u %n and stop\n")
     [[ $STR == "FILE $RH_ROOT/testf 1024 file f [n/a] root 1 and stop" ]] || error "unexpected rbh-find result (300): $STR"
