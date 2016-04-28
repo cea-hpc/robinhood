@@ -36,6 +36,23 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_515cb7ec",
+        "filename": "src/fs_scan/fs_scan_main.c",
+        "patchSetId": 6
+      },
+      "lineNbr": 523,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-04-28T08:35:21Z",
+      "side": 1,
+      "message": "(defect) using %s to display char**",
+      "revId": "57ddb7f974291e1a75cea2dc3b2346e92efa7e1f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_a9917a9b",
         "filename": "src/fs_scan/fs_scan_main.c",
         "patchSetId": 6
