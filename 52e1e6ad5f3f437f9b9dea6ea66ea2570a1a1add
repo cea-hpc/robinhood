@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_b1a2e3ac",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 4
+      },
+      "lineNbr": 289,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-04-28T09:05:06Z",
+      "side": 1,
+      "message": "this should be moved to previous patch",
+      "revId": "52e1e6ad5f3f437f9b9dea6ea66ea2570a1a1add",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
