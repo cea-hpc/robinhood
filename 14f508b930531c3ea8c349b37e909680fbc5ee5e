@@ -90,6 +90,23 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_f1bf4bf9",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 253,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-04-28T08:24:42Z",
+      "side": 1,
+      "message": "On Centos66, glib2-2.28.8:\nrbh_cmd.c:245: error: \u0027G_CONVERT_ERROR_NO_MEMORY\u0027 undeclared (first use in this function)\nrbh_cmd.c:245: error: (Each undeclared identifier is reported only once\nrbh_cmd.c:245: error: for each function it appears in.)",
+      "revId": "14f508b930531c3ea8c349b37e909680fbc5ee5e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_0e9d0c59",
         "filename": "src/common/rbh_cmd.c",
         "patchSetId": 1
