@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_09516362",
+        "filename": "src/robinhood/rbh_find_printf.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 147,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-04-29T19:07:30Z",
+      "side": 1,
+      "message": "Can\u0027t you check the format string is supported by testing strftime it on a dummy date? (instead of hardcoding strftime format letters here)",
+      "revId": "bfb696f9785c25c17f39d4a360d045813c83cf9f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
