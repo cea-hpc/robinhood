@@ -1,4 +1,5 @@
-# UUID               	Group Name
+# UUID                	Group Name
 #
-user:ganesha-triggers	user/ganesha-triggers
-user:tl-cea          	user/Thomas Leibovici (tl-cea)
+user:cea-gerrithub-hpc	user/CEA-HPC (cea-gerrithub-hpc)
+user:ganesha-triggers 	user/ganesha-triggers
+user:tl-cea           	user/Thomas Leibovici (tl-cea)
