@@ -16,6 +16,24 @@
       "revId": "8078d53d930b0cb0be8b121044c52097feb4634c",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_2679f4c8",
+        "filename": "src/robinhood/rbh_find_printf.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 483,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-04-29T16:53:43Z",
+      "side": 1,
+      "message": "I saw it but its definition looked a bit strange.\n\n#define RBH_FID_LEN (2*FID_LEN)",
+      "parentUuid": "baa041b7_66b7fc86",
+      "revId": "8078d53d930b0cb0be8b121044c52097feb4634c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
