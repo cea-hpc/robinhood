@@ -16,6 +16,24 @@
       "revId": "bfb696f9785c25c17f39d4a360d045813c83cf9f",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_40f738f5",
+        "filename": "src/robinhood/rbh_find_printf.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 147,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-05-02T17:04:45Z",
+      "side": 1,
+      "message": "I removed that since we can\u0027t rely on strftime to return an error.",
+      "parentUuid": "baa041b7_09516362",
+      "revId": "bfb696f9785c25c17f39d4a360d045813c83cf9f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
