@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_e1476b1b",
+        "filename": "scripts/rbh-config",
+        "patchSetId": 2
+      },
+      "lineNbr": 66,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-05-04T07:41:07Z",
+      "side": 1,
+      "message": "(nitpick) tab",
+      "revId": "b1cbc5fb3f3466a185a46fb0a93dc67540823269",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_014daf3d",
+        "filename": "tests/test_suite/1-test_setup_lustre.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 39,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-05-04T07:41:07Z",
+      "side": 1,
+      "message": "kill rpm command output? (will otherwise display \u0027package mariadb is not installed\u0027 or \u0027mariadb-\u003cversion\u003e\u0027 without any context)",
+      "revId": "b1cbc5fb3f3466a185a46fb0a93dc67540823269",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
