@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_f00ba528",
+        "filename": ".gitignore",
+        "patchSetId": 2
+      },
+      "lineNbr": 96,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-05-09T12:31:31Z",
+      "side": 1,
+      "message": "Some files in \"autotools/m4/\" are actually implemented by the project and managed by git.",
+      "revId": "ebff3b41aea540c208fc29c29cc506e9ec51e56a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
