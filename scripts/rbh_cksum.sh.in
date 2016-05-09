@@ -5,7 +5,7 @@
 
 # "defaults" section
 RBH_CKSUM_CMD=${RBH_CKSUM_CMD:-sha1sum}
-RBH_CKSUM_DV_CMD=${RBH_CKSUM_DV_CMD:-stat -c %Y-%s}
+RBH_CKSUM_DV_CMD=${RBH_CKSUM_DV_CMD:-@DV_CMD@}
 # xattr not set if variable set empty, so allow empty value
 RBH_CKSUM_XATTR=${RBH_CKSUM_XATTR-user.sha1sum}
 
