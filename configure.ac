@@ -79,6 +79,11 @@ AX_DISABLE_FLAG([atfunc], [Don't use 'at' functions for scanning], [-D_NO_AT_FUN
 
 AX_ENABLE_FLAG( [fid2path-leading-slash], [must be enabled if fid2path() returns a leading slash], [-D_FID2PATH_LEADING_SLASH] )
 
+AC_ARG_ENABLE( [data-version], AS_HELP_STRING([--disable-data-version],
+               [Disable the use of llapi_get_data_version()]),
+               [support_dv="$enableval"],[support_dv="yes"] )
+DV_CMD="stat -c %Y-%s"
+
 # program to be used for mailing
 AX_PROG_MAIL
 
@@ -243,6 +248,10 @@ if test "x$support_lustre" = "xyes" ; then
                 AC_MSG_ERROR([Conflicting options: fid must be enabled for enabling MDT changelogs management])
             fi
     	fi
+        if test "x$support_dv" = "xyes" ; then
+            AC_CHECK_LIB([lustreapi], [llapi_get_data_version], [have_data_version="yes"])
+        fi
+        test "x$have_data_version" = "xyes" && DV_CMD="lfs data_version"
 
         # llapi_swap_layouts exists since Lustre2.4 release
         # since then, entry striping can change so scanning must update file stripe information
@@ -306,8 +315,9 @@ else
     AM_CONDITIONAL(LUSTRE_HSM,     test 0 = 1)
     AM_CONDITIONAL(SHOOK,       test  0 = 1)
     AM_CONDITIONAL(HSM_LITE,    test 0 = 1)
-
 fi # end of Lustre support
+
+AC_SUBST(DV_CMD)
 
 AC_CHECK_HEADERS([attr/xattr.h],[],[AC_MSG_ERROR([libattr-devel is not installed.])])
 
@@ -423,6 +433,7 @@ AC_CONFIG_FILES([Makefile
          scripts/robinhood.init.sles
          scripts/sysconfig_robinhood
          scripts/ld.so.robinhood.conf
+         scripts/rbh_cksum.sh
          tests/Makefile
          web_gui/Makefile
          man/Makefile
