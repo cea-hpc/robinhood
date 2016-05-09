@@ -16,6 +16,23 @@
       "revId": "5185c30e5c8313b3505d1e31ee2ef1614e80e478",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_2bb2c24c",
+        "filename": "scripts/rbh_cksum.sh",
+        "patchSetId": 3
+      },
+      "lineNbr": 89,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-05-09T13:03:00Z",
+      "side": 1,
+      "message": "$RBH_CKSUM_XATTR ?",
+      "revId": "5185c30e5c8313b3505d1e31ee2ef1614e80e478",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
