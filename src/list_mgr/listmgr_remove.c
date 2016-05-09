@@ -132,7 +132,8 @@ int listmgr_remove_no_tx(lmgr_t *p_mgr, const entry_id_t *p_id,
         /* XXX else update attributes according to attributes contents? */
 
         /* Since we're removing one entry but not the file, decrement nlink. */
-        g_string_printf(req, "UPDATE "MAIN_TABLE" SET nlink=nlink-1 WHERE id="DPK, pk);
+        g_string_printf(req, "UPDATE "MAIN_TABLE" SET nlink=nlink-1 WHERE "
+                        "id="DPK" AND nlink>0", pk);
         rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
         if (rc)
             goto out;
