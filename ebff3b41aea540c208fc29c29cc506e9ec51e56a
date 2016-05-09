@@ -16,6 +16,24 @@
       "revId": "ebff3b41aea540c208fc29c29cc506e9ec51e56a",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_0b413e38",
+        "filename": ".gitignore",
+        "patchSetId": 2
+      },
+      "lineNbr": 96,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-05-09T12:52:50Z",
+      "side": 1,
+      "message": "If the file is already tracked it will be shown as changed in git even if ignored, so I think it actually works out OK in practice (only need to pay attention when manually adding files there, which should be rare enough)\n\nOtherwise I was about to say we could unignore a subdir of /autotools but that doesn\u0027t seem to work.. I guess moving AC_CONFIG_MACRO_DIR is a bit overkill for that so I\u0027ll resign myself to just adding /autotools/test-driver whatever that is :)",
+      "parentUuid": "baa041b7_f00ba528",
+      "revId": "ebff3b41aea540c208fc29c29cc506e9ec51e56a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
