@@ -12,7 +12,7 @@ EXTRA_DIST= robinhood.init			\
 	demo/rh.migr_purge.conf			\
 	demo/write_data.sh  \
     cmd2man.sh make_mans.sh fix_man_options.sh \
-    ld.so.robinhood.conf.in
+    ld.so.robinhood.conf.in rbh_cksum.sh.in
 
 dist_sbin_SCRIPTS=rbh_cksum.sh
 
