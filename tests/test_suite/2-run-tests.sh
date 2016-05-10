@@ -1706,13 +1706,14 @@ function test_custom_purge
 
 	# checking that the custom command was called for each file
 	for  i in `seq 1 10`; do
-		line=$(grep "Executing " rh_purge.log | grep 'rm_script' | grep $RH_ROOT/file.$i)
+		line=$(grep "action: cmd" rh_purge.log | grep 'rm_script' | grep $RH_ROOT/file.$i)
         if [ -z "$line" ]; then
             error "No action found on $RH_ROOT/file.$i"
             continue
         fi
         # split args
-        args=($(echo "$line" | sed -e "s/.*rm_script//" | tr -d "'"))
+	#2016/05/10 10:17:08 [5529/4] purge | [0x200000400:0x133ac:0x0]: action: cmd(./rm_script lustre 0x200000400:0x133ac:0x0 /mnt/lustre/file.1)
+        args=($(echo "$line" | sed -e "s/.*rm_script//" -e "s/)$//"))
         fn=${args[0]}
         id=${args[1]}
         p=${args[2]}
@@ -1732,13 +1733,13 @@ function test_custom_purge
     i=11
     for f in  "$RH_ROOT/foo1 \`pkill -9 $CMD\`" "$RH_ROOT/foo2 ; exit 1" "$RH_ROOT/foo3' ';' 'exit' '1'" ; do
         f0=$(echo "$f" | awk '{print $1}')
-		line=$(grep "Executing " rh_purge.log | grep 'rm_script' | grep "$f0")
+		line=$(grep "action: cmd" rh_purge.log | grep 'rm_script' | grep "$f0")
         if [ -z "$line" ]; then
             error "No action found on $f"
             continue
         fi
         # split args
-        args=($(echo "$line" | sed -e "s/.*rm_script//" | tr -d "'" | tr -d '\\' | cut -d '>' -f 1))
+        args=($(echo "$line" | sed -e "s/.*rm_script//" -e "s/)$//"))
         fn=${args[0]}
         id=${args[1]}
         unset args[0]
@@ -1751,8 +1752,7 @@ function test_custom_purge
         if (( $no_log == 0 )); then
             [ $id = ${fids[$i]} ] || error "invalid fid $id != ${fids[$i]}"
         fi
-        f2=$(echo $f | tr -d "'")
-        [ "$p" = "$f2" ] || error "invalid path $p != $f2"
+        [ "$p" = "$f" ] || error "invalid path $p != $f"
 
         [ -f "$f" ] && error "$f still exists after purge command"
         ((i=$i+1))
