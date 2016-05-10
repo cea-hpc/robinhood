@@ -3701,35 +3701,35 @@ function test_checker
 
     # run before 5s (no checksumming: last_mod < 5)
     echo "No sum (last_mod criteria for new entries)"
-    $RH -f $RBH_CFG_DIR/$config_file --run=md5_check --target=all -l DEBUG -L rh_migr.log ||
-        error "running md5_check"
-    init=$(grep_matched_rule rh_migr.log md5_check initial_check | wc -l)
-    rematch=$(grep_matched_rule rh_migr.log md5_check default | wc -l)
+    $RH -f $RBH_CFG_DIR/$config_file --run=checksum --target=all -l DEBUG -L rh_migr.log ||
+        error "running checksum"
+    init=$(grep_matched_rule rh_migr.log checksum initial_check | wc -l)
+    rematch=$(grep_matched_rule rh_migr.log checksum default | wc -l)
     [[ $init == 0 && $rematch == 0 ]] || error "No matching rule expected ($init, $rematch)"
 
     :> rh_migr.log
     # initial checksum after 5s
     sleep 5
     echo "Initial sum"
-    $RH -f $RBH_CFG_DIR/$config_file --run=md5_check --target=all -l DEBUG -L rh_migr.log ||
-        error "running md5_check"
-    init=$(grep_matched_rule rh_migr.log md5_check initial_check | wc -l)
-    rematch=$(grep_matched_rule rh_migr.log md5_check default | wc -l)
+    $RH -f $RBH_CFG_DIR/$config_file --run=checksum --target=all -l DEBUG -L rh_migr.log ||
+        error "running checksum"
+    init=$(grep_matched_rule rh_migr.log checksum initial_check | wc -l)
+    rematch=$(grep_matched_rule rh_migr.log checksum default | wc -l)
     [[ $init == 4 && $rematch == 0 ]] || error "4 initial_check rule expected ($init, $rematch)"
 
     for i in `seq 1 $nb_files`; do
 	[ "$DEBUG" = "1" ] && $REPORT  -f $RBH_CFG_DIR/$config_file -e $RH_ROOT/file.$i | grep check
-	status=$($REPORT  -f $RBH_CFG_DIR/$config_file -e $RH_ROOT/file.$i | grep check\.status | awk '{print $(NF)}')
+	status=$($REPORT  -f $RBH_CFG_DIR/$config_file -e $RH_ROOT/file.$i | grep checksum\.status | awk '{print $(NF)}')
 	[ "$status" = "ok" ] || error "Unexpected status '$status' for $RH_ROOT/file.$i (ok expected)"
     done
 
     :> rh_migr.log
     # re-run (no checksumming: last_check < 5)
     echo "No sum (last_check criteria)"
-    $RH -f $RBH_CFG_DIR/$config_file --run=md5_check --target=all -l DEBUG -L rh_migr.log ||
-        error "running md5_check"
-    init=$(grep_matched_rule rh_migr.log md5_check initial_check | wc -l)
-    rematch=$(grep_matched_rule rh_migr.log md5_check default | wc -l)
+    $RH -f $RBH_CFG_DIR/$config_file --run=checksum --target=all -l DEBUG -L rh_migr.log ||
+        error "running checksum"
+    init=$(grep_matched_rule rh_migr.log checksum initial_check | wc -l)
+    rematch=$(grep_matched_rule rh_migr.log checksum default | wc -l)
     [[ $init == 0 && $rematch == 0 ]] || error "No matching rule expected ($init, $rematch)"
 
     rm -f $RH_ROOT/file.1
@@ -3740,15 +3740,15 @@ function test_checker
     # rerun (changes occured!)
     sleep 5
     echo "New sum (last_check OK)"
-    $RH -f $RBH_CFG_DIR/$config_file --run=md5_check --target=all -l DEBUG -L rh_migr.log ||
-        error "running md5_check"
-    init=$(grep_matched_rule rh_migr.log md5_check initial_check | wc -l)
-    rematch=$(grep_matched_rule rh_migr.log md5_check default | wc -l)
+    $RH -f $RBH_CFG_DIR/$config_file --run=checksum --target=all -l DEBUG -L rh_migr.log ||
+        error "running checksum"
+    init=$(grep_matched_rule rh_migr.log checksum initial_check | wc -l)
+    rematch=$(grep_matched_rule rh_migr.log checksum default | wc -l)
     [[ $init == 0 && $rematch == 3 ]] || error "3 default rule expected ($init, $rematch)"
 
     for i in `seq 2 $nb_files`; do # was removed
 	[ "$DEBUG" = "1" ] && $REPORT  -f $RBH_CFG_DIR/$config_file -e $RH_ROOT/file.$i | grep check
-	status=$($REPORT  -f $RBH_CFG_DIR/$config_file -e $RH_ROOT/file.$i | grep check\.status | awk '{print $(NF)}')
+	status=$($REPORT  -f $RBH_CFG_DIR/$config_file -e $RH_ROOT/file.$i | grep checksum\.status | awk '{print $(NF)}')
 	[ "$status" = "ok" ] || error "Unexpected status '$status' for $RH_ROOT/file.$i (ok expected)"
     done
 }
