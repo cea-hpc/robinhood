@@ -934,7 +934,9 @@ static int trig_target_next(target_iterator_t *it, target_u *tgt,
 {
     struct statfs stfs;
     int rc;
+#ifdef _LUSTRE
     char tgtname[128];
+#endif
 
     memset(limit, 0, sizeof(*limit));
 
