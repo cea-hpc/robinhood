@@ -15,6 +15,8 @@ else
     export FS_TYPE=ext3
     export RH_DB=robinhood_test
     echo "POSIX test mode"
+    # force no log
+    NOLOG=1
 fi
 
 BKROOT="/tmp/backend"
