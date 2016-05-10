@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_7c1f6e6c",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 169,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-05-10T10:46:14Z",
+      "side": 1,
+      "message": "(style) opening bracket on its own line for functions",
+      "revId": "e88fc94e9bfb6b5ed2910f12b5322063546b4f74",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
