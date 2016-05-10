@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_7ca2cefe",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 7
+      },
+      "lineNbr": 44,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-05-10T06:59:10Z",
+      "side": 1,
+      "message": "what is \"tascon\"?",
+      "revId": "57d9f948c4084eca8e09d37881f06f956ce37477",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
