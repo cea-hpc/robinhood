@@ -1,4 +1,4 @@
-define_policy md5_check {
+define_policy checksum {
     status_manager = checker;
     scope { type == file }
     default_lru_sort_attr = last_check; # oldest check first, 0==unchecked
