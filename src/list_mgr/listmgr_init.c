@@ -160,7 +160,8 @@ static void append_field_def(int i, GString *str, bool is_first, db_type_u *defa
                  default_value);
 }
 
-#define DROP_MESSAGE "\nYou should:\n\t1) backup current DB contents using 'rbh-config backup_db'\n\t2) empty the DB using 'rbh-config empty_db'\n\t3) start a new FS scan."
+//#define DROP_MESSAGE "\nYou should:\n\t1) backup current DB contents using 'rbh-config backup_db'\n\t2) empty the DB using 'rbh-config empty_db'\n\t3) start a new FS scan."
+#define DROP_MESSAGE "\nYou may have moved or removed a policy definition. Database needs to be altered accordingly."
 #define DROP_ACCT_MSG "\nYou should:\n\t1) stop robinhood commands\n\t2) clear accounting info using 'rbh-config reset_acct'\n\t3) restart robinhood."
 
 /**
@@ -192,10 +193,11 @@ static int _check_field_name(const char *name, int *curr_field_index,
         DisplayLog(LVL_FULL, LISTMGR_TAG, "%s.%s OK", table, name);
         return 0;
     }
-    else
+
+    DisplayLog(LVL_DEBUG, LISTMGR_TAG, "%s: %s expected, %s found", table,
+               name, fieldtab[*curr_field_index]);
+    if (!report_only)
     {
-        DisplayLog(LVL_DEBUG, LISTMGR_TAG, "%s: %s expected, %s found", table,
-                   name, fieldtab[*curr_field_index]);
         if (!strcmp(table, ACCT_TABLE))
             DisplayLog(LVL_CRIT, LISTMGR_TAG,
                        "Incompatible database schema (unexpected field '%s' in table %s: '%s' expected): "DROP_ACCT_MSG,
@@ -206,6 +208,12 @@ static int _check_field_name(const char *name, int *curr_field_index,
                        fieldtab[*curr_field_index], table, name);
         return -1;
     }
+    /* report only: warn & skip this field */
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Warning: unexpected field '%s' in table %s: '%s' expected",
+               fieldtab[*curr_field_index], table, name);
+    /* skip & check next field instead */
+    (*curr_field_index) ++;
+    return _check_field_name(name, curr_field_index, table, fieldtab);
 }
 
 static int check_field_name(const char *name, int *curr_field_index,
@@ -328,18 +336,21 @@ static inline int check_field(int i, int * curr_field_index, char *table, char *
     return check_field_name(field_name(i), curr_field_index, table, fieldtab);
 }
 
-/* Return 0 if there is no extra field else return 1 */
-static inline int has_extra_field( int curr_field_index, char *table, char **fieldtab )
+/* Return false if there is no extra field, else return true */
+static inline int has_extra_field(int curr_field_index, const char *table,
+                                  char **fieldtab, bool warn)
 {
-        if ( ( curr_field_index < MAX_DB_FIELDS ) && ( fieldtab[curr_field_index] != NULL ) )
+        if ((curr_field_index < MAX_DB_FIELDS)
+            && (fieldtab[curr_field_index] != NULL))
         {
-            DisplayLog( LVL_CRIT, LISTMGR_TAG,
-                        "Incompatible database schema (unexpected field '%s' in table %s): " DROP_MESSAGE,
-                        fieldtab[curr_field_index], table );
-            return 1;
+            if (warn)
+                DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                           "Incompatible database schema (unexpected field '%s'"
+                           " in table %s): " DROP_MESSAGE,
+                           fieldtab[curr_field_index], table);
+            return true;
         }
-        else
-            return 0;
+        return false;
 }
 
 /**
@@ -458,7 +469,7 @@ static int check_table_vars(db_conn_t *pconn)
         if (check_field_name("value", &curr_index, VAR_TABLE, fieldtab))
             return DB_BAD_SCHEMA;
 
-        if (has_extra_field(curr_index, VAR_TABLE, fieldtab))
+        if (has_extra_field(curr_index, VAR_TABLE, fieldtab, true))
             return DB_BAD_SCHEMA;
     }
     else if (rc != DB_NOT_EXISTS)
@@ -560,8 +571,18 @@ static int check_table_main(db_conn_t *pconn)
         }
 
         /* is there any extra field ? */
-        if (has_extra_field(curr_field_index, MAIN_TABLE, fieldtab))
+        if (has_extra_field(curr_field_index, MAIN_TABLE, fieldtab, !report_only))
+        {
+            /* This is allowed, in particular for read-only case, if the report
+             * command don't have all policies defined in its configuration file. */
+            if (report_only)
+            {
+                DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Warning: extra fields found in "
+                           MAIN_TABLE" table: '%s'", fieldtab[curr_field_index]);
+                return 0;
+            }
             return DB_BAD_SCHEMA;
+        }
     }
     else if (rc != DB_NOT_EXISTS)
     {
@@ -656,7 +677,7 @@ static int check_table_dnames(db_conn_t *pconn)
             }
         }
         /* is there any extra field ? */
-        if (has_extra_field(curr_field_index, DNAMES_TABLE, fieldtab))
+        if (has_extra_field(curr_field_index, DNAMES_TABLE, fieldtab, true))
             return DB_BAD_SCHEMA;
     }
     else if (rc != DB_NOT_EXISTS)
@@ -741,7 +762,7 @@ static int check_table_annex(db_conn_t *pconn)
         }
 
         /* is there any extra field ? */
-        if ( has_extra_field(curr_field_index, ANNEX_TABLE, fieldtab))
+        if (has_extra_field(curr_field_index, ANNEX_TABLE, fieldtab, true))
             return DB_BAD_SCHEMA;
     }
     else if (rc != DB_NOT_EXISTS)
@@ -836,7 +857,7 @@ static int check_table_stripe_info(db_conn_t *pconn)
         if (check_field_name("pool_name", &curr_field_index, STRIPE_INFO_TABLE, fieldtab))
             return DB_BAD_SCHEMA;
         /* is there any extra field ? */
-        if (has_extra_field(curr_field_index, STRIPE_INFO_TABLE, fieldtab))
+        if (has_extra_field(curr_field_index, STRIPE_INFO_TABLE, fieldtab, true))
             return DB_BAD_SCHEMA;
     }
     else if (rc != DB_NOT_EXISTS)
@@ -890,7 +911,7 @@ static int check_table_stripe_items(db_conn_t *pconn)
             return DB_BAD_SCHEMA;
 
         /* is there any extra field ? */
-        if (has_extra_field(curr_field_index, STRIPE_ITEMS_TABLE, fieldtab))
+        if (has_extra_field(curr_field_index, STRIPE_ITEMS_TABLE, fieldtab, true))
             return DB_BAD_SCHEMA;
     }
     else if (rc != DB_NOT_EXISTS)
@@ -999,8 +1020,19 @@ static int check_table_acct(db_conn_t *pconn)
                 return DB_BAD_SCHEMA;
         }
 
-        if (has_extra_field(curr_field_index, ACCT_TABLE, fieldtab))
+        if (has_extra_field(curr_field_index, ACCT_TABLE, fieldtab, !report_only))
+        {
+            /* This is allowed, in particular for read-only case, if the report
+             * command don't have all policies defined in its configuration file. */
+            if (report_only)
+            {
+                DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Warning: extra fields found in "
+                           ACCT_TABLE" table: '%s'", fieldtab[curr_field_index]);
+                return 0;
+            }
+
             return DB_BAD_SCHEMA;
+        }
     }
     else if ( rc == DB_NOT_EXISTS )
     {
@@ -1171,8 +1203,16 @@ static int check_table_softrm(db_conn_t *pconn)
             }
         }
         /* is there any extra field ? */
-        if (has_extra_field(curr_index, SOFT_RM_TABLE, fieldtab))
+        if (has_extra_field(curr_index, SOFT_RM_TABLE, fieldtab, !report_only))
+        {
+            if (report_only) {
+                /* This may happen if not all policies are defined in a report command. */
+                DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Warning: extra fields found in "
+                           SOFT_RM_TABLE" table: '%s'", fieldtab[curr_index]);
+                return 0;
+            }
             return DB_BAD_SCHEMA;
+        }
     }
     else if (rc != DB_NOT_EXISTS)
     {
