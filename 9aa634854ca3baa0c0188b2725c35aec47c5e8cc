@@ -1,0 +1,89 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_3c9c465c",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 7
+      },
+      "lineNbr": 3684,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-05-10T08:57:07Z",
+      "side": 1,
+      "message": "(nitpick) mixed indent (all around)",
+      "revId": "9aa634854ca3baa0c0188b2725c35aec47c5e8cc",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_dcab1a74",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 7
+      },
+      "lineNbr": 3694,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-05-10T08:57:07Z",
+      "side": 1,
+      "message": "using dd status\u003dnone instead of redirecting stdout/stderr will leave empty output but show errors properly and help debug tests",
+      "revId": "9aa634854ca3baa0c0188b2725c35aec47c5e8cc",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_bca85678",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 7
+      },
+      "lineNbr": 3702,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-05-10T08:57:07Z",
+      "side": 1,
+      "message": "still called md5_check? I thought I renamed these to cksum to keep something generic now the script is..\n\nanswering myself, new conf file for this so OK. Still might want to rename eventually but doesn\u0027t really matter",
+      "revId": "9aa634854ca3baa0c0188b2725c35aec47c5e8cc",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_3cb326eb",
+        "filename": "tests/test_suite/cfg/test_checker.conf",
+        "patchSetId": 7
+      },
+      "lineNbr": 7,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-05-10T08:57:07Z",
+      "side": 1,
+      "message": "(unrelated) This is still a bit odd between NONE/0/\"\", might want to take a look at what we really need there at some point.",
+      "revId": "9aa634854ca3baa0c0188b2725c35aec47c5e8cc",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_1ccd0266",
+        "filename": "tests/test_suite/cfg/test_checker.conf",
+        "patchSetId": 7
+      },
+      "lineNbr": 16,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-05-10T08:57:07Z",
+      "side": 1,
+      "message": "default unit is second?",
+      "revId": "9aa634854ca3baa0c0188b2725c35aec47c5e8cc",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
