@@ -734,7 +734,8 @@ void check_stripe_info(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
                     /* check it exists in DB */
                     if (ListMgr_CheckStripe(lmgr, &p_op->entry_id, VALID_EXISTS) != DB_SUCCESS)
                     {
-                        DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "Stripe information is missing/invalid in DB");
+                        DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, DFID": stripe information is missing/invalid in DB",
+                                   PFID(&p_op->entry_id));
 
                         /* don't need to get stripe if we already have fresh stripe info from FS */
                         if (!(ATTR_MASK_TEST(&p_op->fs_attrs, stripe_info)
@@ -757,7 +758,8 @@ void check_stripe_info(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
                     clear_stripe_info(&p_op->fs_attrs);
                 }
                 else /* keep stripe info in fs_attrs, as it must be updated */
-                    DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "Stripe information has changed");
+                    DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, DFID": stripe information has changed",
+                               PFID(&p_op->entry_id));
 #endif
 }
 #endif
