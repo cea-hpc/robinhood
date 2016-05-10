@@ -850,8 +850,22 @@ static recov_status_t lhsm_undelete(struct sm_instance *smi,
 static void lhsm_cfg_set_default(void *module_config)
 {
     lhsm_config_t *conf = (lhsm_config_t *) module_config;
+    GError        *err_desc;
+    int            ac;
 
-    conf->rebind_cmd = NULL;
+    if (!g_shell_parse_argv(DEFAULT_REBIND_CMD, &ac, &conf->rebind_cmd, &err_desc))
+    {
+        DisplayLog(LVL_CRIT, __func__, "Failed to parse default rebind_cmd '%s': %s",
+                   DEFAULT_REBIND_CMD, err_desc->message);
+        g_error_free(err_desc);
+        conf->rebind_cmd = NULL;
+        abort();
+    }
+    if (ac == 0)
+    {
+        g_strfreev(conf->rebind_cmd);
+        conf->rebind_cmd = NULL;
+    }
 }
 
 static void lhsm_cfg_write_default(FILE *output)

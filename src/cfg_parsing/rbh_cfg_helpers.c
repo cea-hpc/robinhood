@@ -182,7 +182,6 @@ int GetCommandParam(config_item_t block, const char *block_name,
     if (rc)
         return rc;
 
-
     /* Early check */
     if ((flags & PFLG_NO_WILDCARDS) && WILDCARDS_IN(value))
     {
@@ -191,12 +190,15 @@ int GetCommandParam(config_item_t block, const char *block_name,
         return EINVAL;
     }
 
-    /* Split argv */
-    if (value[0] == '\0')
+    /* free previous array */
+    if (*target != NULL)
     {
+        g_strfreev(*target);
         *target = NULL;
     }
-    else
+
+    /* Split argv */
+    if (value[0] != '\0')
     {
         rc = g_shell_parse_argv(value, &ac, target, &err_desc);
         if (!rc)
