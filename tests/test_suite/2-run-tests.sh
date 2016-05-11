@@ -12,7 +12,7 @@ if [ -z "$POSIX_MODE" ]; then
     echo "Lustre test mode"
 else
     export RH_ROOT="/tmp/mnt.rbh"
-    export FS_TYPE=ext3
+    export FS_TYPE=ext4
     export RH_DB=robinhood_test
     echo "POSIX test mode"
     # force no log
@@ -350,12 +350,12 @@ function ensure_init_backend()
 {
 	mnted=`mount | grep $BKROOT | grep loop | wc -l`
     if (( $mnted == 0 )); then
-        LOOP_FILE=/tmp/rbh.loop.cont
+        LOOP_FILE=/tmp/rbh_backend.loop.cont
         if [[ ! -s $LOOP_FILE ]]; then
             echo "creating file container $LOOP_FILE..."
             dd if=/dev/zero of=$LOOP_FILE bs=1M count=400 || return 1
-            echo "formatting as ext3..."
-            mkfs.ext3 -q -F $LOOP_FILE || return 1
+            echo "formatting as ext4..."
+            mkfs.ext4 -q -F $LOOP_FILE || return 1
         fi
 
         echo "Mounting $LOOP_FILE as $BKROOT"
@@ -7836,7 +7836,7 @@ function test_du
     size=$($DU -f $cfg -t f -b $RH_ROOT/dir.1 | awk '{print $1}')
     [ $size = "12288" ] || error "bad returned size $size: 12288 expected"
 
-    # block count is hard to predict (due to ext3 prealloc)
+    # block count is hard to predict (due to ext4 prealloc)
     # only test 1st digit
     kb=$($DU -f $cfg -t f -k $RH_ROOT | awk '{print $1}')
     [[ $kb = 2??? ]] || error "nb 1K block should be about 2k+smthg (got $kb)"
