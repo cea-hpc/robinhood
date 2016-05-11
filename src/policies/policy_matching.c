@@ -263,9 +263,6 @@ static int compare_generic(const sm_info_def_t *def,
 {
     int rc;
 
-    if (val == NULL)
-        return POLICY_MISSING_ATTR;
-
     switch (def->db_type)
     {
         case DB_TEXT:
@@ -276,8 +273,13 @@ static int compare_generic(const sm_info_def_t *def,
                 return POLICY_ERR;
             }
             assert(p_triplet->val.str != NULL);
-            /* compare crit_value->str and (char *)val */
-            rc = TestRegexp(p_triplet->val.str, (char *)val);
+
+            /* NULL value only matches empty string */
+            if (val == NULL)
+                rc = EMPTY_STRING(p_triplet->val.str);
+            else
+                /* compare crit_value->str and (char *)val */
+                rc = TestRegexp(p_triplet->val.str, (char *)val);
 
             if (p_triplet->op == COMP_EQUAL || p_triplet->op == COMP_LIKE)
                 return BOOL2POLICY(rc);
@@ -290,14 +292,28 @@ static int compare_generic(const sm_info_def_t *def,
             {
                 /* XXX "dur_attr == 0" has a special meaning:
                    it matches if time has not been set */
-                if (*((int *)val) == 0)
+                if (val == NULL || *((int *)val) == 0)
                 {
                     if ((p_triplet->op == COMP_EQUAL)
                         && (p_triplet->val.duration == 0))
                         return POLICY_MATCH;
-                    else /* last_archive > X do not match */
+                    else /* dur_attr > X do not match */
                         return POLICY_NO_MATCH;
+
                 }
+                /* at this point val is set and != 0 */
+                if ((p_triplet->val.duration == 0)
+                    && (p_triplet->op == COMP_EQUAL || p_triplet->op == COMP_DIFF))
+                {
+                    /* criterion 'duration == 0' means attr never set (which is false)
+                     * criterion 'duration != 0' means attr is set (which is true)
+                     */
+                        if (p_triplet->op == COMP_EQUAL)
+                            return POLICY_NO_MATCH;
+                        else
+                            return POLICY_MATCH;
+                }
+
 
                 /* compare with time enlapsed since date.
                  * take time modifiers into account */
@@ -306,6 +322,9 @@ static int compare_generic(const sm_info_def_t *def,
             }
             else if (def->crit_type == PT_INT)
             {
+                if (val == NULL)
+                    return POLICY_MISSING_ATTR;
+
                 rc = int_compare(*((int *)val), p_triplet->op, p_triplet->val.integer);
             }
             else
@@ -318,6 +337,9 @@ static int compare_generic(const sm_info_def_t *def,
 
         case DB_BIGINT:
         case DB_BIGUINT:
+
+            if (val == NULL)
+                return POLICY_MISSING_ATTR;
 
             if (def->crit_type != PT_INT64)
             {
@@ -332,6 +354,9 @@ static int compare_generic(const sm_info_def_t *def,
         case DB_ENUM_FTYPE:
         {
             const char *typedb;
+
+            if (val == NULL)
+                return POLICY_MISSING_ATTR;
 
             if (def->crit_type != PT_TYPE)
             {
@@ -352,6 +377,9 @@ static int compare_generic(const sm_info_def_t *def,
         }
 
         case DB_BOOL:
+            if (val == NULL)
+                return POLICY_MISSING_ATTR;
+
             if (def->crit_type != PT_BOOL)
             {
                 DisplayLog(LVL_MAJOR, POLICY_TAG, "Criteria type of '%s' is incompatible with DB type BOOL",
@@ -512,7 +540,6 @@ int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
     switch(p_comp->crit)
     {
     case CRITERIA_TREE:
-
         /* is the path relative ? */
         if (!IS_ABSOLUTE_PATH(p_comp->val.str))
             add_root = true;
@@ -974,15 +1001,18 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
 
             rc = sm_attr_get(smi, p_entry_attr, p_triplet->attr_name, &val, &def, &idx);
             if (rc < 0)
-            {
-               if (!no_warning)
-                   DisplayLog(LVL_MAJOR, POLICY_TAG,
-                              "Missing attribute '%s' for evaluating boolean expression on "DFID,
-                              p_triplet->attr_name, PFID(p_entry_id));
-                return POLICY_MISSING_ATTR;
-            }
+                val = NULL;
 
             rc = compare_generic(def, p_triplet, val, p_pol_mod);
+
+            /* if the retrieved value was NULL and the return is 'missing attr' */
+            if (val == NULL && rc == POLICY_MISSING_ATTR)
+            {
+                DisplayLog(no_warning ? LVL_DEBUG : LVL_EVENT, POLICY_TAG,
+                           "Missing attribute '%s' for evaluating boolean expression on "DFID,
+                           p_triplet->attr_name, PFID(p_entry_id));
+                return POLICY_MISSING_ATTR;
+            }
             DisplayLog(LVL_FULL, POLICY_TAG, "Matching '%s': rc=%d",
                        p_triplet->attr_name, rc);
             return rc;
@@ -1289,7 +1319,8 @@ int match_classes(const entry_id_t *id, attr_set_t *p_attrs_new,
 
     /* merge contents of the 2 input attr sets */
     ListMgr_MergeAttrSets(&attr_cp, p_attrs_new, true);
-    ListMgr_MergeAttrSets(&attr_cp, p_attrs_cached, false);
+    if (p_attrs_cached != NULL)
+        ListMgr_MergeAttrSets(&attr_cp, p_attrs_cached, false);
 
     for (i = 0; i < policies.fileset_count; i++)
     {
@@ -1321,11 +1352,11 @@ int match_classes(const entry_id_t *id, attr_set_t *p_attrs_new,
                 }
                 break;
             case POLICY_MISSING_ATTR:
-                DisplayLog(LVL_EVENT, POLICY_TAG, "Attribute is missing for checking fileset %s",
+                DisplayLog(LVL_EVENT, POLICY_TAG, "Attribute is missing for checking fileset '%s'",
                            fset->fileset_id);
                 break;
             case POLICY_ERR:
-                DisplayLog(LVL_CRIT, POLICY_TAG, "An error occured when checking fileset %s",
+                DisplayLog(LVL_CRIT, POLICY_TAG, "An error occured when checking fileset '%s'",
                            fset->fileset_id);
                 break;
             case POLICY_NO_MATCH:
@@ -1350,73 +1381,6 @@ int match_classes(const entry_id_t *id, attr_set_t *p_attrs_new,
     ListMgr_FreeAttrs(&attr_cp);
     return 0;
 }
-
-
-#if 0
-
-fileset_item_t *GetFilesetById(const char *fileset_id)
-{
-    unsigned int   i;
-
-    for (i = 0; i < policies.filesets.fileset_count; i++)
-    {
-        if (!strcmp(policies.filesets.fileset_list[i].fileset_id, fileset_id))
-            return &policies.filesets.fileset_list[i];
-    }
-
-    return NULL;
-
-}
-
-
-
-/** @TODO XXX is this useful? */
-char          *FilesetMatch(const entry_id_t * p_entry_id, const attr_set_t * p_entry_attr)
-{
-    unsigned int   i;
-    int            rc = POLICY_NO_MATCH;
-
-    for (i = 0; i < policies.filesets.fileset_count; i++)
-    {
-        switch (EntryMatches
-                 (p_entry_id, p_entry_attr, &policies.filesets.fileset_list[i].definition))
-        {
-        case POLICY_MATCH:
-            return policies.filesets.fileset_list[i].fileset_id;
-        case POLICY_MISSING_ATTR:
-            DisplayLog(LVL_MAJOR, POLICY_TAG, "Attribute is missing for checking fileset");
-            if (rc != POLICY_ERR)
-                rc = POLICY_MISSING_ATTR;
-            break;
-        case POLICY_ERR:
-            DisplayLog(LVL_CRIT, POLICY_TAG, "An error occured when checking fileset");
-            rc = POLICY_ERR;
-            break;
-        case POLICY_NO_MATCH:
-            /* continue testing other file classes */
-            break;
-        }
-    }
-
-    return NULL;
-
-}
-
-
-fileset_item_t *GetFilesetById(const char *fileset_id)
-{
-    unsigned int   i;
-
-    for (i = 0; i < policies.filesets.fileset_count; i++)
-    {
-        if (!strcmp(policies.filesets.fileset_list[i].fileset_id, fileset_id))
-            return &policies.filesets.fileset_list[i];
-    }
-
-    return NULL;
-
-}
-#endif
 
 /** get the first matching policy case for the given file */
 rule_item_t *policy_case(const policy_descr_t *policy,
