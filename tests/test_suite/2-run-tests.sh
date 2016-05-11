@@ -10125,20 +10125,23 @@ function TEST_OTHER_PARAMETERS_1
 	sleep 1
 	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once
 
-	# use robinhood for flushing
-	if (( ($is_hsmlite == 0 && $is_lhsm == 1 && $shook == 0) || ($is_hsmlite == 1 && $is_lhsm == 0 && $shook == 1) )); then
-		echo "Archiving files"
-		$RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing Archiving files"
-	fi
-
 	echo "Report : --dump --filter-class test_purge"
 	$REPORT -f $RBH_CFG_DIR/$config_file --dump --filter-class test_purge > report.out
 
+    [ "$DEBUG" = "1" ] && cat report.out
 	nbError=0
+    # match classes is "no"
 	nb_entries=`grep "0 entries" report.out | wc -l`
 	if (( $nb_entries != 1 )); then
 	    error "********** TEST FAILED (Log): not found line \" $nb_entries \" "
         ((nbError++))
+	fi
+
+
+	# use robinhood for flushing
+	if (( ($is_hsmlite == 0 && $is_lhsm == 1 && $shook == 0) || ($is_hsmlite == 1 && $is_lhsm == 0 && $shook == 1) )); then
+		echo "Archiving files"
+		$RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing Archiving files"
 	fi
 
 	if (( $is_hsmlite == 0 || $shook != 0 || $is_lhsm != 0 )); then
