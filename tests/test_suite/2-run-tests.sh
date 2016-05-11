@@ -6317,10 +6317,10 @@ function test_pools
 	# read changelogs
 	if (( $no_log )); then
 		echo "1.1-scan and match..."
-		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l VERB -L rh_chglogs.log  --once || error ""
 	else
 		echo "1.1-read changelog and match..."
-		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l VERB -L rh_chglogs.log  --once || error ""
 	fi
 
 
@@ -6348,7 +6348,7 @@ function test_pools
 	# rematch and recheck
 	echo "2.1-scan and match..."
 	# read changelogs
-	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l VERB -L rh_chglogs.log  --once || error ""
 
 	echo "2.2-checking report output..."
 	# check classes in report output

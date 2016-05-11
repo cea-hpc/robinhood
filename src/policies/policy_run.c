@@ -1789,6 +1789,9 @@ inline static int update_entry(lmgr_t *lmgr, const entry_id_t *p_entry_id,
     int            rc;
     attr_set_t     tmp_attrset = *p_attr_set;
 
+    /* update classes according to new attributes */
+    match_classes(p_entry_id, &tmp_attrset, NULL);
+
     /* /!\ do not update stripe info */
     /* @TODO actually, the best operation would be to update only attributes that changed */
     ATTR_MASK_UNSET(&tmp_attrset, stripe_info);

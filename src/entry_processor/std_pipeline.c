@@ -1411,9 +1411,7 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         /* match policy scopes according to newly set information:
          * remove needed status from mask and append the updated one. */
         p_op->fs_attr_need.status &= ~all_status_mask();
-        /* FIXME this fails if scope attributes are missing */
-//        add_matching_scopes_mask(&p_op->entry_id, &merged_attrs, false,
-//                                 &p_op->fs_attr_need);
+        /* XXX this fails if scope attributes are missing */
         add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true,
                                  &p_op->fs_attr_need.status);
 
@@ -1426,6 +1424,8 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             {
                 if (smi->sm->get_status_func != NULL)
                 {
+                    DisplayLog(LVL_FULL, ENTRYPROC_TAG, DFID": retrieving status for policy '%s'",
+                               PFID(&p_op->entry_id), smi->sm->name);
                     /* this also check if entry is ignored for this policy */
                     rc =  smi->sm->get_status_func(smi, &p_op->entry_id,
                                                    &merged_attrs, &new_attrs);

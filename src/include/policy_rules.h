@@ -221,7 +221,7 @@ int match_classes(const entry_id_t *id, attr_set_t *p_attrs_new,
 
 /* return values for matching */
 typedef enum {
-    POLICY_MATCH,
+    POLICY_MATCH = 0,
     POLICY_NO_MATCH,
     POLICY_MISSING_ATTR,
     POLICY_ERR
