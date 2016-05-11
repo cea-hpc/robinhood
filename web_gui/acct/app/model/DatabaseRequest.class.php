@@ -85,7 +85,7 @@ class DatabaseRequest
     */ 
     public function getSchema( $table )
     {
-       	$schema = array();
+        $schema = array();
         try{
             $result = $this->connection->query( "DESCRIBE ".$table );
             $result->setFetchMode(PDO::FETCH_OBJ);
@@ -98,7 +98,7 @@ class DatabaseRequest
         catch( PDOException $e )
         {
             #echo 'Error: '.$e->getMessage().'</br>';
-	    $schema = null;
+            $schema = null;
         }
         return $schema;
     }
@@ -114,56 +114,58 @@ class DatabaseRequest
     */
     public function select( $filter, $table, $groupby, $orderby, $order='desc', $limit=0 )
     {
+
         $filter_str = "";
         $groupby_str = "";
         $field_str = "";
         $is_first = TRUE;
-	$join_annex = 0;
+        $join_annex = 0;
         $i = 0;
-	if ( $table == MAIN_TABLE )
-		$annex_schema = $this->getSchema( ANNEX_TABLE );
-	else
-		$annex_schema = null;
+
+        if ( $table == MAIN_TABLE )
+            $annex_schema = $this->getSchema( ANNEX_TABLE );
+        else
+            $annex_schema = null;
 
         if( $filter )
         {
             foreach( $filter as $field => $value ) 
             {
-		if (($annex_schema != null) && (in_array($field, array_keys($annex_schema))))
-			# need to join on annex table
-			$join_annex = 1;
+                if (($annex_schema != null) && (in_array($field, array_keys($annex_schema))))
+                    # need to join on annex table
+                    $join_annex = 1;
 
                 if( $value != "")
                 {
-  		    	$filter_str .= ($is_first ? '' : ' AND ');
+                    $filter_str .= ($is_first ? '' : ' AND ');
 
-			if( preg_match( '`^.*(\*|\?).*$`', $value ) ) {
-				$compar = ' LIKE ';
-				$value = strtr( $value, array( '?' => '.', '*' => '%' ));
-			} else {
-				$compar = '=';
-			}
+                    if( preg_match( '`^.*(\*|\?).*$`', $value ) ) {
+                        $compar = ' LIKE ';
+                        $value = strtr( $value, array( '?' => '.', '*' => '%' ));
+                    } else {
+                        $compar = '=';
+                    }
 
-			if ( $field == PATH ) {
-				$match_array = db_path_match($value);
-				if ( array_count_values( $match_array ) == 1 )
-					$filter_str .= $field.$compar.'\''.$value.'\'';
-				else {
-					$filter_str .= '(';
-					$is_first_subexpr = TRUE;
-					foreach ($match_array as $expr ) {
-						if (preg_match( '`^.*(\%|\_).*$`', $expr ))
-							$filter_str .= ($is_first_subexpr ? '': ' OR ').$field.' LIKE \''.$expr.'\'';
-						else
-							$filter_str .= ($is_first_subexpr ? '': ' OR ').$field.'=\''.$expr.'\'';
-							
-						$is_first_subexpr = FALSE;
-					}
-					$filter_str .= ')';
-				}
-                    	} else {
-	                        $filter_str .= $field.$compar.'\''.$value.'\'';
+                    if ( $field == PATH ) {
+                        $match_array = db_path_match($value);
+                        if ( array_count_values( $match_array ) == 1 )
+                            $filter_str .= $field.$compar.'\''.$value.'\'';
+                        else {
+                            $filter_str .= '(';
+                            $is_first_subexpr = TRUE;
+                            foreach ($match_array as $expr ) {
+                                if (preg_match( '`^.*(\%|\_).*$`', $expr ))
+                                    $filter_str .= ($is_first_subexpr ? '': ' OR ').$field.' LIKE \''.$expr.'\'';
+                                else
+                                    $filter_str .= ($is_first_subexpr ? '': ' OR ').$field.'=\''.$expr.'\'';
+
+                                $is_first_subexpr = FALSE;
+                            }
+                            $filter_str .= ')';
                         }
+                    } else {
+                        $filter_str .= $field.$compar.'\''.$value.'\'';
+                    }
                     $is_first = FALSE;
                 }
             }
@@ -174,48 +176,56 @@ class DatabaseRequest
             $is_first = TRUE;
             foreach( $groupby as $field )
             {
-		if (($annex_schema != null) && (in_array($field, array_keys($annex_schema))))
-			# need to join on annex table
-			$join_annex = 1;
+                if (($annex_schema != null) && (in_array($field, array_keys($annex_schema))))
+                    # need to join on annex table
+                    $join_annex = 1;
 
                 $groupby_str = $groupby_str.($is_first ? '' : ',').$field;
                 $is_first = FALSE;
             }
         }
 
-	/* /!\ is there a field in ANNEX_INFO? */
+        /* /!\ is there a field in ANNEX_INFO? */
 
         $is_first = TRUE;
         foreach( $this->getSchema( $table ) as $field => $type )
         {
-            if( substr_count( $type, "int" ) != 0 && $groupby && $field != "status" ) //TODO status case (no meaning here)
+            if( substr_count( $type, "int" ) != 0 && $groupby && $field != "status" ) {//TODO status case (no meaning here)
                 $field_str .= ( $is_first ? '' : ', ' )." SUM(".($join_annex ? "$table." : "").$field.")";
-            else
-                $field_str .= ( $is_first ? '' : ', ' ).($join_annex ? "$table." : "").$field;
-            $is_first = FALSE;
+                $is_first = FALSE;
+            } else {
+                if (($groupby && in_array($field, $groupby)) || (!$groupby)) {
+                    $field_str .= ( $is_first ? '' : ', ' ).($join_annex ? "$table." : "").$field;
+                    $is_first = FALSE;
+                }
+
+            }
         }
-	if ($join_annex) {
-	        foreach( $this->getSchema( ANNEX_TABLE ) as $field => $type )
-		{
-		    if( substr_count( $type, "int" ) != 0 && $groupby && $field != "status" ) //TODO status case (no meaning here)
-			$field_str .= ( $is_first ? '' : ', ' )." SUM(".($join_annex ? ANNEX_TABLE."." : "").$field.")";
-		    else
-			$field_str .= ( $is_first ? '' : ', ' ).($join_annex ? ANNEX_TABLE."." : "").$field;
-		    $is_first = FALSE;
-		}
-	}
+        if ($join_annex) {
+            foreach( $this->getSchema( ANNEX_TABLE ) as $field => $type )
+            {
+                if( substr_count( $type, "int" ) != 0 && $groupby && $field != "status" ) {//TODO status case (no meaning here)
+                    $field_str .= ( $is_first ? '' : ', ' )." SUM(".($join_annex ? ANNEX_TABLE."." : "").$field.")";
+                } else {
+                    if (($groupby && in_array($field, $groupby)) || (!$groupby)) {
+                        $field_str .= ( $is_first ? '' : ', ' ).($join_annex ? ANNEX_TABLE."." : "").$field;
+                        $is_first = FALSE;
+                    }
+                }
+            }
+        }
 
         try
         {
-	    if ($join_annex)
-		    $query = "SELECT ".$field_str." FROM ".$table." LEFT JOIN ".ANNEX_TABLE." ON $table.id = ".ANNEX_TABLE.".id ".
-				( $filter ? " WHERE ".$filter_str : "" ).
-				( $groupby ? " GROUP BY ".$groupby_str : "" ).( $orderby ? " ORDER BY ".$orderby." ".$order : "" ).
-				( $limit > 0 ? " LIMIT $limit" : "" );
-	    else
-		    $query = "SELECT ".$field_str." FROM ".$table.( $filter ? " WHERE ".$filter_str : "" ).
-				( $groupby ? " GROUP BY ".$groupby_str : "" ).( $orderby ? " ORDER BY ".$orderby." ".$order : "" ).
-				( $limit > 0 ? " LIMIT $limit" : "" );
+            if ($join_annex)
+                $query = "SELECT ".$field_str." FROM ".$table." LEFT JOIN ".ANNEX_TABLE." ON $table.id = ".ANNEX_TABLE.".id ".
+                    ( $filter ? " WHERE ".$filter_str : "" ).
+                    ( $groupby ? " GROUP BY ".$groupby_str : "" ).( $orderby ? " ORDER BY ".$orderby." ".$order : "" ).
+                    ( $limit > 0 ? " LIMIT $limit" : "" );
+            else
+                $query = "SELECT ".$field_str." FROM ".$table.( $filter ? " WHERE ".$filter_str : "" ).
+                    ( $groupby ? " GROUP BY ".$groupby_str : "" ).( $orderby ? " ORDER BY ".$orderby." ".$order : "" ).
+                    ( $limit > 0 ? " LIMIT $limit" : "" );
 
             $result = $this->connection->query( $query );
 
@@ -247,53 +257,53 @@ class DatabaseRequest
 
     public function statusName( $st_num )
     {
-	global $hsm_status_tab ;
-	global $hsmlite_status_tab ;
+        global $hsm_status_tab ;
+        global $hsmlite_status_tab ;
 
-	switch( $this->rbh_mode )
-	{
-		case "tmp_fs_mgr":
-			echo 'Error: unexpected status for robinhood flavor '.$this->rbh_mode.'<br>';
-			return "Unknown status ".$st_num;
-		case "backup":
-		case "shook":
-			return $hsmlite_status_tab[$st_num];
-		case "hsm":
-			return $hsm_status_tab[$st_num];
-		default:
-			echo 'Error: unknown robinhood flavor '.$this->rbh_mode.'<br>';
-			return "Unknown status ".$st_num;
-	}
+        switch( $this->rbh_mode )
+        {
+            case "tmp_fs_mgr":
+                echo 'Error: unexpected status for robinhood flavor '.$this->rbh_mode.'<br>';
+                return "Unknown status ".$st_num;
+            case "backup":
+            case "shook":
+                return $hsmlite_status_tab[$st_num];
+            case "hsm":
+                return $hsm_status_tab[$st_num];
+            default:
+                echo 'Error: unknown robinhood flavor '.$this->rbh_mode.'<br>';
+                return "Unknown status ".$st_num;
+        }
     }
 
     public function statusIndex( $st_str )
     {
-	global $hsm_status_tab ;
-	global $hsmlite_status_tab ;
+        global $hsm_status_tab ;
+        global $hsmlite_status_tab ;
 
-	switch( $this->rbh_mode )
-	{
-		case "tmp_fs_mgr":
-			return -1;
-		case "backup":
-		case "shook":
-			$arr = $hsmlite_status_tab;
-			break;
-		case "hsm":
-			$arr = $hsm_status_tab;
-			break;
-		default:
-			return -1;
-	}
+        switch( $this->rbh_mode )
+        {
+            case "tmp_fs_mgr":
+                return -1;
+            case "backup":
+            case "shook":
+                $arr = $hsmlite_status_tab;
+                break;
+            case "hsm":
+                $arr = $hsm_status_tab;
+                break;
+            default:
+                return -1;
+        }
 
-	$i=-1;
-	foreach ($arr as $st)
-	{
-		$i++;
-		if ($st == $st_str)
-			return $i;
-	}
-	return -1;
+        $i=-1;
+        foreach ($arr as $st)
+        {
+            $i++;
+            if ($st == $st_str)
+                return $i;
+        }
+        return -1;
     }
 
 }
