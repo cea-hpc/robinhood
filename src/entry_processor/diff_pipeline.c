@@ -680,6 +680,7 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             else
             {
                 char attrnew[RBH_PATH_MAX];
+
                 PrintAttrs(attrnew, RBH_PATH_MAX, &p_op->fs_attrs,
                     p_op->fs_attrs.attr_mask, 1);
 

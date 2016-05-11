@@ -1469,7 +1469,7 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
     const char *   format;
     int i;
 
-    if (attr_mask_is_null(overide_mask))
+    if (!attr_mask_is_null(overide_mask))
         mask = attr_mask_and(&mask, &overide_mask);
 
     if (mask.std & ATTR_MASK_fullpath)
