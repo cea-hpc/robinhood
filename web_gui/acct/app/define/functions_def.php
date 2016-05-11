@@ -16,22 +16,15 @@ function formatNumber( $number )
 /**
  * This method returns the number in byte unit
  * @param number
+ * @param precision
  * @return number formatted
  */
-function formatSizeNumber( $number )
+function formatSizeNumber( $number, $precision=2 )
 {
-    if ( $number < 1024)
-        return $number.' B';
-    else if ( $number >= 1024 && $number < 1048576 )
-        return ( round( $number/1024 , 2 ) ).' KB';
-    else if ( $number >= 1048576 && $number < 1073741824 )
-        return ( round ( $number/1048576 , 2 ) ).' MB';
-    else if ( $number >= 1073741824 && $number < 1099511627776 )
-        return ( round( $number/1073741824 , 2 ) ).' GB';
-    else if ( $number >= 1099511627776 && $number < 1125899906842624 )
-        return ( round( $number/1099511627776 , 2 ) ).' TB';
-    else
-        return ( round( $number/1125899906842624 , 2 )  ).' PB';
+    $base = log($number, 1024);
+    $suffixes = array('B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZT', 'YT');
+
+    return round(pow(1024, $base - floor($base)), $precision) .' '. $suffixes[floor($base)];
 }
 
 function generateMergedTable( $tab, $header )
