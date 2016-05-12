@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_fd1b6ec8",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 7
+      },
+      "lineNbr": 3684,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-05-12T19:03:01Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "baa041b7_3c9c465c",
+      "revId": "9aa634854ca3baa0c0188b2725c35aec47c5e8cc",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_dcab1a74",
         "filename": "tests/test_suite/2-run-tests.sh",
         "patchSetId": 7
@@ -36,6 +54,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_bd67264c",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 7
+      },
+      "lineNbr": 3694,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-05-12T19:03:01Z",
+      "side": 1,
+      "message": "* do you mean status\u003dnoxfer (according to the doc I saw)?\n* do you know when this option appeared (to ensure it is compatible with systems of robinhood users)?",
+      "parentUuid": "baa041b7_dcab1a74",
+      "revId": "9aa634854ca3baa0c0188b2725c35aec47c5e8cc",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_bca85678",
         "filename": "tests/test_suite/2-run-tests.sh",
         "patchSetId": 7
@@ -47,6 +83,24 @@
       "writtenOn": "2016-05-10T08:57:07Z",
       "side": 1,
       "message": "still called md5_check? I thought I renamed these to cksum to keep something generic now the script is..\n\nanswering myself, new conf file for this so OK. Still might want to rename eventually but doesn\u0027t really matter",
+      "revId": "9aa634854ca3baa0c0188b2725c35aec47c5e8cc",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_bdce062c",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 7
+      },
+      "lineNbr": 3702,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-05-12T19:03:01Z",
+      "side": 1,
+      "message": "I submitted a patch for that (see change #275943)",
+      "parentUuid": "baa041b7_bca85678",
       "revId": "9aa634854ca3baa0c0188b2725c35aec47c5e8cc",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
