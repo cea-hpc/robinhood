@@ -108,6 +108,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_afb80976",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 7
+      },
+      "lineNbr": 3694,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-05-13T19:04:30Z",
+      "side": 1,
+      "message": "Lustre 2.1 users...\nFYI, we just dropped the support for Lustre 1.8 (el5!), according to a survey about used versions of Lustre+robinhood...",
+      "parentUuid": "baa041b7_9810f05a",
+      "revId": "9aa634854ca3baa0c0188b2725c35aec47c5e8cc",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_bca85678",
         "filename": "tests/test_suite/2-run-tests.sh",
         "patchSetId": 7
