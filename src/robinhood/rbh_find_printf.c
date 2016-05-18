@@ -608,16 +608,14 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
                                     ATTR(attrs, fileclass) : NULL));
                 break;
 
-#ifdef _LUSTRE
             case 'f':
-            {
-                char fid_str[RBH_FID_LEN];
+                {
+                    char fid_str[RBH_FID_LEN];
 
-                sprintf(fid_str, DFID_NOBRACE, PFID(&id->id));
-                printf(format, fid_str);
-            }
-            break;
-#endif
+                    sprintf(fid_str, DFID_NOBRACE, PFID(&id->id));
+                    printf(format, fid_str);
+                }
+                break;
 
             case 'm':
                 if (ATTR_MASK_INFO_TEST(attrs, chunk->smi, chunk->attr_index))

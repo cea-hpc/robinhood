@@ -7211,12 +7211,6 @@ function test_rbh_find_printf
     # Populate the database with a single file
     config_file=$1
 
-    if (( $is_lhsm + $is_hsmlite == 0 )); then
-        echo "HSM test only: skipped"
-        set_skipped
-        return 1
-    fi
-
     clean_logs
 
     echo "Initial scan of empty filesystem"
@@ -7229,18 +7223,25 @@ function test_rbh_find_printf
 
     local fid=$(get_id "$RH_ROOT/testf")
 
-    echo "2-Reading changelogs..."
-    $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+    if (( $no_log )); then
+        echo "2-Scanning..."
+        $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+    else
+        echo "2-Reading changelogs..."
+        $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+    fi
     check_db_error rh_chglogs.log
 
-    echo "3-Archiving the files"
-    $LFS hsm_archive $RH_ROOT/testf || error "executing lfs hsm_archive"
+    if (( $is_lhsm != 0 )); then
+        echo "3-Archiving the files"
+        $LFS hsm_archive $RH_ROOT/testf || error "executing lfs hsm_archive"
 
-    wait_hsm_state $RH_ROOT/testf 0x00000009
+        wait_hsm_state $RH_ROOT/testf 0x00000009
 
-    echo "4-Reading changelogs..."
-    $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
-    check_db_error rh_chglogs.log
+	echo "4-Reading changelogs..."
+	$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+	check_db_error rh_chglogs.log
+    fi
 
     echo "5-rbh-find checks"
 
@@ -7304,8 +7305,15 @@ function test_rbh_find_printf
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf " %Rc rh class\n")
     [[ $STR == " [n/a] rh class" ]] || error "unexpected rbh-find result (200): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf " %Rf fid\n")
-    [[ $STR == " $fid fid" ]] || error "unexpected rbh-find result (201): $STR"
+    if (( $lustre_major >= 2 )); then
+	# exact match
+        STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf " %Rf fid\n")
+        [[ $STR == " $fid fid" ]] || error "unexpected rbh-find result (201): $STR ($fid expected)"
+    else
+	# get_id returns '/<inode>' so we must get <something>/<inode>
+        STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rf fid\n")
+        [[ $STR == *"$fid fid" ]] || error "unexpected rbh-find result (201): $STR ($fid expected)"
+    fi
 
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf " %Ro osts\n")
     #[[ $STR == "ost#0:1044 osts" ]] || error "unexpected rbh-find result (202): $STR"
@@ -7360,33 +7368,37 @@ function test_rbh_find_printf
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{nonexistentmod}" 2>&1)
     [[ $STR == *"Error: cannot extract module attribute name"* ]] || error "unexpected rbh-find result (401): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{lhsm.no_such_sym}" 2>&1)
-    [[ $STR == *"Error: cannot extract module attribute name"* ]] || error "unexpected rbh-find result (402): $STR"
+    if (( $is_lhsm != 0 )); then
+        STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{lhsm.no_such_sym}" 2>&1)
+        [[ $STR == *"Error: cannot extract module attribute name"* ]] || error "unexpected rbh-find result (402): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{lhsm.archive_id}")
-    [[ $STR == "1" ]] || error "unexpected rbh-find result (403): $STR"
+        STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{lhsm.archive_id}")
+        [[ $STR == "1" ]] || error "unexpected rbh-find result (403): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{lhsm.no_release}")
-    [[ $STR == "0" ]] || error "unexpected rbh-find result (404): $STR"
+        STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{lhsm.no_release}")
+        [[ $STR == "0" ]] || error "unexpected rbh-find result (404): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{lhsm.no_archive}")
-    [[ $STR == "0" ]] || error "unexpected rbh-find result (405): $STR"
+        STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{lhsm.no_archive}")
+        [[ $STR == "0" ]] || error "unexpected rbh-find result (405): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{lhsm.status}")
-    [[ $STR == "synchro" ]] || error "unexpected rbh-find result (406): $STR"
+        STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{lhsm.status}")
+        [[ $STR == "synchro" ]] || error "unexpected rbh-find result (406): $STR"
+    fi
 
     # With some formatting options
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "file='%15f' size=%09s")
     [[ $STR == "file='          testf' size=000001024" ]] || error "unexpected rbh-find result (500): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%7Rm{lhsm.archive_id}")
-    [[ $STR == "      1" ]] || error "unexpected rbh-find result (501): $STR"
+    if (( $is_lhsm != 0 )); then
+        STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%7Rm{lhsm.archive_id}")
+        [[ $STR == "      1" ]] || error "unexpected rbh-find result (501): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%07Rm{lhsm.archive_id}")
-    [[ $STR == "0000001" ]] || error "unexpected rbh-find result (502): $STR"
+        STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%07Rm{lhsm.archive_id}")
+        [[ $STR == "0000001" ]] || error "unexpected rbh-find result (502): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%-Rm{lhsm.archive_id}")
-    [[ $STR == "1" ]] || error "unexpected rbh-find result (503): $STR"
+        STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%-Rm{lhsm.archive_id}")
+        [[ $STR == "1" ]] || error "unexpected rbh-find result (503): $STR"
+    fi
 
     rm -f report.out
 }
