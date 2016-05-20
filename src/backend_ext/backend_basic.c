@@ -373,7 +373,7 @@ static void entry2backend_path( const entry_id_t * p_id,
         return;
     }
 #ifdef HAVE_SHOOK
-    else
+    else if (what_for != FOR_NEW_COPY)
     {
         int rc;
         char fidpath[RBH_PATH_MAX];
