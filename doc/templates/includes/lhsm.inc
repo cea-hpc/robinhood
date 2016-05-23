@@ -5,6 +5,7 @@ define_policy lhsm_archive {
             and no_archive != 1
             and (status == new or status == modified) }
     status_manager = lhsm(archive);
+    status_current = archiving;
     default_action = lhsm.archive;
     default_lru_sort_attr = last_mod;
 }

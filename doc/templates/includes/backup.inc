@@ -2,6 +2,7 @@
 define_policy backup_archive {
     scope { (type == file or type == symlink) and (status == new or status == modified) }
     status_manager = backup(archive);
+    status_current = archiving;
     default_action = common.copy;
     default_lru_sort_attr = last_mod;
 }
