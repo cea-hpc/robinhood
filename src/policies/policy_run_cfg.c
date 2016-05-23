@@ -33,6 +33,7 @@ policy_run_config_list_t run_cfgs = { NULL, 0 };
 static int polrun_set_default(const policy_descr_t *pol, policy_run_config_t *cfg)
 {
     memset(cfg, 0, sizeof(*cfg));
+
     cfg->nb_threads = 4;
     cfg->queue_size = 4096;
     cfg->db_request_limit = 100000;
@@ -42,8 +43,6 @@ static int polrun_set_default(const policy_descr_t *pol, policy_run_config_t *cf
     cfg->trigger_list = NULL;
     cfg->trigger_count = 0;
 
-    cfg->check_action_status_delay = 30 * 60; /* 30 min */
-    cfg->action_timeout = 2 * 3600; /* 2h */
     cfg->report_interval = 10 * 60; /* 10 min */
 
     cfg->pre_maintenance_window = 0; /* disabled */
@@ -59,7 +58,11 @@ static int polrun_set_default(const policy_descr_t *pol, policy_run_config_t *cf
     cfg->action_params.param_set = NULL;
     cfg->run_attr_mask = null_mask;
 
-    cfg->check_action_status_on_startup = true;
+    cfg->check_action_status_on_startup = false;
+    cfg->check_action_status_delay = 0; /* no check */
+
+    cfg->action_timeout = 2 * 3600; /* 2h */
+
     cfg->recheck_ignored_entries = false;
     cfg->report_actions = true;
 
@@ -101,9 +104,9 @@ static void policy_run_cfg_write_default(FILE *output)
     print_line(output, 1, "suspend_error_pct       : disabled (0)");
     print_line(output, 1, "suspend_error_min       : disabled (0)");
     print_line(output, 1, "report_interval         : 10min");
+    print_line(output, 1, "check_actions_on_startup: no");
+    print_line(output, 1, "check_actions_interval  : 0 (disabled)");
     print_line(output, 1, "action_timeout          : 2h");
-    print_line(output, 1, "check_actions_interval  : 30min");
-    print_line(output, 1, "check_actions_on_startup: yes");
     print_line(output, 1, "recheck_ignored_entries : no" );
     print_line(output, 1, "report_actions          : yes" );
     print_line(output, 1, "nb_threads              : 4");

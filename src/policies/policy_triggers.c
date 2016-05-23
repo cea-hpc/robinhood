@@ -1598,6 +1598,7 @@ static void *trigger_check_thr(void *thr_arg)
     double         max_usage;
     char           tmpstr[128];
     policy_info_t *pol = (policy_info_t *)thr_arg;
+    time_t         last_action_check = time(NULL);
 
     rc = ListMgr_InitAccess(&pol->lmgr);
     if (rc)
@@ -1610,14 +1611,23 @@ static void *trigger_check_thr(void *thr_arg)
 
     if (pol->config->check_action_status_on_startup)
     {
-        DisplayLog(LVL_EVENT, tag(pol), "Checking status of outstanding actions...");
-        rc = check_current_actions(pol, &pol->lmgr, &nb_reset, &nb_total);
-
-        if (rc != 0)
-            DisplayLog(LVL_CRIT, tag(pol), "Error checking outstanding action status");
+        if (pol->descr->status_current == NULL)
+        {
+            DisplayLog(LVL_MAJOR, tag(pol), "'check_action_on_startup' is enabled, but no 'status_current'"
+                       " is defined for this policy: skipping action check (check_action_on_startup=no).");
+            pol->config->check_action_status_on_startup = false;
+        }
         else
-            DisplayLog(LVL_EVENT, tag(pol), "%u actions finished / %u total",
-                       nb_reset, nb_total);
+        {
+            DisplayLog(LVL_EVENT, tag(pol), "Checking status of outstanding actions...");
+            rc = check_current_actions(pol, &pol->lmgr, &nb_reset, &nb_total);
+
+            if (rc != 0)
+                DisplayLog(LVL_CRIT, tag(pol), "Error checking outstanding action status");
+            else
+                DisplayLog(LVL_EVENT, tag(pol), "%u actions finished / %u total",
+                           nb_reset, nb_total);
+        }
     }
 
     do
@@ -1689,16 +1699,28 @@ static void *trigger_check_thr(void *thr_arg)
             goto out;
 
         /* cancel old actions */
-#if 0 /* FIXME check_action_status_delay*/
-        DisplayLog(LVL_EVENT, tag(pol), "Checking action timeouts..." );
-        nb_reset = nb_total = 0;
-        rc = check_current_actions(&lmgr, &nb_reset, &nb_total, migr_config->check_copy_status_delay);
-        if ( rc != 0 )
-            DisplayLog( LVL_CRIT, MIGR_TAG, "Error checking outstanding migration status" );
-        else
-            DisplayLog( LVL_EVENT, MIGR_TAG, "%u migration canceled / %u total", nb_reset, nb_total );
-#endif
+        if ((pol->config->check_action_status_delay != 0)
+            && (time(NULL) - last_action_check >=
+                 pol->config->check_action_status_delay))
+        {
+            if (pol->descr->status_current == NULL)
+            {
+                DisplayLog(LVL_MAJOR, tag(pol), "'check_actions_interval' is enabled but no 'status_current'"
+                           " is defined for this policy: disabling action check (check_actions_interval=0).");
+                pol->config->check_action_status_delay = 0;
+            }
+            else
+            {
+                DisplayLog(LVL_EVENT, tag(pol), "Checking status of outstanding actions...");
+                rc = check_current_actions(pol, &pol->lmgr, &nb_reset, &nb_total);
 
+                if (rc != 0)
+                    DisplayLog(LVL_CRIT, tag(pol), "Error checking outstanding action status");
+                else
+                    DisplayLog(LVL_EVENT, tag(pol), "%u actions finished / %u total",
+                               nb_reset, nb_total);
+            }
+        }
     } while (1);
 
 out:
