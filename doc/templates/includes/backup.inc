@@ -4,6 +4,7 @@ define_policy backup_archive {
     status_manager = backup(archive);
     default_action = common.copy;
     default_lru_sort_attr = last_mod;
+    status_current = archiving;
 }
 
 # used to be rbh 2.5 "hsm_rm" policy for backup mode

@@ -1611,6 +1611,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     int                     rc;
     pass_status_e           st;
     lmgr_filter_t           filter;
+    filter_value_t          fval;
     lmgr_sort_type_t        sort_type;
     int                     last_sort_time = 0;
     /* XXX first_request_start = policy_start */
@@ -1667,15 +1668,13 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
                    "Warning: scope definition is too complex and may affect policy run performance");
     }
 
-#if 0 /** @TODO rbhv3: still manage 'invalid' entries? */
 #ifdef ATTR_INDEX_invalid
     /* do not retrieve 'invalid' entries */
     fval.value.val_bool = false;
     rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_invalid, EQUAL, fval,
-                                 FILTER_FLAG_ALLOW_NULL);
+                                FILTER_FLAG_ALLOW_NULL);
     if (rc)
         return rc;
-#endif
 #endif
 
     /* set target filter and attr mask */
@@ -1822,6 +1821,7 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
     char           fid_path[RBH_PATH_MAX];
     struct stat    entry_md;
     int            rc;
+    sm_instance_t *smi = policy->descr->status_mgr;
 
     DisplayLog(LVL_FULL, tag(policy), "Considering entry " DFID, PFID(&p_item->entry_id));
 
@@ -1867,35 +1867,19 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
                           policy->descr->rules.run_attr_mask);
     }
 
-#if 0 // TODO RBHv3: retrieve status from status manager if the scope
-      // relies on it
-#ifdef _LUSTRE_HSM
-    /* For Lustre-HSM, don't care about fresh status because 'release'
-     * is safe (Lustre locking + check of open/modified files)
-     */
-    /* is status known? */
-    if (!ATTR_MASK_TEST(&p_item->entry_attr, status)
-        || ATTR(&p_item->entry_attr, status) == STATUS_UNKNOWN)
+    /* retrieve up-to-date status from status manager if the scope relies on it */
+    if (smi != NULL && smi->sm->get_status_func != NULL
+        && (policy->descr->scope_mask.status & SMI_MASK(smi->smi_index)))
     {
-        DisplayLog(LVL_FULL, PURGE_TAG, "Update of HSM state (not known in DB)");
-        rc = LustreHSM_GetStatus(fid_path, &ATTR(new_attr_set, status),
-                                  &ATTR(new_attr_set, no_release),
-                                  &ATTR(new_attr_set, no_archive));
-        if (!rc)
+        rc =  smi->sm->get_status_func(smi, &p_item->entry_id,
+                                       new_attr_set, new_attr_set);
+        if (rc != 0)
         {
-            ATTR_MASK_SET(new_attr_set, status);
-            ATTR_MASK_SET(new_attr_set, no_release);
-            ATTR_MASK_SET(new_attr_set, no_archive);
+            DisplayLog(LVL_MAJOR, tag(policy), "Failed to get status for "DFID" (%s status manager): error %d",
+                       PFID(&p_item->entry_id), smi->sm->name, rc);
+            return AS_ERROR;
         }
     }
-
-#elif defined(_HSM_LITE)
-    /* always update status for _HSM_LITE */
-    rc = rbhext_get_status(&p_item->entry_id, new_attr_set, new_attr_set);
-    if (rc)
-        return PURGE_ERROR;
-#endif
-#endif
 
     /* entry is valid */
     return AS_OK;
@@ -1922,8 +1906,8 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
     }
     stat_path = ATTR(&p_item->entry_attr, fullpath);
 
-if (ATTR_MASK_TEST(&p_item->entry_attr, fullpath))
-    DisplayLog(LVL_FULL, tag(policy), "Considering entry %s", ATTR(&p_item->entry_attr, fullpath));
+    if (ATTR_MASK_TEST(&p_item->entry_attr, fullpath))
+        DisplayLog(LVL_FULL, tag(policy), "Considering entry %s", ATTR(&p_item->entry_attr, fullpath));
 
     /* 2) Perform lstat on entry */
     if (lstat(stat_path, &entry_md) != 0)
@@ -1962,6 +1946,20 @@ if (ATTR_MASK_TEST(&p_item->entry_attr, fullpath))
     /* set update time of the stucture */
     ATTR_MASK_SET(new_attr_set, md_update);
     ATTR(new_attr_set, md_update) = time(NULL);
+
+    /* retrieve up-to-date status from status manager if the scope relies on it */
+    if (smi != NULL && smi->sm->get_status_func != NULL
+        && (policy->descr->scope_mask.status & SMI_MASK(smi->smi_index)))
+    {
+        rc =  smi->sm->get_status_func(smi, &p_item->entry_id,
+                                       new_attr_set, new_attr_set);
+        if (rc != 0)
+        {
+            DisplayLog(LVL_MAJOR, tag(policy), "Failed to get status for "DFID" (%s status manager): error %d",
+                       PFID(&p_item->entry_id), smi->sm->name, rc);
+            return AS_ERROR;
+        }
+    }
 
     /* entry is valid */
     return AS_OK;
@@ -2467,21 +2465,24 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in
     unsigned int nb_returned = 0;
     unsigned int nb_aborted = 0;
     attr_mask_t  attr_mask_sav = {0};
+    attr_mask_t  tmp;
+
+    /* do nothing if this policy applies to deleted entries */
+    if (pol->descr->manage_deleted)
+        return 0;
 
     /* attributes to be retrieved */
     ATTR_MASK_INIT(&q_item.entry_attr);
     ATTR_MASK_SET(&q_item.entry_attr, fullpath);
     ATTR_MASK_SET(&q_item.entry_attr, path_update);
-    /* /!\ don't retrieve status, to force getting it from the filesystem */
+
+    /* Add attrs to match policy scope */
+    q_item.entry_attr.attr_mask = attr_mask_or(&q_item.entry_attr.attr_mask,
+                                               &pol->descr->scope_mask);
 
     /* needed attributes from DB */
-    if (pol->descr->status_mgr != NULL)
-    {
-        attr_mask_t tmp = smi_needed_attrs(pol->descr->status_mgr, false);
-
-        q_item.entry_attr.attr_mask
-            = attr_mask_or(&q_item.entry_attr.attr_mask, &tmp);
-    }
+    tmp = attrs_for_status_mask(q_item.entry_attr.attr_mask.status, false);
+    q_item.entry_attr.attr_mask = attr_mask_or(&q_item.entry_attr.attr_mask, &tmp);
 
     attr_mask_sav = q_item.entry_attr.attr_mask;
 
@@ -2500,24 +2501,12 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in
             return rc;
     }
 
-#if 0 // TODO RBHv3: manage status
-    /* filter on current status RESTORE_RUNNING or RELEASE_PENDING
-     * also check values with NULL status */
-
-     /* '(status = RELEASE_PENDING' ... */
-    fval.value.val_int = STATUS_RELEASE_PENDING;
-    rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_status, EQUAL, fval,
-                FILTER_FLAG_BEGIN);
+    /* filter by status of current actions */
+    fval.value.val_str = pol->descr->status_current;
+    rc = lmgr_simple_filter_add(&filter, smi_status_index(pol->descr->status_mgr),
+                                EQUAL, fval, 0);
     if (rc)
         return rc;
-
-    /* ...' OR status = RESTORE_RUNNING OR status is NULL)' */
-    fval.value.val_int = STATUS_RESTORE_RUNNING;
-    rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_status, EQUAL, fval,
-                FILTER_FLAG_OR | FILTER_FLAG_ALLOW_NULL | FILTER_FLAG_END);
-    if (rc)
-        return rc;
-#endif
 
 #ifdef ATTR_INDEX_invalid
     /* don't retrieve invalid entries (allow entries with invalid == NULL) */
@@ -2553,33 +2542,27 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in
         /* check entry */
         if (check_entry(pol, lmgr, &q_item, &q_item.entry_attr) == AS_OK)
         {
-#if 0 // TODO RBHv3: manage status
-            /* check new status */
-            if (ATTR_MASK_TEST(&q_item.entry_attr, status)
-                 && (ATTR(&q_item.entry_attr, status) == STATUS_RESTORE_RUNNING))
+            int smi_index = pol->descr->status_mgr->smi_index;
+
+            if (ATTR_MASK_STATUS_TEST(&q_item.entry_attr, smi_index))
             {
-               DisplayLog(LVL_EVENT, PURGE_TAG, "%s: restore still running",
-                           ATTR(&q_item.entry_attr, fullpath));
+                if (strcmp(STATUS_ATTR(&q_item.entry_attr, smi_index),
+                           pol->descr->status_current))
+                {
+                    DisplayLog(LVL_EVENT, tag(pol), "status of '%s' changed: now '%s'",
+                               ATTR(&q_item.entry_attr, fullpath),
+                               STATUS_ATTR(&q_item.entry_attr, smi_index));
+                    nb_aborted++;
+                }
+                else
+                    DisplayLog(LVL_EVENT, tag(pol), "status of '%s' is still '%s'",
+                               ATTR(&q_item.entry_attr, fullpath),
+                               STATUS_ATTR(&q_item.entry_attr, smi_index));
             }
-            else if (ATTR_MASK_TEST(&q_item.entry_attr, status)
-                 && (ATTR(&q_item.entry_attr, status) == STATUS_RELEASE_PENDING))
-            {
-               DisplayLog(LVL_EVENT, PURGE_TAG, "%s: release still in progress",
-                           ATTR(&q_item.entry_attr, fullpath));
-            }
-            else
-            {
-               DisplayLog(LVL_EVENT, PURGE_TAG, "%s: operation finished\n",
-                           ATTR(&q_item.entry_attr, fullpath));
-               nb_aborted++;
-            }
-#endif
+
             /* update entry status */
-            if (!pol->descr->manage_deleted)
-                update_entry(lmgr, &q_item.entry_id,  &q_item.entry_attr);
+            update_entry(lmgr, &q_item.entry_id,  &q_item.entry_attr);
         }
-        else
-            nb_aborted ++;
 
         /* reset attr_mask, if it was altered by last ListMgr_GetNext() call */
         memset(&q_item, 0, sizeof(queue_item_t));
