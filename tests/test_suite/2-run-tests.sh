@@ -3875,6 +3875,92 @@ function test_checker
     done
 }
 
+function test_action_check
+{
+    # Test the check of outstanding actions
+    local config_file=$1
+    local FCOUNT=50
+    local ACT_TIMEO=4
+
+    if (( $is_lhsm == 0 )); then
+        echo "No asynchronous archive for this purpose: skipped"
+        set_skipped
+        return 1
+    fi
+
+    clean_logs
+
+    echo "Create Files ..."
+    for i in `seq 1 $FCOUNT` ; do
+        dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+    done
+
+    echo "Start asynchonous actions..."
+    local t0=$(date +%s)
+    $RH -f $RBH_CFG_DIR/$config_file --scan --run=migration --target=all -I -l DEBUG -L rh_migr.log
+
+    # check status of files in DB: 
+    $REPORT -f $RBH_CFG_DIR/$config_file --status-info lhsm --csv -q | tee report.out
+
+    find_valueInCSVreport report.out archiving $FCOUNT 3 || error "Invalid count of entries with status 'archiving'"
+
+    :>rh_migr.log
+    $RH -f $RBH_CFG_DIR/$config_file --run=migration -l VERB -L rh_migr.log &
+    local pid=$!
+
+    sleep 1
+
+    # is the check done?
+    grep -q "Checking status of outstanding actions" rh_migr.log ||
+        error "No check of outstanding actions was performed"
+
+    # early check of entries status (hopefully, no timeout reached yet? (3s))
+    local t1=$(date +%s)
+    local enlapsed=$(($t1-$t0))
+    local nb_check=$(grep "Updating status of" rh_migr.log | wc -l)
+    if (( $enlapsed < $ACT_TIMEO && $nb_check > 0 )); then
+        error "No action check should be done after $enlasped sec < $ACT_TIMEO"
+    else
+        echo "Enlapsed: $enlapsed, nb_check=$nb_check"
+    fi
+
+    # next check is after 10 sec
+    sleep 10
+    
+    local run_check=$(grep "Checking status of outstanding actions" rh_migr.log | wc -l)
+    (( $run_check == 2 )) || error "No 2nd check was done after 10 sec"
+
+    t1=$(date +%s)
+    enlapsed=$(($t1-$t0))
+    nb_check=$(grep "Updating status of" rh_migr.log | wc -l)
+    local nb_sync=$(grep "changed: now 'synchro'" rh_migr.log | wc -l)
+    if (( $nb_check != $FCOUNT )); then
+        error "All actions should have been checked now (enlapsed: $enlapsed, nb_check=$nb_check)"
+    else
+        echo "Enlapsed: $enlapsed, nb_check=$nb_check, $nb_sync changed to 'synchro'"
+    fi
+    
+    # wait for all files to be synchro
+    if (( $nb_sync < $FCOUNT )); then
+        # once all actions are finished, check entry status changed accordingly
+        (( $is_lhsm != 0 )) && wait_done 30
+
+        # wait for next status check
+        local t2=$(date +%s)
+        (( $t2-$t1 < 10)) && sleep $((10 - ($t2-$t1)))
+        nb_sync=$(grep "changed: now 'synchro'" rh_migr.log | wc -l)
+        echo "$nb_sync entries/$FCOUNT changed to status 'synchro'"
+        (( $nb_sync != $FCOUNT )) && error "All entries status should have been set to 'synchro'"
+    fi
+
+    # double-check in report
+    $REPORT -f $RBH_CFG_DIR/$config_file --status-info lhsm --csv -q | tee report.out
+    find_valueInCSVreport report.out synchro $FCOUNT 3 || error "Invalid count of entries with status 'synchro'"
+
+    kill -9 $pid
+}
+
+
 function test_cnt_trigger
 {
 	config_file=$1
@@ -10507,35 +10593,35 @@ function TEST_OTHER_PARAMETERS_3
 
 function TEST_OTHER_PARAMETERS_4
 {
-	# Test for many parameters
-	# 	TEST_OTHER_PARAMETERS_4 config_file
-	#=>
-	# config_file == config file name
+    # Test for many parameters
+    #     TEST_OTHER_PARAMETERS_4 config_file
+    #=>
+    # config_file == config file name
 
-	config_file=$1
+    config_file=$1
 
     if (( $is_hsmlite == 0 )); then
-		echo "No TEST_OTHER_PARAMETERS_4 for this purpose: skipped"
-		set_skipped
-		return 1
-	fi
+        echo "No TEST_OTHER_PARAMETERS_4 for this purpose: skipped"
+        set_skipped
+        return 1
+    fi
 
-	clean_logs
+    clean_logs
 
     # test initial condition: backend must not be mounted
     umount $BKROOT || umount -f $BKROOT
 
-	echo "Create Files ..."
+    echo "Create Files ..."
     for i in `seq 1 11` ; do
-    	dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
-	done
+        dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
+    done
 
-	echo "Migrate files (must fail)"
-	$RH -f $RBH_CFG_DIR/$config_file --scan --run=migration --target=all --once -l DEBUG -L rh_migr.log
+    echo "Migrate files (must fail)"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --run=migration --target=all --once -l DEBUG -L rh_migr.log
     (( $is_lhsm > 0 )) && wait_done 60
 
-	nbError=0
-	count=`find $BKROOT -type f  -not -name "*.lov" | wc -l`
+    nbError=0
+    count=`find $BKROOT -type f  -not -name "*.lov" | wc -l`
     if (( $count != 0 )); then
         error "********** TEST FAILED (File System): $count files migrated, but 0 expected"
         ((nbError++))
@@ -10548,36 +10634,34 @@ function TEST_OTHER_PARAMETERS_4
 
     ensure_init_backend || error "Error initializing backend $BKROOT"
 
-    echo "Migrate files"
-	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once
-	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log  &
-	pid=$!
-    kill -9 $pid
+    echo "Migrate files (once)"
+    $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once
+    $RH -f $RBH_CFG_DIR/$config_file --run="migration(target=all)" -l DEBUG -L rh_migr.log
 
-	nbError=0
-	count=`find $BKROOT -type f  -not -name "*.lov" | wc -l`
+    nbError=0
+    count=`find $BKROOT -type f  -not -name "*.lov" | wc -l`
     if (( $count != 0 )); then
         error "********** TEST FAILED (File System): $count files migrated, but 0 expected"
         ((nbError++))
     fi
 
-    echo "Migrate files"
-	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once
-	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log &
-	pid=$!
+    echo "Migrate files (daemon)"
+    $RH -f $RBH_CFG_DIR/$config_file --run=migration -l DEBUG -L rh_migr.log &
+    pid=$!
 
-	echo "sleep 30 seconds"
-	sleep 30
-    (( $is_lhsm > 0 )) && wait_done 60
+    # wait for runtime_interval
+    echo "sleep 11 seconds" 
+    sleep 11
+        (( $is_lhsm > 0 )) && wait_done 60
 
-	nbError=0
-	count=`find $BKROOT -type f  -not -name "*.lov" | wc -l`
+    nbError=0
+    count=`find $BKROOT -type f  -not -name "*.lov" | wc -l`
     if (( $count != 10 )); then
         error "********** TEST FAILED (File System): $count files migrated, but 10 expected"
         ((nbError++))
     fi
 
-	if (($nbError == 0 )); then
+    if (($nbError == 0 )); then
         echo "OK: test successful"
     else
         error "********** TEST FAILED **********"
@@ -10807,6 +10891,7 @@ run_test 229g  test_limits test_limits.conf trig_param "test limit on both trigg
 run_test 229h  test_limits test_limits.conf trig_run "test limit on both trigger and run"
 run_test 229i  test_limits test_limits.conf param_run "test limit on both param and run"
 run_test 230   test_checker test_checker.conf "policies based on 'checker' module"
+run_test 231   test_action_check OtherParameters_4.conf "check status of current actions"
 
 #### triggers ####
 

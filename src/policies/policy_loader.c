@@ -287,7 +287,7 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
     static const char *expect[] =
     {
         "status_manager", "scope", "default_action",
-        "default_lru_sort_attr",
+        "default_lru_sort_attr", "status_current",
         NULL
     };
 
@@ -481,6 +481,32 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
         return EINVAL;
     }
 
+    /* get status_current parameter (necessary to check status of outstanding actions) */
+    rc = GetStringParam(config_blk, block_name, "status_current",
+                        PFLG_NO_WILDCARDS, tmpstr, sizeof(tmpstr),
+                        &extra, &extra_cnt, msg_out);
+    if (rc == 0)
+    {
+        if (policy->status_mgr == NULL)
+        {
+            sprintf(msg_out, "Can't specify a 'status_current' parameter without a status manager, "
+                    "in block '%s %s', line %d", block_name, name, rh_config_GetItemLine(sub_item));
+            return EINVAL;
+        }
+
+        policy->status_current = get_status_str(policy->status_mgr->sm, tmpstr);
+        if (policy->status_current == NULL)
+        {
+            sprintf(msg_out, "Invalid value for 'status_current' parameter in "
+                    "block '%s %s', line %d: '%s' (valid status expected)",
+                    block_name, name, rh_config_GetItemLine(sub_item), tmpstr);
+            return EINVAL;
+        }
+    }
+    else if (rc != ENOENT)
+        return rc;
+
+
     CheckUnknownParameters(config_blk, block_name, expect);
     return 0;
 }
@@ -514,6 +540,7 @@ static int read_policy_definitions(config_file_t config, policies_t *pol,
                 pol->policy_list = (policy_descr_t *)realloc(pol->policy_list,
                         (pol->policy_count + 1) * sizeof(policy_descr_t));
 
+            /* zero it */
             memset(&pol->policy_list[pol->policy_count], 0, sizeof(policy_descr_t));
 
             /* analyze policy declaration */
