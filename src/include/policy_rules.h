@@ -179,6 +179,8 @@ typedef struct policy_descr_t {
     attr_mask_t         scope_mask;
     char               *implements; /* in the case of 'multi-action' status managers,
                                        indicate the implemented action. */
+    const char         *status_current; /* status of entries for which an action is running...
+                                          (used to check status of outstanding entries) */
     struct sm_instance *status_mgr;
     policy_action_t     default_action;
     /* attr index of the sort order (e.g. last_mod, creation_time, ...) */
