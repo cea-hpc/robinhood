@@ -1,0 +1,152 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_c585455a",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 51,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-05-25T08:14:03Z",
+      "side": 1,
+      "message": "This attribute seems redundant to me, and therefore a potential source of confusion.\n\nIf it is a readability concern, what about:\n\nstatic inline bool cfg_has_uuid(const lhsm_config_t *cfg)\n{\n    return cfg-\u003euuid_xattr[0] !\u003d \u0027\\0\u0027;\n}",
+      "revId": "c6f6947266ddb994952f91e8d7cdeebaae7317dd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_a5880172",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 307,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-05-25T08:14:03Z",
+      "side": 1,
+      "message": "Although this looks safe for now, I would recommend passing size_t uuid_size too so as to let the function check.",
+      "revId": "c6f6947266ddb994952f91e8d7cdeebaae7317dd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_05be8dfe",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 316,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-05-25T08:14:03Z",
+      "side": 1,
+      "message": "This (and corresponding setxattr) should be lgetxattr/lsetxattr to work properly with symlinks.",
+      "revId": "c6f6947266ddb994952f91e8d7cdeebaae7317dd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_25951186",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 339,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-05-25T08:14:03Z",
+      "side": 1,
+      "message": "shouldn\u0027t this function return an error code?",
+      "range": {
+        "startLine": 339,
+        "startChar": 7,
+        "endLine": 339,
+        "endChar": 11
+      },
+      "revId": "c6f6947266ddb994952f91e8d7cdeebaae7317dd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_c59e65b8",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 345,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-05-25T08:14:03Z",
+      "side": 1,
+      "message": "(style) splitting the condition and returning on failure would ease readability, at the cheap price of a couple extra lines",
+      "revId": "c6f6947266ddb994952f91e8d7cdeebaae7317dd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_0590cd93",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 882,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-05-25T08:14:03Z",
+      "side": 1,
+      "message": "Display returned type in the log message",
+      "revId": "c6f6947266ddb994952f91e8d7cdeebaae7317dd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_85f29d04",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 913,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-05-25T08:14:03Z",
+      "side": 1,
+      "message": "(defect) errno, setxattr() returns -1 on failure",
+      "revId": "c6f6947266ddb994952f91e8d7cdeebaae7317dd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_e5b84913",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 976,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-05-25T08:14:03Z",
+      "side": 1,
+      "message": "useless cast",
+      "range": {
+        "startLine": 976,
+        "startChar": 27,
+        "endLine": 976,
+        "endChar": 40
+      },
+      "revId": "c6f6947266ddb994952f91e8d7cdeebaae7317dd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
