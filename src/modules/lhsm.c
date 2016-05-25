@@ -140,7 +140,9 @@ static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
             {
                 /* sanity check of returned type */
                 if (def->db_type != DB_UINT)
-                    DisplayLog(LVL_CRIT, LHSM_TAG, "Unexpected type for 'lhsm.archive_id'");
+                    DisplayLog(LVL_CRIT, LHSM_TAG,
+                               "Unexpected type for 'lhsm.archive_id': %d",
+                               def->db_type);
                 else
                     archive_id = *tmp;
             }
@@ -802,7 +804,9 @@ static recov_status_t lhsm_undelete(struct sm_instance *smi,
     {
         /* sanity check of returned type */
         if (def->db_type != DB_UINT)
-            DisplayLog(LVL_CRIT, LHSM_TAG, "Unexpected type for 'lhsm.archive_id'");
+            DisplayLog(LVL_CRIT, LHSM_TAG,
+                       "Unexpected type for 'lhsm.archive_id': %d",
+                       def->db_type);
         else
             archive_id = *tmp;
     }
