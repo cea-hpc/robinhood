@@ -849,7 +849,7 @@ static recov_status_t lhsm_undelete(struct sm_instance *smi,
 
 static void lhsm_cfg_set_default(void *module_config)
 {
-    lhsm_config_t *conf = (lhsm_config_t *) module_config;
+    lhsm_config_t *conf = module_config;
     GError        *err_desc;
     int            ac;
 
@@ -878,7 +878,7 @@ static void lhsm_cfg_write_default(FILE *output)
 static int lhsm_cfg_read(config_file_t config, void *module_config, char *msg_out)
 {
     int              rc;
-    lhsm_config_t *conf = (lhsm_config_t *) module_config;
+    lhsm_config_t *conf = module_config;
     config_item_t    block;
 
     const cfg_param_t hsm_params[] = {
