@@ -32,7 +32,44 @@
 
 #include <stdio.h>
 #include <sys/time.h>
+#include <assert.h>
+#include <string.h>
 
+/* Overwrite getpwuid_r and getgrgid_r as used by the UID/GID cache,
+ * so we can feed many more ids than present in the system. This test
+ * and the cache only care about the names and the UID/GID, so don't
+ * fill the rest of the structures. */
+#define MAX_UID 100000
+int getpwuid_r(uid_t uid, struct passwd *pwd,
+               char *buf, size_t buflen, struct passwd **result)
+{
+    pwd->pw_uid = uid;
+    sprintf(buf, "%ld", (long)uid);
+    pwd->pw_name = buf;
+
+    if (uid >= MAX_UID)
+        *result = NULL;
+    else
+        *result = pwd;
+
+    return 0;
+}
+
+#define MAX_GID 100000
+int getgrgid_r(gid_t gid, struct group *grp,
+               char *buf, size_t buflen, struct group **result)
+{
+    grp->gr_gid = gid;
+    sprintf(buf, "%ld", (long)gid);
+    grp->gr_name = buf;
+
+    if (gid >= MAX_GID)
+        *result = NULL;
+    else
+        *result = grp;
+
+    return 0;
+}
 
 /* avoid linking with all robinhood libs */
 log_config_t log_config = { .debug_level = LVL_DEBUG };
@@ -65,7 +102,7 @@ int main( int argc, char **argv )
     for ( i = 0; i <= 10; i++ )
     {
         c = 0;
-        for ( u = 0; u <= 100; u++ )
+        for ( u = 0; u < MAX_UID; u++ )
         {
             struct passwd *ppw;
 
@@ -86,12 +123,29 @@ int main( int argc, char **argv )
         t0 = tc;
     }
 
+    /* Now, check that the values returned are correct */
+    for (u = 0; u < MAX_UID; u++)
+    {
+        struct passwd *ppw;
+        char buf[50];
+
+        ppw = GetPwUid(u);
+        assert(ppw != NULL);
+        assert(ppw->pw_uid == u);
+
+        sprintf(buf, "%ld", (long)u);
+        assert(strcmp(ppw->pw_name, buf) == 0);
+    }
+
+    assert(GetPwUid(MAX_UID) == NULL);
+
+    gettimeofday(&t0, NULL);
+
     for ( i = 0; i <= 10; i++ )
     {
         c = 0;
-        for ( g = 0; g <= 100; g++ )
+        for ( g = 0; g < MAX_GID; g++ )
         {
-
             struct group  *pgr;
 
             pgr = GetGrGid( g );
@@ -110,6 +164,22 @@ int main( int argc, char **argv )
         }
         t0 = tc;
     }
+
+    /* Now, check that the values returned are correct */
+    for (g = 0; g < MAX_GID; g++)
+    {
+        struct group *pgr;
+        char buf[50];
+
+        pgr = GetGrGid(g);
+        assert(pgr != NULL);
+        assert(pgr->gr_gid == g);
+
+        sprintf(buf, "%ld", (long)g);
+        assert(strcmp(pgr->gr_name, buf) == 0);
+    }
+
+    assert(GetGrGid(MAX_GID) == NULL);
 
     return 0;
 }
