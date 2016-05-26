@@ -1,0 +1,61 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_1e4edac0",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 327,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-05-26T10:17:21Z",
+      "side": 1,
+      "message": "(nitpick) missing space after FID",
+      "range": {
+        "startLine": 327,
+        "startChar": 63,
+        "endLine": 327,
+        "endChar": 65
+      },
+      "revId": "e59f1e9f08b50333ad28e652dc307c328dec2725",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_1ee5baa6",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 511,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-05-26T10:17:21Z",
+      "side": 1,
+      "message": "So is it ok conceptually to ignore errors here instead of jumping to clean_status as above? If so please add a comment to epxlain why.",
+      "revId": "e59f1e9f08b50333ad28e652dc307c328dec2725",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_fedfb6d3",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 634,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-05-26T10:17:21Z",
+      "side": 1,
+      "message": "Same here, can we ignore errors?",
+      "revId": "e59f1e9f08b50333ad28e652dc307c328dec2725",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
