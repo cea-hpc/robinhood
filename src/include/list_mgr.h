@@ -1070,13 +1070,13 @@ void           ListMgr_CloseProfile( struct lmgr_profile_t *p_iter );
 /*
  * Name of variables stored in database
  */
-// FIXME this is policy dependant
-//#define LAST_PURGE_TIME     "LastPurgeTime"
-//#define LAST_PURGE_TARGET   "LastPurgeTarget"
-//#define LAST_PURGE_STATUS   "LastPurgeStatus"
-//#define LAST_MIGR_TIME      "LastMigrTime"
-//#define LAST_MIGR_STATUS    "LastMigrStatus"
-//#define LAST_MIGR_INFO      "LastMigrInfo"
+#define LAST_POLICY_START_SUFFIX    "_start"
+#define LAST_POLICY_END_SUFFIX      "_end"
+#define LAST_POLICY_TRIGGER_SUFFIX  "_trigger" /* trigger type and target */
+#define LAST_POLICY_STATUS_SUFFIX   "_status"  /* status & stats about last run */
+#define CURR_POLICY_START_SUFFIX    "_start_current" /* start of current run */
+#define CURR_POLICY_TRIGGER_SUFFIX  "_trigger_current" /* trigger of current run */
+
 #define FS_PATH_VAR         "FS_Path"
 #define USAGE_MAX_VAR       "MaxUsage"
 #define SCAN_INTERVAL_VAR   "ScanInterval"

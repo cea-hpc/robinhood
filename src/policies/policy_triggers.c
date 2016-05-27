@@ -110,7 +110,6 @@ static unsigned long long FSInfo2Blocs512(unsigned long long nb_blocks,
 
 /* ------------ Functions for checking each type of trigger ------------ */
 
-
 static inline int statfs2usage(const struct statfs *p_statfs,
                                unsigned long long *used_vol,
                                double *used_pct,
@@ -490,12 +489,18 @@ static void set_limits(const policy_info_t *pol, const trigger_item_t *trig,
         limit->vol = min_param(limit->vol, pol->config->max_action_vol);
 }
 
+/**
+ * Print policy target description to a string.
+ * @return str
+ */
 static const char *param2targetstr(const policy_param_t *param, char *str, size_t len)
 {
     switch (param->target)
     {
         case TGT_FS:
-            return "filesystem entries";
+            /* snprintf is safer than strncpy as it null terminates string */
+            snprintf(str, len, "all");
+            return str;
 #ifdef _LUSTRE
         case TGT_OST:
             snprintf(str, len, "OST#%u", param->optarg_u.index);
@@ -1194,16 +1199,65 @@ static void print_done_vs_target(char *str, int size, const counters_t* done,
     }
 }
 
+/** store policy run stats to DB */
+static void store_policy_run_stats(policy_info_t *pol, time_t start, time_t end,
+                                   const char *trigger_info, const char *status_info)
+{
+    char var_name[POLICY_NAME_LEN+128]; /* policy name + suffix (oversized) */
+    char val_buff[RBH_PATH_MAX];
+
+    /* clear values for current run */
+    snprintf(var_name, sizeof(var_name), "%s"CURR_POLICY_START_SUFFIX, tag(pol));
+    ListMgr_SetVar(&pol->lmgr, var_name, NULL);
+    snprintf(var_name, sizeof(var_name), "%s"CURR_POLICY_TRIGGER_SUFFIX, tag(pol));
+    ListMgr_SetVar(&pol->lmgr, var_name, NULL);
+
+    /* store last run times */
+    snprintf(var_name, sizeof(var_name), "%s"LAST_POLICY_START_SUFFIX, tag(pol));
+    snprintf(val_buff, sizeof(val_buff), "%lu", (unsigned long)start);
+    ListMgr_SetVar(&pol->lmgr, var_name, val_buff);
+
+    snprintf(var_name, sizeof(var_name), "%s"LAST_POLICY_END_SUFFIX, tag(pol));
+    snprintf(val_buff, sizeof(val_buff), "%lu", (unsigned long)end);
+    ListMgr_SetVar(&pol->lmgr, var_name, val_buff);
+
+    /* store trigger info */
+    snprintf(var_name, sizeof(var_name), "%s"LAST_POLICY_TRIGGER_SUFFIX, tag(pol));
+    ListMgr_SetVar(&pol->lmgr, var_name, trigger_info);
+
+    /* store status info */
+    snprintf(var_name, sizeof(var_name), "%s"LAST_POLICY_STATUS_SUFFIX, tag(pol));
+    ListMgr_SetVar(&pol->lmgr, var_name, status_info);
+}
+
+static void store_policy_start_stats(policy_info_t *pol, time_t start, const char *trigger_info)
+{
+    char var_name[POLICY_NAME_LEN+16];
+    char val_buff[RBH_PATH_MAX];
+
+    /* store current run times */
+    snprintf(var_name, sizeof(var_name), "%s"CURR_POLICY_START_SUFFIX, tag(pol));
+    snprintf(val_buff, sizeof(val_buff), "%lu", (unsigned long)start);
+    ListMgr_SetVar(&pol->lmgr, var_name, val_buff);
+
+    /* store trigger info */
+    snprintf(var_name, sizeof(var_name), "%s"CURR_POLICY_TRIGGER_SUFFIX, tag(pol));
+    ListMgr_SetVar(&pol->lmgr, var_name, trigger_info);
+}
+
 /** \param trigger_index -1 if this is a manual run */
 static void report_policy_run(policy_info_t *pol, policy_param_t *param,
                               action_summary_t *summary, lmgr_t *lmgr,
                               int trigger_index, int policy_rc)
 {
     char buff[1024];
+    char *trigger_buff = NULL;
+    char *status_buff = NULL;
     char time_buff[128];
     char vol_buff[128];
     char bw_buff[128];
     unsigned int spent;
+    time_t time_end = time(NULL);
 
     print_ctr(LVL_DEBUG, tag(pol), "target", &param->target_ctr, param->target);
     print_ctr(LVL_DEBUG, tag(pol), "done", &summary->action_ctr, param->target);
@@ -1214,20 +1268,24 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
         pol->trigger_info[trigger_index].last_ctr = summary->action_ctr;
         counters_add(&pol->trigger_info[trigger_index].total_ctr,
                      &summary->action_ctr);
+        asprintf(&trigger_buff, "trigger: %s (%s), target: %s",
+                 trigger2str(&pol->config->trigger_list[trigger_index]),
+                 one_shot(pol) ? "one-shot command" : "daemon",
+                 param2targetstr(param, buff, sizeof(buff)));
+    }
+    else
+    {
+        asprintf(&trigger_buff, "manual run, target: %s",
+                 param2targetstr(param, buff, sizeof(buff)));
     }
 
-    spent = time(NULL) - summary->policy_start;
-    if (spent == 0) spent = 1;
+    spent = time_end - summary->policy_start;
+    if (spent == 0)
+        spent = 1;
 
     FormatDuration(time_buff, sizeof(time_buff), spent);
     FormatFileSize(vol_buff, sizeof(vol_buff), summary->action_ctr.vol);
     FormatFileSize(bw_buff, sizeof(bw_buff), summary->action_ctr.vol/spent);
-
-    /* update last purge time and target */
-//  sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
-// FIXME this is policy dependant
-//    ListMgr_SetVar( &lmgr, LAST_PURGE_TIME, timestamp );
-//    ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, "Filesystem" );
 
     if (policy_rc == 0)
     {
@@ -1238,6 +1296,9 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
                    summary->action_ctr.count,
                    (float)summary->action_ctr.count/(float)spent,
                    vol_buff, bw_buff, summary->skipped, summary->errors);
+
+        asprintf(&status_buff, "%llu successful actions, volume: %s; %u entries skipped; %u errors",
+                 summary->action_ctr.count, vol_buff, summary->skipped, summary->errors);
 
         if (counter_not_reached(&summary->action_ctr, &param->target_ctr))
         {
@@ -1285,12 +1346,6 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
         else
             update_trigger_status(pol, trigger_index, TRIG_OK);
 
-
-
-        //snprintf(status_str, 1024, "Success (%llu entries, %llu blocks released)",
-        //         nbr_purged, blocks_purged);
-// FIXME this is policy dependant
-//        ListMgr_SetVar(&lmgr, LAST_PURGE_STATUS, status_str);
     }
     else if (policy_rc == ENOENT)
     {
@@ -1299,9 +1354,7 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
                    "Could not run policy on %s: no list is available.",
                    param2targetstr(param, buff, sizeof(buff)));
 
-//        snprintf(status_str, 1024, "No list available");
-// FIXME this is policy dependant
-//        ListMgr_SetVar(&lmgr, LAST_PURGE_STATUS, status_str);
+        status_buff = strdup("Could not run policy: no list is available");
     }
     else if (policy_rc == ECANCELED)
     {
@@ -1314,10 +1367,8 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
                    (float)summary->action_ctr.count/(float)spent,
                    vol_buff, bw_buff, summary->skipped, summary->errors);
 
-//        snprintf(status_str, 1024, "Purge on %s aborted by admin (after releasing %llu entries, %llu blocks)",
-//                 global_config.fs_path, nbr_purged, blocks_purged);
-// FIXME this is policy dependant
-//        ListMgr_SetVar(&lmgr, LAST_PURGE_STATUS, status_str);
+        asprintf(&status_buff, "Policy run aborted after %llu successful actions, volume: %s; %u entries skipped; %u errors",
+                 summary->action_ctr.count, vol_buff, summary->skipped, summary->errors);
     }
     else
     {
@@ -1328,18 +1379,15 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
                    summary->action_ctr.count, vol_buff,
                    summary->skipped, summary->errors);
 
-//      sprintf(buff, "Error releasing data in %s", global_config.fs_path);
-//        RaiseAlert(buff, "Error %d performing purge in %s (%s).\n"
-//                    "%llu entries purged, %llu blocks.", policy_rc,
-//                    global_config.fs_path, strerror(policy_rc),
-//                    nbr_purged, blocks_purged);
-
-//        snprintf(status_str, 1024, "Error %d after releasing %llu entries, %llu blocks released in %s",
-//                 policy_rc, nbr_purged, blocks_purged, global_config.fs_path);
-
-// FIXME this is policy dependant
-//        ListMgr_SetVar(&lmgr, LAST_PURGE_STATUS, status_str);
+        asprintf(&status_buff, "Fatal error running policy after %llu successful actions, volume: %s; %u entries skipped; %u errors",
+                 summary->action_ctr.count, vol_buff, summary->skipped, summary->errors);
     }
+
+    store_policy_run_stats(pol, summary->policy_start, time_end,
+                           trigger_buff, status_buff);
+    free(trigger_buff);
+    free(status_buff);
+
     FlushLogs();
 }
 
@@ -1394,9 +1442,18 @@ static int check_trigger(policy_info_t *pol, unsigned trigger_index)
         param.action_params = &trig->action_params;
 
         /* run actions! */
-        DisplayLog(LVL_EVENT, tag(pol), "Checking policy rules for %s",
-                   param2targetstr(&param, buff, sizeof(buff)));
+        param2targetstr(&param, buff, sizeof(buff));
+
+        DisplayLog(LVL_EVENT, tag(pol), "Checking policy rules for %s", buff);
         update_trigger_status(pol, trigger_index, TRIG_RUNNING);
+
+        /* insert info to DB about current trigger (for rbh-report --activity) */
+        char *trigger_buff;
+        asprintf(&trigger_buff, "trigger: %s (%s), target: %s",
+                 trigger2str(trig), one_shot(pol) ?
+                    "one-shot command" : "daemon", buff);
+        store_policy_start_stats(pol, time(NULL), trigger_buff);
+        free(trigger_buff);
 
         memset(&summary, 0, sizeof(summary));
         /* run the policy */
@@ -1550,8 +1607,14 @@ static int targeted_run(policy_info_t *pol, const policy_opt_t *opt)
             param.time_mod = &tmod;
 
         /* run actions! */
-        DisplayLog(LVL_EVENT, tag(pol), "Checking policy rules for %s",
-                   param2targetstr(&param, buff, sizeof(buff)));
+        param2targetstr(&param, buff, sizeof(buff));
+        DisplayLog(LVL_EVENT, tag(pol), "Checking policy rules for %s", buff);
+
+        /* insert info to DB about current trigger (for rbh-report --activity) */
+        char *trigger_buff;
+        asprintf(&trigger_buff, "manual run, target: %s", buff);
+        store_policy_start_stats(pol, time(NULL), trigger_buff);
+        free(trigger_buff);
 
         memset(&summary, 0, sizeof(summary));
         /* run the policy */
@@ -1559,7 +1622,7 @@ static int targeted_run(policy_info_t *pol, const policy_opt_t *opt)
 
         report_policy_run(pol, &param, &summary, &pol->lmgr, -1, rc);
 
-        /* No post action delay */
+        /* Manual run: no post action delay */
     }
 
 out:
