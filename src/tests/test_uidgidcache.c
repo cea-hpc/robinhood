@@ -123,7 +123,7 @@ int main(int argc, char **argv)
         c = 0;
         for (u = 0; u < MAX_UID; u++)
         {
-            struct passwd *ppw;
+            const struct passwd *ppw;
 
             ppw = GetPwUid(u);
             if (ppw)
@@ -148,7 +148,7 @@ int main(int argc, char **argv)
     /* Now, check that the values returned are correct */
     for (u = 0; u < MAX_UID; u++)
     {
-        struct passwd *ppw;
+        const struct passwd *ppw;
         char buf[50];
 
         ppw = GetPwUid(u);
@@ -170,7 +170,7 @@ int main(int argc, char **argv)
         c = 0;
         for (g = 0; g < MAX_GID; g++)
         {
-            struct group  *pgr;
+            const struct group *pgr;
 
             pgr = GetGrGid(g);
             if (pgr)
@@ -195,7 +195,7 @@ int main(int argc, char **argv)
     /* Now, check that the values returned are correct */
     for (g = 0; g < MAX_GID; g++)
     {
-        struct group *pgr;
+        const struct group *pgr;
         char buf[50];
 
         pgr = GetGrGid(g);

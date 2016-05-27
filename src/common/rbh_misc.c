@@ -422,7 +422,7 @@ notfound:
 
 char          *uid2str( uid_t uid, char *username )
 {
-    struct passwd *p = GetPwUid( uid );
+    const struct passwd *p = GetPwUid(uid);
     if ( p != NULL )
         strcpy( username, p->pw_name );
     else
@@ -433,7 +433,7 @@ char          *uid2str( uid_t uid, char *username )
 
 char          *gid2str( gid_t gid, char *groupname )
 {
-    struct group  *g = GetGrGid( gid );
+    const struct group *g = GetGrGid(gid);
     if ( g != NULL )
         strcpy( groupname, g->gr_name );
     else
