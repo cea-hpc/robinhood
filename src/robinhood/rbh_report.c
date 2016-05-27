@@ -594,19 +594,6 @@ static void report_activity(int flags)
     if (!CSV(flags))
         printf("\nFilesystem scan activity:\n\n");
 
-#ifndef _LUSTRE_HSM
-    /* Scan interval */
-    if (getvar_helper(&lmgr, SCAN_INTERVAL_VAR, value, sizeof(value)) == 0)
-    {
-        timestamp = str2int(value);
-        FormatDurationFloat(date, 128, timestamp);
-        if (CSV(flags))
-            printf("current_scan_interval, %s\n", date);
-        else
-            printf("    Current scan interval:   %s\n\n", date);
-    }
-#endif
-
     /* Previous FS scan */
 
     if (getvar_helper(&lmgr, PREV_SCAN_START_TIME, value, sizeof(value)) == 0)
@@ -922,6 +909,8 @@ static void report_activity(int flags)
         DisplayLog(LVL_CRIT, REPORT_TAG,
                    "ERROR retrieving variable " USAGE_MAX_VAR " from database");
     }
+
+    
 
 #if 0 /* FIXME: adapt to generic policies */
 #ifdef HAVE_MIGR_POLICY
@@ -1402,14 +1391,11 @@ static void report_fs_info( int flags )
     unsigned int   result_count;
     struct lmgr_report_t *it;
     int            rc;
-
     lmgr_filter_t  filter;
     bool is_filter = false;
-
-#define FSINFOCOUNT 6
-
+#define FSINFOCOUNT 7
     db_value_t     result[FSINFOCOUNT];
-
+    unsigned long long total_size, total_count, total_used;
     /* To be retrieved:
      * - type
      * - number of items for this type
@@ -1419,17 +1405,17 @@ static void report_fs_info( int flags )
     report_field_descr_t fs_info[FSINFOCOUNT] = {
         {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC, false, 0, FV_NULL},
         {ATTR_INDEX_COUNT, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL},
-        {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, false, 0, FV_NULL}, /* XXX ifdef STATUS ? */
+        {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
+        {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, false, 0, FV_NULL},
     };
-
-    unsigned long long total_size, total_count;
-    total_size = total_count = 0;
     lmgr_iter_opt_t opt;
     profile_u   prof;
     bool display_header = !NOHEADER(flags);
+
+    total_size = total_count = total_used = 0;
 
     if (REVERSE(flags))
         fs_info[0].sort_flag = SORT_DESC;
@@ -1482,6 +1468,7 @@ static void report_fs_info( int flags )
 
         total_count += result[1].value_u.val_biguint;
         total_size += result[2].value_u.val_biguint;
+        total_used += result[3].value_u.val_biguint * DEV_BSIZE;
 
         /* prepare next call */
         result_count = FSINFOCOUNT;
@@ -1493,9 +1480,13 @@ static void report_fs_info( int flags )
     if ( !NOHEADER(flags) )
     {
         char strsz[128];
-        FormatFileSize( strsz, 128, total_size );
-        printf("\nTotal: %llu entries, %llu bytes (%s)\n",
-               total_count, total_size, strsz);
+        char strus[128];
+
+        FormatFileSize(strsz, 128, total_size);
+        FormatFileSize(strus, 128, total_used);
+
+        printf("\nTotal: %llu entries, volume: %llu bytes (%s), space used: %llu bytes (%s)\n",
+               total_count, total_size, strsz, total_used, strus);
     }
 free_filter:
     if (is_filter)
@@ -1588,14 +1579,13 @@ static void report_usergroup_info( char *name, int flags )
     unsigned int   shift = 0;
     bool           is_filter = false;
     bool           display_header = !NOHEADER(flags);
-    unsigned long long total_size, total_count;
-    total_size = total_count = 0;
+    unsigned long long total_size, total_used, total_count;
     lmgr_iter_opt_t opt;
-
-#define USERINFOCOUNT_MAX 9
-
+#define USERINFOCOUNT_MAX 10
     db_value_t     result[USERINFOCOUNT_MAX];
     profile_u   prof;
+
+    total_size = total_used = total_count = 0;
 
     /* To be retrieved for each user:
      * - username
@@ -1650,18 +1640,14 @@ static void report_usergroup_info( char *name, int flags )
         user_info[field_count].filter_compar = MORETHAN;
         user_info[field_count].filter_value.value.val_biguint = count_min;
     }
-
     field_count++;
-#if defined(HAVE_SHOOK) || defined(_LUSTRE_HSM)
+
     /* for 'release'-capable systems, count sum(size) instead of sum(blocks) that might be zero */
     set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_size, REPORT_SUM, SORT_NONE );
-//    field_count++;
-//    /* split by file status (@TODO split by all policy statuses) */
-//    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_status, REPORT_GROUP_BY, SORT_NONE);
-#else
-    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE );
-#endif
     field_count++;
+    set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE );
+    field_count++;
+
     set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_size, REPORT_MIN, SORT_NONE );
     field_count++;
     set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_size, REPORT_MAX, SORT_NONE );
@@ -1717,13 +1703,10 @@ static void report_usergroup_info( char *name, int flags )
         display_header = false; /* just display it once */
 
         total_count += result[1+shift].value_u.val_biguint;
-#if defined(HAVE_SHOOK) || defined(_LUSTRE_HSM)
         /* this is a sum(size) => keep it as is */
         total_size += result[2+shift].value_u.val_biguint;
-#else
         /* this is a block count => multiply by 512 to get the space in bytes */
-        total_size += (result[2+shift].value_u.val_biguint * DEV_BSIZE);
-#endif
+        total_used += (result[3+shift].value_u.val_biguint * DEV_BSIZE);
     }
 
     ListMgr_CloseReport( it );
@@ -1732,9 +1715,13 @@ static void report_usergroup_info( char *name, int flags )
     if ( !NOHEADER(flags) )
     {
         char strsz[128];
-        FormatFileSize( strsz, 128, total_size );
-        printf("\nTotal: %llu entries, %llu bytes used (%s)\n",
-               total_count, total_size, strsz);
+        char strus[128];
+
+        FormatFileSize(strsz, 128, total_size);
+        FormatFileSize(strus, 128, total_used);
+
+        printf("\nTotal: %llu entries, volume: %llu bytes (%s), space used: %llu bytes (%s)\n",
+               total_count, total_size, strsz, total_used, strus);
     }
 
 }
@@ -2033,7 +2020,7 @@ static void report_topuser( unsigned int count, int flags )
     bool is_filter = false;
     profile_u   prof;
 
-#define TOPUSERCOUNT 6
+#define TOPUSERCOUNT 7
 
     db_value_t     result[TOPUSERCOUNT];
 
@@ -2045,12 +2032,9 @@ static void report_topuser( unsigned int count, int flags )
      */
     report_field_descr_t user_info[TOPUSERCOUNT] = {
         {ATTR_INDEX_owner, REPORT_GROUP_BY, SORT_NONE, false, 0, FV_NULL},
-#if defined(HAVE_SHOOK) || defined(_LUSTRE_HSM)
         /* display the total size in HSM (not only the disk level) */
         {ATTR_INDEX_size, REPORT_SUM, SORT_DESC, false, 0, FV_NULL},
-#else
-        {ATTR_INDEX_blocks, REPORT_SUM, SORT_DESC, false, 0, FV_NULL},
-#endif
+        {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_COUNT, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, false, 0, FV_NULL},
@@ -2063,17 +2047,17 @@ static void report_topuser( unsigned int count, int flags )
     if (SORT_BY_COUNT(flags)) {
         /* replace sort on blocks by sort on count */
         user_info[1].sort_flag = SORT_NONE;
-        user_info[2].sort_flag = REVERSE(flags)?SORT_ASC:SORT_DESC;
+        user_info[3].sort_flag = REVERSE(flags)?SORT_ASC:SORT_DESC;
     } else if (SORT_BY_AVGSIZE(flags)) {
         /* sort (big files first) */
         user_info[1].sort_flag = SORT_NONE;
-        user_info[5].sort_flag = REVERSE(flags)?SORT_ASC:SORT_DESC;
+        user_info[6].sort_flag = REVERSE(flags)?SORT_ASC:SORT_DESC;
     }
 
     if (count_min) {
-        user_info[2].filter = true;
-        user_info[2].filter_compar = MORETHAN;
-        user_info[2].filter_value.value.val_biguint = count_min;
+        user_info[3].filter = true;
+        user_info[3].filter_compar = MORETHAN;
+        user_info[3].filter_value.value.val_biguint = count_min;
     }
 
     /* select only the top users */
@@ -2118,8 +2102,6 @@ static void report_topuser( unsigned int count, int flags )
     }
 
     ListMgr_CloseReport( it );
-
-
 }
 
 static void report_deferred_rm( int flags )
@@ -2197,8 +2179,6 @@ static void report_deferred_rm( int flags )
         printf("\nTotal: %llu entries, %llu bytes (%s)\n",
                total_count, total_size, strsz);
     }
-
-
 }
 
 
@@ -2215,8 +2195,8 @@ static void report_class_info( int flags )
     profile_u prof;
     bool is_filter = false;
 
-    unsigned long long total_size, total_count;
-    total_size = total_count = 0;
+    unsigned long long total_size, total_count, total_used;
+    total_size = total_count = total_used = 0;
 
     /* To be retrieved for each group:
      * - class names and status
@@ -2227,8 +2207,8 @@ static void report_class_info( int flags )
     report_field_descr_t class_info[CLASSINFO_FIELDS] = {
         {ATTR_INDEX_fileclass, REPORT_GROUP_BY, SORT_ASC, false, 0, FV_NULL},
         {ATTR_INDEX_COUNT, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL},
-        {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
+        {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, false, 0, FV_NULL},
@@ -2262,7 +2242,8 @@ static void report_class_info( int flags )
         header = false; /* display header once */
 
         total_count += result[1].value_u.val_biguint;
-        total_size += result[3].value_u.val_biguint;
+        total_size += result[2].value_u.val_biguint;
+        total_used += result[3].value_u.val_biguint * DEV_BSIZE;
         result_count = CLASSINFO_FIELDS;
     }
 
@@ -2273,9 +2254,13 @@ static void report_class_info( int flags )
     if ( !NOHEADER(flags) )
     {
         char strsz[128];
-        FormatFileSize( strsz, 128, total_size );
-        printf("\nTotal: %llu entries, %llu bytes (%s)\n",
-               total_count, total_size, strsz);
+        char strus[128];
+
+        FormatFileSize(strsz, 128, total_size);
+        FormatFileSize(strus, 128, total_used);
+
+        printf("\nTotal: %llu entries, volume: %llu bytes (%s), space used: %llu bytes (%s)\n",
+               total_count, total_size, strsz, total_used, strus);
     }
 }
 
@@ -2292,8 +2277,8 @@ static void report_status_info(int smi_index, const char* val, int flags)
     profile_u prof;
     bool is_filter = false;
 
-    unsigned long long total_size, total_count;
-    total_size = total_count = 0;
+    unsigned long long total_size, total_count, total_used;
+    total_size = total_count = total_used = 0;
 
     /* To be retrieved for each group:
      * - status names and status
@@ -2306,8 +2291,8 @@ static void report_status_info(int smi_index, const char* val, int flags)
                 false, 0, FV_NULL},
         {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_ASC, false, 0, FV_NULL},
         {ATTR_INDEX_COUNT, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL},
-        {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
+        {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_MIN, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_MAX, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_AVG, SORT_NONE, false, 0, FV_NULL},
@@ -2361,7 +2346,8 @@ static void report_status_info(int smi_index, const char* val, int flags)
         header = false; /* display header once */
 
         total_count += result[2].value_u.val_biguint;
-        total_size += result[4].value_u.val_biguint;
+        total_size += result[3].value_u.val_biguint;
+        total_used += result[4].value_u.val_biguint * DEV_BSIZE;
         result_count = STATUSINFO_FIELDS;
     }
 
@@ -2372,9 +2358,13 @@ static void report_status_info(int smi_index, const char* val, int flags)
     if (!NOHEADER(flags))
     {
         char strsz[128];
+        char strus[128];
+
         FormatFileSize(strsz, 128, total_size);
-        printf("\nTotal: %llu entries, %llu bytes (%s)\n",
-               total_count, total_size, strsz);
+        FormatFileSize(strus, 128, total_used);
+
+        printf("\nTotal: %llu entries, volume: %llu bytes (%s), space used: %llu bytes (%s)\n",
+               total_count, total_size, strsz, total_used, strus);
     }
 }
 
