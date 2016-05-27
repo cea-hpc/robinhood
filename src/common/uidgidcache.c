@@ -38,15 +38,17 @@
 #endif
 
 #include <stdio.h>
+#include <unistd.h>
 
 #include <glib.h>
 
 /* -------------- parameters ------------ */
 
 /* init buffer size for storing alt groups for a user */
-#define ALT_GROUPS_SZ   1024
+size_t alt_groups_sz;
+
 /* init buffer size for group members for a group */
-#define GROUP_MEMB_SZ   4096
+size_t group_memb_sz;
 
 #define LOGTAG  "UidGidCache"
 
@@ -55,25 +57,12 @@
 typedef struct pw_cacheent__
 {
     struct passwd  pw;
-
-    /* this buffer is used by getpwuid_r for storing strings.
-     * it contains all group names the user owns to.
-     */
-    char           *buffer;
-    int            buf_size;
 } pw_cacheent_t;
-
 
 typedef struct gr_cacheent__
 {
-    struct group   gr;
-
-    /* this buffer is used by getgrgid_r for storing group members.
-     */
-    char           *buffer;
-    int            buf_size;
+    struct group  gr;
 } gr_cacheent_t;
-
 
 /* cache of PW entries */
 static struct
@@ -81,7 +70,6 @@ static struct
     rw_lock_t   lock;
     GHashTable *cache;
 } pw_hash;
-
 
 /* cache of group entries */
 static struct
@@ -102,12 +90,28 @@ unsigned int gr_nb_get = 0;
 /* Initialization of pwent and grent caches */
 int InitUidGid_Cache(void)
 {
+    long res;
+
     /* initialize locks on hash table slots */
     rw_lock_init(&pw_hash.lock);
     pw_hash.cache = g_hash_table_new(NULL, NULL);
 
     rw_lock_init(&gr_hash.lock);
     gr_hash.cache = g_hash_table_new(NULL, NULL);
+
+    /* Try to size the memory needed to get the strings for getpwuid_r
+     * and getgrgid_r. */
+    res = sysconf(_SC_GETPW_R_SIZE_MAX);
+    if (res == -1 || res > 4096)
+        alt_groups_sz = 4096;
+    else
+        alt_groups_sz = res;
+
+    res = sysconf(_SC_GETGR_R_SIZE_MAX);
+    if (res == -1 || res > 4096)
+        group_memb_sz = 4096;
+    else
+        group_memb_sz = res;
 
     return 0;
 }
@@ -119,6 +123,8 @@ const struct passwd *GetPwUid(uid_t owner)
     pw_cacheent_t *p_pwcacheent;
     pw_cacheent_t *entry2;
     int            rc;
+    char           *buffer;
+    int            buf_size;
 
     /* is the entry in the cache? */
     P_r(&pw_hash.lock);
@@ -137,26 +143,24 @@ const struct passwd *GetPwUid(uid_t owner)
         if (p_pwcacheent == NULL)
             return NULL;
 
-        p_pwcacheent->buf_size = ALT_GROUPS_SZ;
-        p_pwcacheent->buffer = malloc(p_pwcacheent->buf_size);
-        if ( p_pwcacheent->buffer == NULL )
+        buf_size = alt_groups_sz;
+        buffer = malloc(buf_size);
+        if (buffer == NULL)
             goto out_free;
 
 retry:
-        if ( ( ( rc = getpwuid_r( owner, &p_pwcacheent->pw,
-                                  p_pwcacheent->buffer,
-                                  p_pwcacheent->buf_size,
-                                  &result ) ) != 0 ) || ( result == NULL ) )
+        rc = getpwuid_r(owner, &p_pwcacheent->pw, buffer, buf_size, &result);
+        if (rc != 0 || result == NULL)
         {
             /* try with larger buff */
             if (rc == ERANGE)
             {
-                p_pwcacheent->buf_size *= 2;
-                DisplayLog( LVL_FULL, LOGTAG, "got ERANGE error from getpwuid_r: trying with buf_size=%u",
-                            p_pwcacheent->buf_size );
-                p_pwcacheent->buffer = realloc(p_pwcacheent->buffer,
-                                               p_pwcacheent->buf_size);
-                if ( p_pwcacheent->buffer == NULL )
+                buf_size *= 2;
+                DisplayLog(LVL_FULL, LOGTAG,
+                           "got ERANGE error from getpwuid_r: trying with buf_size=%u",
+                           buf_size );
+                buffer = realloc(buffer, buf_size);
+                if (buffer == NULL)
                     goto out_free;
                 else
                     goto retry;
@@ -168,6 +172,18 @@ retry:
             goto out_free;
         }
 
+        /* We only care about the name */
+        p_pwcacheent->pw.pw_name = strdup(p_pwcacheent->pw.pw_name);
+        if (p_pwcacheent->pw.pw_name == NULL)
+            goto out_free;
+
+        p_pwcacheent->pw.pw_passwd = NULL;
+        p_pwcacheent->pw.pw_gecos = NULL;
+        p_pwcacheent->pw.pw_dir = NULL;
+        p_pwcacheent->pw.pw_shell = NULL;
+
+        free(buffer);
+
         /* insert it to hash table */
         P_w(&pw_hash.lock);
 
@@ -175,7 +191,7 @@ retry:
          * again. */
         entry2 = g_hash_table_lookup(pw_hash.cache, (void *)(uintptr_t)owner);
         if (entry2) {
-            free(p_pwcacheent->buffer);
+            free(p_pwcacheent->pw.pw_name);
             free(p_pwcacheent);
             p_pwcacheent = entry2;
             pw_nb_get++;
@@ -193,7 +209,7 @@ retry:
 out_free:
     if (p_pwcacheent != NULL)
     {
-        free(p_pwcacheent->buffer);
+        free(buffer);
         free(p_pwcacheent);
     }
     return NULL;
@@ -205,6 +221,8 @@ const struct group *GetGrGid(gid_t grid)
     gr_cacheent_t *p_grcacheent;
     gr_cacheent_t *entry2;
     int            rc;
+    char           *buffer;
+    int            buf_size;
 
     /* is the entry in the cache? */
     P_r(&gr_hash.lock);
@@ -223,26 +241,24 @@ const struct group *GetGrGid(gid_t grid)
         if (p_grcacheent == NULL)
             return NULL;
 
-        p_grcacheent->buf_size = GROUP_MEMB_SZ;
-        p_grcacheent->buffer = malloc(p_grcacheent->buf_size);
-        if (p_grcacheent->buffer == NULL)
+        buf_size = group_memb_sz;
+        buffer = malloc(buf_size);
+        if (buffer == NULL)
             goto out_free;
 
 retry:
-        if ( ( ( rc = getgrgid_r( grid, &p_grcacheent->gr,
-                                  p_grcacheent->buffer,
-                                  p_grcacheent->buf_size,
-                                  &result ) ) != 0 ) || ( result == NULL ) )
+        rc = getgrgid_r(grid, &p_grcacheent->gr, buffer, buf_size, &result);
+        if (rc != 0 || result == NULL)
         {
             /* try with larger buff */
             if (rc == ERANGE)
             {
-                p_grcacheent->buf_size *= 2;
-                DisplayLog( LVL_FULL, LOGTAG, "got ERANGE error from getgrgid_r: trying with buf_size=%u",
-                            p_grcacheent->buf_size );
-                p_grcacheent->buffer = realloc(p_grcacheent->buffer,
-                                               p_grcacheent->buf_size);
-                if ( p_grcacheent->buffer == NULL )
+                buf_size *= 2;
+                DisplayLog(LVL_FULL, LOGTAG,
+                           "got ERANGE error from getgrgid_r: trying with buf_size=%u",
+                           buf_size);
+                buffer = realloc(buffer, buf_size);
+                if ( buffer == NULL )
                     goto out_free;
                 else
                     goto retry;
@@ -257,6 +273,16 @@ retry:
             goto out_free;
         }
 
+        /* We only care about the name */
+        p_grcacheent->gr.gr_name = strdup(p_grcacheent->gr.gr_name);
+        if (p_grcacheent->gr.gr_name == NULL)
+            goto out_free;
+
+        p_grcacheent->gr.gr_passwd = NULL;
+        p_grcacheent->gr.gr_mem = NULL;
+
+        free(buffer);
+
         /* insert it to hash table */
         P_w(&gr_hash.lock);
 
@@ -264,7 +290,7 @@ retry:
          * again. */
         entry2 = g_hash_table_lookup(gr_hash.cache, (void *)(uintptr_t)grid);
         if (entry2) {
-            free(p_grcacheent->buffer);
+            free(p_grcacheent->gr.gr_name);
             free(p_grcacheent);
             p_grcacheent = entry2;
             gr_nb_get++;
@@ -282,7 +308,7 @@ retry:
 out_free:
     if (p_grcacheent != NULL)
     {
-        free(p_grcacheent->buffer);
+        free(buffer);
         free(p_grcacheent);
     }
     return NULL;
