@@ -38,21 +38,9 @@
 
 #include <stdio.h>
 
+#include <glib.h>
+
 /* -------------- parameters ------------ */
-
-/* prime number for hashing passwd entries.
- * it must be high enough compared to the number
- * of users.
- */
-#define PRIME_PW  113
-
-/* prime number for hashing group entries.
- * It must be high enough compared to the
- * number of groups */
-#define PRIME_GR  23
-
-#define ALPHABET_LEN  10
-#define SHIFT         229
 
 /* init buffer size for storing alt groups for a user */
 #define ALT_GROUPS_SZ   1024
@@ -95,23 +83,20 @@ typedef struct gr_cacheent__
 
 
 /* cache of PW entries */
-static struct pw_hash_head__
+static struct
 {
-    rw_lock_t      list_lock;
-    pw_cacheent_t *pw_list;
-
-} pw_hash[PRIME_PW];
+    rw_lock_t   lock;
+    GHashTable *cache;
+} pw_hash;
 
 
 /* cache of group entries */
 
-static struct gr_hash_head__
+static struct
 {
-    rw_lock_t      list_lock;
-    gr_cacheent_t *gr_list;
-
-} gr_hash[PRIME_GR];
-
+    rw_lock_t   lock;
+    GHashTable *cache;
+} gr_hash;
 
 /* stats about the cache */
 unsigned int   pw_nb_set = 0;
@@ -119,172 +104,72 @@ unsigned int   pw_nb_get = 0;
 unsigned int   gr_nb_set = 0;
 unsigned int   gr_nb_get = 0;
 
-
-/* HashBuff : hash a buffer of any size */
-
-static unsigned int HashBuff( caddr_t p_val, size_t val_len, unsigned int modulus )
-{
-    unsigned int   i;
-    unsigned int   hash_val = 0;
-    char           c = 0;
-    char          *str = ( char * ) ( p_val );
-
-    /* compute for each chunk of 8 bits */
-    for ( i = 0; i < val_len; i++ )
-    {
-        c = str[i];
-        hash_val = ( hash_val * ALPHABET_LEN + ( unsigned int ) c + SHIFT ) % modulus;
-    }
-
-    return hash_val;
-}
-
-
 /* get an entry in the pwent cache */
-static struct passwd *HashGetPwent( uid_t pw_uid )
+static pw_cacheent_t *HashGetPwent(uid_t pw_uid)
 {
-    pw_cacheent_t *p_curr;
-    struct passwd *result = NULL;
+    pw_cacheent_t *pwentry;
 
-    /* compute hash key */
-    unsigned int   hash_val = HashBuff( ( caddr_t ) & pw_uid, sizeof( pw_uid ), PRIME_PW );
+    P_r(&pw_hash.lock);
 
-    /* lock the list (read lock), for searching the entry */
+    pwentry = g_hash_table_lookup(pw_hash.cache, (void *)(uintptr_t)pw_uid);
+    if (pwentry)
+         pw_nb_get++;
 
-    P_r( &pw_hash[hash_val].list_lock );
+    V_r(&pw_hash.lock);
 
-    for ( p_curr = pw_hash[hash_val].pw_list; p_curr != NULL; p_curr = p_curr->p_next )
-    {
-        if ( p_curr->pw.pw_uid == pw_uid )
-        {
-            result = &p_curr->pw;
-            pw_nb_get++;
-            break;
-        }
-    }
-
-    V_r( &pw_hash[hash_val].list_lock );
-
-    return result;
+    return pwentry;
 }
-
-
-
-static void HashInsertPwent( pw_cacheent_t * pwentry )
-{
-    /* compute hash key */
-    unsigned int   hash_val = HashBuff( ( caddr_t ) & ( pwentry->pw.pw_uid ),
-                                        sizeof( pwentry->pw.pw_uid ),
-                                        PRIME_PW );
-
-    /* lock the list (write lock), for inserting entry (at first position) */
-
-    P_w( &pw_hash[hash_val].list_lock );
-
-    pwentry->p_next = pw_hash[hash_val].pw_list;
-    pw_hash[hash_val].pw_list = pwentry;
-
-    pw_nb_set++;
-
-    V_w( &pw_hash[hash_val].list_lock );
-
-}
-
 
 /* get an entry in the grent cache */
-static struct group *HashGetGrent( gid_t gr_gid )
+static gr_cacheent_t *HashGetGrent(gid_t gr_gid)
 {
-    gr_cacheent_t *p_curr;
-    struct group  *result = NULL;
+    gr_cacheent_t * grentry;
 
-    /* compute hash key */
-    unsigned int   hash_val = HashBuff( ( caddr_t ) & gr_gid, sizeof( gr_gid ), PRIME_GR );
+    P_r(&gr_hash.lock);
 
-    /* lock the list (read lock), for searching the entry */
+    grentry = g_hash_table_lookup(gr_hash.cache, (void *)(uintptr_t)gr_gid);
+    if (grentry)
+         gr_nb_get++;
 
-    P_r( &gr_hash[hash_val].list_lock );
+    V_r(&gr_hash.lock);
 
-    for ( p_curr = gr_hash[hash_val].gr_list; p_curr != NULL; p_curr = p_curr->p_next )
-    {
-        if ( p_curr->gr.gr_gid == gr_gid )
-        {
-            result = &p_curr->gr;
-            gr_nb_get++;
-            break;
-        }
-    }
-
-    V_r( &gr_hash[hash_val].list_lock );
-
-    return result;
+    return grentry;
 }
-
-
-
-static void HashInsertGrent( gr_cacheent_t * grentry )
-{
-    /* compute hash key */
-    unsigned int   hash_val = HashBuff( ( caddr_t ) & ( grentry->gr.gr_gid ),
-                                        sizeof( grentry->gr.gr_gid ),
-                                        PRIME_GR );
-
-    /* lock the list (write lock), for inserting entry (at first position) */
-
-    P_w( &gr_hash[hash_val].list_lock );
-
-    grentry->p_next = gr_hash[hash_val].gr_list;
-    gr_hash[hash_val].gr_list = grentry;
-
-    gr_nb_set++;
-
-    V_w( &gr_hash[hash_val].list_lock );
-
-}
-
-
 
 /* ------------ exported functions ------------ */
 
 
 /* Initialization of pwent and grent caches */
-int InitUidGid_Cache( void )
+int InitUidGid_Cache(void)
 {
-    unsigned int   i;
-
     /* initialize locks on hash table slots */
-    for ( i = 0; i < PRIME_PW; i++ )
-    {
-        rw_lock_init( &pw_hash[i].list_lock );
-        pw_hash[i].pw_list = NULL;
-    }
+    rw_lock_init(&pw_hash.lock);
+    pw_hash.cache = g_hash_table_new(NULL, NULL);
 
-    for ( i = 0; i < PRIME_GR; i++ )
-    {
-        rw_lock_init( &gr_hash[i].list_lock );
-        gr_hash[i].gr_list = NULL;
-    }
+    rw_lock_init(&gr_hash.lock);
+    gr_hash.cache = g_hash_table_new(NULL, NULL);
+
     return 0;
 }
 
-/* get pw entry for the given uid */
-struct passwd *GetPwUid( uid_t owner )
+/* get user name for the given uid */
+const struct passwd *GetPwUid(uid_t owner)
 {
     struct passwd *result;
-    pw_cacheent_t *p_pwcacheent = NULL;
+    pw_cacheent_t *p_pwcacheent;
     int            rc;
 
     /* is the entry in the cache? */
-    result = HashGetPwent( owner );
+    p_pwcacheent = HashGetPwent(owner);
 
     /* if no, allocate a pw cache entry
      * and ask the system to fill it */
-    if ( result == NULL )
+    if (p_pwcacheent == NULL)
     {
         /* entry allocation */
-        p_pwcacheent = malloc(sizeof(pw_cacheent_t));
-        if ( p_pwcacheent == NULL )
+        p_pwcacheent = calloc(1, sizeof(pw_cacheent_t));
+        if (p_pwcacheent == NULL)
             return NULL;
-        memset( p_pwcacheent, 0, sizeof( pw_cacheent_t ) );
 
         p_pwcacheent->buf_size = ALT_GROUPS_SZ;
         p_pwcacheent->buffer = malloc(p_pwcacheent->buf_size);
@@ -318,12 +203,15 @@ retry:
         }
 
         /* insert it to hash table */
-        HashInsertPwent( p_pwcacheent );
-
-        result = &p_pwcacheent->pw;
+        P_w(&pw_hash.lock);
+        g_hash_table_insert(pw_hash.cache,
+                            (void *)(uintptr_t)p_pwcacheent->pw.pw_uid,
+                            p_pwcacheent);
+        pw_nb_set++;
+        V_w(&pw_hash.lock);
     }
 
-    return result;
+    return &p_pwcacheent->pw;
 
 out_free:
     if ( p_pwcacheent != NULL )
@@ -338,19 +226,18 @@ out_free:
 
 
 
-struct group  *GetGrGid( gid_t grid )
+const struct group *GetGrGid(gid_t grid)
 {
-
     struct group  *result;
     gr_cacheent_t *p_grcacheent;
     int            rc;
 
     /* is the entry in the cache? */
-    result = HashGetGrent( grid );
+    p_grcacheent = HashGetGrent( grid );
 
     /* if no, allocate a gr cache entry
      * and ask the system to fill it */
-    if ( result == NULL )
+    if (p_grcacheent == NULL)
     {
         /* entry  allocation */
         p_grcacheent = malloc(sizeof(gr_cacheent_t));
@@ -393,13 +280,15 @@ retry:
         }
 
         /* insert it to hash table */
-        HashInsertGrent( p_grcacheent );
-
-        result = &p_grcacheent->gr;
-
+        P_w(&gr_hash.lock);
+        g_hash_table_insert(gr_hash.cache,
+                            (void *)(uintptr_t)p_grcacheent->gr.gr_gid,
+                            p_grcacheent);
+        gr_nb_set++;
+        V_w(&gr_hash.lock);
     }
 
-    return result;
+    return &p_grcacheent->gr;
 
 out_free:
     if ( p_grcacheent != NULL )
