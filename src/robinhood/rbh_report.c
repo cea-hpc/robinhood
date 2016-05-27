@@ -579,6 +579,95 @@ static int getvar_helper(lmgr_t *p_mgr, const char *varname, char *value, int si
     }
 }
 
+static void display_policy_stats(const char *name, int flags)
+{
+    char var_name[POLICY_NAME_LEN+128];
+    char buff[1024];
+    char date[128];
+    char date2[128];
+    time_t ts1, ts2;
+    struct tm t;
+
+    if (!CSV(flags))
+        printf("\nPolicy '%s':\n", name);
+
+    /* stats about current policy run (in any) */
+    snprintf(var_name, sizeof(var_name), "%s"CURR_POLICY_START_SUFFIX, name);
+    if (getvar_helper(&lmgr, var_name, buff, sizeof(buff)) != 0)
+    {
+        if (!CSV(flags))
+            printf("    No current run\n");
+        else
+            printf("%s, not running\n", name);
+    }
+    else if ((ts1 = str2int(buff)) > 0)
+    {
+        snprintf(var_name, sizeof(var_name), "%s"CURR_POLICY_TRIGGER_SUFFIX, name);
+        getvar_helper(&lmgr, var_name, buff, sizeof(buff));
+        strftime(date, sizeof(date), "%Y/%m/%d %T", localtime_r(&ts1, &t));
+
+        if (!CSV(flags))
+        {
+            printf("    Current run started on %s: %s\n", date, buff);
+        }
+        else
+        {
+            printf("%s, running\n", name);
+            printf("%s_current_run_start, %s\n", name, date);
+            printf("%s_current_run_trigger, %s\n", name, buff);
+        }
+    }
+
+    /* stats about previous policy run (in any) */
+    snprintf(var_name, sizeof(var_name), "%s"LAST_POLICY_START_SUFFIX, name);
+    if (getvar_helper(&lmgr, var_name, buff, sizeof(buff)) == 0
+        && ((ts1 = str2int(buff)) > 0))
+    {
+        time_t dur;
+        char buff2[1024];
+
+        strftime(date, sizeof(date), "%Y/%m/%d %T", localtime_r(&ts1, &t));
+
+        snprintf(var_name, sizeof(var_name), "%s"LAST_POLICY_TRIGGER_SUFFIX, name);
+        getvar_helper(&lmgr, var_name, buff, sizeof(buff));
+
+        snprintf(var_name, sizeof(var_name), "%s"LAST_POLICY_END_SUFFIX, name);
+        if (getvar_helper(&lmgr, var_name, buff2, sizeof(buff2)) == 0
+            && ((ts2 = str2int(buff2)) > 0))
+        {
+            strftime(date2, sizeof(date2), "%Y/%m/%d %T", localtime_r(&ts2, &t));
+            dur = ts2 - ts1;
+        }
+        else
+        {
+            strncpy(date2, "unknown", sizeof(date2));
+            dur = -1;
+        }
+
+        snprintf(var_name, sizeof(var_name), "%s"LAST_POLICY_STATUS_SUFFIX, name);
+        getvar_helper(&lmgr, var_name, buff2, sizeof(buff2));
+
+        if (!CSV(flags))
+        {
+            printf("    Last complete run: %s\n", buff);
+            printf("        - Started on %s\n", date);
+            if (dur != -1)
+            {
+                FormatDuration(buff, sizeof(buff), dur);
+                printf("        - Finished on %s (duration: %s)\n", date2, buff);
+                printf("        - Summary: %s\n", buff2);
+            }
+        }
+        else
+        {
+            printf("%s_last_run_start, %s\n", name, date);
+            printf("%s_last_run_end, %s\n", name, date2);
+            printf("%s_last_run_trigger, %s\n", name, buff);
+            printf("%s_last_run_summary, %s\n", name, buff2);
+        }
+    }
+}
+
 static void report_activity(int flags)
 {
     char           value[1024];
@@ -589,7 +678,7 @@ static void report_activity(int flags)
     int            rc;
     char           scan_status[128];
     int            nb_threads;
-
+    int            i;
 
     if (!CSV(flags))
         printf("\nFilesystem scan activity:\n\n");
@@ -741,14 +830,14 @@ static void report_activity(int flags)
         getvar_helper(&lmgr, LAST_SCAN_ERRORS, value, sizeof(value));
         if (CSV(flags))
             printf("scan_errors, %s\n", value);
-        else
+        else if (strcmp(value, "0")) /* don't display 0 */
             printf("            errors:          %s\n", value);
 
         // timeouts
         getvar_helper(&lmgr, LAST_SCAN_TIMEOUTS, value, sizeof(value));
         if (CSV(flags))
             printf("scan_timeouts, %s\n", value);
-        else
+        else if (strcmp(value, "0")) /* don't display 0 */
             printf("            timeouts:        %s\n", value);
 
         // nb threads
@@ -793,7 +882,6 @@ static void report_activity(int flags)
     rc = ListMgr_GetVar(&lmgr, CL_LAST_READ_REC_ID, value, sizeof(value));
     if (rc == DB_SUCCESS)
     {
-        int i;
         unsigned int interval;
 
         if (CSV(flags))
@@ -910,105 +998,12 @@ static void report_activity(int flags)
                    "ERROR retrieving variable " USAGE_MAX_VAR " from database");
     }
 
-    
-
-#if 0 /* FIXME: adapt to generic policies */
-#ifdef HAVE_MIGR_POLICY
-    if ( ! CSV(flags) )
-        printf( "\n" );
-
-    /* Last migration */
-    rc = ListMgr_GetVar( &lmgr, LAST_MIGR_TIME, value );
-    if ( rc == DB_SUCCESS )
+    /* display stats for all policies defined in config file */
+    for (i = 0; i < policies.policy_count; i++)
     {
-        timestamp = atoi( value );
-        strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
-        if (  CSV(flags) )
-            printf( "last_migration_time, %s\n", date );
-        else
-            printf( "Last migration:           %s\n", date );
+        /* retrieve stats for policy */
+        display_policy_stats(policies.policy_list[i].name, flags);
     }
-    else if ( rc == DB_NOT_EXISTS )
-    {
-        if ( CSV(flags) )
-            printf( "last_migration_time, unknown\n" );
-        else
-            printf( "No migration was performed on this filesystem\n\n" );
-        return;
-    }
-    else
-    {
-        DisplayLog( LVL_CRIT, REPORT_TAG,
-                    "ERROR retrieving variable " LAST_MIGR_TIME " from database" );
-        return;
-    }
-
-    if ( ListMgr_GetVar( &lmgr, LAST_MIGR_STATUS, value ) == DB_SUCCESS )
-    {
-        if ( CSV(flags) )
-            printf( "last_migration_status, %s\n", value );
-        else
-            printf( "    Status:               %s\n", value );
-    }
-
-    if ( ListMgr_GetVar( &lmgr, LAST_MIGR_INFO, value ) == DB_SUCCESS )
-    {
-        if ( CSV(flags) )
-            printf( "last_migration_info, %s\n", value );
-        else
-            printf( "    Migration info:       %s\n", value );
-    }
-
-#endif
-
-    if ( ! CSV(flags) )
-        printf( "\n" );
-
-    /* Last purge */
-    rc = ListMgr_GetVar( &lmgr, LAST_PURGE_TIME, value );
-    if ( rc == DB_SUCCESS )
-    {
-        timestamp = atoi( value );
-        strftime( date, 128, "%Y/%m/%d %T", localtime_r( &timestamp, &t ) );
-        if ( CSV(flags) )
-            printf( "last_purge_time, %s\n", date );
-        else
-            printf( "Last purge:               %s\n", date );
-    }
-    else if ( rc == DB_NOT_EXISTS )
-    {
-        if ( CSV(flags) )
-            printf( "last_purge_time, unknown\n" );
-        else
-            printf( "No purge was performed on this filesystem\n\n" );
-        return;
-    }
-    else
-    {
-        DisplayLog( LVL_CRIT, REPORT_TAG,
-                    "ERROR retrieving variable " LAST_PURGE_TIME " from database" );
-        return;
-    }
-
-    if ( ListMgr_GetVar( &lmgr, LAST_PURGE_TARGET, value ) == DB_SUCCESS )
-    {
-        if ( CSV(flags) )
-            printf( "last_purge_target, %s\n", value );
-        else
-            printf( "    Target:               %s\n", value );
-    }
-
-    if ( ListMgr_GetVar( &lmgr, LAST_PURGE_STATUS, value ) == DB_SUCCESS )
-    {
-        if ( CSV(flags) )
-            printf( "last_purge_status, %s\n", value );
-        else
-            printf( "    Status:               %s\n", value );
-    }
-    if ( !CSV(flags) )
-        printf( "\n" );
-#endif
-
 }
 
 
