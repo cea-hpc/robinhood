@@ -208,5 +208,14 @@ int main(int argc, char **argv)
 
     assert(GetGrGid(MAX_GID) == NULL);
 
+    printf("Stats:\n");
+    printf("  password cache hit=%d, miss=%d\n", pw_nb_get, pw_nb_set);
+    printf("  group cache hit=%d, miss=%d\n", gr_nb_get, gr_nb_set);
+
+    assert(pw_nb_get == 11 * MAX_UID);
+    assert(pw_nb_set == MAX_UID);
+    assert(gr_nb_get == 11 * MAX_GID);
+    assert(gr_nb_set == MAX_GID);
+
     return 0;
 }
