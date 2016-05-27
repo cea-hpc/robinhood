@@ -36,6 +36,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_8882b4c6",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 307,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-05-27T19:59:22Z",
+      "side": 1,
+      "message": "UUID are of fixed size. 16 bytes, or 37 for their string representation. That change is not needed now. Maybe later if we expand the scheme to use something else.",
+      "parentUuid": "baa041b7_a5880172",
+      "revId": "c6f6947266ddb994952f91e8d7cdeebaae7317dd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_05be8dfe",
         "filename": "src/modules/lhsm.c",
         "patchSetId": 1
@@ -47,6 +65,24 @@
       "writtenOn": "2016-05-25T08:14:03Z",
       "side": 1,
       "message": "This (and corresponding setxattr) should be lgetxattr/lsetxattr to work properly with symlinks.",
+      "revId": "c6f6947266ddb994952f91e8d7cdeebaae7317dd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_e8002004",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 316,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-05-27T19:59:22Z",
+      "side": 1,
+      "message": "At that point we already know this is a regular file. But I\u0027ll change it just in case.",
+      "parentUuid": "baa041b7_05be8dfe",
       "revId": "c6f6947266ddb994952f91e8d7cdeebaae7317dd",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -76,6 +112,30 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_48714c0e",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 339,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-05-27T19:59:22Z",
+      "side": 1,
+      "message": "If we can\u0027t store the UUID, then what do we do? The only option I see is to discard the entry, which may be worse than not storing the UUID.",
+      "parentUuid": "baa041b7_25951186",
+      "range": {
+        "startLine": 339,
+        "startChar": 7,
+        "endLine": 339,
+        "endChar": 11
+      },
+      "revId": "c6f6947266ddb994952f91e8d7cdeebaae7317dd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_c59e65b8",
         "filename": "src/modules/lhsm.c",
         "patchSetId": 1
@@ -87,6 +147,24 @@
       "writtenOn": "2016-05-25T08:14:03Z",
       "side": 1,
       "message": "(style) splitting the condition and returning on failure would ease readability, at the cheap price of a couple extra lines",
+      "revId": "c6f6947266ddb994952f91e8d7cdeebaae7317dd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_685c107d",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 345,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-05-27T19:59:22Z",
+      "side": 1,
+      "message": "You\u0027re right. It\u0027s kind of obscure. Fixed.",
+      "parentUuid": "baa041b7_c59e65b8",
       "revId": "c6f6947266ddb994952f91e8d7cdeebaae7317dd",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -110,6 +188,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_c8cafc1a",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 882,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-05-27T19:59:22Z",
+      "side": 1,
+      "message": "Done. Also fixed 2 other instances in another patch.",
+      "parentUuid": "baa041b7_0590cd93",
+      "revId": "c6f6947266ddb994952f91e8d7cdeebaae7317dd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_85f29d04",
         "filename": "src/modules/lhsm.c",
         "patchSetId": 1
@@ -127,6 +223,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_48df0cd9",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 913,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-05-27T19:59:22Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "baa041b7_85f29d04",
+      "revId": "c6f6947266ddb994952f91e8d7cdeebaae7317dd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_e5b84913",
         "filename": "src/modules/lhsm.c",
         "patchSetId": 1
@@ -138,6 +252,30 @@
       "writtenOn": "2016-05-25T08:14:03Z",
       "side": 1,
       "message": "useless cast",
+      "range": {
+        "startLine": 976,
+        "startChar": 27,
+        "endLine": 976,
+        "endChar": 40
+      },
+      "revId": "c6f6947266ddb994952f91e8d7cdeebaae7317dd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_28af282b",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 976,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-05-27T19:59:22Z",
+      "side": 1,
+      "message": "Done in another patch",
+      "parentUuid": "baa041b7_e5b84913",
       "range": {
         "startLine": 976,
         "startChar": 27,
