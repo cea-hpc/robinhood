@@ -38,5 +38,10 @@ struct passwd *GetPwUid( uid_t owner );
 
 struct group  *GetGrGid( gid_t gid );
 
+/* Cache statistics */
+extern unsigned int pw_nb_set;
+extern unsigned int pw_nb_get;
+extern unsigned int gr_nb_set;
+extern unsigned int gr_nb_get;
 
 #endif
