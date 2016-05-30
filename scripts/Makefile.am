@@ -3,6 +3,8 @@ EXTRA_DIST= robinhood.init			\
 	robinhood.init.in			\
 	robinhood.init.sles         		\
 	robinhood.init.sles.in      		\
+	robinhood.service			\
+	robinhood@.service			\
 	sysconfig_robinhood			\
 	sysconfig_robinhood.in			\
 	type_gen.pl				\
