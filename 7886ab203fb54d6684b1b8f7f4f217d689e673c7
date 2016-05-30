@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_c1ebebda",
+        "filename": "src/include/uidgidcache.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 42,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-05-30T15:04:12Z",
+      "side": 1,
+      "message": "They should be extern, as they are actually defined in uidgidcache.c. Else it should result in a duplicate definition.",
+      "revId": "7886ab203fb54d6684b1b8f7f4f217d689e673c7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
