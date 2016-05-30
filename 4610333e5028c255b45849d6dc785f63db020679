@@ -1,0 +1,146 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_e19eef61",
+        "filename": "src/common/uidgidcache.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 59,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-05-30T15:12:40Z",
+      "side": 1,
+      "message": "as this structure now contains only strust passwd, is it still necessary to define a new type?",
+      "revId": "4610333e5028c255b45849d6dc785f63db020679",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_c199ab7a",
+        "filename": "src/common/uidgidcache.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 64,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-05-30T15:12:40Z",
+      "side": 1,
+      "message": "idem",
+      "revId": "4610333e5028c255b45849d6dc785f63db020679",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_81a723bc",
+        "filename": "src/common/uidgidcache.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 223,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-05-30T15:12:40Z",
+      "side": 1,
+      "message": "initialize to NULL (makes it possible to call free() in any case).",
+      "revId": "4610333e5028c255b45849d6dc785f63db020679",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_61aadf86",
+        "filename": "src/common/uidgidcache.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 226,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-05-30T15:12:40Z",
+      "side": 1,
+      "message": "idem",
+      "revId": "4610333e5028c255b45849d6dc785f63db020679",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_a18b471e",
+        "filename": "src/common/uidgidcache.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 270,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-05-30T15:12:40Z",
+      "side": 1,
+      "message": "(style) you can remove extra spaces in parenthesing near the code you modify.",
+      "revId": "4610333e5028c255b45849d6dc785f63db020679",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_01cd5384",
+        "filename": "src/common/uidgidcache.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 312,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-05-30T15:12:40Z",
+      "side": 1,
+      "message": "(style) you can fix parenthesing all around (remove extra spaces).",
+      "revId": "4610333e5028c255b45849d6dc785f63db020679",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_c1c2cb52",
+        "filename": "src/common/uidgidcache.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 314,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-05-30T15:12:40Z",
+      "side": 1,
+      "message": "free(NULL) is safe.",
+      "revId": "4610333e5028c255b45849d6dc785f63db020679",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_41ad9b99",
+        "filename": "src/common/uidgidcache.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 317,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-05-30T15:12:40Z",
+      "side": 1,
+      "message": "idem",
+      "range": {
+        "startLine": 317,
+        "startChar": 28,
+        "endLine": 317,
+        "endChar": 29
+      },
+      "revId": "4610333e5028c255b45849d6dc785f63db020679",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
