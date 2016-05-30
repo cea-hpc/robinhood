@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_a1d6a725",
+        "filename": "src/tests/test_uidgidcache.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 121,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-05-30T15:01:07Z",
+      "side": 1,
+      "message": "(minor) The reference time to compute the speedup is no longer based on the real getpwuid/getgrgid. Here, it will just compute the difference of performance between get+set in the cache, and get only.\n\nIsn\u0027t this possible to have a first loop that runs real getpwuid even for a smaller number of uid/gid (as this test is single-threaded, it can use the non-reentrant version of getpwuid/getgrgid that are not overridden to make this reference value). The speedup of your next patches will be even more spectacular :)",
+      "revId": "d9c31481f74656ee5b253fa7ee543a302dcffc3c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
