@@ -8,6 +8,12 @@
 %bcond_with shook
 %bcond_with recovtools
 
+%if ( 0%{?fedora} >= 18 || 0%{?rhel} >= 7 || 0%{?suse_version} >= 1210 )
+%global with_systemd 1
+%else
+%global with_systemd 0
+%endif
+
 # target install dir for web gui
 %define installdir_www  /var/www/html
 
@@ -38,6 +44,9 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires: glib2-devel >= 2.16
 BuildRequires: libattr-devel
 BuildRequires: mailx
+%if 0%{?suse_version} >= 1210
+BuildRequires: systemd-rpm-macros
+%endif
 %if %{with lustre}
 BuildRequires: %{lpackage} >= %{lversion}
 %endif
@@ -152,7 +161,6 @@ mkdir -p $RPM_BUILD_ROOT
 make install DESTDIR=$RPM_BUILD_ROOT
 mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates
 mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes
-mkdir -p $RPM_BUILD_ROOT/%{_initrddir}
 mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/ld.so.conf.d
 
 %if %{with lhsm}
@@ -163,12 +171,6 @@ install -m 644 doc/templates/includes/alerts.inc $RPM_BUILD_ROOT/%{_sysconfdir}/
 install -m 644 doc/templates/includes/check.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes/
 install -m 644 doc/templates/example.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates/
 install -m 644 doc/templates/basic.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates/
-
-%if %{defined suse_version}
-install -m 755 scripts/robinhood.init.sles $RPM_BUILD_ROOT/%{_initrddir}/robinhood
-%else
-install -m 755 scripts/robinhood.init $RPM_BUILD_ROOT/%{_initrddir}/robinhood
-%endif
 
 mkdir $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig
 install -m 644 scripts/sysconfig_robinhood $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/robinhood
@@ -192,6 +194,45 @@ cp -a doc/templates $RPM_BUILD_ROOT/%{_datadir}/robinhood/doc
 
 %clean
 rm -rf $RPM_BUILD_ROOT
+
+%if %{with_systemd}
+mkdir -p  $RPM_BUILD_ROOT/%{_unitdir}
+install -m 444 scripts/robinhood.service $RPM_BUILD_ROOT/%{_unitdir}/robinhood.service
+install -m 444 scripts/robinhood@.service $RPM_BUILD_ROOT/%{_unitdir}/robinhood@.service
+
+%if %{with lustre}
+%post lustre
+%else
+%post posix
+%endif
+%if %{defined suse_version}
+%service_add_post robinhood.service robinhood@.service
+%else
+%systemd_post robinhood.service
+%systemd_post robinhood@.service
+%endif
+
+%if %{with lustre}
+%preun lustre
+%else
+%preun posix
+%endif
+%if %{defined suse_version}
+%service_del_preun robinhood.service robinhood@.service
+%else
+%systemd_preun robinhood.service
+%systemd_preun robinhood@.service
+%endif
+
+
+%else # with_systemd
+mkdir -p $RPM_BUILD_ROOT/%{_initrddir}
+
+%if %{defined suse_version}
+install -m 755 scripts/robinhood.init.sles $RPM_BUILD_ROOT/%{_initrddir}/robinhood
+%else
+install -m 755 scripts/robinhood.init $RPM_BUILD_ROOT/%{_initrddir}/robinhood
+%endif
 
 %if %{with lustre}
 %post lustre
@@ -225,6 +266,7 @@ if [ "$1" = 0 ]; then
     fi
   fi
 fi
+%endif # with_systemd
 
 %if %{with lustre}
 %postun lustre
@@ -317,7 +359,12 @@ fi
 %config %{_sysconfdir}/robinhood.d/templates/example.conf
 %config %{_sysconfdir}/robinhood.d/templates/basic.conf
 
+%if %{with_systemd}
+%{_unitdir}/robinhood.service
+%{_unitdir}/robinhood@.service
+%else
 %{_initrddir}/robinhood
+%endif
 
 %if %{with lhsm} || %{with shook}
 %files tools
