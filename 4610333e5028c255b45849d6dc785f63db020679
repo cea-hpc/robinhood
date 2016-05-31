@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_1a7b78c2",
+        "filename": "src/common/uidgidcache.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 59,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-05-31T15:07:20Z",
+      "side": 1,
+      "message": "I\u0027d like to keep to to allow another (future?) change. If a uid/gid doesn\u0027t have a corresponding name, then the cache lookup will be a miss every time. So I wanted to add something telling that this entry is not valid and to not lookup again, alongside a timeout to retry at regular intervals.",
+      "parentUuid": "baa041b7_e19eef61",
+      "revId": "4610333e5028c255b45849d6dc785f63db020679",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_c199ab7a",
         "filename": "src/common/uidgidcache.c",
         "patchSetId": 1
