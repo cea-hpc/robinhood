@@ -107,6 +107,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_b0fdcbb2",
+        "filename": "src/common/uidgidcache.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 223,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-05-31T19:13:36Z",
+      "side": 1,
+      "message": "The compiler will warn if the variable is used uninitialized.",
+      "parentUuid": "baa041b7_b04f0b33",
+      "revId": "4610333e5028c255b45849d6dc785f63db020679",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_61aadf86",
         "filename": "src/common/uidgidcache.c",
         "patchSetId": 1
