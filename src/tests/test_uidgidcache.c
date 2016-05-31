@@ -87,7 +87,7 @@ void DisplayLogFn(log_level debug_level, const char *tag, const char *format, ..
     }
 }
 
-int main( int argc, char **argv )
+int main(int argc, char **argv)
 {
     unsigned int   i;
     uid_t          u;
@@ -97,16 +97,35 @@ int main( int argc, char **argv )
 
     InitUidGid_Cache();
 
+    printf("Reference test of getpwuid (%u items)\n", MAX_UID);
     gettimeofday(&t0, NULL);
+    for (i = 0; i <= MAX_UID/10; i++)
+        for (u = 0; u < 10; u++)
+            getpwuid(u);
+    gettimeofday(&tc, NULL);
+    timersub(&tc, &t0, &tr);
+    printf("Elapsed time: %ld.%06ld (%.10f/s)\n", tr.tv_sec, tr.tv_usec,
+           (tr.tv_sec + tr.tv_usec/1000000.0) / MAX_UID);
 
-    for ( i = 0; i <= 10; i++ )
+    printf("\nReference test of getgrgid (%u items)\n", MAX_GID);
+    gettimeofday(&t0, NULL);
+    for (i = 0; i <= MAX_GID/10; i++)
+        for (u = 0; u < 10; u++)
+            getgrgid(u);
+    gettimeofday(&tc, NULL);
+    timersub(&tc, &t0, &tr);
+    printf("Elapsed time: %ld.%06ld (%.10f/s)\n", tr.tv_sec, tr.tv_usec,
+           (tr.tv_sec + tr.tv_usec/1000000.0) / MAX_GID);
+
+    printf("\nTest of password cache\n");
+    for (i = 0; i <= 10; i++)
     {
         c = 0;
-        for ( u = 0; u < MAX_UID; u++ )
+        for (u = 0; u < MAX_UID; u++)
         {
             struct passwd *ppw;
 
-            ppw = GetPwUid( u );
+            ppw = GetPwUid(u);
             if (ppw)
                 c++;
         }
@@ -119,6 +138,9 @@ int main( int argc, char **argv )
             /* compute speedup */
             float ratio = (tlast.tv_sec*1000000.0 + tlast.tv_usec)/(tr.tv_sec*1000000.0 + tr.tv_usec);
             printf("SPEED-UP: %.2f%%\n", 100.0*(ratio - 1));
+
+            printf("Elapsed time: %ld.%06ld (%.10f/s)\n", tr.tv_sec, tr.tv_usec,
+                   (tr.tv_sec + tr.tv_usec/1000000.0) / MAX_UID);
         }
         t0 = tc;
     }
@@ -139,16 +161,18 @@ int main( int argc, char **argv )
 
     assert(GetPwUid(MAX_UID) == NULL);
 
+    printf("\nTest of group cache\n");
+
     gettimeofday(&t0, NULL);
 
-    for ( i = 0; i <= 10; i++ )
+    for (i = 0; i <= 10; i++)
     {
         c = 0;
-        for ( g = 0; g < MAX_GID; g++ )
+        for (g = 0; g < MAX_GID; g++)
         {
             struct group  *pgr;
 
-            pgr = GetGrGid( g );
+            pgr = GetGrGid(g);
             if (pgr)
                 c++;
         }
@@ -161,6 +185,9 @@ int main( int argc, char **argv )
             /* compute speedup */
             float ratio = (tlast.tv_sec*1000000.0 + tlast.tv_usec)/(tr.tv_sec*1000000.0 + tr.tv_usec);
             printf("SPEED-UP: %.2f%%\n", 100.0*(ratio - 1));
+
+            printf("Elapsed time: %ld.%06ld (%.10f/s)\n", tr.tv_sec, tr.tv_usec,
+                   (tr.tv_sec + tr.tv_usec/1000000.0) / MAX_GID);
         }
         t0 = tc;
     }
