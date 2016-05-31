@@ -16,6 +16,24 @@
       "revId": "d9c31481f74656ee5b253fa7ee543a302dcffc3c",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_d5da8116",
+        "filename": "src/tests/test_uidgidcache.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 121,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-05-31T16:31:48Z",
+      "side": 1,
+      "message": "I\u0027ve added that in a new patch.",
+      "parentUuid": "baa041b7_a1d6a725",
+      "revId": "d9c31481f74656ee5b253fa7ee543a302dcffc3c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
