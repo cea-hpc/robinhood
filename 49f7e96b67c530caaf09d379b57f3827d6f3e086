@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_50567f06",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 4
+      },
+      "lineNbr": 39,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-05-31T18:43:54Z",
+      "side": 1,
+      "message": "This is a lustre-hsm only requirement.\nSo it should be moved to lustre subpackage, with a condition \"%if %{with lhsm}\".\nAlso, \"libuuid\" should also be referenced in a \"Requires\" clause.",
+      "revId": "49f7e96b67c530caaf09d379b57f3827d6f3e086",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
