@@ -53,6 +53,11 @@ AC_CHECK_SIZEOF([pthread_t])
 
 AX_ENABLE_FLAG([strict], [Compile with -Wall -Werror], [-Wall -Werror])
 
+AC_CHECK_LIB(z, gzflush,
+  [LIBS="-lz $LIBS"
+   AC_DEFINE(HAVE_LIBZ, 1, [define if you have zlib])],
+  [AC_MSG_WARN([zlib is required])])
+
 PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.16])
 PKG_CHECK_MODULES(GTHREAD2, [gthread-2.0])
 CFLAGS="$CFLAGS $GLIB2_CFLAGS $GTHREAD2_CFLAGS"
