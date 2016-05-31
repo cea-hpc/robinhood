@@ -1005,7 +1005,7 @@ void display_report(const report_field_descr_t *descr, unsigned int field_count,
             printf("rank, ");
 
         rec = attr_info(descr[0].attr_index);
-        printf("%-*s", rec_len(rec, csv), attrdesc2name(&descr[0], rec));
+        printf("%*s", rec_len(rec, csv), attrdesc2name(&descr[0], rec));
 
         for (i = 1; i < field_count && i < result_count; i++)
         {
