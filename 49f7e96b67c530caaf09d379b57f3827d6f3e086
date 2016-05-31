@@ -16,6 +16,24 @@
       "revId": "49f7e96b67c530caaf09d379b57f3827d6f3e086",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_703d038e",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 4
+      },
+      "lineNbr": 39,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-05-31T19:05:44Z",
+      "side": 1,
+      "message": "devel package requirement moved.\n\nlibuuid is not needed in \"requires\", as rpmbuild automatically generates the dependency by analysing the binaries.",
+      "parentUuid": "baa041b7_50567f06",
+      "revId": "49f7e96b67c530caaf09d379b57f3827d6f3e086",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
