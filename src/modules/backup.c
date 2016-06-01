@@ -554,7 +554,7 @@ static void entry2backend_path(sm_instance_t *smi,
         return;
     }
 #ifdef HAVE_SHOOK
-    else
+    else if (what_for != FOR_NEW_COPY)
     {
         int rc;
         char fidpath[RBH_PATH_MAX];
