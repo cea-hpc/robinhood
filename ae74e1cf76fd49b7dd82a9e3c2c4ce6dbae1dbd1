@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_6688ad71",
+        "filename": "src/tests/test_uidgidcache.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 108,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-01T08:08:06Z",
+      "side": 1,
+      "message": "After landing: (defect) the number of entries per second is MAX_UID/elapsed.\n\nCurrently it displays a wrong value:\n Elapsed time: 2.010179 (0.0000201018/s)\n\nCan you please push a patch to fix that?\nThanks",
+      "revId": "ae74e1cf76fd49b7dd82a9e3c2c4ce6dbae1dbd1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_069a01b9",
+        "filename": "src/tests/test_uidgidcache.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 118,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-01T08:08:06Z",
+      "side": 1,
+      "message": "idem",
+      "revId": "ae74e1cf76fd49b7dd82a9e3c2c4ce6dbae1dbd1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
