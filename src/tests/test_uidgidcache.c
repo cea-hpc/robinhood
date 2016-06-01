@@ -104,8 +104,8 @@ int main(int argc, char **argv)
             getpwuid(u);
     gettimeofday(&tc, NULL);
     timersub(&tc, &t0, &tr);
-    printf("Elapsed time: %ld.%06ld (%.10f/s)\n", tr.tv_sec, tr.tv_usec,
-           (tr.tv_sec + tr.tv_usec/1000000.0) / MAX_UID);
+    printf("Elapsed time: %ld.%06ld (%.1f/s)\n", tr.tv_sec, tr.tv_usec,
+           MAX_UID / (tr.tv_sec + tr.tv_usec/1000000.0));
 
     printf("\nReference test of getgrgid (%u items)\n", MAX_GID);
     gettimeofday(&t0, NULL);
@@ -114,8 +114,8 @@ int main(int argc, char **argv)
             getgrgid(u);
     gettimeofday(&tc, NULL);
     timersub(&tc, &t0, &tr);
-    printf("Elapsed time: %ld.%06ld (%.10f/s)\n", tr.tv_sec, tr.tv_usec,
-           (tr.tv_sec + tr.tv_usec/1000000.0) / MAX_GID);
+    printf("Elapsed time: %ld.%06ld (%.1f/s)\n", tr.tv_sec, tr.tv_usec,
+           MAX_GID / (tr.tv_sec + tr.tv_usec/1000000.0));
 
     printf("\nTest of password cache\n");
     for (i = 0; i <= 10; i++)
@@ -134,13 +134,19 @@ int main(int argc, char **argv)
         if (i == 0)
             tlast = tr;
         printf("loop %u, %u items: %lu.%06lu\n", i, c, tr.tv_sec, tr.tv_usec);
-        if (i == 1) {
+        if (i == 0)
+        {
+           printf("  Insertion rate: %ld.%06ld (%.1f/s)\n", tr.tv_sec, tr.tv_usec,
+                  MAX_UID / (tr.tv_sec + tr.tv_usec/1000000.0));
+        }
+        else if (i == 1)
+        {
             /* compute speedup */
             float ratio = (tlast.tv_sec*1000000.0 + tlast.tv_usec)/(tr.tv_sec*1000000.0 + tr.tv_usec);
-            printf("SPEED-UP: %.2f%%\n", 100.0*(ratio - 1));
+            printf("  SPEED-UP: %.2f%%\n", 100.0*(ratio - 1));
 
-            printf("Elapsed time: %ld.%06ld (%.10f/s)\n", tr.tv_sec, tr.tv_usec,
-                   (tr.tv_sec + tr.tv_usec/1000000.0) / MAX_UID);
+            printf("  Elapsed time: %ld.%06ld (%.1f/s)\n", tr.tv_sec, tr.tv_usec,
+                   MAX_UID / (tr.tv_sec + tr.tv_usec/1000000.0));
         }
         t0 = tc;
     }
@@ -181,13 +187,19 @@ int main(int argc, char **argv)
         if (i == 0)
             tlast = tr;
         printf("loop %u, %u items: %lu.%06lu\n", i, c, tr.tv_sec, tr.tv_usec);
-        if (i == 1) {
+        if (i == 0)
+        {
+           printf("  Insertion rate: %ld.%06ld (%.1f/s)\n", tr.tv_sec, tr.tv_usec,
+                  MAX_GID / (tr.tv_sec + tr.tv_usec/1000000.0));
+        }
+        else if (i == 1)
+        {
             /* compute speedup */
             float ratio = (tlast.tv_sec*1000000.0 + tlast.tv_usec)/(tr.tv_sec*1000000.0 + tr.tv_usec);
-            printf("SPEED-UP: %.2f%%\n", 100.0*(ratio - 1));
+            printf("  SPEED-UP: %.2f%%\n", 100.0*(ratio - 1));
 
-            printf("Elapsed time: %ld.%06ld (%.10f/s)\n", tr.tv_sec, tr.tv_usec,
-                   (tr.tv_sec + tr.tv_usec/1000000.0) / MAX_GID);
+            printf("  Elapsed time: %ld.%06ld (%.1f/s)\n", tr.tv_sec, tr.tv_usec,
+                   MAX_GID / (tr.tv_sec + tr.tv_usec/1000000.0));
         }
         t0 = tc;
     }
