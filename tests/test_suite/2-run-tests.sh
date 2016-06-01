@@ -1139,13 +1139,6 @@ function test_suspend_on_error
 
 	echo "3-Applying migration policy ($policy_str)..."
 
-    # make the archive fail
-	if (( $is_lhsm != 0 )); then
-        for i in $(seq 1 ${nb_files_error}); do
-            $LFS hsm_set --noarchive $RH_ROOT/file.$i.fail
-        done
-    fi
-
 	$RH -f $RBH_CFG_DIR/$config_file --run=migration --force --target=all -l DEBUG -L rh_migr.log   || error ""
 
     [ "$DEBUG" = "1" ] && grep action_params rh_migr.log
