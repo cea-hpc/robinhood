@@ -617,13 +617,13 @@ int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
         break;
 
     case CRITERIA_OWNER: /* owner like 'owner' */
-        *p_attr_index = ATTR_INDEX_owner;
+        *p_attr_index = ATTR_INDEX_uid;
         *p_compar = Policy2FilterComparator(p_comp->op);
         p_value->value.val_str = p_comp->val.str;
         break;
 
     case CRITERIA_GROUP:
-        *p_attr_index = ATTR_INDEX_gr_name;
+        *p_attr_index = ATTR_INDEX_gid;
         *p_compar = Policy2FilterComparator(p_comp->op);
         p_value->value.val_str = p_comp->val.str;
         break;
@@ -832,9 +832,9 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
 
     case CRITERIA_OWNER:
         /* owner is required */
-        CHECK_ATTR(p_entry_attr, owner, no_warning);
+        CHECK_ATTR(p_entry_attr, uid, no_warning);
 
-        rc = TestRegexp(p_triplet->val.str, ATTR(p_entry_attr, owner));
+        rc = TestRegexp(p_triplet->val.str, ATTR(p_entry_attr, uid).txt);
 
         if (p_triplet->op == COMP_EQUAL || p_triplet->op == COMP_LIKE)
             return BOOL2POLICY(rc);
@@ -843,9 +843,9 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
 
     case CRITERIA_GROUP:
         /* group is required */
-        CHECK_ATTR(p_entry_attr, gr_name, no_warning);
+        CHECK_ATTR(p_entry_attr, gid, no_warning);
 
-        rc = TestRegexp(p_triplet->val.str, ATTR(p_entry_attr, gr_name));
+        rc = TestRegexp(p_triplet->val.str, ATTR(p_entry_attr, gid).txt);
 
         if (p_triplet->op == COMP_EQUAL || p_triplet->op == COMP_LIKE)
             return BOOL2POLICY(rc);

@@ -2457,37 +2457,38 @@ static recov_status_t backup_recover(struct sm_instance *smi,
     }
 
     /* set owner, group */
-    if (ATTR_MASK_TEST(&attrs_old, owner) || ATTR_MASK_TEST(&attrs_old, gr_name))
+    if (ATTR_MASK_TEST(&attrs_old, uid) || ATTR_MASK_TEST(&attrs_old, gid))
     {
         uid_t uid = -1;
         gid_t gid = -1;
         char buff[4096];
 
-        if (ATTR_MASK_TEST(&attrs_old, owner))
+        if (ATTR_MASK_TEST(&attrs_old, uid))
         {
             struct passwd pw;
             struct passwd *p_pw;
 
-            if ((getpwnam_r(ATTR(&attrs_old, owner), &pw, buff, 4096, &p_pw) != 0)
+            if ((getpwnam_r(ATTR(&attrs_old, uid).txt, &pw, buff, 4096, &p_pw) != 0)
                 || (p_pw == NULL))
             {
                 DisplayLog(LVL_MAJOR, TAG, "Warning: couldn't resolve uid for user '%s'",
-                           ATTR(&attrs_old, owner));
+                           ATTR(&attrs_old, uid).txt);
                 uid = -1;
             }
             else
                 uid = p_pw->pw_uid;
         }
 
-        if (ATTR_MASK_TEST(&attrs_old, gr_name))
+        if (ATTR_MASK_TEST(&attrs_old, gid))
         {
             struct group gr;
-            struct group * p_gr;
-            if ((getgrnam_r(ATTR(&attrs_old, gr_name), &gr, buff, 4096, &p_gr) != 0)
+            struct group *p_gr;
+
+            if ((getgrnam_r(ATTR(&attrs_old, gid).txt, &gr, buff, 4096, &p_gr) != 0)
                 || (p_gr == NULL))
             {
                 DisplayLog(LVL_MAJOR, TAG, "Warning: couldn't resolve gid for group '%s'",
-                           ATTR(&attrs_old, gr_name));
+                           ATTR(&attrs_old, gid).txt);
                 gid = -1;
             }
             else

@@ -420,24 +420,26 @@ notfound:
     return -ENOENT;
 }
 
-char          *uid2str( uid_t uid, char *username )
+char *uid2str(uid_t uid, char *username)
 {
     const struct passwd *p = GetPwUid(uid);
-    if ( p != NULL )
-        strcpy( username, p->pw_name );
+
+    if (p != NULL)
+        snprintf(username, RBH_LOGIN_MAX, "%s", p->pw_name);
     else
-        sprintf( username, "%d", ( int ) uid );
+        snprintf(username, RBH_LOGIN_MAX, "%d", (int)uid);
 
     return username;
 }
 
-char          *gid2str( gid_t gid, char *groupname )
+char *gid2str(gid_t gid, char *groupname)
 {
     const struct group *g = GetGrGid(gid);
-    if ( g != NULL )
-        strcpy( groupname, g->gr_name );
+
+    if (g != NULL)
+        snprintf(groupname, RBH_LOGIN_MAX, "%s",  g->gr_name);
     else
-        sprintf( groupname, "%d", ( int ) gid );
+        snprintf(groupname, RBH_LOGIN_MAX, "%d", (int)gid);
 
     return groupname;
 }
@@ -465,11 +467,11 @@ const char * mode2type(mode_t mode)
 void stat2rbh_attrs(const struct stat *p_inode, attr_set_t *p_attr_set,
                     bool size_info)
 {
-    ATTR_MASK_SET( p_attr_set, owner );
-    uid2str( p_inode->st_uid, ATTR( p_attr_set, owner ) );
+    ATTR_MASK_SET(p_attr_set, uid);
+    uid2str(p_inode->st_uid, ATTR(p_attr_set, uid).txt);
 
-    ATTR_MASK_SET( p_attr_set, gr_name );
-    gid2str( p_inode->st_gid, ATTR( p_attr_set, gr_name ) );
+    ATTR_MASK_SET(p_attr_set, gid);
+    gid2str(p_inode->st_gid, ATTR(p_attr_set, gid).txt);
 
     if ( size_info )
     {
@@ -534,28 +536,28 @@ void rbh_attrs2stat(const attr_set_t *p_attr_set, struct stat *p_inode)
 
     /* default to 0 (root) */
     p_inode->st_uid = 0;
-    if (ATTR_MASK_TEST(p_attr_set, owner))
+    if (ATTR_MASK_TEST(p_attr_set, uid))
     {
         struct passwd pw;
         struct passwd *p_pw;
 
-        if ((getpwnam_r(ATTR(p_attr_set, owner), &pw, buff, sizeof(buff), &p_pw) != 0)
+        if ((getpwnam_r(ATTR(p_attr_set, uid).txt, &pw, buff, sizeof(buff), &p_pw) != 0)
             || (p_pw == NULL))
             DisplayLog(LVL_MAJOR, __func__, "Warning: couldn't resolve uid for user '%s'",
-                        ATTR(p_attr_set, owner));
+                        ATTR(p_attr_set, uid).txt);
         else
             p_inode->st_uid = p_pw->pw_uid;
     }
 
-    if (ATTR_MASK_TEST(p_attr_set, gr_name))
+    if (ATTR_MASK_TEST(p_attr_set, gid))
     {
         struct group gr;
         struct group *p_gr;
 
-        if ((getgrnam_r(ATTR(p_attr_set, gr_name), &gr, buff, sizeof(buff), &p_gr) != 0)
+        if ((getgrnam_r(ATTR(p_attr_set, gid).txt, &gr, buff, sizeof(buff), &p_gr) != 0)
             || (p_gr == NULL))
             DisplayLog(LVL_MAJOR, __func__, "Warning: couldn't resolve gid for group '%s'",
-                       ATTR(p_attr_set, gr_name));
+                       ATTR(p_attr_set, gid).txt);
         else
             p_inode->st_gid = p_gr->gr_gid;
     }
@@ -1538,7 +1540,7 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
                       ATTR(p_attr_set, mode));
     }
 
-    if (mask.std & ATTR_MASK_owner)
+    if (mask.std & ATTR_MASK_uid)
     {
         if (brief)
             format = "owner=%s,";
@@ -1546,9 +1548,9 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
             format = "Owner:    \"%s\"\n";
         written +=
             snprintf(out_str + written, strsize - written, format,
-                      ATTR(p_attr_set, owner));
+                     ATTR(p_attr_set, uid).txt);
     }
-    if (mask.std & ATTR_MASK_gr_name)
+    if (mask.std & ATTR_MASK_gid)
     {
         if (brief)
             format = "group=%s,";
@@ -1556,7 +1558,7 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
             format = "Group:    \"%s\"\n";
         written +=
             snprintf(out_str + written, strsize - written, format,
-                      ATTR(p_attr_set, gr_name));
+                      ATTR(p_attr_set, gid).txt);
     }
     if (mask.std & ATTR_MASK_size)
     {
@@ -1822,45 +1824,45 @@ int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t *p_attr_new,
                             ATTR(p_attr_old,fullpath), ATTR(p_attr_new, fullpath));
         }
     }
-    else if ( mask.std & ATTR_MASK_parent_id )
+    else if (mask.std & ATTR_MASK_parent_id)
     {
         /* can't change parent without changing path!!! */
     }
-    else if ( mask.std & ATTR_MASK_name )
+    else if (mask.std & ATTR_MASK_name)
     {
         /* just change name */
     }
 
 
-    if ( mask.std & ATTR_MASK_type )
+    if (mask.std & ATTR_MASK_type)
     {
         /* can't change entry type without creating/removing it */
     }
 
-    if ( mask.std & (ATTR_MASK_owner | ATTR_MASK_gr_name))
+    if (mask.std & (ATTR_MASK_uid | ATTR_MASK_gid))
     {
         uid_t u = -1;
         gid_t g = -1;
 
-        if (mask.std & ATTR_MASK_owner)
+        if (mask.std & ATTR_MASK_uid)
         {
             struct passwd p;
             char buf[4096];
             struct passwd *res = NULL;
 
-            rc = getpwnam_r(ATTR(p_attr_new, owner), &p, buf, 4096,
+            rc = getpwnam_r(ATTR(p_attr_new, uid).txt, &p, buf, 4096,
                            &res);
             if (rc == 0 && res != NULL)
                 u = res->pw_uid;
         }
 
-        if (mask.std & ATTR_MASK_gr_name)
+        if (mask.std & ATTR_MASK_gid)
         {
             struct group gs;
             char buf[4096];
             struct group *res = NULL;
 
-            rc = getgrnam_r(ATTR(p_attr_new, gr_name), &gs, buf, 4096,
+            rc = getgrnam_r(ATTR(p_attr_new, gid).txt, &gs, buf, 4096,
                             &res);
             if (rc == 0 && res != NULL)
                 g = res->gr_gid;
@@ -2395,37 +2397,38 @@ int create_from_attrs(const attr_set_t * attrs_in,
     }
 
     /* set owner, group */
-    if ( ATTR_MASK_TEST( attrs_in, owner ) || ATTR_MASK_TEST( attrs_in, gr_name ) )
+    if (ATTR_MASK_TEST(attrs_in, uid) || ATTR_MASK_TEST(attrs_in, gid))
     {
         uid_t uid = -1;
         gid_t gid = -1;
         char buff[4096];
 
-        if ( ATTR_MASK_TEST( attrs_in, owner ) )
+        if ( ATTR_MASK_TEST( attrs_in, uid ) )
         {
             struct passwd pw;
             struct passwd * p_pw;
 
-            if ((getpwnam_r( ATTR(attrs_in, owner ), &pw, buff, 4096, &p_pw ) != 0)
+            if ((getpwnam_r(ATTR(attrs_in, uid).txt, &pw, buff, 4096, &p_pw) != 0)
                  || (p_pw == NULL))
             {
-                DisplayLog( LVL_MAJOR, CREAT_TAG, "Warning: couldn't resolve uid for user '%s'",
-                            ATTR(attrs_in, owner ));
+                DisplayLog(LVL_MAJOR, CREAT_TAG, "Warning: couldn't resolve uid for user '%s'",
+                           ATTR(attrs_in, uid).txt);
                 uid = -1;
             }
             else
                 uid = p_pw->pw_uid;
         }
 
-        if ( ATTR_MASK_TEST( attrs_in, gr_name ) )
+        if ( ATTR_MASK_TEST( attrs_in, gid ) )
         {
             struct group gr;
-            struct group * p_gr;
-            if ((getgrnam_r( ATTR(attrs_in, gr_name ), &gr, buff, 4096, &p_gr ) != 0)
+            struct group *p_gr;
+
+            if ((getgrnam_r(ATTR(attrs_in, gid).txt, &gr, buff, 4096, &p_gr) != 0)
                  || (p_gr == NULL))
             {
-                DisplayLog( LVL_MAJOR, CREAT_TAG, "Warning: couldn't resolve gid for group '%s'",
-                            ATTR(attrs_in, gr_name ) );
+                DisplayLog(LVL_MAJOR, CREAT_TAG, "Warning: couldn't resolve gid for group '%s'",
+                           ATTR(attrs_in, gid).txt);
                 gid = -1;
             }
             else

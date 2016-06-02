@@ -1183,11 +1183,11 @@ static int set_target_filter(const policy_info_t *pol, const policy_param_t *p_p
             DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on '%s' user files",
                        p_param->optarg_u.name);
 
-            attr_mask->std |= ATTR_MASK_owner;
+            attr_mask->std |= ATTR_MASK_uid;
 
             /* retrieve files for this owner */
             fval.value.val_str = p_param->optarg_u.name;
-            return lmgr_simple_filter_add(filter, ATTR_INDEX_owner,
+            return lmgr_simple_filter_add(filter, ATTR_INDEX_uid,
                                           WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
                                           fval, 0);
 
@@ -1195,11 +1195,11 @@ static int set_target_filter(const policy_info_t *pol, const policy_param_t *p_p
             DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on '%s' group files",
                        p_param->optarg_u.name);
 
-            attr_mask->std |= ATTR_MASK_gr_name;
+            attr_mask->std |= ATTR_MASK_gid;
 
             /* retrieve files for this group */
             fval.value.val_str = p_param->optarg_u.name;
-            return lmgr_simple_filter_add(filter, ATTR_INDEX_gr_name,
+            return lmgr_simple_filter_add(filter, ATTR_INDEX_gid,
                                           WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
                                           fval, 0);
 
