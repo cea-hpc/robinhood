@@ -450,8 +450,8 @@ static inline void attr_mask_unset_index(attr_mask_t *mask, unsigned int index)
 #define ATTR_MASK_INFO_TEST(_p_set, _smi, _attr_idx) !!((_p_set)->attr_mask.sm_info & smi_info_bit((_smi), (_attr_idx)))
 #define SMI_INFO(_p_set, _smi, _attr_idx) ((_p_set)->attr_values.sm_info[(_smi)->sm_info_offset+(_attr_idx)])
 
-#define POSIX_ATTR_MASK (ATTR_MASK_size | ATTR_MASK_blocks | ATTR_MASK_owner \
-                         | ATTR_MASK_gr_name | ATTR_MASK_last_access \
+#define POSIX_ATTR_MASK (ATTR_MASK_size | ATTR_MASK_blocks | ATTR_MASK_uid \
+                         | ATTR_MASK_gid | ATTR_MASK_last_access \
                          | ATTR_MASK_last_mod | ATTR_MASK_type | ATTR_MASK_mode \
                          | ATTR_MASK_nlink)
 

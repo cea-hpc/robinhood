@@ -228,8 +228,8 @@ static int list_rm(void)
                    ATTR_INDEX_rm_time,
                    ATTR_INDEX_ID, /* id */
                    ATTR_INDEX_type,
-                   ATTR_INDEX_owner,
-                   ATTR_INDEX_gr_name,
+                   ATTR_INDEX_uid,
+                   ATTR_INDEX_gid,
                    ATTR_INDEX_size,
                    ATTR_INDEX_last_mod,
                    0, /* to be set in the code: status index */

@@ -632,8 +632,8 @@ static int get_ost_max(struct statfs *df, trigger_value_type_t tr_type,
 static void build_user_report_descr(report_field_descr_t info[], trigger_item_t *trig,
                                     unsigned long long high_blk)
 {
-        info[0].attr_index = (trig->target_type == TGT_USER ? ATTR_INDEX_owner :
-                              ATTR_INDEX_gr_name);
+        info[0].attr_index = (trig->target_type == TGT_USER ? ATTR_INDEX_uid :
+                              ATTR_INDEX_gid);
         info[0].report_type = REPORT_GROUP_BY;
         info[0].sort_flag = SORT_NONE;
         info[0].filter = false;
@@ -664,8 +664,8 @@ static void build_user_report_filter(lmgr_filter_t *filter, trigger_item_t *trig
 {
     int            i;
     filter_value_t fv;
-    int attr_index = (trig->target_type == TGT_USER ? ATTR_INDEX_owner :
-                      ATTR_INDEX_gr_name);
+    int attr_index = (trig->target_type == TGT_USER ? ATTR_INDEX_uid :
+                      ATTR_INDEX_gid);
 
     /* FIXME consider released entries in quota? */
 

@@ -64,7 +64,8 @@ typedef enum
     DB_BIGINT,  /**< 64 bits integer    */
     DB_BIGUINT, /**< 64 bits unsigned integer */
     DB_BOOL,    /**< boolean            */
-    DB_ENUM_FTYPE  /**< file type enumeration */
+    DB_ENUM_FTYPE, /**< file type enumeration */
+    DB_UIDGID, /**< type depending on uid/gid format (configuration driven) */
 } db_type_t;
 
 /** generic function for generating fields:
