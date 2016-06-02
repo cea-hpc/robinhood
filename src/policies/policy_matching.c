@@ -867,7 +867,11 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
         return BOOL2POLICY(rc);
 
     case CRITERIA_DIRCOUNT:
-        /* dircount is required */
+        /* if the entry is not a directory, never match the dircount condition */
+        if (ATTR_MASK_TEST(p_entry_attr, type) &&
+            strcmp(ATTR(p_entry_attr, type), STR_TYPE_DIR) != 0)
+            return POLICY_NO_MATCH;
+
         CHECK_ATTR(p_entry_attr, dircount, no_warning);
 
         rc = int_compare(ATTR(p_entry_attr, dircount), p_triplet->op, p_triplet->val.integer);
