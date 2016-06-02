@@ -1202,7 +1202,8 @@ static policy_match_t _is_whitelisted(const policy_descr_t *policy,
             {
                 char buff[1024];
                 BoolExpr2str(&list[i].bool_expr, buff, 1024);
-                DisplayLog(LVL_MAJOR, POLICY_TAG, "Attribute is missing for checking whitelist rule '%s'", buff);
+                DisplayLog(LVL_MAJOR, POLICY_TAG, DFID": attribute is missing "
+                           "for checking whitelist rule '%s'", PFID(p_entry_id), buff);
             }
             if (rc != POLICY_ERR)
                 rc = POLICY_MISSING_ATTR;
@@ -1211,7 +1212,9 @@ static policy_match_t _is_whitelisted(const policy_descr_t *policy,
         {
             char buff[1024];
             BoolExpr2str(&list[i].bool_expr, buff, 1024);
-            DisplayLog(LVL_CRIT, POLICY_TAG, "An error occured while checking this whitelist rule: %s", buff);
+            DisplayLog(LVL_CRIT, POLICY_TAG, DFID": an error occured while "
+                       "checking this whitelist rule: %s",  PFID(p_entry_id),
+                       buff);
             rc = POLICY_ERR;
             break;
         }
@@ -1248,8 +1251,8 @@ static policy_match_t _is_whitelisted(const policy_descr_t *policy,
             printf("   -> missing attr\n");
 #endif
             if (!no_warning)
-                DisplayLog(LVL_MAJOR, POLICY_TAG,
-                        "Attribute is missing for checking ignore_fileclass rule");
+                DisplayLog(LVL_MAJOR, POLICY_TAG, DFID": attribute is missing "
+                           "for checking ignore_fileclass rule", PFID(p_entry_id));
             if (rc != POLICY_ERR)
                 rc = POLICY_MISSING_ATTR;
             break;
@@ -1257,8 +1260,8 @@ static policy_match_t _is_whitelisted(const policy_descr_t *policy,
 #ifdef _DEBUG_POLICIES
             printf("   -> error\n");
 #endif
-            DisplayLog(LVL_CRIT, POLICY_TAG,
-                        "An error occured when checking ignore_fileclass rule");
+            DisplayLog(LVL_CRIT, POLICY_TAG, DFID": an error occured "
+                       "when checking ignore_fileclass rule", PFID(p_entry_id));
             rc = POLICY_ERR;
             break;
         case POLICY_NO_MATCH:
@@ -1352,12 +1355,12 @@ int match_classes(const entry_id_t *id, attr_set_t *p_attrs_new,
                 }
                 break;
             case POLICY_MISSING_ATTR:
-                DisplayLog(LVL_EVENT, POLICY_TAG, "Attribute is missing for checking fileset '%s'",
-                           fset->fileset_id);
+                DisplayLog(LVL_EVENT, POLICY_TAG, DFID": attribute is missing for checking fileset '%s'",
+                           PFID(id), fset->fileset_id);
                 break;
             case POLICY_ERR:
-                DisplayLog(LVL_CRIT, POLICY_TAG, "An error occured when checking fileset '%s'",
-                           fset->fileset_id);
+                DisplayLog(LVL_CRIT, POLICY_TAG, DFID": an error occured when checking fileset '%s'",
+                           PFID(id), fset->fileset_id);
                 break;
             case POLICY_NO_MATCH:
                 ok ++;
