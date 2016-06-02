@@ -1192,8 +1192,8 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
     static unsigned int list_std[] = {
                    ATTR_INDEX_type,
                    ATTR_INDEX_size,
-                   ATTR_INDEX_owner,
-                   ATTR_INDEX_gr_name,
+                   ATTR_INDEX_uid,
+                   ATTR_INDEX_gid,
                    ATTR_INDEX_fileclass
                 };
 
@@ -1201,8 +1201,8 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
                    ATTR_INDEX_type,
                    0, /* to be set in the code */
                    ATTR_INDEX_size,
-                   ATTR_INDEX_owner,
-                   ATTR_INDEX_gr_name,
+                   ATTR_INDEX_uid,
+                   ATTR_INDEX_gid,
                    ATTR_INDEX_fileclass,
                    ATTR_INDEX_fullpath,
                 };
@@ -1259,29 +1259,29 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
     mk_global_filters( &filter, !NOHEADER(flags), NULL );
 
     /* what do we dump? */
-    switch( type )
+    switch(type)
     {
         case DUMP_ALL:
             /* no filter */
             break;
         case DUMP_USR:
             fv.value.val_str = str_arg;
-            lmgr_simple_filter_add( &filter, ATTR_INDEX_owner, LIKE, fv, 0 );
+            lmgr_simple_filter_add(&filter, ATTR_INDEX_uid, LIKE, fv, 0);
             break;
         case DUMP_GROUP:
             fv.value.val_str = str_arg;
-            lmgr_simple_filter_add( &filter, ATTR_INDEX_gr_name, LIKE, fv, 0 );
+            lmgr_simple_filter_add(&filter, ATTR_INDEX_gid, LIKE, fv, 0);
             break;
         case DUMP_OST:
             if (ost_list->count == 1)
             {
                 fv.value.val_uint = ost_list->values[0].val_uint;
-                lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items, EQUAL, fv, 0 );
+                lmgr_simple_filter_add(&filter, ATTR_INDEX_stripe_items, EQUAL, fv, 0);
             }
             else
             {
                 fv.list = *ost_list;
-                lmgr_simple_filter_add( &filter, ATTR_INDEX_stripe_items, IN, fv, 0 );
+                lmgr_simple_filter_add(&filter, ATTR_INDEX_stripe_items, IN, fv, 0);
             }
             break;
 
@@ -1607,33 +1607,33 @@ static void report_usergroup_info( char *name, int flags )
 
     if (ISSPLITUSERGROUP(flags) && ISGROUP(flags))
     {
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gr_name,
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gid,
                                 REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
         field_count++;
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_owner,
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_uid,
                                 REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
         field_count++;
         shift++ ;
     }
     else if (ISSPLITUSERGROUP(flags) && !ISGROUP(flags))
     {
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_owner,
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_uid,
                                 REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
         field_count++;
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gr_name,
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gid,
                                 REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
         field_count++;
         shift++;
     }
     else if (ISGROUP(flags))
     {
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gr_name,
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gid,
                                 REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
         field_count++;
     }
     else
     {
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_owner,
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_uid,
                                 REPORT_GROUP_BY, REVERSE(flags)?SORT_DESC:SORT_ASC );
         field_count++;
     }
@@ -1683,10 +1683,10 @@ static void report_usergroup_info( char *name, int flags )
 
         fv.value.val_str = name;
 
-        if ( WILDCARDS_IN( name ) )
-            lmgr_simple_filter_add( &filter, (ISGROUP(flags)?ATTR_INDEX_gr_name:ATTR_INDEX_owner), LIKE, fv, 0 );
+        if (WILDCARDS_IN(name))
+            lmgr_simple_filter_add(&filter, (ISGROUP(flags)?ATTR_INDEX_gid:ATTR_INDEX_uid), LIKE, fv, 0);
         else
-            lmgr_simple_filter_add( &filter, (ISGROUP(flags)?ATTR_INDEX_gr_name:ATTR_INDEX_owner), EQUAL, fv, 0 );
+            lmgr_simple_filter_add(&filter, (ISGROUP(flags)?ATTR_INDEX_gid:ATTR_INDEX_uid), EQUAL, fv, 0);
     }
 
     /* append global filters */
@@ -1758,8 +1758,8 @@ static void report_topdirs( unsigned int count, int flags )
     unsigned int list[] = { ATTR_INDEX_fullpath,
                             ATTR_INDEX_dircount,
                             ATTR_INDEX_avgsize,
-                            ATTR_INDEX_owner,
-                            ATTR_INDEX_gr_name,
+                            ATTR_INDEX_uid,
+                            ATTR_INDEX_gid,
                             ATTR_INDEX_last_mod };
     int list_cnt = sizeof(list)/sizeof(*list);
 
@@ -1850,8 +1850,8 @@ static void report_topsize( unsigned int count, int flags )
 
     unsigned int list[] = { ATTR_INDEX_fullpath,
                             ATTR_INDEX_size,
-                            ATTR_INDEX_owner,
-                            ATTR_INDEX_gr_name,
+                            ATTR_INDEX_uid,
+                            ATTR_INDEX_gid,
                             ATTR_INDEX_last_access,
                             ATTR_INDEX_last_mod,
                             ATTR_INDEX_fileclass,
@@ -1924,8 +1924,8 @@ static void report_oldest(obj_type_t type, unsigned int count, int flags)
 
     unsigned int list_files[] = {
                 ATTR_INDEX_fullpath,
-                ATTR_INDEX_owner,
-                ATTR_INDEX_gr_name,
+                ATTR_INDEX_uid,
+                ATTR_INDEX_gid,
                 ATTR_INDEX_last_access,
                 ATTR_INDEX_last_mod,
                 ATTR_INDEX_size,
@@ -1936,8 +1936,8 @@ static void report_oldest(obj_type_t type, unsigned int count, int flags)
 
     unsigned int list_dirs[] = {
                 ATTR_INDEX_fullpath,
-                ATTR_INDEX_owner,
-                ATTR_INDEX_gr_name,
+                ATTR_INDEX_uid,
+                ATTR_INDEX_gid,
                 ATTR_INDEX_last_mod
                 };
 
@@ -2044,7 +2044,7 @@ static void report_topuser( unsigned int count, int flags )
      * - MIN/MAX/AVG size
      */
     report_field_descr_t user_info[TOPUSERCOUNT] = {
-        {ATTR_INDEX_owner, REPORT_GROUP_BY, SORT_NONE, false, 0, FV_NULL},
+        {ATTR_INDEX_uid, REPORT_GROUP_BY, SORT_NONE, false, 0, FV_NULL},
 #if defined(HAVE_SHOOK) || defined(_LUSTRE_HSM)
         /* display the total size in HSM (not only the disk level) */
         {ATTR_INDEX_size, REPORT_SUM, SORT_DESC, false, 0, FV_NULL},
@@ -2141,8 +2141,8 @@ static void report_deferred_rm( int flags )
                    ATTR_INDEX_rm_time,
                    ATTR_INDEX_ID, /* id */
                    ATTR_INDEX_type,
-                   ATTR_INDEX_owner,
-                   ATTR_INDEX_gr_name,
+                   ATTR_INDEX_uid,
+                   ATTR_INDEX_gid,
                    ATTR_INDEX_size,
                    ATTR_INDEX_last_mod,
                    ATTR_INDEX_fullpath

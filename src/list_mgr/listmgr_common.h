@@ -32,6 +32,9 @@
                       case DB_TEXT:                         \
                         _u.val_str = (char*)(_address);     \
                         break;                              \
+                      case DB_UIDGID:                       \
+                        _u.val_str = ((uidgid_u *)(_address))->txt; \
+                        break;                              \
                       case DB_INT:                          \
                         _u.val_int = *((int*)(_address));   \
                         break;                              \
@@ -53,8 +56,9 @@
                       case DB_BOOL:                         \
                         _u.val_bool = *((bool*)(_address));   \
                         break;                              \
-                      default:                              \
-                        DisplayLog( LVL_CRIT, LISTMGR_TAG, "Unexpected type in ASSIGN_UNION: %d !!!", _type);\
+                      case DB_STRIPE_INFO:                  \
+                      case DB_STRIPE_ITEMS:                 \
+                          RBH_BUG("Unsupported DB type");   \
                     }\
                     } while(0)
 
@@ -64,8 +68,9 @@
                       case DB_ID:                           \
                         *((entry_id_t*)(_address)) = _u.val_id; \
                         break;                              \
-                      case DB_ENUM_FTYPE:                   \
                       case DB_TEXT:                         \
+                      case DB_ENUM_FTYPE:                   \
+                      case DB_UIDGID:                       \
                         strcpy( (char*)(_address), _u.val_str ); \
                         break;                              \
                       case DB_INT:                          \
@@ -89,8 +94,9 @@
                       case DB_BOOL:                         \
                         *((bool*)(_address)) = _u.val_bool ;   \
                         break;                              \
-                      default:                              \
-                        DisplayLog( LVL_CRIT, LISTMGR_TAG, "Unexpected type in UNION_GET_VALUE: %d !!!", _type);\
+                      case DB_STRIPE_INFO:                  \
+                      case DB_STRIPE_ITEMS:                 \
+                          RBH_BUG("Unsupported DB type");   \
                     }\
                     } while(0)
 

@@ -293,7 +293,7 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
             break;
 
         case 'g':
-            disp_mask.std |= ATTR_MASK_gr_name;
+            disp_mask.std |= ATTR_MASK_gid;
             g_string_append_c(chunk->format, 's');
             break;
 
@@ -322,7 +322,7 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
             break;
 
         case 'u':
-            disp_mask.std |= ATTR_MASK_owner;
+            disp_mask.std |= ATTR_MASK_uid;
             g_string_append_c(chunk->format, 's');
             break;
 
@@ -526,7 +526,7 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
             break;
 
         case 'g':
-            printf(format, ATTR(attrs, gr_name));
+            printf(format, ATTR(attrs, gid).txt);
             break;
 
         case 'm':
@@ -557,7 +557,7 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
             break;
 
         case 'u':
-            printf(format, ATTR(attrs, owner));
+            printf(format, ATTR(attrs, uid).txt);
             break;
 
         case 'Y':

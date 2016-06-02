@@ -240,7 +240,7 @@ static int mkfilters( void )
         else
             AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_OWNER, val);
         is_expr = 1;
-        query_mask.std |= ATTR_MASK_owner;
+        query_mask.std |= ATTR_MASK_uid;
     }
 
     if (prog_options.match_group)
@@ -252,7 +252,7 @@ static int mkfilters( void )
         else
             AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_GROUP, val);
         is_expr = 1;
-        query_mask.std |= ATTR_MASK_gr_name;
+        query_mask.std |= ATTR_MASK_gid;
     }
 
     if (prog_options.match_type)

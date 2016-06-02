@@ -83,6 +83,11 @@ static int lmgr_gen_depth( void * tgt, const void * src )
    return 0;
 }
 
+typedef union {
+    int  num;
+    char txt[RBH_LOGIN_MAX];
+} uidgid_u;
+
 %attrdef
 
 # /!\ Entry attribute type must fit with DB type
@@ -105,8 +110,8 @@ avgsize,        uint64_t,      DB_BIGUINT,     0, DIR_ATTR, type, NULL
 
 # info in main table
 # POSIX attrs
-owner,      char,       DB_TEXT,   128,  FREQ_ACCESS
-gr_name,    char,       DB_TEXT,   128,  FREQ_ACCESS
+uid,        uidgid_u,   DB_UIDGID,  0,   FREQ_ACCESS
+gid,        uidgid_u,   DB_UIDGID,  0,   FREQ_ACCESS
 size,       uint64_t,   DB_BIGUINT, 0,   FREQ_ACCESS
 blocks,     uint64_t,   DB_BIGUINT, 0,   FREQ_ACCESS
 creation_time,  unsigned int,   DB_UINT,    0, FREQ_ACCESS
