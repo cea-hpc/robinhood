@@ -16,6 +16,24 @@
       "revId": "6f05bc4a2cfd8b2207c04b11726b56fcdd3cb880",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_2b7706a1",
+        "filename": "src/list_mgr/listmgr_init.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 142,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-02T19:01:10Z",
+      "side": 1,
+      "message": "You got it. This is exactly what is to be done here if you want to implement numeric uids/gids. \n\nThis patch does not intent to implement numeric uids/gids. It is just to help you in this way.",
+      "parentUuid": "baa041b7_19b37b0b",
+      "revId": "6f05bc4a2cfd8b2207c04b11726b56fcdd3cb880",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
