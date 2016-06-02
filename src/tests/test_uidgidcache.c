@@ -93,33 +93,37 @@ int main(int argc, char **argv)
     uid_t          u;
     gid_t          g;
     unsigned int   c;
-    struct timeval t0, tc, tr, tlast = {0};
+    struct timeval tinit, tcurr, tdiff, tlast = {0};
+    struct timeval tref_u, tref_g = {0};
+    float ratio;
 
     InitUidGid_Cache();
 
     printf("Reference test of getpwuid (%u items)\n", MAX_UID);
-    gettimeofday(&t0, NULL);
+    gettimeofday(&tinit, NULL);
     for (i = 0; i <= MAX_UID/10; i++)
         for (u = 0; u < 10; u++)
             getpwuid(u);
-    gettimeofday(&tc, NULL);
-    timersub(&tc, &t0, &tr);
-    printf("Elapsed time: %ld.%06ld (%.1f/s)\n", tr.tv_sec, tr.tv_usec,
-           MAX_UID / (tr.tv_sec + tr.tv_usec/1000000.0));
+    gettimeofday(&tcurr, NULL);
+    timersub(&tcurr, &tinit, &tdiff);
+    tref_u = tdiff;
+    printf("Elapsed time: %ld.%06ld (%.1f/s)\n", tdiff.tv_sec, tdiff.tv_usec,
+           MAX_UID / (tdiff.tv_sec + tdiff.tv_usec/1000000.0));
 
     printf("\nReference test of getgrgid (%u items)\n", MAX_GID);
-    gettimeofday(&t0, NULL);
+    gettimeofday(&tinit, NULL);
     for (i = 0; i <= MAX_GID/10; i++)
         for (u = 0; u < 10; u++)
             getgrgid(u);
-    gettimeofday(&tc, NULL);
-    timersub(&tc, &t0, &tr);
-    printf("Elapsed time: %ld.%06ld (%.1f/s)\n", tr.tv_sec, tr.tv_usec,
-           MAX_GID / (tr.tv_sec + tr.tv_usec/1000000.0));
+    gettimeofday(&tcurr, NULL);
+    timersub(&tcurr, &tinit, &tdiff);
+    tref_g = tdiff;
+    printf("Elapsed time: %ld.%06ld (%.1f/s)\n", tdiff.tv_sec, tdiff.tv_usec,
+           MAX_GID / (tdiff.tv_sec + tdiff.tv_usec/1000000.0));
 
     printf("\nTest of password cache\n");
 
-    gettimeofday(&t0, NULL);
+    gettimeofday(&tinit, NULL);
 
     for (i = 0; i <= 10; i++)
     {
@@ -132,26 +136,28 @@ int main(int argc, char **argv)
             if (ppw)
                 c++;
         }
-        gettimeofday(&tc, NULL);
-        timersub(&tc, &t0, &tr);
+        gettimeofday(&tcurr, NULL);
+        timersub(&tcurr, &tinit, &tdiff);
         if (i == 0)
-            tlast = tr;
-        printf("loop %u, %u items: %lu.%06lu\n", i, c, tr.tv_sec, tr.tv_usec);
+            tlast = tdiff;
+        printf("loop %u, %u items: %lu.%06lu\n", i, c, tdiff.tv_sec, tdiff.tv_usec);
         if (i == 0)
         {
-           printf("  Insertion rate: %ld.%06ld (%.1f/s)\n", tr.tv_sec, tr.tv_usec,
-                  MAX_UID / (tr.tv_sec + tr.tv_usec/1000000.0));
+           printf("  Insertion rate: %ld.%06ld (%.1f/s)\n", tdiff.tv_sec, tdiff.tv_usec,
+                  MAX_UID / (tdiff.tv_sec + tdiff.tv_usec/1000000.0));
         }
         else if (i == 1)
         {
-            /* compute speedup */
-            float ratio = (tlast.tv_sec*1000000.0 + tlast.tv_usec)/(tr.tv_sec*1000000.0 + tr.tv_usec);
-            printf("  SPEED-UP: %.2f%%\n", 100.0*(ratio - 1));
+            printf("  Elapsed time: %ld.%06ld (%.1f/s)\n", tdiff.tv_sec, tdiff.tv_usec,
+                   MAX_UID / (tdiff.tv_sec + tdiff.tv_usec/1000000.0));
 
-            printf("  Elapsed time: %ld.%06ld (%.1f/s)\n", tr.tv_sec, tr.tv_usec,
-                   MAX_UID / (tr.tv_sec + tr.tv_usec/1000000.0));
+            ratio = (tlast.tv_sec*1000000.0 + tlast.tv_usec)/(tdiff.tv_sec*1000000.0 + tdiff.tv_usec);
+            printf("  SPEED-UP (vs insert): x%.2f\n", ratio);
+
+            ratio = (tref_u.tv_sec*1000000.0 + tref_u.tv_usec)/(tdiff.tv_sec*1000000.0 + tdiff.tv_usec);
+            printf("  SPEED-UP (vs ref): x%.2f\n", ratio);
         }
-        t0 = tc;
+        tinit = tcurr;
     }
 
     /* Now, check that the values returned are correct */
@@ -172,7 +178,7 @@ int main(int argc, char **argv)
 
     printf("\nTest of group cache\n");
 
-    gettimeofday(&t0, NULL);
+    gettimeofday(&tinit, NULL);
 
     for (i = 0; i <= 10; i++)
     {
@@ -185,26 +191,29 @@ int main(int argc, char **argv)
             if (pgr)
                 c++;
         }
-        gettimeofday(&tc, NULL);
-        timersub(&tc, &t0, &tr);
+        gettimeofday(&tcurr, NULL);
+        timersub(&tcurr, &tinit, &tdiff);
         if (i == 0)
-            tlast = tr;
-        printf("loop %u, %u items: %lu.%06lu\n", i, c, tr.tv_sec, tr.tv_usec);
+            tlast = tdiff;
+        printf("loop %u, %u items: %lu.%06lu\n", i, c, tdiff.tv_sec, tdiff.tv_usec);
         if (i == 0)
         {
-           printf("  Insertion rate: %ld.%06ld (%.1f/s)\n", tr.tv_sec, tr.tv_usec,
-                  MAX_GID / (tr.tv_sec + tr.tv_usec/1000000.0));
+           printf("  Insertion rate: %ld.%06ld (%.1f/s)\n", tdiff.tv_sec, tdiff.tv_usec,
+                  MAX_GID / (tdiff.tv_sec + tdiff.tv_usec/1000000.0));
         }
         else if (i == 1)
         {
             /* compute speedup */
-            float ratio = (tlast.tv_sec*1000000.0 + tlast.tv_usec)/(tr.tv_sec*1000000.0 + tr.tv_usec);
-            printf("  SPEED-UP: %.2f%%\n", 100.0*(ratio - 1));
+            ratio = (tlast.tv_sec*1000000.0 + tlast.tv_usec)/(tdiff.tv_sec*1000000.0 + tdiff.tv_usec);
+            printf("  SPEED-UP (vs insert): x%.2f\n", ratio);
 
-            printf("  Elapsed time: %ld.%06ld (%.1f/s)\n", tr.tv_sec, tr.tv_usec,
-                   MAX_GID / (tr.tv_sec + tr.tv_usec/1000000.0));
+            ratio = (tref_g.tv_sec*1000000.0 + tref_g.tv_usec)/(tdiff.tv_sec*1000000.0 + tdiff.tv_usec);
+            printf("  SPEED-UP (vs ref): x%.2f\n", ratio);
+
+            printf("  Elapsed time: %ld.%06ld (%.1f/s)\n", tdiff.tv_sec, tdiff.tv_usec,
+                   MAX_GID / (tdiff.tv_sec + tdiff.tv_usec/1000000.0));
         }
-        t0 = tc;
+        tinit = tcurr;
     }
 
     /* Now, check that the values returned are correct */
