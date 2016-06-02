@@ -13,8 +13,8 @@ define("ANNEX_TABLE" , "ANNEX_INFO");
 define("VAR_TABLE" , "VARS");
 
 //Define acct table fields
-define("OWNER" , "owner");
-define("GROUP" , "gr_name");
+define("OWNER" , "uid");
+define("GROUP" , "gid");
 define("TYPE" , "type");
 define("BLOCKS" , "blocks");
 define("SIZE" , "size");

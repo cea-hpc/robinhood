@@ -588,8 +588,12 @@ const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
             }
             return out;
 
-        case ATTR_INDEX_owner: return ATTR(attrs, owner);
-        case ATTR_INDEX_gr_name: return ATTR(attrs, gr_name);
+        case ATTR_INDEX_uid:
+            return ATTR(attrs, uid).txt;
+
+        case ATTR_INDEX_gid:
+            return ATTR(attrs, gid).txt;
+
         case ATTR_INDEX_blocks:
             if (csv)
                 snprintf(out, out_sz, "%"PRIu64, ATTR(attrs, blocks) * DEV_BSIZE);
@@ -755,8 +759,8 @@ struct attr_display_spec {
         {ATTR_INDEX_mode,      "mode", 4, 6},
         {ATTR_INDEX_nlink,     "nlink", 5, 5},
         {ATTR_INDEX_parent_id, "parent_id", 20, 20},
-        {ATTR_INDEX_owner,     "user", 10, 10, print_res_string},
-        {ATTR_INDEX_gr_name,   "group", 10, 10, print_res_string},
+        {ATTR_INDEX_uid,       "user", 10, 10,  print_res_string},
+        {ATTR_INDEX_gid,       "group", 10, 10, print_res_string},
         {ATTR_INDEX_link,      "link", 20, 20},
         {ATTR_INDEX_fileclass, "fileclass", 30, 30, print_res_class},
         /* times */
