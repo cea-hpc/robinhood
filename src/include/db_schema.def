@@ -105,8 +105,8 @@ avgsize,        uint64_t,      DB_BIGUINT,     0, DIR_ATTR, type, NULL
 
 # info in main table
 # POSIX attrs
-owner,      char,       DB_TEXT,   128,  FREQ_ACCESS
-gr_name,    char,       DB_TEXT,   128,  FREQ_ACCESS
+owner,      char,       DB_TEXT,   RBH_LOGIN_MAX,  FREQ_ACCESS
+gr_name,    char,       DB_TEXT,   RBH_LOGIN_MAX,  FREQ_ACCESS
 size,       uint64_t,   DB_BIGUINT, 0,   FREQ_ACCESS
 blocks,     uint64_t,   DB_BIGUINT, 0,   FREQ_ACCESS
 creation_time,  unsigned int,   DB_UINT,    0, FREQ_ACCESS
