@@ -130,6 +130,25 @@ static void append_field(GString *str, bool is_first, db_type_t type,
                         STR_TYPE_LINK, STR_TYPE_DIR, STR_TYPE_FILE, STR_TYPE_CHR,
                         STR_TYPE_BLK, STR_TYPE_FIFO, STR_TYPE_SOCK);
         break;
+    case DB_UIDGID:
+        {
+            /** FIXME configuration dependant */
+            char strtype[128];
+
+            /* VARBINARY length is limited. For larger strings, use TEXT. */
+            if (RBH_LOGIN_MAX-1 <= MAX_VARBINARY)
+                snprintf(strtype, sizeof(strtype),"VARBINARY(%u)", RBH_LOGIN_MAX-1);
+            else
+                rh_strncpy(strtype, "TEXT", sizeof(strtype));
+
+            if (default_value && default_value->val_str != NULL)
+                g_string_append_printf(str, "%s %s %s DEFAULT '%s'",is_first ? "" : ",",
+                    name, strtype, default_value->val_str);
+            else
+                g_string_append_printf(str, "%s %s %s",is_first ? "" : ",",
+                    name, strtype);
+        }
+        break;
     }
 }
 
@@ -606,12 +625,12 @@ static int create_table_main(db_conn_t *pconn)
     {
         if (is_main_field(i) && !is_funcattr(i))
         {
-            if (i == ATTR_INDEX_owner)
+            if (i == ATTR_INDEX_uid)
             {
                 default_val.val_str = ACCT_DEFAULT_OWNER;
                 append_field_def(i, request, 0, &default_val);
             }
-            else if (i == ATTR_INDEX_gr_name)
+            else if (i == ATTR_INDEX_gid)
             {
                 default_val.val_str = ACCT_DEFAULT_GROUP;
                 append_field_def(i, request, 0, &default_val);
@@ -1267,8 +1286,8 @@ free_str:
 #define VERSION_VAR_FUNC    "VersionFunctionSet"
 #define VERSION_VAR_TRIG    "VersionTriggerSet"
 
-#define FUNCTIONSET_VERSION    "1.2"
-#define TRIGGERSET_VERSION     "1.1"
+#define FUNCTIONSET_VERSION    "1.3"
+#define TRIGGERSET_VERSION     "1.2"
 
 static int check_functions_version(db_conn_t *conn)
 {
@@ -1600,7 +1619,7 @@ static int create_trig_acct_update(db_conn_t *pconn)
                            "SET val_old="ACCT_SZ_VAL("OLD.size")"; "
                            "SET val_new="ACCT_SZ_VAL("NEW.size")";\n"
                            "IF ");
-    /* generate comparison like NEW.owner=OLD.owner AND NEW.gr_name=OLD.gr_name */
+    /* generate comparison like NEW.uid=OLD.uid AND NEW.gid=OLD.gid */
     attrmask2fieldcomparison(request, acct_pk_attr_set, T_ACCT, "NEW.", "OLD.", "=", "AND");
     g_string_append(request, "THEN \n\t IF ");
     /********* if one of the attribute value has changed: update the acct table *********/
@@ -1638,7 +1657,7 @@ static int create_trig_acct_update(db_conn_t *pconn)
     g_string_append_printf(request, ", %s=CAST(%s as SIGNED)-CAST(IFNULL(val_old>=%u,0) as SIGNED)+CAST(IFNULL(val_new>=%u,0) as SIGNED)",
                            sz_field[i], sz_field[i], i-1, i-1);
     g_string_append(request, " WHERE ");
-    /* generate comparison as follows: owner=NEW.owner AND gr_name=NEW.gr_name */
+    /* generate comparison as follows: owner=NEW.uid AND gid=NEW.gid */
     attrmask2fieldcomparison(request, acct_pk_attr_set, T_ACCT, "", "NEW.", "=", "AND");
     g_string_append(request, "; \n\t END IF; \nELSEIF ");
 
@@ -1646,14 +1665,14 @@ static int create_trig_acct_update(db_conn_t *pconn)
 
     attrmask2fieldcomparison(request, acct_pk_attr_set, T_ACCT, "NEW.", "OLD.", "<>", "OR");
     g_string_append(request, "THEN \n\tINSERT INTO " ACCT_TABLE "(");
-    /* generate fields as follows: owner, gr_name */
+    /* generate fields as follows: owner, gid */
     attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, false, false, "", "");
     /* generate fields as follows: , size, blocks */
     attrmask2fieldlist(request, acct_attr_set, T_ACCT, true, false, "", "");
     g_string_append(request, ", " ACCT_FIELD_COUNT);
     append_size_range_fields(request, true, "");
     g_string_append(request, ") VALUES (");
-    /* generate fields as follows: NEW.owner, NEW.gr_name */
+    /* generate fields as follows: NEW.uid, NEW.gid */
     attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, false, false, "NEW.", "");
     attrmask2fieldlist(request, acct_attr_set, T_ACCT, true, false, "NEW.", "");
     g_string_append(request, ",1");
