@@ -32,6 +32,9 @@
                       case DB_TEXT:                         \
                         _u.val_str = (char*)(_address);     \
                         break;                              \
+                      case DB_UIDGID:                       \
+                        _u.val_str = ((uidgid_u *)(_address))->txt; \
+                        break;                              \
                       case DB_INT:                          \
                         _u.val_int = *((int*)(_address));   \
                         break;                              \
@@ -53,8 +56,10 @@
                       case DB_BOOL:                         \
                         _u.val_bool = *((bool*)(_address));   \
                         break;                              \
-                      default:                              \
-                        DisplayLog( LVL_CRIT, LISTMGR_TAG, "Unexpected type in ASSIGN_UNION: %d !!!", _type);\
+                      case DB_STRIPE_INFO:                  \
+                      case DB_STRIPE_ITEMS:                 \
+                          RBH_BUG("Unsupported DB type");   \
+                          break; \
                     }\
                     } while(0)
 
@@ -64,9 +69,12 @@
                       case DB_ID:                           \
                         *((entry_id_t*)(_address)) = _u.val_id; \
                         break;                              \
-                      case DB_ENUM_FTYPE:                   \
                       case DB_TEXT:                         \
+                      case DB_ENUM_FTYPE:                   \
                         strcpy( (char*)(_address), _u.val_str ); \
+                        break;                              \
+                      case DB_UIDGID:                       \
+                        strcpy(((uidgid_u *)(_address))->txt, _u.val_str); \
                         break;                              \
                       case DB_INT:                          \
                         *((int*)(_address)) =  _u.val_int ;   \
@@ -89,8 +97,10 @@
                       case DB_BOOL:                         \
                         *((bool*)(_address)) = _u.val_bool ;   \
                         break;                              \
-                      default:                              \
-                        DisplayLog( LVL_CRIT, LISTMGR_TAG, "Unexpected type in UNION_GET_VALUE: %d !!!", _type);\
+                      case DB_STRIPE_INFO:                  \
+                      case DB_STRIPE_ITEMS:                 \
+                          RBH_BUG("Unsupported DB type");   \
+                          break; \
                     }\
                     } while(0)
 
@@ -108,6 +118,11 @@
                       case DB_TEXT:                         \
                         _u1.val_str = (char*)(_address1);   \
                         _u2.val_str = (char*)(_address2);   \
+                        _diff = strcmp(_u1.val_str, _u2.val_str); \
+                        break;                              \
+                      case DB_UIDGID:                       \
+                        _u1.val_str = ((uidgid_u *)(_address1))->txt; \
+                        _u2.val_str = ((uidgid_u *)(_address2))->txt; \
                         _diff = strcmp(_u1.val_str, _u2.val_str); \
                         break;                              \
                       case DB_INT:                          \
@@ -145,8 +160,10 @@
                         _u2.val_bool = *((bool*)(_address2));   \
                         _diff = (_u1.val_bool != _u2.val_bool); \
                         break;                              \
-                      default:                              \
-                        DisplayLog( LVL_CRIT, LISTMGR_TAG, "Unexpected type in ASSIGN_UNION: %d !!!", _type);\
+                      case DB_STRIPE_INFO:                  \
+                      case DB_STRIPE_ITEMS:                 \
+                          RBH_BUG("Unsupported DB type");   \
+                          break; \
                     }\
                     } while(0)
 
@@ -172,7 +189,14 @@ static inline void *dup_value(db_type_t db_type, db_type_u uval)
             break;
         case DB_ENUM_FTYPE:
         case DB_TEXT:
-            ptr = (void *)strdup(uval.val_str);
+            ptr = strdup(uval.val_str);
+            break;
+        case DB_UIDGID:
+            TYPE_DUP(uidgid_u, ptr, uval.val_str);
+            ptr = calloc(1, sizeof(uidgid_u));
+            if (ptr == NULL)
+                return NULL;
+            snprintf(((uidgid_u *)ptr)->txt, sizeof(uidgid_u), "%s", uval.val_str);
             break;
         case DB_INT:
             TYPE_DUP(int, ptr, &uval.val_int);
@@ -195,9 +219,10 @@ static inline void *dup_value(db_type_t db_type, db_type_u uval)
         case DB_BOOL:
             TYPE_DUP(bool, ptr, &uval.val_bool);
         break;
-        default:                              \
-            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Unexpected type in %s: %d !!!",
-                       __func__, db_type);
+        case DB_STRIPE_INFO:
+        case DB_STRIPE_ITEMS:
+            RBH_BUG("Unsupported DB type");
+            break;
     }
     return ptr;
 }

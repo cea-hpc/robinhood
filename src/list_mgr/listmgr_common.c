@@ -40,6 +40,7 @@ void printdbtype(lmgr_t *p_mgr, GString *str, db_type_t type, const db_type_u *v
             break;
         }
         case DB_TEXT:
+        case DB_UIDGID:
         {
             /* escape special characters in value */
             int   len = 2*strlen(value_ptr->val_str) + 1; /* as required by MySQL manual */
@@ -78,8 +79,9 @@ void printdbtype(lmgr_t *p_mgr, GString *str, db_type_t type, const db_type_u *v
             /* don't escape: type value is trusted (not from user) */
             g_string_append_printf(str, "'%s'", value_ptr->val_str);
             break;
-        default:
-            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Error: unhandled type %d in %s", type, __FUNCTION__);
+        case DB_STRIPE_INFO:
+        case DB_STRIPE_ITEMS:
+            RBH_BUG("Unsupported DB type");
     }
 }
 
@@ -92,36 +94,48 @@ int ListMgr_PrintAttr(char *str, int size, db_type_t type,
     {
         case DB_ID:
             return snprintf(str, size, DFID, PFID(&value_ptr->val_id));
+
         case DB_TEXT:
+        case DB_UIDGID:
             return snprintf(str, size, "%s%s%s", quote, value_ptr->val_str, quote);
+
         case DB_INT:
             return snprintf(str, size, "%d", value_ptr->val_int);
+
         case DB_UINT:
             return snprintf(str, size, "%u", value_ptr->val_uint);
+
         case DB_SHORT:
             return snprintf(str, size, "%hd", value_ptr->val_short);
             break;
+
         case DB_USHORT:
             return snprintf(str, size, "%hu", value_ptr->val_ushort);
+
         case DB_BIGINT:
             return snprintf(str, size, "%lld", value_ptr->val_bigint);
             break;
+
         case DB_BIGUINT:
             return snprintf(str, size, "%llu", value_ptr->val_biguint);
+
         case DB_BOOL:
             if (value_ptr->val_bool)
                 strncpy(str, "1", size);
             else
                 strncpy(str, "0", size);
             return 1;
+
         case DB_ENUM_FTYPE:
             return snprintf(str, size, "%s%s%s", quote, value_ptr->val_str, quote);
             break;
-        default:
-            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Error: unhandled type %d in %s", type, __FUNCTION__);
-            strncpy(str, "?", size);
-            return 1;
+
+        case DB_STRIPE_INFO:
+        case DB_STRIPE_ITEMS:
+            RBH_BUG("Unsupported DB type");
     }
+    DisplayLog(LVL_CRIT, LISTMGR_TAG, "Error: unhandled type %d in %s", type, __func__);
+    return 0;
 }
 
 int ListMgr_PrintAttrPtr(char *str, int size, db_type_t type,
@@ -133,44 +147,57 @@ int ListMgr_PrintAttrPtr(char *str, int size, db_type_t type,
     return ListMgr_PrintAttr(str, size, type, &u, quote);
 }
 
-/* return 1 on success */
-int parsedbtype( char *str_in, db_type_t type, db_type_u * value_out )
+/* return the number of parsed items (1) on success */
+int parsedbtype(char *str_in, db_type_t type, db_type_u * value_out)
 {
     int rc;
     int tmp;
-    switch ( type )
+    switch (type)
     {
     case DB_ID:
         /* convert str to id */
-        rc = pk2entry_id( NULL, str_in, &value_out->val_id );
+        rc = pk2entry_id(NULL, str_in, &value_out->val_id);
         if (rc)
             return 0;
         return 1;
-    case DB_ENUM_FTYPE:
+
     case DB_TEXT:
+    case DB_UIDGID:
+    case DB_ENUM_FTYPE:
         value_out->val_str = str_in;
         return 1;
+
     case DB_INT:
-        return sscanf( str_in, "%d", &value_out->val_int );
+        return sscanf(str_in, "%d", &value_out->val_int);
+
     case DB_UINT:
-        return sscanf( str_in, "%u", &value_out->val_uint );
+        return sscanf(str_in, "%u", &value_out->val_uint);
+
     case DB_SHORT:
-        return sscanf( str_in, "%hd", &value_out->val_short );
+        return sscanf(str_in, "%hd", &value_out->val_short);
+
     case DB_USHORT:
-        return sscanf( str_in, "%hu", &value_out->val_ushort );
+        return sscanf(str_in, "%hu", &value_out->val_ushort);
+
     case DB_BIGINT:
-        return sscanf( str_in, "%lld", &value_out->val_bigint );
+        return sscanf(str_in, "%lld", &value_out->val_bigint);
+
     case DB_BIGUINT:
-        return sscanf( str_in, "%llu", &value_out->val_biguint );
+        return sscanf(str_in, "%llu", &value_out->val_biguint);
+
     case DB_BOOL:
         rc = sscanf(str_in, "%d", &tmp);
         if (rc > 0)
             value_out->val_bool = !(tmp == 0);
         return rc;
-    default:
-        DisplayLog( LVL_CRIT, LISTMGR_TAG, "Error: unhandled type %d in %s", type, __FUNCTION__ );
+
+    case DB_STRIPE_INFO:
+    case DB_STRIPE_ITEMS:
+        RBH_BUG("Unsupported DB type");
         return 0;
     }
+    DisplayLog(LVL_CRIT, LISTMGR_TAG, "Error: unhandled type %d in %s", type, __func__);
+    return 0;
 }
 
 static void separated_list2db(const char *list, char *db, int size)
@@ -261,8 +288,8 @@ void init_attrset_masks(const lmgr_config_t *lmgr_config)
 
     if (lmgr_config->acct)
     {
-        acct_pk_attr_set.std |= ATTR_MASK_owner;
-        acct_pk_attr_set.std |= ATTR_MASK_gr_name;
+        acct_pk_attr_set.std |= ATTR_MASK_uid;
+        acct_pk_attr_set.std |= ATTR_MASK_gid;
         acct_pk_attr_set.std |= ATTR_MASK_type;
     }
     /** @TODO RBHv3: implement status accounting.

@@ -195,8 +195,8 @@ struct find_opt
 
 static const attr_mask_t LS_DISPLAY_MASK = {.std = ATTR_MASK_type
                                        | ATTR_MASK_nlink
-                                       | ATTR_MASK_mode | ATTR_MASK_owner
-                                       | ATTR_MASK_gr_name | ATTR_MASK_size
+                                       | ATTR_MASK_mode | ATTR_MASK_uid
+                                       | ATTR_MASK_gid | ATTR_MASK_size
                                        | ATTR_MASK_last_mod | ATTR_MASK_link};
 
 static const attr_mask_t LSOST_DISPLAY_MASK = {.std = ATTR_MASK_type
@@ -243,7 +243,7 @@ static int mkfilters(bool exclude_dirs)
         else
             AppendBoolCond(&match_expr, compflag, CRITERIA_OWNER, val);
         is_expr = 1;
-        query_mask.std |= ATTR_MASK_owner;
+        query_mask.std |= ATTR_MASK_uid;
     }
 
     if (prog_options.match_group)
@@ -259,7 +259,7 @@ static int mkfilters(bool exclude_dirs)
         else
             AppendBoolCond(&match_expr, compflag, CRITERIA_GROUP, val);
         is_expr = 1;
-        query_mask.std |= ATTR_MASK_gr_name;
+        query_mask.std |= ATTR_MASK_gid;
     }
 
     if (prog_options.match_name)
@@ -874,13 +874,13 @@ static void print_entry(const wagon_t *id, const attr_set_t * attrs)
             /* display: id, type, mode, nlink, (status,) owner, group, size, mtime, path -> link */
             printf(DFID" %-4s %s %3u  %-10s %-10s %15"PRIu64" %20s %s%s%s -> %s\n",
                    PFID(&id->id), type, mode_str, ATTR(attrs, nlink),
-                   ATTR(attrs, owner), ATTR(attrs, gr_name),
+                   ATTR(attrs, uid).txt, ATTR(attrs, gid).txt,
                    ATTR(attrs, size), date_str, statusbuf, classbuf, id->fullname, ATTR(attrs,link));
         else
             /* display all: id, type, mode, nlink, (status,) owner, group, size, mtime, path */
             printf(DFID" %-4s %s %3u  %-10s %-10s %15"PRIu64" %20s %s%s%s%s\n",
                    PFID(&id->id), type, mode_str, ATTR(attrs, nlink),
-                   ATTR(attrs, owner), ATTR(attrs, gr_name),
+                   ATTR(attrs, uid).txt, ATTR(attrs, gid).txt,
                    ATTR(attrs, size), date_str, statusbuf, classbuf, id->fullname, ostbuf);
     }
     else if (prog_options.lsost || prog_options.lsclass || prog_options.lsstatus) /* lsost or lsclass without -ls */
