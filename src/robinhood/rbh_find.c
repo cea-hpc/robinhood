@@ -233,11 +233,23 @@ static int mkfilters(bool exclude_dirs)
     if (prog_options.match_user)
     {
         compare_value_t val;
-        strcpy(val.str, prog_options.user);
-        if (prog_options.userneg)
-            compflag = COMP_UNLIKE;
+
+        if (global_config.uid_gid_as_numbers)
+        {
+            val.integer = atoi(prog_options.user);
+            if (prog_options.userneg)
+                compflag = COMP_DIFF;
+            else
+                compflag = COMP_EQUAL;
+        }
         else
-            compflag = COMP_LIKE;
+        {
+            strcpy(val.str, prog_options.user);
+            if (prog_options.userneg)
+                compflag = COMP_UNLIKE;
+            else
+                compflag = COMP_LIKE;
+        }
         if (!is_expr)
             CreateBoolCond(&match_expr, compflag, CRITERIA_OWNER, val);
         else
@@ -249,11 +261,24 @@ static int mkfilters(bool exclude_dirs)
     if (prog_options.match_group)
     {
         compare_value_t val;
-        strcpy(val.str, prog_options.group);
-        if (prog_options.groupneg)
-            compflag = COMP_UNLIKE;
+
+        if (global_config.uid_gid_as_numbers)
+        {
+            val.integer = atoi(prog_options.group);
+            if (prog_options.groupneg)
+                compflag = COMP_DIFF;
+            else
+                compflag = COMP_EQUAL;
+        }
         else
-            compflag = COMP_LIKE;
+        {
+            strcpy(val.str, prog_options.group);
+            if (prog_options.groupneg)
+                compflag = COMP_UNLIKE;
+            else
+                compflag = COMP_LIKE;
+        }
+
         if (!is_expr)
             CreateBoolCond(&match_expr, compflag, CRITERIA_GROUP, val);
         else
@@ -849,6 +874,10 @@ static void print_entry(const wagon_t *id, const attr_set_t * attrs)
         const char * type;
         char date_str[128];
         char mode_str[128];
+        char uid_str[20];
+        char gid_str[20];
+        const char *uid;
+        const char *gid;
 
         /* type2char */
         if (!ATTR_MASK_TEST(attrs, type))
@@ -858,6 +887,19 @@ static void print_entry(const wagon_t *id, const attr_set_t * attrs)
 
         memset(mode_str, 0, sizeof(mode_str));
         mode_string(ATTR(attrs, mode), mode_str);
+
+        if (global_config.uid_gid_as_numbers)
+        {
+            sprintf(uid_str, "%d", ATTR(attrs, uid).num);
+            uid = uid_str;
+            sprintf(gid_str, "%d", ATTR(attrs, gid).num);
+            gid = gid_str;
+        }
+        else
+        {
+            uid = ATTR(attrs, uid).txt;
+            gid = ATTR(attrs, gid).txt;
+        }
 
         if (!ATTR_MASK_TEST(attrs, last_mod))
             strcpy(date_str, "");
@@ -874,13 +916,13 @@ static void print_entry(const wagon_t *id, const attr_set_t * attrs)
             /* display: id, type, mode, nlink, (status,) owner, group, size, mtime, path -> link */
             printf(DFID" %-4s %s %3u  %-10s %-10s %15"PRIu64" %20s %s%s%s -> %s\n",
                    PFID(&id->id), type, mode_str, ATTR(attrs, nlink),
-                   ATTR(attrs, uid).txt, ATTR(attrs, gid).txt,
+                   uid, gid,
                    ATTR(attrs, size), date_str, statusbuf, classbuf, id->fullname, ATTR(attrs,link));
         else
             /* display all: id, type, mode, nlink, (status,) owner, group, size, mtime, path */
             printf(DFID" %-4s %s %3u  %-10s %-10s %15"PRIu64" %20s %s%s%s%s\n",
                    PFID(&id->id), type, mode_str, ATTR(attrs, nlink),
-                   ATTR(attrs, uid).txt, ATTR(attrs, gid).txt,
+                   uid, gid,
                    ATTR(attrs, size), date_str, statusbuf, classbuf, id->fullname, ostbuf);
     }
     else if (prog_options.lsost || prog_options.lsclass || prog_options.lsstatus) /* lsost or lsclass without -ls */

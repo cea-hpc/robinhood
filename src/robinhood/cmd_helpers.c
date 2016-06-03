@@ -35,6 +35,7 @@
 
 #define SCRUB_TAG "Scrubber"
 #define P2ID_TAG "Path2Id"
+#define REPORT_TAG "Report"
 
 /* Initially empty array. This is a LIFO array; oldest elements are
  * stacked from the last entry to the first. When element 0 is
@@ -589,10 +590,26 @@ const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
             return out;
 
         case ATTR_INDEX_uid:
-            return ATTR(attrs, uid).txt;
+            if (global_config.uid_gid_as_numbers)
+            {
+                snprintf(out, out_sz, "%d", ATTR(attrs, uid).num);
+                return out;
+            }
+            else
+            {
+                return ATTR(attrs, uid).txt;
+            }
 
         case ATTR_INDEX_gid:
-            return ATTR(attrs, gid).txt;
+            if (global_config.uid_gid_as_numbers)
+            {
+                snprintf(out, out_sz, "%d", ATTR(attrs, gid).num);
+                return out;
+            }
+            else
+            {
+                return ATTR(attrs, gid).txt;
+            }
 
         case ATTR_INDEX_blocks:
             if (csv)
@@ -707,6 +724,13 @@ static const char *print_res_count(const db_value_t *val, bool csv,
     return out;
 }
 
+static const char *print_res_int(const db_value_t *val, bool csv,
+                                   char *out, size_t out_sz)
+{
+    snprintf(out, out_sz, "%d", val->value_u.val_int);
+    return out;
+}
+
 static const char *print_res_string(const db_value_t *val, bool csv,
                                     char *out, size_t out_sz)
 {
@@ -744,7 +768,7 @@ static const char *print_res_empty(const db_value_t *val, bool csv,
 }
 
 /** attribute display specification for reports */
-struct attr_display_spec {
+static struct attr_display_spec {
     int attr_index;
     const char  *name;
     unsigned int length_csv;
@@ -793,7 +817,20 @@ static inline struct attr_display_spec *attr_info(int index)
 {
     int i;
     static struct attr_display_spec tmp_rec = {-3, "?", 1, 1, NULL};
+    static bool init = false;
 
+    if (!init) {
+        init = true;
+
+        if (global_config.uid_gid_as_numbers) {
+            /* Change the function to print the UID/GID, as the
+             * argument is a number, not a string. */
+            for (i = 0; attr[i].name != NULL; i++)
+                if (attr[i].attr_index == ATTR_INDEX_uid ||
+                    attr[i].attr_index == ATTR_INDEX_gid)
+                    attr[i].result2str = print_res_int;
+        }
+    }
 
     if (is_status(index))
     {
@@ -1160,3 +1197,139 @@ int cb_redirect_all(void *arg, char *line, size_t size, int stream)
 
     return 0;
 }
+
+/* Find the numerical user ID (UID) for a given user name, which is
+ * either a real name or a string containing a number.
+ * Return 0 on success, and non-zero on error. */
+int set_uid_val(const char *username, db_type_u *val)
+{
+    long uid;
+    char *endptr;
+
+    if (!global_config.uid_gid_as_numbers)
+    {
+        val->val_str = username;
+        return 0;
+    }
+
+    if (WILDCARDS_IN(username)) {
+        DisplayLog(LVL_CRIT, REPORT_TAG, "ERROR: Wilcards not allowed in user name");
+        return -1;
+    }
+
+    /* The name could be a number already. */
+    errno = 0;
+    uid = strtol(username, &endptr, 0);
+
+    if ((errno == ERANGE && (uid == LONG_MAX || uid == LONG_MIN)) ||
+        (errno != 0 && uid == 0) ||
+        endptr == username)
+    {
+        /* Not a number. */
+        struct passwd pw;
+        struct passwd *result;
+        char buff[4096];
+
+        if (getpwnam_r(username, &pw, buff, sizeof(buff), &result) == 0)
+        {
+            val->val_int = pw.pw_uid;
+            return 0;
+        } else {
+            DisplayLog(LVL_CRIT, REPORT_TAG, "couldn't resolve uid for user '%s'",
+                       username);
+            return -1;
+        }
+    }
+
+    if (uid < 0)
+    {
+        DisplayLog(LVL_CRIT, REPORT_TAG,
+                   "ERROR: Given UID is negative (%ld)", uid);
+        return -1;
+    }
+
+    if (uid > UINT_MAX)
+    {
+        DisplayLog(LVL_CRIT, REPORT_TAG,
+                   "ERROR: Given UID is too big (%ld)", uid);
+        return -1;
+    }
+
+    val->val_int = uid;
+    return 0;
+}
+
+/* Find the numerical group ID (GID) for a given group name, which is
+ * either a real name or a string containing a number.
+ * Return 0 on success, and non-zero on error. */
+int set_gid_val(const char *groupname, db_type_u *val)
+{
+    long gid;
+    char *endptr;
+
+    if (!global_config.uid_gid_as_numbers)
+    {
+        val->val_str = groupname;
+        return 0;
+    }
+
+    if (WILDCARDS_IN(groupname)) {
+        DisplayLog(LVL_CRIT, REPORT_TAG, "ERROR: Wilcards not allowed in group name");
+        return -1;
+    }
+
+    /* The name could be a number already. */
+    errno = 0;
+    gid = strtol(groupname, &endptr, 0);
+
+    if ((errno == ERANGE && (gid == LONG_MAX || gid == LONG_MIN)) ||
+        (errno != 0 && gid == 0) ||
+        endptr == groupname)
+    {
+        /* Not a number. */
+        struct group grp;
+        struct group *result;
+        char buff[4096];
+
+        if (getgrnam_r(groupname, &grp, buff, sizeof(buff), &result) == 0)
+        {
+            val->val_int = grp.gr_gid;
+            return 0;
+        } else {
+            DisplayLog(LVL_CRIT, REPORT_TAG, "couldn't resolve gid for group '%s'",
+                       groupname);
+            return -1;
+        }
+    }
+
+    if (gid < 0)
+    {
+        DisplayLog(LVL_CRIT, REPORT_TAG,
+                   "ERROR: Given GID is negative (%ld)", gid);
+        return -1;
+    }
+
+    if (gid > UINT_MAX)
+    {
+        DisplayLog(LVL_CRIT, REPORT_TAG,
+                   "ERROR: Given GID is too big (%ld)", gid);
+        return -1;
+    }
+
+    val->val_int = gid;
+    return 0;
+}
+
+/* Returns a printable string for a UID or GID, whether it's a number
+ * or an actual string. */
+const char *id_as_str(db_type_u *val)
+{
+    static __thread char buf[20];
+
+    if (!global_config.uid_gid_as_numbers)
+        return val->val_str;
+
+    sprintf(buf, "%d", val->val_int);
+    return buf;
+}
+

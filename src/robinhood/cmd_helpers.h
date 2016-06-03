@@ -175,4 +175,8 @@ static inline const char *status_format(const char *name)
 /** callback to display stdout and stderr */
 int cb_redirect_all(void *arg, char *line, size_t size, int stream);
 
+int set_uid_val(const char *username, db_type_u *val);
+int set_gid_val(const char *groupname, db_type_u *val);
+const char *id_as_str(db_type_u *val);
+
 #endif

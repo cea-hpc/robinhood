@@ -37,6 +37,8 @@
 #include <errno.h>
 #include <string.h>
 #include <pthread.h>
+#include <sys/types.h>
+#include <pwd.h>
 
 #define REPORT_TAG    "Report"
 
@@ -1249,12 +1251,16 @@ static void dump_entries( type_dump type, int int_arg, char * str_arg, value_lis
             /* no filter */
             break;
         case DUMP_USR:
-            fv.value.val_str = str_arg;
-            lmgr_simple_filter_add(&filter, ATTR_INDEX_uid, LIKE, fv, 0);
+            if (set_uid_val(str_arg, &fv.value))
+                return;
+            lmgr_simple_filter_add(&filter, ATTR_INDEX_uid,
+                                   WILDCARDS_IN(str_arg) ? LIKE : EQUAL, fv, 0);
             break;
         case DUMP_GROUP:
-            fv.value.val_str = str_arg;
-            lmgr_simple_filter_add(&filter, ATTR_INDEX_gid, LIKE, fv, 0);
+            if (set_gid_val(str_arg, &fv.value))
+                return;
+            lmgr_simple_filter_add(&filter, ATTR_INDEX_gid,
+                                   WILDCARDS_IN(str_arg) ? LIKE : EQUAL, fv, 0);
             break;
         case DUMP_OST:
             if (ost_list->count == 1)
@@ -1662,7 +1668,16 @@ static void report_usergroup_info( char *name, int flags )
         lmgr_simple_filter_init( &filter );
         is_filter = true;
 
-        fv.value.val_str = name;
+        if (ISGROUP(flags))
+        {
+            if (set_gid_val(name, &fv.value))
+                return;
+        }
+        else
+        {
+            if (set_uid_val(name, &fv.value))
+                return;
+        }
 
         if (WILDCARDS_IN(name))
             lmgr_simple_filter_add(&filter, (ISGROUP(flags)?ATTR_INDEX_gid:ATTR_INDEX_uid), LIKE, fv, 0);

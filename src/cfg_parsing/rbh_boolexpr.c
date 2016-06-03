@@ -24,6 +24,7 @@
 #include "analyze.h"
 #include "status_manager.h"
 #include "rbh_logs.h"
+#include "../robinhood/cmd_helpers.h"
 
 /**
  *  convert the syntaxic code for comparator to the configuration equivalent code
@@ -303,7 +304,33 @@ static int criteria2condition(const type_key_value *key_value,
                 return EINVAL;
             }
 
-           /* in case the string contains regexpr, those comparators are changed to LIKE / UNLIKE */
+            if (global_config.uid_gid_as_numbers &&
+                (crit == CRITERIA_OWNER || crit == CRITERIA_GROUP))
+            {
+                db_type_u value;
+
+                if (crit == CRITERIA_OWNER)
+                {
+                    if (set_uid_val(key_value->varvalue, &value))
+                        return EINVAL;
+                }
+                else
+                {
+                    if (set_gid_val(key_value->varvalue, &value))
+                        return EINVAL;
+                }
+
+                p_triplet->val.integer = value.val_int;
+
+                if (p_triplet->op == COMP_LIKE)
+                    p_triplet->op = COMP_EQUAL;
+                else if (p_triplet->op == COMP_UNLIKE)
+                    p_triplet->op = COMP_DIFF;
+
+                return 0;
+            }
+
+            /* in case the string contains regexpr, those comparators are changed to LIKE / UNLIKE */
             if (WILDCARDS_IN(key_value->varvalue))
             {
                 if (flags & PFLG_NO_WILDCARDS)
@@ -977,8 +1004,6 @@ static int print_condition( const compare_triplet_t * p_triplet, char *out_str, 
     case CRITERIA_TREE:
     case CRITERIA_PATH:
     case CRITERIA_FILENAME:
-    case CRITERIA_OWNER:
-    case CRITERIA_GROUP:
 #ifdef _LUSTRE
     case CRITERIA_POOL:
 #endif
@@ -1002,6 +1027,16 @@ static int print_condition( const compare_triplet_t * p_triplet, char *out_str, 
         FormatFileSize( tmp_buff, 256, p_triplet->val.size );
         return snprintf( out_str, str_size, "%s %s %s", criteria2str( p_triplet->crit ),
                          op2str( p_triplet->op ), tmp_buff );
+
+        /* UID/GID: str or int */
+    case CRITERIA_OWNER:
+    case CRITERIA_GROUP:
+        if (global_config.uid_gid_as_numbers)
+            return snprintf(out_str, str_size, "%s %s %d", criteria2str(p_triplet->crit),
+                            op2str(p_triplet->op), p_triplet->val.integer);
+        else
+            return snprintf(out_str, str_size, "%s %s \"%s\"", criteria2str(p_triplet->crit),
+                            op2str(p_triplet->op), p_triplet->val.str);
 
         /* duration values */
 
@@ -1251,8 +1286,6 @@ bool update_boolexpr(bool_node_t *tgt, const bool_node_t *src)
         case CRITERIA_TREE:
         case CRITERIA_PATH:
         case CRITERIA_FILENAME:
-        case CRITERIA_OWNER:
-        case CRITERIA_GROUP:
 #ifdef _LUSTRE
         case CRITERIA_POOL:
 #endif
@@ -1261,6 +1294,19 @@ bool update_boolexpr(bool_node_t *tgt, const bool_node_t *src)
                 DisplayLog(LVL_MAJOR, RELOAD_TAG,
                             "Condition changed on attribute '%s' but this cannot be modified dynamically",
                             criteria2str(p_triplet1->crit));
+            }
+            return false;
+
+        case CRITERIA_OWNER:
+        case CRITERIA_GROUP:
+            if ((global_config.uid_gid_as_numbers &&
+                 p_triplet1->val.integer != p_triplet2->val.integer) ||
+                (!global_config.uid_gid_as_numbers &&
+                 strcmp(p_triplet1->val.str, p_triplet2->val.str)))
+            {
+                DisplayLog(LVL_MAJOR, RELOAD_TAG,
+                           "Condition changed on attribute '%s' but this cannot be modified dynamically",
+                           criteria2str(p_triplet1->crit));
             }
             return false;
 

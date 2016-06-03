@@ -52,6 +52,7 @@ static void global_cfg_set_default(void *module_config)
     conf->stay_in_fs = true;
     conf->check_mounted = true;
     conf->last_access_only_atime = false;
+    conf->uid_gid_as_numbers = false;
     conf->fs_key = FSKEY_FSNAME;
 
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
@@ -72,6 +73,7 @@ static void global_cfg_write_default(FILE *output)
     print_line(output, 1, "stay_in_fs    :  yes");
     print_line(output, 1, "check_mounted :  yes");
     print_line(output, 1, "last_access_only_atime :  no" );
+    print_line(output, 1, "uid_gid_as_numbers     :  no" );
 
 #if defined(_LUSTRE) && defined(_MDS_STAT_SUPPORT)
     print_line(output, 1, "direct_mds_stat :   no");
@@ -88,7 +90,8 @@ static int global_cfg_read(config_file_t config, void *module_config,
 
     static const char *allowed_params[] = {
         "fs_path", "fs_type", "stay_in_fs", "check_mounted",
-        "direct_mds_stat", "fs_key", "last_access_only_atime", NULL
+        "direct_mds_stat", "fs_key", "last_access_only_atime",
+        "uid_gid_as_numbers", NULL
     };
     const cfg_param_t cfg_params[] = {
         {"fs_path", PT_STRING, PFLG_MANDATORY | PFLG_ABSOLUTE_PATH |
@@ -102,6 +105,7 @@ static int global_cfg_read(config_file_t config, void *module_config,
         {"stay_in_fs", PT_BOOL, 0, &conf->stay_in_fs, 0},
         {"check_mounted", PT_BOOL, 0, &conf->check_mounted, 0},
         {"last_access_only_atime", PT_BOOL, 0, &conf->last_access_only_atime, 0},
+        {"uid_gid_as_numbers", PT_BOOL, 0, &conf->uid_gid_as_numbers, 0},
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
         {"direct_mds_stat", PT_BOOL, 0, &conf->direct_mds_stat, 0},
 #endif
@@ -192,6 +196,18 @@ static int global_cfg_set(void *module_config, bool reload)
         global_config.last_access_only_atime = conf->last_access_only_atime;
     }
 
+    if (global_config.uid_gid_as_numbers != conf->uid_gid_as_numbers)
+    {
+        DisplayLog(LVL_EVENT, "GlobalConfig",
+                   GLOBAL_CONFIG_BLOCK "::uid_gid_as_numbers updated: %s->%s",
+                   bool2str(global_config.uid_gid_as_numbers),
+                   bool2str(conf->uid_gid_as_numbers));
+        global_config.uid_gid_as_numbers = conf->uid_gid_as_numbers;
+
+        if (global_config.uid_gid_as_numbers)
+            DisplayLog(LVL_VERB, "GlobalConfig", "UID and GID stored as numbers");
+    }
+
 #if defined(_LUSTRE) && defined(_MDS_STAT_SUPPORT)
     if (conf->direct_mds_stat != global_config.direct_mds_stat)
     {
@@ -234,6 +250,7 @@ static void global_cfg_write_template(FILE *output)
     print_line(output, 1, "# Set the last_access time by only the atime variable, and not MAX(atime,mtime)");
     print_line(output, 1, "# There are no guarantees that all filesystems will correctly store atime");
     print_line(output, 1, "last_access_only_atime = no ;");
+    print_line(output, 1, "uid_gid_as_numbers = no ;");
 
 #if defined(_LUSTRE) && defined(_MDS_STAT_SUPPORT)
     fprintf(output, "\n");
