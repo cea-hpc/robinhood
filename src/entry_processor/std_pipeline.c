@@ -1530,7 +1530,8 @@ int EntryProc_pre_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
     const pipeline_stage_t *stage_info = &entry_proc_pipeline[p_op->pipeline_stage];
 
     /* once set, never change creation time */
-    if (p_op->db_op_type != OP_TYPE_INSERT)
+    if (!global_config.strict_posix_times &&
+        p_op->db_op_type != OP_TYPE_INSERT)
         ATTR_MASK_UNSET(&p_op->fs_attrs, creation_time);
 
 #ifdef HAVE_CHANGELOGS

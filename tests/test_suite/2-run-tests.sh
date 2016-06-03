@@ -4950,6 +4950,62 @@ function test_mnt_point
     fi
 }
 
+function strict_posix_times
+{
+    config_file=$1
+    local cfg=$RBH_CFG_DIR/$config_file
+    clean_logs
+
+    # create file
+    echo "1-Creating file..."
+    rm -f $RH_ROOT/file
+    dd if=/dev/zero of=$RH_ROOT/file bs=10 count=1 >/dev/null 2>/dev/null || error "writing file"
+
+    # Set a given atime and mtime. touch can't change ctime.
+    touch -m -t 201004171230 $RH_ROOT/file
+    touch -a -t 201004171300 $RH_ROOT/file
+    stat $RH_ROOT/file | grep --quiet "Modify: 2010-04-17 12:30:00" || error "bad mtime"
+    stat $RH_ROOT/file | grep --quiet "Access: 2010-04-17 13:00:00" || error "bad atime"
+
+    echo "2-Initial scan of filesystem"
+    export RH_TEST_STRICT_POSIX_TIMES=no
+    $RH -f $cfg --scan -l FULL -L rh_scan.log  --once || error ""
+
+    $REPORT -f $RBH_CFG_DIR/$config_file -e $RH_ROOT/file > report.out
+    grep --quiet "last_mod       : 	2010/04/17 12:30:00" report.out || error "bad mtime"
+    grep --quiet "last_access    : 	2010/04/17 13:00:00" report.out || error "bad atime"
+
+    local ctime=$(grep "creation       :" report.out)
+
+    echo "3-Change mtime"
+    # make mtime > atime. Normally last_access would take the value of
+    # the most recent, but with the strict_posix_times options, it
+    # should stay at atime.
+    sleep 2                     # for ctime to change
+    touch -m -t 201004171400 $RH_ROOT/file
+    stat $RH_ROOT/file | grep --quiet "Modify: 2010-04-17 14:00:00" || error "bad mtime"
+    stat $RH_ROOT/file | grep --quiet "Access: 2010-04-17 13:00:00" || error "bad atime"
+    sync
+    export RH_TEST_STRICT_POSIX_TIMES=yes
+    $RH -f $cfg --scan -l FULL -L rh_scan.log  --once || error ""
+    $REPORT -f $RBH_CFG_DIR/$config_file -e $RH_ROOT/file > report.out
+    grep --quiet "last_mod       : 	2010/04/17 14:00:00" report.out || error "bad mtime"
+    grep --quiet "last_access    : 	2010/04/17 13:00:00" report.out || error "bad atime"
+
+    local newctime=$(grep "creation       :" report.out)
+
+    [[ $ctime != $newctime ]] || error "creation time hasn't changed"
+
+    # When the option is not set, last_access will change
+    export RH_TEST_STRICT_POSIX_TIMES=no
+    $RH -f $cfg --scan -l FULL -L rh_scan.log  --once || error ""
+    $REPORT -f $RBH_CFG_DIR/$config_file -e $RH_ROOT/file > report.out
+    grep --quiet "last_mod       : 	2010/04/17 14:00:00" report.out || error "bad mtime"
+    grep --quiet "last_access    : 	2010/04/17 14:00:00" report.out || error "bad atime"
+
+    unset RH_TEST_STRICT_POSIX_TIMES
+}
+
 function check_status_count
 {
     report=$1
@@ -10743,6 +10799,7 @@ function runtest_118
 }
 runtest_118
 
+run_test 120 strict_posix_times posix_times.conf "Store strict posix times"
 
 #### policy matching tests  ####
 

@@ -484,7 +484,8 @@ void stat2rbh_attrs(const struct stat *p_inode, attr_set_t *p_attr_set,
 
         /* Vary the setting of last_access depending on value of
          * global_config.last_access_only_atime */
-        if (global_config.last_access_only_atime)
+        if (global_config.strict_posix_times ||
+            global_config.last_access_only_atime)
             ATTR(p_attr_set, last_access) = p_inode->st_atime;
         else
             ATTR(p_attr_set, last_access) =
@@ -494,7 +495,8 @@ void stat2rbh_attrs(const struct stat *p_inode, attr_set_t *p_attr_set,
         ATTR( p_attr_set, last_mod ) = p_inode->st_mtime;
     }
 
-    if (ATTR_MASK_TEST(p_attr_set, creation_time))
+    if (!global_config.strict_posix_times &&
+        ATTR_MASK_TEST(p_attr_set, creation_time))
     {
         /* creation time is always <= ctime */
         if (p_inode->st_ctime < ATTR(p_attr_set, creation_time))

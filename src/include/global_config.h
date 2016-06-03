@@ -51,6 +51,7 @@ typedef struct global_config_t
     bool          stay_in_fs;
     bool          check_mounted;
     bool          last_access_only_atime;
+    bool          strict_posix_times;
 
 #if defined( _LUSTRE ) && defined ( _MDS_STAT_SUPPORT )
     /** Direct stat to MDS on Lustre filesystems */
