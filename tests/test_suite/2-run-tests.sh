@@ -524,8 +524,8 @@ function archive_uuid1
 {
     config_file=$1
 
-    if (( $is_lhsm + $is_hsmlite == 0 )); then
-        echo "HSM test only: skipped"
+    if (( $is_lhsm == 0 )); then
+        echo "Lustre/HSM test only: skipped"
         set_skipped
         return 1
     fi
@@ -568,8 +568,8 @@ function archive_uuid2
 {
     config_file=$1
 
-    if (( $is_lhsm + $is_hsmlite == 0 )); then
-        echo "HSM test only: skipped"
+    if (( $is_lhsm == 0 )); then
+        echo "Lustre/HSM test only: skipped"
         set_skipped
         return 1
     fi
