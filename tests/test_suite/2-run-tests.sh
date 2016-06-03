@@ -7797,7 +7797,9 @@ function test_find
     #               file.2
     #               dir.1
     touch $RH_ROOT/file.1 || error "creating file"
+    chown daemon:bin $RH_ROOT/file.1
     touch $RH_ROOT/file.2 || error "creating file"
+    chown bin:wheel $RH_ROOT/file.2
     mkdir $RH_ROOT/dir.1 || error "creating dir"
     mkdir $RH_ROOT/dir.2 || error "creating dir"
     dd if=/dev/zero of=$RH_ROOT/dir.2/file.1 bs=1k count=10 2>/dev/null || error "creating file"
@@ -7876,6 +7878,27 @@ function test_find
     check_find $RH_ROOT "-f $cfg -type f -size 10k" 1
     check_find $RH_ROOT "-f $cfg -type f -size -1M" 5
     check_find $RH_ROOT "-f $cfg -type f -size -10k" 4
+
+    echo "testing user/group filter..."
+    check_find $RH_ROOT "-f $cfg -user daemon" 1
+    check_find $RH_ROOT "-f $cfg -user bin" 1
+    check_find $RH_ROOT "-f $cfg -user adm" 0
+    check_find $RH_ROOT "-f $cfg -not -user adm" 12
+    check_find $RH_ROOT "-f $cfg -not -user daemon" 11
+    check_find $RH_ROOT "-f $cfg -not -user bin" 11
+
+    check_find $RH_ROOT "-f $cfg -group bin" 1
+    check_find $RH_ROOT "-f $cfg -group wheel" 1
+    check_find $RH_ROOT "-f $cfg -group sys" 0
+    check_find $RH_ROOT "-f $cfg -not -group sys" 12
+    check_find $RH_ROOT "-f $cfg -not -group bin" 11
+    check_find $RH_ROOT "-f $cfg -not -group wheel" 11
+
+    check_find $RH_ROOT "-f $cfg -user daemon -group bin" 1
+    check_find $RH_ROOT "-f $cfg -user daemon -group wheel" 0
+    check_find $RH_ROOT "-f $cfg -user daemon -not -group wheel" 1
+    check_find $RH_ROOT "-f $cfg -not -user daemon -not -group wheel" 10
+    check_find $RH_ROOT "-f $cfg -not -user daemon -not -group wheel -type f" 4
 
     if [ -z "$POSIX_MODE" ]; then
         echo "testing ost filter..."
