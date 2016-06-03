@@ -234,11 +234,24 @@ static int mkfilters( void )
     if (prog_options.match_user)
     {
         compare_value_t val;
-        strcpy(val.str, prog_options.user);
-        if (!is_expr)
-            CreateBoolCond(&match_expr, COMP_LIKE, CRITERIA_OWNER, val);
+        compare_direction_t comp;
+
+        if (global_config.uid_gid_as_numbers)
+        {
+            val.integer = atoi(prog_options.user);
+            comp = COMP_EQUAL;
+        }
         else
-            AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_OWNER, val);
+        {
+            strcpy(val.str, prog_options.user);
+            comp = COMP_LIKE;
+        }
+
+        if (!is_expr)
+            CreateBoolCond(&match_expr, comp, CRITERIA_OWNER, val);
+        else
+            AppendBoolCond(&match_expr, comp, CRITERIA_OWNER, val);
+
         is_expr = 1;
         query_mask.std |= ATTR_MASK_uid;
     }
@@ -246,11 +259,24 @@ static int mkfilters( void )
     if (prog_options.match_group)
     {
         compare_value_t val;
-        strcpy(val.str, prog_options.group);
-        if (!is_expr)
-            CreateBoolCond(&match_expr, COMP_LIKE, CRITERIA_GROUP, val);
+        compare_direction_t comp;
+
+        if (global_config.uid_gid_as_numbers)
+        {
+            val.integer = atoi(prog_options.group);
+            comp = COMP_EQUAL;
+        }
         else
-            AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_GROUP, val);
+        {
+            strcpy(val.str, prog_options.group);
+            comp = COMP_LIKE;
+        }
+
+        if (!is_expr)
+            CreateBoolCond(&match_expr, comp, CRITERIA_GROUP, val);
+        else
+            AppendBoolCond(&match_expr, comp, CRITERIA_GROUP, val);
+
         is_expr = 1;
         query_mask.std |= ATTR_MASK_gid;
     }

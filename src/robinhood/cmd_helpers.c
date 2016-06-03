@@ -589,10 +589,26 @@ const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
             return out;
 
         case ATTR_INDEX_uid:
-            return ATTR(attrs, uid).txt;
+            if (global_config.uid_gid_as_numbers)
+            {
+                snprintf(out, out_sz, "%d", ATTR(attrs, uid).num);
+                return out;
+            }
+            else
+            {
+                return ATTR(attrs, uid).txt;
+            }
 
         case ATTR_INDEX_gid:
-            return ATTR(attrs, gid).txt;
+            if (global_config.uid_gid_as_numbers)
+            {
+                snprintf(out, out_sz, "%d", ATTR(attrs, gid).num);
+                return out;
+            }
+            else
+            {
+                return ATTR(attrs, gid).txt;
+            }
 
         case ATTR_INDEX_blocks:
             if (csv)
@@ -707,6 +723,13 @@ static const char *print_res_count(const db_value_t *val, bool csv,
     return out;
 }
 
+static const char *print_res_int(const db_value_t *val, bool csv,
+                                   char *out, size_t out_sz)
+{
+    snprintf(out, out_sz, "%d", val->value_u.val_int);
+    return out;
+}
+
 static const char *print_res_string(const db_value_t *val, bool csv,
                                     char *out, size_t out_sz)
 {
@@ -744,7 +767,7 @@ static const char *print_res_empty(const db_value_t *val, bool csv,
 }
 
 /** attribute display specification for reports */
-struct attr_display_spec {
+static struct attr_display_spec {
     int attr_index;
     const char  *name;
     unsigned int length_csv;
@@ -793,7 +816,20 @@ static inline struct attr_display_spec *attr_info(int index)
 {
     int i;
     static struct attr_display_spec tmp_rec = {-3, "?", 1, 1, NULL};
+    static bool init = false;
 
+    if (!init) {
+        init = true;
+
+        if (global_config.uid_gid_as_numbers) {
+            /* Change the function to print the UID/GID, as the
+             * argument is a number, not a string. */
+            for (i = 0; attr[i].name != NULL; i++)
+                if (attr[i].attr_index == ATTR_INDEX_uid ||
+                    attr[i].attr_index == ATTR_INDEX_gid)
+                    attr[i].result2str = print_res_int;
+        }
+    }
 
     if (is_status(index))
     {

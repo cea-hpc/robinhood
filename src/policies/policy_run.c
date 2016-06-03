@@ -450,7 +450,7 @@ static inline void set_max_time_attrs(policy_info_t *p, attr_set_t *p_attrs,
 }
 
 /** return attribute name from its index. */
-static const char *attrindex2name(int index)
+static const char *pol_attrindex2name(int index)
 {
     if (is_std_attr(index))
         return field_infos[index].field_name;
@@ -470,7 +470,7 @@ static inline const char* sort_attr_name(const policy_info_t *pol)
     if (attr == LRU_ATTR_NONE)
         return "none";
 
-    return attrindex2name(attr);
+    return pol_attrindex2name(attr);
 }
 
 /**
@@ -1186,9 +1186,10 @@ static int set_target_filter(const policy_info_t *pol, const policy_param_t *p_p
             attr_mask->std |= ATTR_MASK_uid;
 
             /* retrieve files for this owner */
-            fval.value.val_str = p_param->optarg_u.name;
+            if (set_uid_val(p_param->optarg_u.name, &fval.value))
+                return EINVAL;
             return lmgr_simple_filter_add(filter, ATTR_INDEX_uid,
-                                          WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
+                                          WILDCARDS_IN(p_param->optarg_u.name)?LIKE:EQUAL,
                                           fval, 0);
 
         case TGT_GROUP: /* apply policies to the specified group */
@@ -1198,9 +1199,10 @@ static int set_target_filter(const policy_info_t *pol, const policy_param_t *p_p
             attr_mask->std |= ATTR_MASK_gid;
 
             /* retrieve files for this group */
-            fval.value.val_str = p_param->optarg_u.name;
+            if (set_gid_val(p_param->optarg_u.name, &fval.value))
+                return EINVAL;
             return lmgr_simple_filter_add(filter, ATTR_INDEX_gid,
-                                          WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
+                                          WILDCARDS_IN(p_param->optarg_u.name)?LIKE:EQUAL,
                                           fval, 0);
 
         case TGT_CLASS: /* apply policies to the specified fileclass */
