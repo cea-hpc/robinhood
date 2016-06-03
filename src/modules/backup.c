@@ -44,6 +44,7 @@
 #else
 #endif
 
+extern lmgr_config_t lmgr_config; /* TODO */
 
 /* ---------- config parsing stuff ------------ */
 #define OLD_BACKUP_BLOCK "Backend"
@@ -2465,34 +2466,48 @@ static recov_status_t backup_recover(struct sm_instance *smi,
 
         if (ATTR_MASK_TEST(&attrs_old, uid))
         {
-            struct passwd pw;
-            struct passwd *p_pw;
-
-            if ((getpwnam_r(ATTR(&attrs_old, uid).txt, &pw, buff, 4096, &p_pw) != 0)
-                || (p_pw == NULL))
+            if (lmgr_config.uid_gid_as_numbers)
             {
-                DisplayLog(LVL_MAJOR, TAG, "Warning: couldn't resolve uid for user '%s'",
-                           ATTR(&attrs_old, uid).txt);
-                uid = -1;
+                uid = ATTR(&attrs_old, uid).num;
             }
             else
-                uid = p_pw->pw_uid;
+            {
+                struct passwd pw;
+                struct passwd *p_pw;
+
+                if ((getpwnam_r(ATTR(&attrs_old, uid).txt, &pw, buff, 4096, &p_pw) != 0)
+                    || (p_pw == NULL))
+                {
+                    DisplayLog(LVL_MAJOR, TAG, "Warning: couldn't resolve uid for user '%s'",
+                               ATTR(&attrs_old, uid).txt);
+                    uid = -1;
+                }
+                else
+                    uid = p_pw->pw_uid;
+            }
         }
 
         if (ATTR_MASK_TEST(&attrs_old, gid))
         {
-            struct group gr;
-            struct group *p_gr;
-
-            if ((getgrnam_r(ATTR(&attrs_old, gid).txt, &gr, buff, 4096, &p_gr) != 0)
-                || (p_gr == NULL))
+            if (lmgr_config.uid_gid_as_numbers)
             {
-                DisplayLog(LVL_MAJOR, TAG, "Warning: couldn't resolve gid for group '%s'",
-                           ATTR(&attrs_old, gid).txt);
-                gid = -1;
+                gid = ATTR(&attrs_old, gid).num;
             }
             else
-                gid = p_gr->gr_gid;
+            {
+                struct group gr;
+                struct group *p_gr;
+
+                if ((getgrnam_r(ATTR(&attrs_old, gid).txt, &gr, buff, 4096, &p_gr) != 0)
+                    || (p_gr == NULL))
+                {
+                    DisplayLog(LVL_MAJOR, TAG, "Warning: couldn't resolve gid for group '%s'",
+                               ATTR(&attrs_old, gid).txt);
+                    gid = -1;
+                }
+                else
+                    gid = p_gr->gr_gid;
+            }
         }
 
         DisplayLog(LVL_FULL, TAG, "Restoring owner/group for '%s': uid=%u, gid=%u",

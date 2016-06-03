@@ -186,6 +186,8 @@ typedef struct lmgr_config_t
 
     /** enable accounting */
     bool acct;
+
+    bool uid_gid_as_numbers;
 } lmgr_config_t;
 
 /** config handlers */

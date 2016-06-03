@@ -108,6 +108,7 @@ static int lmgr_cfg_read(config_file_t config, void *module_config, char *msg_ou
         "connect_retry_interval_max", "accounting",
         MYSQL_CONFIG_BLOCK, SQLITE_CONFIG_BLOCK,
         "user_acct", "group_acct", /* deprecated => accounting */
+        "uid_gid_as_numbers",
         NULL
     };
 
@@ -225,6 +226,16 @@ static int lmgr_cfg_read(config_file_t config, void *module_config, char *msg_ou
                    LMGR_CONFIG_BLOCK, "group_acct");
         DisplayLog(LVL_MAJOR, TAG, "Setting 'accounting = %s' for compatibility.", bool2str(bval));
         conf->acct = bval;
+    }
+
+    /* UID / GID as names or numbers */
+    rc = GetBoolParam(lmgr_block, LMGR_CONFIG_BLOCK, "uid_gid_as_numbers", 0, &bval, NULL,
+                      NULL, msg_out);
+    if (rc == 0)
+    {
+        if (bval)
+            DisplayLog(LVL_VERB, TAG, "UID and GID stored as numbers");
+        conf->uid_gid_as_numbers = bval;
     }
 
     CheckUnknownParameters( lmgr_block, LMGR_CONFIG_BLOCK, lmgr_allowed );

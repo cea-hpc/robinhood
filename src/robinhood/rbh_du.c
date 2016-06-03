@@ -38,6 +38,8 @@
 
 #define DU_TAG "du"
 
+extern lmgr_config_t lmgr_config; /* TODO */
+
 static struct option option_tab[] =
 {
     {"user", required_argument, NULL, 'u'},
@@ -234,11 +236,24 @@ static int mkfilters( void )
     if (prog_options.match_user)
     {
         compare_value_t val;
-        strcpy(val.str, prog_options.user);
-        if (!is_expr)
-            CreateBoolCond(&match_expr, COMP_LIKE, CRITERIA_OWNER, val);
+
+        if (lmgr_config.uid_gid_as_numbers)
+        {
+            val.integer = atoi(prog_options.user);
+            if (!is_expr)
+                CreateBoolCond(&match_expr, COMP_EQUAL, CRITERIA_OWNER, val);
+            else
+                AppendBoolCond(&match_expr, COMP_EQUAL, CRITERIA_OWNER, val);
+        }
         else
-            AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_OWNER, val);
+        {
+            strcpy(val.str, prog_options.user);
+            if (!is_expr)
+                CreateBoolCond(&match_expr, COMP_LIKE, CRITERIA_OWNER, val);
+            else
+                AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_OWNER, val);
+        }
+
         is_expr = 1;
         query_mask.std |= ATTR_MASK_uid;
     }
@@ -246,11 +261,24 @@ static int mkfilters( void )
     if (prog_options.match_group)
     {
         compare_value_t val;
-        strcpy(val.str, prog_options.group);
-        if (!is_expr)
-            CreateBoolCond(&match_expr, COMP_LIKE, CRITERIA_GROUP, val);
+
+        if (lmgr_config.uid_gid_as_numbers)
+        {
+            val.integer = atoi(prog_options.group);
+            if (!is_expr)
+                CreateBoolCond(&match_expr, COMP_EQUAL, CRITERIA_GROUP, val);
+            else
+                AppendBoolCond(&match_expr, COMP_EQUAL, CRITERIA_GROUP, val);
+        }
         else
-            AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_GROUP, val);
+        {
+            if (!is_expr)
+                CreateBoolCond(&match_expr, COMP_LIKE, CRITERIA_GROUP, val);
+            else
+                AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_GROUP, val);
+            strcpy(val.str, prog_options.group);
+        }
+
         is_expr = 1;
         query_mask.std |= ATTR_MASK_gid;
     }

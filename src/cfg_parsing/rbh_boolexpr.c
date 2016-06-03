@@ -25,6 +25,8 @@
 #include "status_manager.h"
 #include "rbh_logs.h"
 
+extern lmgr_config_t lmgr_config; /* TODO */
+
 /**
  *  convert the syntaxic code for comparator to the configuration equivalent code
  */
@@ -148,8 +150,8 @@ static struct criteria_descr_t {
     [CRITERIA_FILENAME] = {"name", ATTR_MASK_name, PT_STRING,
                         PFLG_NOT_EMPTY | PFLG_NO_SLASH},
     [CRITERIA_TYPE] =  {"type", ATTR_MASK_type, PT_TYPE, 0},
-    [CRITERIA_OWNER] = {"owner", ATTR_MASK_uid, PT_STRING, PFLG_NOT_EMPTY},
-    [CRITERIA_GROUP] = {"group", ATTR_MASK_gid, PT_STRING, PFLG_NOT_EMPTY},
+    [CRITERIA_OWNER] = {"owner", ATTR_MASK_uid, PT_STRING, PFLG_NOT_EMPTY}, /* TODO? */
+    [CRITERIA_GROUP] = {"group", ATTR_MASK_gid, PT_STRING, PFLG_NOT_EMPTY}, /* TODO? */
     [CRITERIA_SIZE] =  {"size", ATTR_MASK_size, PT_SIZE,
                         PFLG_POSITIVE | PFLG_COMPARABLE},
     [CRITERIA_DEPTH] = {"depth", ATTR_MASK_depth, PT_INT,
@@ -977,8 +979,6 @@ static int print_condition( const compare_triplet_t * p_triplet, char *out_str, 
     case CRITERIA_TREE:
     case CRITERIA_PATH:
     case CRITERIA_FILENAME:
-    case CRITERIA_OWNER:
-    case CRITERIA_GROUP:
 #ifdef _LUSTRE
     case CRITERIA_POOL:
 #endif
@@ -1002,6 +1002,16 @@ static int print_condition( const compare_triplet_t * p_triplet, char *out_str, 
         FormatFileSize( tmp_buff, 256, p_triplet->val.size );
         return snprintf( out_str, str_size, "%s %s %s", criteria2str( p_triplet->crit ),
                          op2str( p_triplet->op ), tmp_buff );
+
+        /* UID/GID: str or int */
+    case CRITERIA_OWNER:
+    case CRITERIA_GROUP:
+        if (lmgr_config.uid_gid_as_numbers)
+            return snprintf(out_str, str_size, "%s %s %d", criteria2str(p_triplet->crit),
+                            op2str(p_triplet->op), p_triplet->val.integer);
+        else
+            return snprintf(out_str, str_size, "%s %s \"%s\"", criteria2str(p_triplet->crit),
+                            op2str(p_triplet->op), p_triplet->val.str);
 
         /* duration values */
 
@@ -1251,8 +1261,6 @@ bool update_boolexpr(bool_node_t *tgt, const bool_node_t *src)
         case CRITERIA_TREE:
         case CRITERIA_PATH:
         case CRITERIA_FILENAME:
-        case CRITERIA_OWNER:
-        case CRITERIA_GROUP:
 #ifdef _LUSTRE
         case CRITERIA_POOL:
 #endif
@@ -1261,6 +1269,19 @@ bool update_boolexpr(bool_node_t *tgt, const bool_node_t *src)
                 DisplayLog(LVL_MAJOR, RELOAD_TAG,
                             "Condition changed on attribute '%s' but this cannot be modified dynamically",
                             criteria2str(p_triplet1->crit));
+            }
+            return false;
+
+        case CRITERIA_OWNER:
+        case CRITERIA_GROUP:
+            if ((lmgr_config.uid_gid_as_numbers &&
+                 p_triplet1->val.integer != p_triplet2->val.integer) ||
+                (!lmgr_config.uid_gid_as_numbers &&
+                 strcmp(p_triplet1->val.str, p_triplet2->val.str)))
+            {
+                DisplayLog(LVL_MAJOR, RELOAD_TAG,
+                           "Condition changed on attribute '%s' but this cannot be modified dynamically",
+                           criteria2str(p_triplet1->crit));
             }
             return false;
 

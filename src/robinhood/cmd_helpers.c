@@ -33,6 +33,8 @@
 #include "xplatform_print.h"
 #include "status_manager.h"
 
+extern lmgr_config_t lmgr_config; /* TODO */
+
 #define SCRUB_TAG "Scrubber"
 #define P2ID_TAG "Path2Id"
 
@@ -589,10 +591,26 @@ const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
             return out;
 
         case ATTR_INDEX_uid:
-            return ATTR(attrs, uid).txt;
+            if (lmgr_config.uid_gid_as_numbers)
+            {
+                snprintf(out, out_sz, "%d", ATTR(attrs, uid).num);
+                return out;
+            }
+            else
+            {
+                return ATTR(attrs, uid).txt;
+            }
 
         case ATTR_INDEX_gid:
-            return ATTR(attrs, gid).txt;
+            if (lmgr_config.uid_gid_as_numbers)
+            {
+                snprintf(out, out_sz, "%d", ATTR(attrs, gid).num);
+                return out;
+            }
+            else
+            {
+                return ATTR(attrs, gid).txt;
+            }
 
         case ATTR_INDEX_blocks:
             if (csv)

@@ -33,7 +33,10 @@
                         _u.val_str = (char*)(_address);     \
                         break;                              \
                       case DB_UIDGID:                       \
-                        _u.val_str = ((uidgid_u *)(_address))->txt; \
+                        if (lmgr_config.uid_gid_as_numbers) \
+                          _u.val_int = ((uidgid_u *)(_address))->num; \
+                        else                                          \
+                          _u.val_str = ((uidgid_u *)(_address))->txt; \
                         break;                              \
                       case DB_INT:                          \
                         _u.val_int = *((int*)(_address));   \
@@ -68,9 +71,14 @@
                       case DB_ID:                           \
                         *((entry_id_t*)(_address)) = _u.val_id; \
                         break;                              \
+                      case DB_UIDGID:                       \
+                        if (lmgr_config.uid_gid_as_numbers)      \
+                            ((uidgid_u *)(_address))->num = _u.val_int; \
+                        else                                       \
+                            strcpy(((uidgid_u*)(_address))->txt, _u.val_str); \
+                        break;                              \
                       case DB_TEXT:                         \
                       case DB_ENUM_FTYPE:                   \
-                      case DB_UIDGID:                       \
                         strcpy( (char*)(_address), _u.val_str ); \
                         break;                              \
                       case DB_INT:                          \

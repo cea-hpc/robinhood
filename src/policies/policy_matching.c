@@ -27,6 +27,8 @@
 #include "rbh_boolexpr.h"
 #include "status_manager.h"
 
+extern lmgr_config_t lmgr_config; /* TODO */
+
 #include <string.h>
 #include <libgen.h>
 #include <fnmatch.h>
@@ -619,13 +621,19 @@ int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
     case CRITERIA_OWNER: /* owner like 'owner' */
         *p_attr_index = ATTR_INDEX_uid;
         *p_compar = Policy2FilterComparator(p_comp->op);
-        p_value->value.val_str = p_comp->val.str;
+        if (lmgr_config.uid_gid_as_numbers)
+            p_value->value.val_int = p_comp->val.integer;
+        else
+            p_value->value.val_str = p_comp->val.str;
         break;
 
     case CRITERIA_GROUP:
         *p_attr_index = ATTR_INDEX_gid;
         *p_compar = Policy2FilterComparator(p_comp->op);
-        p_value->value.val_str = p_comp->val.str;
+        if (lmgr_config.uid_gid_as_numbers)
+            p_value->value.val_int = p_comp->val.integer;
+        else
+            p_value->value.val_str = p_comp->val.str;
         break;
 
     case CRITERIA_SIZE:
@@ -834,23 +842,37 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
         /* owner is required */
         CHECK_ATTR(p_entry_attr, uid, no_warning);
 
-        rc = TestRegexp(p_triplet->val.str, ATTR(p_entry_attr, uid).txt);
-
-        if (p_triplet->op == COMP_EQUAL || p_triplet->op == COMP_LIKE)
+        if (lmgr_config.uid_gid_as_numbers)
+        {
+            rc = int_compare(ATTR(p_entry_attr, uid).num, p_triplet->op, p_triplet->val.integer);
             return BOOL2POLICY(rc);
+        }
         else
-            return BOOL2POLICY(!rc);
+        {
+            rc = TestRegexp(p_triplet->val.str, ATTR(p_entry_attr, uid).txt);
+            if (p_triplet->op == COMP_EQUAL || p_triplet->op == COMP_LIKE)
+                return BOOL2POLICY(rc);
+            else
+                return BOOL2POLICY(!rc);
+        }
 
     case CRITERIA_GROUP:
         /* group is required */
         CHECK_ATTR(p_entry_attr, gid, no_warning);
 
-        rc = TestRegexp(p_triplet->val.str, ATTR(p_entry_attr, gid).txt);
-
-        if (p_triplet->op == COMP_EQUAL || p_triplet->op == COMP_LIKE)
+        if (lmgr_config.uid_gid_as_numbers)
+        {
+            rc = int_compare(ATTR(p_entry_attr, gid).num, p_triplet->op, p_triplet->val.integer);
             return BOOL2POLICY(rc);
+        }
         else
-            return BOOL2POLICY(!rc);
+        {
+            rc = TestRegexp(p_triplet->val.str, ATTR(p_entry_attr, gid).txt);
+            if (p_triplet->op == COMP_EQUAL || p_triplet->op == COMP_LIKE)
+                return BOOL2POLICY(rc);
+            else
+                return BOOL2POLICY(!rc);
+        }
 
     case CRITERIA_SIZE:
         /* size is required */
