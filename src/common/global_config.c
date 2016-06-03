@@ -51,6 +51,7 @@ static void global_cfg_set_default(void *module_config)
 #endif
     conf->stay_in_fs = true;
     conf->check_mounted = true;
+    conf->last_access_only_atime = false;
     conf->fs_key = FSKEY_FSNAME;
 
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
@@ -70,6 +71,7 @@ static void global_cfg_write_default(FILE *output)
     print_line(output, 1, "fs_key        :  fsname");
     print_line(output, 1, "stay_in_fs    :  yes");
     print_line(output, 1, "check_mounted :  yes");
+    print_line(output, 1, "last_access_only_atime :  no" );
 
 #if defined(_LUSTRE) && defined(_MDS_STAT_SUPPORT)
     print_line(output, 1, "direct_mds_stat :   no");
@@ -86,7 +88,7 @@ static int global_cfg_read(config_file_t config, void *module_config,
 
     static const char *allowed_params[] = {
         "fs_path", "fs_type", "stay_in_fs", "check_mounted",
-        "direct_mds_stat", "fs_key", NULL
+        "direct_mds_stat", "fs_key", "last_access_only_atime", NULL
     };
     const cfg_param_t cfg_params[] = {
         {"fs_path", PT_STRING, PFLG_MANDATORY | PFLG_ABSOLUTE_PATH |
@@ -99,6 +101,7 @@ static int global_cfg_read(config_file_t config, void *module_config,
         PFLG_NO_WILDCARDS, conf->fs_type, sizeof(conf->fs_type)},
         {"stay_in_fs", PT_BOOL, 0, &conf->stay_in_fs, 0},
         {"check_mounted", PT_BOOL, 0, &conf->check_mounted, 0},
+        {"last_access_only_atime", PT_BOOL, 0, &conf->last_access_only_atime, 0},
 #if defined( _LUSTRE ) && defined( _MDS_STAT_SUPPORT )
         {"direct_mds_stat", PT_BOOL, 0, &conf->direct_mds_stat, 0},
 #endif
@@ -182,6 +185,13 @@ static int global_cfg_set(void *module_config, bool reload)
         global_config.check_mounted = conf->check_mounted;
     }
 
+    if (global_config.last_access_only_atime != conf->last_access_only_atime)
+    {
+        DisplayLog(LVL_EVENT, "GlobalConfig", GLOBAL_CONFIG_BLOCK "::last_access_only_atime updated: %s->%s",
+                   bool2str(global_config.last_access_only_atime), bool2str(conf->last_access_only_atime));
+        global_config.last_access_only_atime = conf->last_access_only_atime;
+    }
+
 #if defined(_LUSTRE) && defined(_MDS_STAT_SUPPORT)
     if (conf->direct_mds_stat != global_config.direct_mds_stat)
     {
@@ -220,6 +230,10 @@ static void global_cfg_write_template(FILE *output)
     fprintf(output, "\n");
     print_line(output, 1, "# check that the filesystem is mounted");
     print_line(output, 1, "check_mounted = yes ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# Set the last_access time by only the atime variable, and not MAX(atime,mtime)");
+    print_line(output, 1, "# There are no guarantees that all filesystems will correctly store atime");
+    print_line(output, 1, "last_access_only_atime = no ;");
 
 #if defined(_LUSTRE) && defined(_MDS_STAT_SUPPORT)
     fprintf(output, "\n");
