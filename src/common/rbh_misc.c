@@ -23,6 +23,8 @@
 #include "uidgidcache.h"
 #include "status_manager.h"
 
+extern lmgr_config_t lmgr_config; /* TODO */
+
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
@@ -468,10 +470,16 @@ void stat2rbh_attrs(const struct stat *p_inode, attr_set_t *p_attr_set,
                     bool size_info)
 {
     ATTR_MASK_SET(p_attr_set, uid);
-    uid2str(p_inode->st_uid, ATTR(p_attr_set, uid).txt);
+    if (lmgr_config.uid_gid_as_numbers)
+        ATTR(p_attr_set, uid).num = p_inode->st_uid;
+    else
+        uid2str(p_inode->st_uid, ATTR(p_attr_set, uid).txt);
 
     ATTR_MASK_SET(p_attr_set, gid);
-    gid2str(p_inode->st_gid, ATTR(p_attr_set, gid).txt);
+    if (lmgr_config.uid_gid_as_numbers)
+        ATTR(p_attr_set, gid).num = p_inode->st_gid;
+    else
+        gid2str(p_inode->st_gid, ATTR(p_attr_set, gid).txt);
 
     if ( size_info )
     {
@@ -547,10 +555,12 @@ void rbh_attrs2stat(const attr_set_t *p_attr_set, struct stat *p_inode)
         struct passwd pw;
         struct passwd *p_pw;
 
-        if ((getpwnam_r(ATTR(p_attr_set, uid).txt, &pw, buff, sizeof(buff), &p_pw) != 0)
-            || (p_pw == NULL))
+        if (lmgr_config.uid_gid_as_numbers)
+            p_inode->st_uid = ATTR(p_attr_set, uid).num;
+        else if ((getpwnam_r(ATTR(p_attr_set, uid).txt, &pw, buff, sizeof(buff), &p_pw) != 0)
+                 || (p_pw == NULL))
             DisplayLog(LVL_MAJOR, __func__, "Warning: couldn't resolve uid for user '%s'",
-                        ATTR(p_attr_set, uid).txt);
+                       ATTR(p_attr_set, uid).txt);
         else
             p_inode->st_uid = p_pw->pw_uid;
     }
@@ -560,8 +570,10 @@ void rbh_attrs2stat(const attr_set_t *p_attr_set, struct stat *p_inode)
         struct group gr;
         struct group *p_gr;
 
-        if ((getgrnam_r(ATTR(p_attr_set, gid).txt, &gr, buff, sizeof(buff), &p_gr) != 0)
-            || (p_gr == NULL))
+        if (lmgr_config.uid_gid_as_numbers)
+            p_inode->st_gid = ATTR(p_attr_set, gid).num;
+        else if ((getgrnam_r(ATTR(p_attr_set, gid).txt, &gr, buff, sizeof(buff), &p_gr) != 0)
+                 || (p_gr == NULL))
             DisplayLog(LVL_MAJOR, __func__, "Warning: couldn't resolve gid for group '%s'",
                        ATTR(p_attr_set, gid).txt);
         else
@@ -1548,13 +1560,26 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
 
     if (mask.std & ATTR_MASK_uid)
     {
-        if (brief)
-            format = "owner=%s,";
+        if (lmgr_config.uid_gid_as_numbers)
+        {
+            if (brief)
+                format = "owner=%d,";
+            else
+                format = "Owner:    \"%d\"\n";
+            written +=
+                snprintf(out_str + written, strsize - written, format,
+                         ATTR(p_attr_set, uid).num);
+        }
         else
-            format = "Owner:    \"%s\"\n";
-        written +=
-            snprintf(out_str + written, strsize - written, format,
-                     ATTR(p_attr_set, uid).txt);
+        {
+            if (brief)
+                format = "owner=%s,";
+            else
+                format = "Owner:    \"%s\"\n";
+            written +=
+                snprintf(out_str + written, strsize - written, format,
+                         ATTR(p_attr_set, uid).txt);
+        }
     }
     if (mask.std & ATTR_MASK_gid)
     {
@@ -1852,26 +1877,40 @@ int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t *p_attr_new,
 
         if (mask.std & ATTR_MASK_uid)
         {
-            struct passwd p;
-            char buf[4096];
-            struct passwd *res = NULL;
+            if (lmgr_config.uid_gid_as_numbers)
+            {
+                u = ATTR(p_attr_new, uid).num;
+            }
+            else
+            {
+                struct passwd p;
+                char buf[4096];
+                struct passwd *res = NULL;
 
-            rc = getpwnam_r(ATTR(p_attr_new, uid).txt, &p, buf, 4096,
-                           &res);
-            if (rc == 0 && res != NULL)
-                u = res->pw_uid;
+                rc = getpwnam_r(ATTR(p_attr_new, uid).txt, &p, buf, 4096,
+                                &res);
+                if (rc == 0 && res != NULL)
+                    u = res->pw_uid;
+            }
         }
 
         if (mask.std & ATTR_MASK_gid)
         {
-            struct group gs;
-            char buf[4096];
-            struct group *res = NULL;
+            if (lmgr_config.uid_gid_as_numbers)
+            {
+                g = ATTR(p_attr_new, gid).num;
+            }
+            else
+            {
+                struct group gs;
+                char buf[4096];
+                struct group *res = NULL;
 
-            rc = getgrnam_r(ATTR(p_attr_new, gid).txt, &gs, buf, 4096,
-                            &res);
-            if (rc == 0 && res != NULL)
-                g = res->gr_gid;
+                rc = getgrnam_r(ATTR(p_attr_new, gid).txt, &gs, buf, 4096,
+                                &res);
+                if (rc == 0 && res != NULL)
+                    g = res->gr_gid;
+            }
         }
 
         if (u != -1 || g != -1)
@@ -2411,34 +2450,48 @@ int create_from_attrs(const attr_set_t * attrs_in,
 
         if ( ATTR_MASK_TEST( attrs_in, uid ) )
         {
-            struct passwd pw;
-            struct passwd * p_pw;
-
-            if ((getpwnam_r(ATTR(attrs_in, uid).txt, &pw, buff, 4096, &p_pw) != 0)
-                 || (p_pw == NULL))
+            if (lmgr_config.uid_gid_as_numbers)
             {
-                DisplayLog(LVL_MAJOR, CREAT_TAG, "Warning: couldn't resolve uid for user '%s'",
-                           ATTR(attrs_in, uid).txt);
-                uid = -1;
+                uid = ATTR(attrs_in, uid).num;
             }
             else
-                uid = p_pw->pw_uid;
+            {
+                struct passwd pw;
+                struct passwd * p_pw;
+
+                if ((getpwnam_r(ATTR(attrs_in, uid).txt, &pw, buff, 4096, &p_pw) != 0)
+                    || (p_pw == NULL))
+                {
+                    DisplayLog(LVL_MAJOR, CREAT_TAG, "Warning: couldn't resolve uid for user '%s'",
+                               ATTR(attrs_in, uid).txt);
+                    uid = -1;
+                }
+                else
+                    uid = p_pw->pw_uid;
+            }
         }
 
         if ( ATTR_MASK_TEST( attrs_in, gid ) )
         {
-            struct group gr;
-            struct group *p_gr;
-
-            if ((getgrnam_r(ATTR(attrs_in, gid).txt, &gr, buff, 4096, &p_gr) != 0)
-                 || (p_gr == NULL))
+            if (lmgr_config.uid_gid_as_numbers)
             {
-                DisplayLog(LVL_MAJOR, CREAT_TAG, "Warning: couldn't resolve gid for group '%s'",
-                           ATTR(attrs_in, gid).txt);
-                gid = -1;
+                gid = ATTR(attrs_in, gid).num;
             }
             else
-                gid = p_gr->gr_gid;
+            {
+                struct group gr;
+                struct group *p_gr;
+
+                if ((getgrnam_r(ATTR(attrs_in, gid).txt, &gr, buff, 4096, &p_gr) != 0)
+                    || (p_gr == NULL))
+                {
+                    DisplayLog(LVL_MAJOR, CREAT_TAG, "Warning: couldn't resolve gid for group '%s'",
+                               ATTR(attrs_in, gid).txt);
+                    gid = -1;
+                }
+                else
+                    gid = p_gr->gr_gid;
+            }
         }
 
         DisplayLog( LVL_FULL, CREAT_TAG, "Restoring owner/group for '%s': uid=%u, gid=%u",

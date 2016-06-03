@@ -36,7 +36,10 @@ static inline void assign_union(db_type_u * const tgt, db_type_e type,
         tgt->val_str = (char*)(src);
         break;
     case DB_UIDGID:
-        tgt->val_str = ((uidgid_u *)(src))->txt;
+        if (lmgr_config.uid_gid_as_numbers)
+            tgt->val_int = ((uidgid_u *)(src))->num;
+        else
+            tgt->val_str = ((uidgid_u *)(src))->txt;
         break;
     case DB_INT:
         tgt->val_int = *((int*)(src));
@@ -79,7 +82,10 @@ static inline void union_get_value(void *tgt, db_type_e type,
         strcpy((char*)tgt, src->val_str);
         break;
     case DB_UIDGID:
-        strcpy(((uidgid_u *)tgt)->txt, src->val_str);
+        if (lmgr_config.uid_gid_as_numbers)
+            ((uidgid_u *)tgt)->num = src->val_int;
+        else
+            strcpy(((uidgid_u *)tgt)->txt, src->val_str);
         break;
     case DB_INT:
         *((int*)tgt) =  src->val_int ;
@@ -120,8 +126,12 @@ static inline int diff_union(db_type_e type, const void *addr1, const void *addr
     case DB_TEXT:
         return strcmp((const char *)addr1, (const char *)addr2);
     case DB_UIDGID:
-        return strcmp(((const uidgid_u *)addr1)->txt,
-                      ((const uidgid_u *)addr2)->txt);
+        if (lmgr_config.uid_gid_as_numbers)
+            return ((const uidgid_u *)addr1)->num
+                   != ((const uidgid_u *)addr2)->num;
+        else
+            return strcmp(((const uidgid_u *)addr1)->txt,
+                          ((const uidgid_u *)addr2)->txt);
     case DB_INT:
         return (*((const int*)addr1) != *((const int*)addr2));
     case DB_UINT:

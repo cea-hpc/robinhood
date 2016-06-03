@@ -5029,6 +5029,89 @@ function test_mnt_point
     fi
 }
 
+function uid_gid_as_numbers
+{
+	config_file=$1
+
+	clean_logs
+    $CFG_SCRIPT empty_db $RH_DB > /dev/null
+
+    # create files
+    echo "1-Creating files..."
+    rm -f $RH_ROOT/file[1-4]
+    dd if=/dev/zero of=$RH_ROOT/file1 bs=10 count=1 >/dev/null 2>/dev/null || error "writing file"
+    dd if=/dev/zero of=$RH_ROOT/file2 bs=100 count=1 >/dev/null 2>/dev/null || error "writing file"
+    dd if=/dev/zero of=$RH_ROOT/file3 bs=1000 count=1 >/dev/null 2>/dev/null || error "writing file"
+    dd if=/dev/zero of=$RH_ROOT/file4 bs=10000 count=1 >/dev/null 2>/dev/null || error "writing file"
+    dd if=/dev/zero of=$RH_ROOT/file5 bs=100000 count=1 >/dev/null 2>/dev/null || error "writing file"
+
+    chown 0:0 $RH_ROOT/file1
+    chown 12:16 $RH_ROOT/file2
+    chown 7856568:345654 $RH_ROOT/file3
+    chown 0:645767 $RH_ROOT/file4
+    chown 3476576:0 $RH_ROOT/file5
+
+    echo "2-Initial scan of empty filesystem"
+    $RH -f $RBH_CFG_DIR/$config_file --scan -l FULL -L rh_scan.log  --once || error ""
+
+    echo "3-Check report"
+	$REPORT -f $RBH_CFG_DIR/$config_file -D --csv > rh_report.log
+    egrep --quiet "\s0,\s+0,.*/file1" rh_report.log || error "bad for file1"
+    egrep --quiet "\s12,\s+16,.*/file2" rh_report.log || error "bad for file2"
+    egrep --quiet "\s7856568,\s+345654,.*/file3" rh_report.log || error "bad for file3"
+    egrep --quiet "\s0,\s+645767,.*/file4" rh_report.log || error "bad for file4"
+    egrep --quiet "\s3476576,\s+0,.*/file5" rh_report.log || error "bad for file5"
+
+    echo "4-Check rbh-find"
+    # rbh-find will also find the mount point which belong to root.
+    $FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT -ls > find.out
+    egrep --quiet "\s0\s+0\s.*/file1" find.out || error "bad for file1"
+    egrep --quiet "\s12\s+16\s.*/file2" find.out || error "bad for file2"
+    egrep --quiet "\s7856568\s+345654\s.*/file3" find.out || error "bad for file3"
+    egrep --quiet "\s0\s+645767\s.*/file4" find.out || error "bad for file4"
+    egrep --quiet "\s3476576\s+0\s.*/file5" find.out || error "bad for file5"
+
+    $FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT -ls -user 12 > find.out
+    wc -l < find.out | grep --quiet "^1$" || error "incorrect number of files found1"
+
+    $FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT -ls -user 0 > find.out
+    wc -l < find.out | grep --quiet "^3$" || error "incorrect number of files found2"
+
+    $FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT -ls -not -user 7856568 > find.out
+    wc -l < find.out | grep --quiet "^5$" || error "incorrect number of files found3"
+
+    $FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT -ls -group 0 > find.out
+    wc -l < find.out | grep --quiet "^3$" || error "incorrect number of files found4"
+
+    $FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT -ls -group 645767 > find.out
+    wc -l < find.out | grep --quiet "^1$" || error "incorrect number of files found5"
+
+    $FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT -ls -not -group 345654 > find.out
+    wc -l < find.out | grep --quiet "^5$" || error "incorrect number of files found6"
+
+    echo "5-Check rbh-find with printf"
+    $FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT -printf "%p:%g:%u\n" > find.out
+    grep --quiet "/mnt/lustre:0:0" find.out
+    grep --quiet "/mnt/lustre/file1:0:0" find.out || error "bad for file1"
+    grep --quiet "/mnt/lustre/file2:16:12" find.out || error "bad for file2"
+    grep --quiet "/mnt/lustre/file3:345654:7856568" find.out || error "bad for file3"
+    grep --quiet "/mnt/lustre/file4:645767:0" find.out || error "bad for file4"
+    grep --quiet "/mnt/lustre/file5:0:3476576" find.out || error "bad for file5"
+
+    echo "6-Check rbh-du"
+    # Each file has a precise size, so we know what the result in
+    # bytes will be for any combination
+    $DU -f $RBH_CFG_DIR/$config_file -t f -b $RH_ROOT | egrep --quiet "^111110\s" || error "bad sum1"
+    $DU -f $RBH_CFG_DIR/$config_file -t f -b -u 0 $RH_ROOT | egrep  --quiet "^10010\s" || error "bad sum2"
+    $DU -f $RBH_CFG_DIR/$config_file -t f -b -u 12 $RH_ROOT | egrep  --quiet "^100\s" || error "bad sum3"
+    $DU -f $RBH_CFG_DIR/$config_file -t f -b -u 1234 $RH_ROOT | egrep  --quiet "^0\s" || error "bad sum4"
+    $DU -f $RBH_CFG_DIR/$config_file -t f -b -g 0 $RH_ROOT | egrep  --quiet "^100010\s" || error "bad sum5"
+    $DU -f $RBH_CFG_DIR/$config_file -t f -b -g 645767 $RH_ROOT | egrep  --quiet "^10000\s" || error "bad sum6"
+    $DU -f $RBH_CFG_DIR/$config_file -t f -b -g 1234 $RH_ROOT | egrep  --quiet "^0\s" || error "bad sum7"
+    $DU -f $RBH_CFG_DIR/$config_file -t f -b -u 0 -g 16 $RH_ROOT | egrep --quiet "^0\s" || error "bad sum8"
+    $DU -f $RBH_CFG_DIR/$config_file -t f -b -u 0 -g 0 $RH_ROOT | egrep --quiet "^10\s" || error "bad sum9"
+}
+
 function check_status_count
 {
     report=$1
@@ -10820,6 +10903,7 @@ function runtest_118
 }
 runtest_118
 
+run_test 119 uid_gid_as_numbers uidgidnum.conf "Store UIDs and GIDs as numbers"
 
 #### policy matching tests  ####
 

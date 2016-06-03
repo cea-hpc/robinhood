@@ -132,21 +132,31 @@ static void append_field(GString *str, bool is_first, db_type_e type,
         break;
     case DB_UIDGID:
         {
-            /** FIXME configuration dependant */
-            char strtype[128];
-
-            /* VARBINARY length is limited. For larger strings, use TEXT. */
-            if (RBH_LOGIN_MAX-1 <= MAX_VARBINARY)
-                snprintf(strtype, sizeof(strtype),"VARBINARY(%u)", RBH_LOGIN_MAX-1);
+            if (lmgr_config.uid_gid_as_numbers)
+            {
+                if (default_value)
+                    g_string_append_printf(str, "%s %s INT DEFAULT %d", is_first ? "" : ",", name,
+                                           default_value->val_int);
+                else
+                    g_string_append_printf(str, "%s %s INT", is_first ? "" : ",", name);
+            }
             else
-                rh_strncpy(strtype, "TEXT", sizeof(strtype));
+            {
+                char strtype[128];
 
-            if (default_value && default_value->val_str != NULL)
-                g_string_append_printf(str, "%s %s %s DEFAULT '%s'",is_first ? "" : ",",
-                    name, strtype, default_value->val_str);
-            else
-                g_string_append_printf(str, "%s %s %s",is_first ? "" : ",",
-                    name, strtype);
+                /* VARBINARY length is limited. For larger strings, use TEXT. */
+                if (RBH_LOGIN_MAX-1 <= MAX_VARBINARY)
+                    snprintf(strtype, sizeof(strtype),"VARBINARY(%u)", RBH_LOGIN_MAX-1);
+                else
+                    rh_strncpy(strtype, "TEXT", sizeof(strtype));
+
+                if (default_value && default_value->val_str != NULL)
+                    g_string_append_printf(str, "%s %s %s DEFAULT '%s'",is_first ? "" : ",",
+                                           name, strtype, default_value->val_str);
+                else
+                    g_string_append_printf(str, "%s %s %s",is_first ? "" : ",",
+                                           name, strtype);
+            }
         }
         break;
     }
@@ -627,12 +637,18 @@ static int create_table_main(db_conn_t *pconn)
         {
             if (i == ATTR_INDEX_uid)
             {
-                default_val.val_str = ACCT_DEFAULT_OWNER;
+                if (lmgr_config.uid_gid_as_numbers)
+                    default_val.val_int = 0; /* TODO? */
+                else
+                    default_val.val_str = ACCT_DEFAULT_OWNER;
                 append_field_def(i, request, 0, &default_val);
             }
             else if (i == ATTR_INDEX_gid)
             {
-                default_val.val_str = ACCT_DEFAULT_GROUP;
+                if (lmgr_config.uid_gid_as_numbers)
+                    default_val.val_int = 0; /* TODO? */
+                else
+                    default_val.val_str = ACCT_DEFAULT_GROUP;
                 append_field_def(i, request, 0, &default_val);
             }
             else
