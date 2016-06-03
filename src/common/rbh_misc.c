@@ -481,8 +481,14 @@ void stat2rbh_attrs(const struct stat *p_inode, attr_set_t *p_attr_set,
 
         /* times are also wrong when they come from the MDT device */
         ATTR_MASK_SET( p_attr_set, last_access );
-        ATTR( p_attr_set, last_access ) =
-            MAX(p_inode->st_atime, p_inode->st_mtime);
+
+        /* Vary the setting of last_access depending on value of
+         * global_config.last_access_only_atime */
+        if (global_config.last_access_only_atime)
+            ATTR(p_attr_set, last_access) = p_inode->st_atime;
+        else
+            ATTR(p_attr_set, last_access) =
+                MAX(p_inode->st_atime, p_inode->st_mtime);
 
         ATTR_MASK_SET( p_attr_set, last_mod );
         ATTR( p_attr_set, last_mod ) = p_inode->st_mtime;
