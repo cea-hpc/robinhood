@@ -60,6 +60,7 @@
 #define WEEK  (7*DAY)
 #define YEAR  (365*DAY)
 
+#define REPORT_TAG "Report"
 
 void Exit( int error_code )
 {
@@ -468,10 +469,16 @@ void stat2rbh_attrs(const struct stat *p_inode, attr_set_t *p_attr_set,
                     bool size_info)
 {
     ATTR_MASK_SET(p_attr_set, uid);
-    uid2str(p_inode->st_uid, ATTR(p_attr_set, uid).txt);
+    if (global_config.uid_gid_as_numbers)
+        ATTR(p_attr_set, uid).num = p_inode->st_uid;
+    else
+        uid2str(p_inode->st_uid, ATTR(p_attr_set, uid).txt);
 
     ATTR_MASK_SET(p_attr_set, gid);
-    gid2str(p_inode->st_gid, ATTR(p_attr_set, gid).txt);
+    if (global_config.uid_gid_as_numbers)
+        ATTR(p_attr_set, gid).num = p_inode->st_gid;
+    else
+        gid2str(p_inode->st_gid, ATTR(p_attr_set, gid).txt);
 
     if ( size_info )
     {
@@ -547,10 +554,12 @@ void rbh_attrs2stat(const attr_set_t *p_attr_set, struct stat *p_inode)
         struct passwd pw;
         struct passwd *p_pw;
 
-        if ((getpwnam_r(ATTR(p_attr_set, uid).txt, &pw, buff, sizeof(buff), &p_pw) != 0)
-            || (p_pw == NULL))
+        if (global_config.uid_gid_as_numbers)
+            p_inode->st_uid = ATTR(p_attr_set, uid).num;
+        else if ((getpwnam_r(ATTR(p_attr_set, uid).txt, &pw, buff, sizeof(buff), &p_pw) != 0)
+                 || (p_pw == NULL))
             DisplayLog(LVL_MAJOR, __func__, "Warning: couldn't resolve uid for user '%s'",
-                        ATTR(p_attr_set, uid).txt);
+                       ATTR(p_attr_set, uid).txt);
         else
             p_inode->st_uid = p_pw->pw_uid;
     }
@@ -560,8 +569,10 @@ void rbh_attrs2stat(const attr_set_t *p_attr_set, struct stat *p_inode)
         struct group gr;
         struct group *p_gr;
 
-        if ((getgrnam_r(ATTR(p_attr_set, gid).txt, &gr, buff, sizeof(buff), &p_gr) != 0)
-            || (p_gr == NULL))
+        if (global_config.uid_gid_as_numbers)
+            p_inode->st_gid = ATTR(p_attr_set, gid).num;
+        else if ((getgrnam_r(ATTR(p_attr_set, gid).txt, &gr, buff, sizeof(buff), &p_gr) != 0)
+                 || (p_gr == NULL))
             DisplayLog(LVL_MAJOR, __func__, "Warning: couldn't resolve gid for group '%s'",
                        ATTR(p_attr_set, gid).txt);
         else
@@ -1548,23 +1559,49 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
 
     if (mask.std & ATTR_MASK_uid)
     {
-        if (brief)
-            format = "owner=%s,";
+        if (global_config.uid_gid_as_numbers)
+        {
+            if (brief)
+                format = "owner=%d,";
+            else
+                format = "Owner:    \"%d\"\n";
+            written +=
+                snprintf(out_str + written, strsize - written, format,
+                         ATTR(p_attr_set, uid).num);
+        }
         else
-            format = "Owner:    \"%s\"\n";
-        written +=
-            snprintf(out_str + written, strsize - written, format,
-                     ATTR(p_attr_set, uid).txt);
+        {
+            if (brief)
+                format = "owner=%s,";
+            else
+                format = "Owner:    \"%s\"\n";
+            written +=
+                snprintf(out_str + written, strsize - written, format,
+                         ATTR(p_attr_set, uid).txt);
+        }
     }
     if (mask.std & ATTR_MASK_gid)
     {
-        if (brief)
-            format = "group=%s,";
+        if (global_config.uid_gid_as_numbers)
+        {
+            if (brief)
+                format = "group=%d,";
+            else
+                format = "Group:    \"%d\"\n";
+            written +=
+                snprintf(out_str + written, strsize - written, format,
+                         ATTR(p_attr_set, gid).num);
+        }
         else
-            format = "Group:    \"%s\"\n";
-        written +=
-            snprintf(out_str + written, strsize - written, format,
-                      ATTR(p_attr_set, gid).txt);
+        {
+            if (brief)
+                format = "group=%s,";
+            else
+                format = "Group:    \"%s\"\n";
+            written +=
+                snprintf(out_str + written, strsize - written, format,
+                         ATTR(p_attr_set, gid).txt);
+        }
     }
     if (mask.std & ATTR_MASK_size)
     {
@@ -1852,26 +1889,40 @@ int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t *p_attr_new,
 
         if (mask.std & ATTR_MASK_uid)
         {
-            struct passwd p;
-            char buf[4096];
-            struct passwd *res = NULL;
+            if (global_config.uid_gid_as_numbers)
+            {
+                u = ATTR(p_attr_new, uid).num;
+            }
+            else
+            {
+                struct passwd p;
+                char buf[4096];
+                struct passwd *res = NULL;
 
-            rc = getpwnam_r(ATTR(p_attr_new, uid).txt, &p, buf, 4096,
-                           &res);
-            if (rc == 0 && res != NULL)
-                u = res->pw_uid;
+                rc = getpwnam_r(ATTR(p_attr_new, uid).txt, &p, buf, 4096,
+                                &res);
+                if (rc == 0 && res != NULL)
+                    u = res->pw_uid;
+            }
         }
 
         if (mask.std & ATTR_MASK_gid)
         {
-            struct group gs;
-            char buf[4096];
-            struct group *res = NULL;
+            if (global_config.uid_gid_as_numbers)
+            {
+                g = ATTR(p_attr_new, gid).num;
+            }
+            else
+            {
+                struct group gs;
+                char buf[4096];
+                struct group *res = NULL;
 
-            rc = getgrnam_r(ATTR(p_attr_new, gid).txt, &gs, buf, 4096,
-                            &res);
-            if (rc == 0 && res != NULL)
-                g = res->gr_gid;
+                rc = getgrnam_r(ATTR(p_attr_new, gid).txt, &gs, buf, 4096,
+                                &res);
+                if (rc == 0 && res != NULL)
+                    g = res->gr_gid;
+            }
         }
 
         if (u != -1 || g != -1)
@@ -2411,34 +2462,48 @@ int create_from_attrs(const attr_set_t * attrs_in,
 
         if ( ATTR_MASK_TEST( attrs_in, uid ) )
         {
-            struct passwd pw;
-            struct passwd * p_pw;
-
-            if ((getpwnam_r(ATTR(attrs_in, uid).txt, &pw, buff, 4096, &p_pw) != 0)
-                 || (p_pw == NULL))
+            if (global_config.uid_gid_as_numbers)
             {
-                DisplayLog(LVL_MAJOR, CREAT_TAG, "Warning: couldn't resolve uid for user '%s'",
-                           ATTR(attrs_in, uid).txt);
-                uid = -1;
+                uid = ATTR(attrs_in, uid).num;
             }
             else
-                uid = p_pw->pw_uid;
+            {
+                struct passwd pw;
+                struct passwd * p_pw;
+
+                if ((getpwnam_r(ATTR(attrs_in, uid).txt, &pw, buff, 4096, &p_pw) != 0)
+                    || (p_pw == NULL))
+                {
+                    DisplayLog(LVL_MAJOR, CREAT_TAG, "Warning: couldn't resolve uid for user '%s'",
+                               ATTR(attrs_in, uid).txt);
+                    uid = -1;
+                }
+                else
+                    uid = p_pw->pw_uid;
+            }
         }
 
         if ( ATTR_MASK_TEST( attrs_in, gid ) )
         {
-            struct group gr;
-            struct group *p_gr;
-
-            if ((getgrnam_r(ATTR(attrs_in, gid).txt, &gr, buff, 4096, &p_gr) != 0)
-                 || (p_gr == NULL))
+            if (global_config.uid_gid_as_numbers)
             {
-                DisplayLog(LVL_MAJOR, CREAT_TAG, "Warning: couldn't resolve gid for group '%s'",
-                           ATTR(attrs_in, gid).txt);
-                gid = -1;
+                gid = ATTR(attrs_in, gid).num;
             }
             else
-                gid = p_gr->gr_gid;
+            {
+                struct group gr;
+                struct group *p_gr;
+
+                if ((getgrnam_r(ATTR(attrs_in, gid).txt, &gr, buff, 4096, &p_gr) != 0)
+                    || (p_gr == NULL))
+                {
+                    DisplayLog(LVL_MAJOR, CREAT_TAG, "Warning: couldn't resolve gid for group '%s'",
+                               ATTR(attrs_in, gid).txt);
+                    gid = -1;
+                }
+                else
+                    gid = p_gr->gr_gid;
+            }
         }
 
         DisplayLog( LVL_FULL, CREAT_TAG, "Restoring owner/group for '%s': uid=%u, gid=%u",
@@ -2561,4 +2626,138 @@ void path_check_update(const entry_id_t *p_id,
 }
 #endif
 
+/* Find the numerical user ID (UID) for a given user name, which is
+ * either a real name or a string containing a number.
+ * Return 0 on success, and non-zero on error. */
+int set_uid_val(const char *username, db_type_u *val)
+{
+    long uid;
+    char *endptr;
+
+    if (!global_config.uid_gid_as_numbers)
+    {
+        val->val_str = username;
+        return 0;
+    }
+
+    if (WILDCARDS_IN(username)) {
+        DisplayLog(LVL_CRIT, REPORT_TAG, "ERROR: Wilcards not allowed in user name");
+        return -1;
+    }
+
+    /* The name could be a number already. */
+    errno = 0;
+    uid = strtol(username, &endptr, 0);
+
+    if ((errno == ERANGE && (uid == LONG_MAX || uid == LONG_MIN)) ||
+        (errno != 0 && uid == 0) ||
+        endptr == username)
+    {
+        /* Not a number. */
+        struct passwd pw;
+        struct passwd *result;
+        char buff[4096];
+
+        if (getpwnam_r(username, &pw, buff, sizeof(buff), &result) == 0)
+        {
+            val->val_int = pw.pw_uid;
+            return 0;
+        } else {
+            DisplayLog(LVL_CRIT, REPORT_TAG, "couldn't resolve uid for user '%s'",
+                       username);
+            return -1;
+        }
+    }
+
+    if (uid < 0)
+    {
+        DisplayLog(LVL_CRIT, REPORT_TAG,
+                   "ERROR: Given UID is negative (%ld)", uid);
+        return -1;
+    }
+
+    if (uid > UINT_MAX)
+    {
+        DisplayLog(LVL_CRIT, REPORT_TAG,
+                   "ERROR: Given UID is too big (%ld)", uid);
+        return -1;
+    }
+
+    val->val_int = uid;
+    return 0;
+}
+
+/* Find the numerical group ID (GID) for a given group name, which is
+ * either a real name or a string containing a number.
+ * Return 0 on success, and non-zero on error. */
+int set_gid_val(const char *groupname, db_type_u *val)
+{
+    long gid;
+    char *endptr;
+
+    if (!global_config.uid_gid_as_numbers)
+    {
+        val->val_str = groupname;
+        return 0;
+    }
+
+    if (WILDCARDS_IN(groupname)) {
+        DisplayLog(LVL_CRIT, REPORT_TAG, "ERROR: Wilcards not allowed in group name");
+        return -1;
+    }
+
+    /* The name could be a number already. */
+    errno = 0;
+    gid = strtol(groupname, &endptr, 0);
+
+    if ((errno == ERANGE && (gid == LONG_MAX || gid == LONG_MIN)) ||
+        (errno != 0 && gid == 0) ||
+        endptr == groupname)
+    {
+        /* Not a number. */
+        struct group grp;
+        struct group *result;
+        char buff[4096];
+
+        if (getgrnam_r(groupname, &grp, buff, sizeof(buff), &result) == 0)
+        {
+            val->val_int = grp.gr_gid;
+            return 0;
+        } else {
+            DisplayLog(LVL_CRIT, REPORT_TAG, "couldn't resolve gid for group '%s'",
+                       groupname);
+            return -1;
+        }
+    }
+
+    if (gid < 0)
+    {
+        DisplayLog(LVL_CRIT, REPORT_TAG,
+                   "ERROR: Given GID is negative (%ld)", gid);
+        return -1;
+    }
+
+    if (gid > UINT_MAX)
+    {
+        DisplayLog(LVL_CRIT, REPORT_TAG,
+                   "ERROR: Given GID is too big (%ld)", gid);
+        return -1;
+    }
+
+    val->val_int = gid;
+    return 0;
+}
+
+/* Returns a printable string for a UID or GID, whether it's a number
+ * or an actual string. */
+const char *id_as_str(db_type_u *val)
+{
+    static __thread char buf[20];
+
+    if (!global_config.uid_gid_as_numbers)
+        return val->val_str;
+
+    sprintf(buf, "%d", val->val_int);
+    return buf;
+}
 

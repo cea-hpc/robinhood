@@ -545,4 +545,8 @@ int mkdir_recurse(const char * full_path, mode_t mode, entry_id_t *dir_id);
  */
 int path2id(const char *path, entry_id_t *id, const struct stat *st);
 
+int set_uid_val(const char *username, db_type_u *val);
+int set_gid_val(const char *groupname, db_type_u *val);
+const char *id_as_str(db_type_u *val);
+
 #endif

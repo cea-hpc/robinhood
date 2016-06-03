@@ -294,7 +294,10 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
 
         case 'g':
             disp_mask.std |= ATTR_MASK_gid;
-            g_string_append_c(chunk->format, 's');
+            if (global_config.uid_gid_as_numbers)
+                g_string_append_c(chunk->format, 'd');
+            else
+                g_string_append_c(chunk->format, 's');
             break;
 
         case 'M':
@@ -323,7 +326,10 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
 
         case 'u':
             disp_mask.std |= ATTR_MASK_uid;
-            g_string_append_c(chunk->format, 's');
+            if (global_config.uid_gid_as_numbers)
+                g_string_append_c(chunk->format, 'd');
+            else
+                g_string_append_c(chunk->format, 's');
             break;
 
         case 'Y':
@@ -526,7 +532,10 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
             break;
 
         case 'g':
-            printf(format, ATTR(attrs, gid).txt);
+            if (global_config.uid_gid_as_numbers)
+                printf(format, ATTR(attrs, gid).num);
+            else
+                printf(format, ATTR(attrs, gid).txt);
             break;
 
         case 'm':
@@ -557,7 +566,10 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
             break;
 
         case 'u':
-            printf(format, ATTR(attrs, uid).txt);
+            if (global_config.uid_gid_as_numbers)
+                printf(format, ATTR(attrs, uid).num);
+            else
+                printf(format, ATTR(attrs, uid).txt);
             break;
 
         case 'Y':
