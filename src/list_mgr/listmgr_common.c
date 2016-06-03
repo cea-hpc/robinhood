@@ -39,8 +39,14 @@ void printdbtype(lmgr_t *p_mgr, GString *str, db_type_e type, const db_type_u *v
             g_string_append_printf(str, DPK, tmpstr);
             break;
         }
-        case DB_TEXT:
         case DB_UIDGID:
+            if (global_config.uid_gid_as_numbers) {
+                g_string_append_printf(str, "%d", value_ptr->val_int);
+                break;
+            }
+            /* UID/GID is TEXT. Fall throught ... */
+
+        case DB_TEXT:
         {
             /* escape special characters in value */
             int   len = 2*strlen(value_ptr->val_str) + 1; /* as required by MySQL manual */
@@ -96,8 +102,13 @@ int ListMgr_PrintAttr(char *str, int size, db_type_e type,
             return snprintf(str, size, DFID, PFID(&value_ptr->val_id));
 
         case DB_TEXT:
-        case DB_UIDGID:
             return snprintf(str, size, "%s%s%s", quote, value_ptr->val_str, quote);
+
+        case DB_UIDGID:
+            if (global_config.uid_gid_as_numbers)
+                return snprintf(str, size, "%d", value_ptr->val_int);
+            else
+                return snprintf(str, size, "%s%s%s", quote, value_ptr->val_str, quote);
 
         case DB_INT:
             return snprintf(str, size, "%d", value_ptr->val_int);
@@ -162,10 +173,20 @@ int parsedbtype(char *str_in, db_type_e type, db_type_u * value_out)
         return 1;
 
     case DB_TEXT:
-    case DB_UIDGID:
     case DB_ENUM_FTYPE:
         value_out->val_str = str_in;
         return 1;
+
+    case DB_UIDGID:
+        if (global_config.uid_gid_as_numbers)
+        {
+            return sscanf(str_in, "%d", &value_out->val_int);
+        }
+        else
+        {
+            value_out->val_str = str_in;
+            return 1;
+        }
 
     case DB_INT:
         return sscanf(str_in, "%d", &value_out->val_int);
@@ -498,7 +519,7 @@ static const function_def_t *get_function_by_attr(int attr_index)
 /* print function call */
 static void print_func_call(GString *str, int func_index, const char *prefix)
 {
-    const function_def_t *func = get_function_by_attr(func_index); 
+    const function_def_t *func = get_function_by_attr(func_index);
     char **args;
     if (func == NULL) /* unexpected: BUG */
         RBH_BUG("call for non-function attr");
@@ -663,7 +684,7 @@ int attrmask2fieldcomparison(GString *str, attr_mask_t attr_mask,
         {
             if (match_table(table, i))
             {
-                g_string_append_printf(str, "%s %s%s%s%s%s ", 
+                g_string_append_printf(str, "%s %s%s%s%s%s ",
                             nbfields == 0 ? "" : separator, left_prefix,
                             field_name(i), comparator, right_prefix,
                             field_name(i));

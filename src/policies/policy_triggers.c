@@ -661,7 +661,7 @@ static void build_user_report_descr(report_field_descr_t info[], trigger_item_t 
 }
 
 /** build request filter for user or group triggers */
-static void build_user_report_filter(lmgr_filter_t *filter, trigger_item_t *trig)
+static int build_user_report_filter(lmgr_filter_t *filter, trigger_item_t *trig)
 {
     int            i;
     filter_value_t fv;
@@ -681,7 +681,16 @@ static void build_user_report_filter(lmgr_filter_t *filter, trigger_item_t *trig
     {
         int flag = 0;
 
-        fv.value.val_str = trig->list[i];
+        if (attr_index == ATTR_INDEX_uid)
+        {
+            if (set_uid_val(trig->list[i], &fv.value))
+                return -EINVAL;
+        }
+        else
+        {
+            if (set_gid_val(trig->list[i], &fv.value))
+                return -EINVAL;
+        }
 
         /* add parenthesis and 'OR' for lists of items */
         if (trig->list_size > 1)
@@ -697,8 +706,12 @@ static void build_user_report_filter(lmgr_filter_t *filter, trigger_item_t *trig
         }
         /* else: single value in list => flag = 0 */
 
-        lmgr_simple_filter_add(filter, attr_index, LIKE, fv, flag);
+        lmgr_simple_filter_add(filter, attr_index,
+                               global_config.uid_gid_as_numbers ? EQUAL : LIKE,
+                               fv, flag);
     }
+
+    return 0;
 }
 
 /** check thresholds for a given trigger target */
@@ -756,26 +769,25 @@ static int check_report_thresholds(trigger_item_t *p_trigger,
     {
         DisplayLog(LVL_EVENT, TAG, "%s '%s' exceeds high threshold: "
                    "used: %llu inodes / high threshold: %llu inodes.",
-                   what, result[0].value_u.val_str,
+                   what, id_as_str(&result[0].value_u),
                    result[1].value_u.val_biguint, p_trigger->hw_count);
 
         limit->count = result[1].value_u.val_biguint - p_trigger->lw_count;
 
         DisplayLog(LVL_EVENT, TAG,
                    "%llu files must be purged for %s '%s' (used=%llu, target=%llu)", /* FIXME 'purged' is policy specific */
-                   limit->count, what, result[0].value_u.val_str,
+                   limit->count, what, id_as_str(&result[0].value_u),
                    result[1].value_u.val_biguint, p_trigger->lw_count);
-
 
         if (p_trigger->alert_hw)
         {
             snprintf(buff, sizeof(buff), "Inode quota exceeded for %s '%s' (in %s)",
-                     what, result[0].value_u.val_str, global_config.fs_path);
+                     what, id_as_str(&result[0].value_u), global_config.fs_path);
             RaiseAlert(buff, "%s\n"
                              "%s:       %s\n"
                              "quota:      %llu inodes\n"
                              "usage:      %llu inodes",
-                       buff, what, result[0].value_u.val_str,
+                       buff, what, id_as_str(&result[0].value_u),
                        p_trigger->hw_count, result[1].value_u.val_biguint);
         }
     }
@@ -790,7 +802,7 @@ static int check_report_thresholds(trigger_item_t *p_trigger,
 
         DisplayLog(LVL_EVENT, TAG,
                    "%s '%s' exceeds high threshold: used: %llu blocks / high threshold: %llu blocks (x%u).",
-                   what, result[0].value_u.val_str,
+                   what, id_as_str(&result[0].value_u),
                    result[1].value_u.val_biguint, high_blk512,
                    DEV_BSIZE);
 
@@ -798,7 +810,7 @@ static int check_report_thresholds(trigger_item_t *p_trigger,
 
         DisplayLog(LVL_EVENT, TAG,
                    "%llu blocks (x%u) must be purged for %s '%s' (used=%llu, target=%llu)", /* FIXME 'purged' is policy specific */
-                   limit->blocks, DEV_BSIZE, what, result[0].value_u.val_str,
+                   limit->blocks, DEV_BSIZE, what, id_as_str(&result[0].value_u),
                    result[1].value_u.val_biguint, low_blk512);
 
         if (p_trigger->alert_hw)
@@ -807,9 +819,9 @@ static int check_report_thresholds(trigger_item_t *p_trigger,
 
             FormatFileSize(usage_str, sizeof(usage_str), result[1].value_u.val_biguint * 512);
             snprintf(buff, sizeof(buff), "Volume quota exceeded for %s '%s' (in %s)",
-                     what, result[0].value_u.val_str, global_config.fs_path);
+                     what, id_as_str(&result[0].value_u), global_config.fs_path);
             RaiseAlert(buff, "%s\n%s:       %s\nquota:      %s\nspace used: %s",
-                       buff, what, result[0].value_u.val_str, hw_str, usage_str);
+                       buff, what, id_as_str(&result[0].value_u), hw_str, usage_str);
         }
     }
     return 0;
@@ -914,7 +926,9 @@ static int trig_target_it(target_iterator_t *it, policy_info_t *pol,
         build_user_report_descr(info, trig, it->high_blk512);
 
         lmgr_simple_filter_init(&filter);
-        build_user_report_filter(&filter, trig);
+        rc = build_user_report_filter(&filter, trig);
+        if (rc)
+            return rc;
 
         it->info_u.db_report = ListMgr_Report(&pol->lmgr, info, 2, NULL, &filter, NULL);
         lmgr_simple_filter_free(&filter);

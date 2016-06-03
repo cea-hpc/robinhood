@@ -71,6 +71,11 @@ To get a debug output, set DEBUG to 1::
 
   DEBUG=1 ./2-run-tests.sh
 
+RBH_NUM_UIDGID can be set to use numerical UIDs and GIDs instead of their
+strings counterparts::
+
+  RBH_NUM_UIDGID=yes ./2-run-tests.sh 119
+
 
 Run the tests under Valgrind
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

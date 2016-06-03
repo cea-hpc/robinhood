@@ -23,6 +23,8 @@
 #include "rbh_logs.h"
 #include "rbh_misc.h"
 #include <stdio.h>
+#include <pwd.h>
+#include <grp.h>
 
 /* global symbols */
 static const char *acct_info_table = NULL;
@@ -132,30 +134,80 @@ static void append_field(GString *str, bool is_first, db_type_e type,
         break;
     case DB_UIDGID:
         {
-            /** FIXME configuration dependant */
-            char strtype[128];
-
-            /* VARBINARY length is limited. For larger strings, use TEXT. */
-            if (RBH_LOGIN_MAX-1 <= MAX_VARBINARY)
-                snprintf(strtype, sizeof(strtype),"VARBINARY(%u)", RBH_LOGIN_MAX-1);
+            if (global_config.uid_gid_as_numbers)
+            {
+                if (default_value)
+                    g_string_append_printf(str, "%s %s INT DEFAULT %d", is_first ? "" : ",", name,
+                                           default_value->val_int);
+                else
+                    g_string_append_printf(str, "%s %s INT", is_first ? "" : ",", name);
+            }
             else
-                rh_strncpy(strtype, "TEXT", sizeof(strtype));
+            {
+                char strtype[128];
 
-            if (default_value && default_value->val_str != NULL)
-                g_string_append_printf(str, "%s %s %s DEFAULT '%s'",is_first ? "" : ",",
-                    name, strtype, default_value->val_str);
-            else
-                g_string_append_printf(str, "%s %s %s",is_first ? "" : ",",
-                    name, strtype);
+                /* VARBINARY length is limited. For larger strings, use TEXT. */
+                if (RBH_LOGIN_MAX-1 <= MAX_VARBINARY)
+                    snprintf(strtype, sizeof(strtype),"VARBINARY(%u)", RBH_LOGIN_MAX-1);
+                else
+                    rh_strncpy(strtype, "TEXT", sizeof(strtype));
+
+                if (default_value && default_value->val_str != NULL)
+                    g_string_append_printf(str, "%s %s %s DEFAULT '%s'",is_first ? "" : ",",
+                                           name, strtype, default_value->val_str);
+                else
+                    g_string_append_printf(str, "%s %s %s",is_first ? "" : ",",
+                                           name, strtype);
+            }
         }
         break;
     }
 }
 
+static db_type_u default_uid = {.val_str = ACCT_DEFAULT_OWNER};
+static db_type_u default_gid = {.val_str = ACCT_DEFAULT_GROUP};
+
+static void init_default_field_values(void)
+{
+    if (global_config.uid_gid_as_numbers)
+    {
+        char buff[4096];
+        struct passwd pw;
+        struct passwd *p_pw;
+        struct group gr;
+        struct group *p_gr;
+
+        if (getpwnam_r("nobody", &pw, buff, sizeof(buff), &p_pw) != 0 ||
+            p_pw == NULL)
+        {
+            DisplayLog(LVL_MAJOR, LISTMGR_TAG,
+                       "Warning: couldn't resolve uid for user 'nobody'");
+
+            /* nobody is 65534 on most Linux systems. */
+            default_uid.val_int = 65534;
+        } else {
+            default_uid.val_int = pw.pw_uid;
+        }
+
+        if ((getgrnam_r("nobody", &gr, buff, sizeof(buff), &p_gr) != 0 ||
+             p_gr == NULL) &&
+            (getgrnam_r("nogroup", &gr, buff, sizeof(buff), &p_gr) != 0 ||
+             p_gr == NULL))
+        {
+            DisplayLog(LVL_MAJOR, LISTMGR_TAG,
+                       "Warning: couldn't resolve gid for group 'nogroup' or 'nobody'");
+
+            /* nogroup is 65534 on Debian. nobody is 99 on RHEL and
+             * 65533 on SLES. */
+            default_gid.val_int = 65534;
+        } else {
+            default_gid.val_int = gr.gr_gid;
+        }
+    }
+}
+
 static const db_type_u *default_field_value(int attr_index)
 {
-    static const db_type_u default_uid = {.val_str = ACCT_DEFAULT_OWNER};
-    static const db_type_u default_gid = {.val_str = ACCT_DEFAULT_GROUP};
 
     switch (attr_index)
     {
@@ -733,9 +785,7 @@ static int create_table_main(db_conn_t *pconn)
     while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         if (is_main_field(i) && !is_funcattr(i))
-        {
             append_field_def(i, request, 0);
-        }
     }
 
     /* end of field list (null terminated) */
@@ -1997,8 +2047,10 @@ int ListMgr_Init(bool report_access_only)
     /* store the parameter as a global variable */
     report_only = report_access_only;
 
-    /* initilize attr masks for each table */
+    /* initialize attr masks for each table */
     init_attrset_masks(&lmgr_config);
+
+    init_default_field_values();
 
     /* determine source tables for accounting */
     acct_info_table = acct_table();
