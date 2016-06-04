@@ -26,7 +26,7 @@
 #include "xplatform_print.h"
 #include <stdio.h>
 
-void printdbtype(lmgr_t *p_mgr, GString *str, db_type_t type, const db_type_u *value_ptr )
+void printdbtype(lmgr_t *p_mgr, GString *str, db_type_e type, const db_type_u *value_ptr )
 {
     switch (type)
     {
@@ -87,7 +87,7 @@ void printdbtype(lmgr_t *p_mgr, GString *str, db_type_t type, const db_type_u *v
 
 /** print attribute value to display to the user
  * @param quote string to quote string types (eg. "'") */
-int ListMgr_PrintAttr(char *str, int size, db_type_t type,
+int ListMgr_PrintAttr(char *str, int size, db_type_e type,
                       const db_type_u *value_ptr, const char *quote)
 {
     switch (type)
@@ -138,17 +138,17 @@ int ListMgr_PrintAttr(char *str, int size, db_type_t type,
     return 0;
 }
 
-int ListMgr_PrintAttrPtr(char *str, int size, db_type_t type,
+int ListMgr_PrintAttrPtr(char *str, int size, db_type_e type,
                          void *value_ptr, const char *quote)
 {
     db_type_u u;
 
-    ASSIGN_UNION(u, type, value_ptr);
+    assign_union(&u, type, value_ptr);
     return ListMgr_PrintAttr(str, size, type, &u, quote);
 }
 
 /* return the number of parsed items (1) on success */
-int parsedbtype(char *str_in, db_type_t type, db_type_u * value_out)
+int parsedbtype(char *str_in, db_type_e type, db_type_u * value_out)
 {
     int rc;
     int tmp;
@@ -679,11 +679,11 @@ static void print_attr_value(lmgr_t *p_mgr, GString *str, const attr_set_t *p_se
 {
     char tmp[1024];
     db_type_u typeu;
-    db_type_t t;
+    db_type_e t;
 
     if (attr_index < ATTR_COUNT)
     {
-        ASSIGN_UNION(typeu, field_infos[attr_index].db_type,
+        assign_union(&typeu, field_infos[attr_index].db_type,
                      attr_address_const(p_set, attr_index));
 
         if (is_sepdlist(attr_index))
@@ -697,8 +697,7 @@ static void print_attr_value(lmgr_t *p_mgr, GString *str, const attr_set_t *p_se
     {
         unsigned int status_idx = attr2status_index(attr_index);
 
-        ASSIGN_UNION(typeu, DB_TEXT,
-             p_set->attr_values.sm_status[status_idx]);
+        assign_union(&typeu, DB_TEXT, p_set->attr_values.sm_status[status_idx]);
         t = DB_TEXT;
     }
     else if (is_sm_info_field(attr_index))
@@ -706,7 +705,7 @@ static void print_attr_value(lmgr_t *p_mgr, GString *str, const attr_set_t *p_se
         unsigned int info_idx = attr2sminfo_index(attr_index);
 
         t = sm_attr_info[info_idx].def->db_type;
-        ASSIGN_UNION(typeu, t, (char *)p_set->attr_values.sm_info[info_idx]);
+        assign_union(&typeu, t, (char *)p_set->attr_values.sm_info[info_idx]);
     }
     else
         RBH_BUG("Attribute index is not in a valid range");
@@ -942,8 +941,8 @@ int result2attrset( table_enum table, char **result_tab,
                 separated_db2list(typeu.val_str, attr_address(p_set, i),
                                   field_infos[i].db_type_size+1); /* C size is db_type_size+1 */
             else
-                UNION_GET_VALUE(typeu, field_infos[i].db_type,
-                                attr_address_const(p_set, i));
+                union_get_value(attr_address(p_set, i), field_infos[i].db_type,
+                                &typeu);
             nbfields++;
         }
     }
@@ -1737,7 +1736,7 @@ void ListMgr_MergeAttrSets(attr_set_t *p_target_attrset, const attr_set_t *p_sou
                     free(p_target_attrset->attr_values.sm_info[idx]);
 
                 /* duplicate the field according to its type */
-                ASSIGN_UNION(typeu, field_type(i),
+                assign_union(&typeu, field_type(i),
                              p_source_attrset->attr_values.sm_info[idx]);
 
                 /* duplicate the value to target */
@@ -1746,10 +1745,10 @@ void ListMgr_MergeAttrSets(attr_set_t *p_target_attrset, const attr_set_t *p_sou
             }
             else if (!is_stripe_field(i))
             {
-                ASSIGN_UNION(typeu, field_infos[i].db_type,
+                assign_union(&typeu, field_infos[i].db_type,
                              attr_address_const(p_source_attrset, i));
-                UNION_GET_VALUE(typeu, field_infos[i].db_type,
-                             attr_address_const(p_target_attrset, i));
+                union_get_value(attr_address(p_target_attrset, i),
+                                field_infos[i].db_type, &typeu);
             }
 #ifdef _LUSTRE
             else if ( field_infos[i].db_type == DB_STRIPE_ITEMS )
@@ -1811,7 +1810,7 @@ attr_mask_t ListMgr_WhatDiff(const attr_set_t *p_tgt, const attr_set_t *p_src)
     {
         if (attr_mask_test_index(&common_mask, i))
         {
-            int is_diff = 0;
+            bool is_diff = false;
 
             /* status attr */
             if (is_status_field(i))
@@ -1828,16 +1827,15 @@ attr_mask_t ListMgr_WhatDiff(const attr_set_t *p_tgt, const attr_set_t *p_src)
             {
                 unsigned int idx = attr2sminfo_index(i);
 
-                DIFF_UNION(is_diff, field_type(i),
-                           p_src->attr_values.sm_info[idx],
-                           p_tgt->attr_values.sm_info[idx]);
+                is_diff = diff_union(field_type(i), p_src->attr_values.sm_info[idx],
+                                     p_tgt->attr_values.sm_info[idx]);
                 if (is_diff)
                     attr_mask_set_index(&diff_mask, i);
             }
             else if (!is_stripe_field(i))
             {
                 /* diff the values */
-                DIFF_UNION(is_diff, field_infos[i].db_type,
+                is_diff = diff_union(field_infos[i].db_type,
                            attr_address_const(p_src, i),
                            attr_address_const(p_tgt, i));
                 if (is_diff)
@@ -1864,7 +1862,7 @@ attr_mask_t ListMgr_WhatDiff(const attr_set_t *p_tgt, const attr_set_t *p_src)
             {
                 if (ATTR(p_tgt, stripe_items).count
                     != ATTR(p_src, stripe_items).count)
-                    is_diff = 1;
+                    is_diff = true;
                 else
                 {
                     int i;
@@ -1882,7 +1880,7 @@ attr_mask_t ListMgr_WhatDiff(const attr_set_t *p_tgt, const attr_set_t *p_src)
                             (ATTR(p_tgt,stripe_items).stripe[i].obj_seq !=
                              ATTR(p_src,stripe_items).stripe[i].obj_seq))
                         {
-                            is_diff = 1;
+                            is_diff = true;
                             break;
                         }
                     }
@@ -1900,7 +1898,7 @@ attr_mask_t ListMgr_WhatDiff(const attr_set_t *p_tgt, const attr_set_t *p_src)
  * \param type[in] the type of output array (DB_INT, DB_UINT, ...)
  * \param p_list[out] list of values (the function allocates a buffer for p_list->values)
  */
-int lmgr_range2list(const char * set, db_type_t type, value_list_t * p_list)
+int lmgr_range2list(const char * set, db_type_e type, value_list_t * p_list)
 {
     char *curr, *next;
     char buffer[1024];

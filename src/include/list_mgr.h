@@ -135,7 +135,7 @@ typedef union
 /** value from DB with the associated type */
 typedef struct db_value_t
 {
-    db_type_t      type;
+    db_type_e      type;
     db_type_u      value_u;
 } db_value_t;
 
@@ -1204,7 +1204,7 @@ int lmgr_check_filter_fields(lmgr_filter_t * p_filter, attr_mask_t attr_mask, in
  * \param type[in] the type of output array (DB_INT, DB_UINT, ...)
  * \param p_list[out] list of values (the function allocates a buffer for p_list->values)
  */
-int lmgr_range2list(const char * set, db_type_t type, value_list_t * p_list);
+int lmgr_range2list(const char * set, db_type_e type, value_list_t * p_list);
 
 
 /** @} */
@@ -1226,12 +1226,12 @@ attr_mask_t ListMgr_WhatDiff(const attr_set_t *p_tgt, const attr_set_t *p_src);
  * @param quote string to quote string types (eg. "'").
  * @return the same value as snprintf.
  */
-int ListMgr_PrintAttr(char *str, int size, db_type_t type,
+int ListMgr_PrintAttr(char *str, int size, db_type_e type,
                       const db_type_u *value_ptr, const char *quote);
 
 /** same as ListMgr_PrintAttr, excpet that the value is passed by pointer
  * instead of db_type_u */
-int ListMgr_PrintAttrPtr(char *str, int size, db_type_t type,
+int ListMgr_PrintAttrPtr(char *str, int size, db_type_e type,
                          void *value_ptr, const char *quote);
 
 /**

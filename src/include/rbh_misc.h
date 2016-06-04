@@ -96,6 +96,13 @@
 #ifdef __GNUC__
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
+
+/**
+ * GCC hint for unreachable code
+ * See: https://gcc.gnu.org/onlinedocs/gcc/Other-Builtins.html
+ */
+#define UNREACHED       __builtin_unreachable
+
 #else
 #define likely(x)       (x)
 #define unlikely(x)     (x)
