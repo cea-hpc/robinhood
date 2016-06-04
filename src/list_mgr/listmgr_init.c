@@ -45,7 +45,7 @@ static void append_status_def(const sm_instance_t *smi, GString *str, bool is_fi
     g_string_append(str, ") DEFAULT ''");
 }
 
-static void append_field(GString *str, bool is_first, db_type_t type,
+static void append_field(GString *str, bool is_first, db_type_e type,
                          unsigned int size, const char *name,
                          const db_type_u *default_value)
 {

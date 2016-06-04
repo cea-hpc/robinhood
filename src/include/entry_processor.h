@@ -156,7 +156,7 @@ typedef struct entry_proc_op_t
      * (preserve entries). Used for partial scans. */
     unsigned int      gc_names:1;
 
-    operation_type_t db_op_type;
+    operation_type_e db_op_type;
     callback_func_t callback_func;
     void          *callback_param;
 

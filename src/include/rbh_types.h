@@ -66,7 +66,7 @@ typedef enum
     DB_BOOL,    /**< boolean            */
     DB_ENUM_FTYPE, /**< file type enumeration */
     DB_UIDGID, /**< type depending on uid/gid format (configuration driven) */
-} db_type_t;
+} db_type_e;
 
 /** generic function for generating fields:
  * 1st parameter points to the field to be generated.
@@ -79,7 +79,7 @@ typedef int (*gen_func_t) (void *, const void *);
 typedef struct field_info_t
 {
     char          *field_name;
-    db_type_t      db_type;
+    db_type_e      db_type;
     unsigned int   db_type_size;                 /**< size for strings */
     int            flags;
     off_t          offset;
@@ -101,7 +101,7 @@ typedef struct field_info_t
 #define SLINK_ATTR   0x80000000 /* specific attr for symlinks */
 
 /** type of operation to be performed on database */
-typedef enum operation_type_t
+typedef enum operation_type_e
 {
     OP_TYPE_NONE = 0,
     OP_TYPE_INSERT,
@@ -109,6 +109,6 @@ typedef enum operation_type_t
     OP_TYPE_REMOVE_ONE,         /* remove name only; inode still exists */
     OP_TYPE_REMOVE_LAST,        /* remove last name to inode and inode */
     OP_TYPE_SOFT_REMOVE
-} operation_type_t;
+} operation_type_e;
 
 #endif
