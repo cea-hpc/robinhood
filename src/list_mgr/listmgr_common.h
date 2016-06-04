@@ -2,7 +2,7 @@
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
 /*
- * Copyright (C) 2008, 2009 CEA/DAM
+ * Copyright (C) 2008-2016 CEA/DAM
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the CeCILL License.
@@ -19,153 +19,130 @@
 #include "database.h"
 #include "status_manager.h"
 #include "rbh_logs.h"
+#include "rbh_misc.h"
 #include <stdint.h>
 #include <glib.h>
 
-#define ASSIGN_UNION( _u, _type, _address ) do {            \
-                    switch( _type )                         \
-                    {                                       \
-                      case DB_ID:                           \
-                        _u.val_id = *((entry_id_t*)(_address)); \
-                        break;                              \
-                      case DB_ENUM_FTYPE:                   \
-                      case DB_TEXT:                         \
-                        _u.val_str = (char*)(_address);     \
-                        break;                              \
-                      case DB_UIDGID:                       \
-                        _u.val_str = ((uidgid_u *)(_address))->txt; \
-                        break;                              \
-                      case DB_INT:                          \
-                        _u.val_int = *((int*)(_address));   \
-                        break;                              \
-                      case DB_UINT:                         \
-                        _u.val_uint = *((unsigned int*)(_address));   \
-                        break;                              \
-                      case DB_SHORT:                        \
-                        _u.val_short = *((short*)(_address));   \
-                        break;                              \
-                      case DB_USHORT:                         \
-                        _u.val_ushort = *((unsigned short*)(_address));  \
-                        break;                              \
-                      case DB_BIGINT:                       \
-                        _u.val_bigint = *((long long*)(_address));   \
-                        break;                              \
-                      case DB_BIGUINT:                      \
-                        _u.val_biguint = *((unsigned long long*)(_address));  \
-                        break;                              \
-                      case DB_BOOL:                         \
-                        _u.val_bool = *((bool*)(_address));   \
-                        break;                              \
-                      case DB_STRIPE_INFO:                  \
-                      case DB_STRIPE_ITEMS:                 \
-                          RBH_BUG("Unsupported DB type");   \
-                          break; \
-                    }\
-                    } while(0)
+static inline void assign_union(db_type_u * const tgt, db_type_e type,
+                                const void *src)
+{
+    switch(type)
+    {
+    case DB_ID:
+        tgt->val_id = *((entry_id_t*)(src));
+        break;
+    case DB_ENUM_FTYPE:
+    case DB_TEXT:
+        tgt->val_str = (char*)(src);
+        break;
+    case DB_UIDGID:
+        tgt->val_str = ((uidgid_u *)(src))->txt;
+        break;
+    case DB_INT:
+        tgt->val_int = *((int*)(src));
+        break;
+    case DB_UINT:
+        tgt->val_uint = *((unsigned int*)(src));
+        break;
+    case DB_SHORT:
+        tgt->val_short = *((short*)(src));
+        break;
+    case DB_USHORT:
+        tgt->val_ushort = *((unsigned short*)(src));
+        break;
+    case DB_BIGINT:
+        tgt->val_bigint = *((long long*)(src));
+        break;
+    case DB_BIGUINT:
+        tgt->val_biguint = *((unsigned long long*)(src));
+        break;
+    case DB_BOOL:
+        tgt->val_bool = *((bool*)(src));
+        break;
+    case DB_STRIPE_INFO:
+    case DB_STRIPE_ITEMS:
+        RBH_BUG("Unsupported DB type");
+        break;
+    }
+}
 
-#define UNION_GET_VALUE( _u, _type, _address ) do {            \
-                    switch( _type )                         \
-                    {                                       \
-                      case DB_ID:                           \
-                        *((entry_id_t*)(_address)) = _u.val_id; \
-                        break;                              \
-                      case DB_TEXT:                         \
-                      case DB_ENUM_FTYPE:                   \
-                        strcpy( (char*)(_address), _u.val_str ); \
-                        break;                              \
-                      case DB_UIDGID:                       \
-                        strcpy(((uidgid_u *)(_address))->txt, _u.val_str); \
-                        break;                              \
-                      case DB_INT:                          \
-                        *((int*)(_address)) =  _u.val_int ;   \
-                        break;                              \
-                      case DB_UINT:                         \
-                        *((unsigned int*)(_address)) = _u.val_uint;   \
-                        break;                              \
-                      case DB_SHORT:                          \
-                        *((short*)(_address)) =  _u.val_short ;   \
-                        break;                              \
-                      case DB_USHORT:                       \
-                        *((unsigned short*)(_address)) = _u.val_ushort;   \
-                        break;                              \
-                      case DB_BIGINT:                       \
-                        *((long long*)(_address)) = _u.val_bigint ;   \
-                        break;                              \
-                      case DB_BIGUINT:                      \
-                        *((unsigned long long*)(_address)) = _u.val_biguint;  \
-                        break;                              \
-                      case DB_BOOL:                         \
-                        *((bool*)(_address)) = _u.val_bool ;   \
-                        break;                              \
-                      case DB_STRIPE_INFO:                  \
-                      case DB_STRIPE_ITEMS:                 \
-                          RBH_BUG("Unsupported DB type");   \
-                          break; \
-                    }\
-                    } while(0)
+static inline void union_get_value(void *tgt, db_type_e type,
+                                   const db_type_u *src)
+{
+    switch(type)
+    {
+    case DB_ID:
+        *((entry_id_t*)tgt) = src->val_id;
+        break;
+    case DB_TEXT:
+    case DB_ENUM_FTYPE:
+        strcpy((char*)tgt, src->val_str);
+        break;
+    case DB_UIDGID:
+        strcpy(((uidgid_u *)tgt)->txt, src->val_str);
+        break;
+    case DB_INT:
+        *((int*)tgt) =  src->val_int ;
+        break;
+    case DB_UINT:
+        *((unsigned int*)tgt) = src->val_uint;
+        break;
+    case DB_SHORT:
+        *((short*)tgt) =  src->val_short ;
+        break;
+    case DB_USHORT:
+        *((unsigned short*)tgt) = src->val_ushort;
+        break;
+    case DB_BIGINT:
+        *((long long*)tgt) = src->val_bigint ;
+        break;
+    case DB_BIGUINT:
+        *((unsigned long long*)tgt) = src->val_biguint;
+        break;
+    case DB_BOOL:
+        *((bool*)tgt) = src->val_bool ;
+        break;
+    case DB_STRIPE_INFO:
+    case DB_STRIPE_ITEMS:
+          RBH_BUG("Unsupported DB type");
+          break;
+    }
+}
 
-
-#define DIFF_UNION( _diff, _type, _address1, _address2 ) do { \
-                    db_type_u _u1, _u2;                     \
-                    switch( _type )                         \
-                    {                                       \
-                      case DB_ID:                           \
-                        _u1.val_id = *((entry_id_t*)(_address1)); \
-                        _u2.val_id = *((entry_id_t*)(_address2)); \
-                        _diff = !entry_id_equal( &_u1.val_id, &_u2.val_id); \
-                        break;                              \
-                      case DB_ENUM_FTYPE:                   \
-                      case DB_TEXT:                         \
-                        _u1.val_str = (char*)(_address1);   \
-                        _u2.val_str = (char*)(_address2);   \
-                        _diff = strcmp(_u1.val_str, _u2.val_str); \
-                        break;                              \
-                      case DB_UIDGID:                       \
-                        _u1.val_str = ((uidgid_u *)(_address1))->txt; \
-                        _u2.val_str = ((uidgid_u *)(_address2))->txt; \
-                        _diff = strcmp(_u1.val_str, _u2.val_str); \
-                        break;                              \
-                      case DB_INT:                          \
-                        _u1.val_int = *((int*)(_address1));   \
-                        _u2.val_int = *((int*)(_address2));   \
-                        _diff = (_u1.val_int != _u2.val_int); \
-                        break;                              \
-                      case DB_UINT:                         \
-                        _u1.val_uint = *((unsigned int*)(_address1)); \
-                        _u2.val_uint = *((unsigned int*)(_address2)); \
-                        _diff = (_u1.val_uint != _u2.val_uint); \
-                        break;                              \
-                      case DB_SHORT:                          \
-                        _u1.val_short = *((short*)(_address1));   \
-                        _u2.val_short = *((short*)(_address2));   \
-                        _diff = (_u1.val_short != _u2.val_short); \
-                        break;                               \
-                      case DB_USHORT:                        \
-                        _u1.val_ushort = *((unsigned short*)(_address1)); \
-                        _u2.val_ushort = *((unsigned short*)(_address2)); \
-                        _diff = (_u1.val_ushort != _u2.val_ushort); \
-                        break;                              \
-                      case DB_BIGINT:                       \
-                        _u1.val_bigint = *((long long*)(_address1));   \
-                        _u2.val_bigint = *((long long*)(_address2));   \
-                        _diff = (_u1.val_bigint != _u2.val_bigint); \
-                        break;                              \
-                      case DB_BIGUINT:                      \
-                        _u1.val_biguint = *((unsigned long long*)(_address1));  \
-                        _u2.val_biguint = *((unsigned long long*)(_address2));  \
-                        _diff = (_u1.val_biguint != _u2.val_biguint); \
-                        break;                              \
-                      case DB_BOOL:                         \
-                        _u1.val_bool = *((bool*)(_address1));   \
-                        _u2.val_bool = *((bool*)(_address2));   \
-                        _diff = (_u1.val_bool != _u2.val_bool); \
-                        break;                              \
-                      case DB_STRIPE_INFO:                  \
-                      case DB_STRIPE_ITEMS:                 \
-                          RBH_BUG("Unsupported DB type");   \
-                          break; \
-                    }\
-                    } while(0)
+static inline int diff_union(db_type_e type, const void *addr1, const void *addr2)
+{
+    switch(type)
+    {
+    case DB_ID:
+        return !entry_id_equal((const entry_id_t*)addr1,
+                               (const entry_id_t*)addr2);
+    case DB_ENUM_FTYPE:
+    case DB_TEXT:
+        return strcmp((const char *)addr1, (const char *)addr2);
+    case DB_UIDGID:
+        return strcmp(((const uidgid_u *)addr1)->txt,
+                      ((const uidgid_u *)addr2)->txt);
+    case DB_INT:
+        return (*((const int*)addr1) != *((const int*)addr2));
+    case DB_UINT:
+        return (*((const unsigned int*)addr1) != *((const unsigned int*)addr2));
+    case DB_SHORT:
+        return (*((const short*)addr1) != *((const short*)addr2));
+    case DB_USHORT:
+        return (*((const unsigned short*)addr1) != *((const unsigned short*)addr2));
+    case DB_BIGINT:
+        return (*((const long long*)addr1) != *((const long long*)addr2));
+    case DB_BIGUINT:
+        return (*((const ull_t*)addr1) != *((const ull_t*)addr2));
+    case DB_BOOL:
+        return (*((const bool*)addr1) != *((const bool*)addr2));
+    case DB_STRIPE_INFO:
+    case DB_STRIPE_ITEMS:
+          RBH_BUG("Unsupported DB type");
+          break;
+    }
+    UNREACHED();
+}
 
 /** duplicate a value of the given C type */
 #define TYPE_DUP(_t, _tgt, _src) do {        \
@@ -178,7 +155,7 @@
     } while(0)
 
 /** duplicate a value of the given DB type */
-static inline void *dup_value(db_type_t db_type, db_type_u uval)
+static inline void *dup_value(db_type_e db_type, db_type_u uval)
 {
     void *ptr = NULL;
 
@@ -196,7 +173,7 @@ static inline void *dup_value(db_type_t db_type, db_type_u uval)
             ptr = calloc(1, sizeof(uidgid_u));
             if (ptr == NULL)
                 return NULL;
-            snprintf(((uidgid_u *)ptr)->txt, sizeof(uidgid_u), "%s", uval.val_str);
+            snprintf(((uidgid_u *)ptr)->txt, member_size(uidgid_u, txt), "%s", uval.val_str);
             break;
         case DB_INT:
             TYPE_DUP(int, ptr, &uval.val_int);
@@ -423,10 +400,10 @@ static inline bool is_recov_field(unsigned int attr_index)
 }
 
 /** printing a value to a DB request */
-void printdbtype(lmgr_t *p_mgr, GString *str, db_type_t type, const db_type_u *value_ptr);
+void printdbtype(lmgr_t *p_mgr, GString *str, db_type_e type, const db_type_u *value_ptr);
 
 /** parse a value from DB */
-int  parsedbtype(char *instr, db_type_t type, db_type_u *value_out);
+int  parsedbtype(char *instr, db_type_e type, db_type_u *value_out);
 
 typedef enum
 {
@@ -613,7 +590,7 @@ static inline const char *field_name(unsigned int index)
         return NULL;
 }
 
-static inline db_type_t field_type(unsigned int index)
+static inline db_type_e field_type(unsigned int index)
 {
     if (is_std_attr(index)) /* ensure index < ATTR_COUNT */
         return field_infos[index].db_type;
