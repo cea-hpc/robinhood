@@ -28,7 +28,7 @@
 #include <inttypes.h>
 
 struct result {
-    db_type_t type;
+    db_type_e type;
     int       flags;
 };
 

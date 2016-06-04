@@ -48,7 +48,7 @@ const char *config_file_path(void) { return "someconfigfile"; }
 const char *get_fsname(void) { return "somefsname"; }
 
 /* dummy ListMgr_PrintAttrPtr() function: avoid linking with all libs */
-int ListMgr_PrintAttrPtr(char *str, int size, db_type_t type,
+int ListMgr_PrintAttrPtr(char *str, int size, db_type_e type,
                          void *value_ptr, const char *quote)
 {
     snprintf(str, size, "%p", value_ptr);

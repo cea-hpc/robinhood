@@ -80,7 +80,7 @@ typedef enum {
     PA_UPDATE
 } post_action_e;
 
-typedef int (*db_cb_func_t)(void *cb_arg, operation_type_t op,
+typedef int (*db_cb_func_t)(void *cb_arg, operation_type_e op,
                             const entry_id_t *id, const attr_set_t *attrs);
 
 typedef int (*action_func_t)(const entry_id_t *id, attr_set_t *attrs,

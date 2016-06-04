@@ -111,7 +111,7 @@ typedef enum {
 typedef struct sm_info_def {
     const char    *user_name; /**< full name for user interface (config, display...) */
     const char    *db_name; /**< short name for db storage */
-    db_type_t      db_type;
+    db_type_e      db_type;
     unsigned int   db_type_size;  /**< size for strings */
     db_type_u      db_default; /**< default value */
     cfg_param_type crit_type; /**< type for config criteria */
