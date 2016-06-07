@@ -179,9 +179,8 @@ static void append_field_def(int i, GString *str, bool is_first, db_type_u *defa
                  default_value);
 }
 
-//#define DROP_MESSAGE "\nYou should:\n\t1) backup current DB contents using 'rbh-config backup_db'\n\t2) empty the DB using 'rbh-config empty_db'\n\t3) start a new FS scan."
-#define DROP_MESSAGE "\nYou may have moved or removed a policy definition. Database needs to be altered accordingly."
-#define DROP_ACCT_MSG "\nYou should:\n\t1) stop robinhood commands\n\t2) clear accounting info using 'rbh-config reset_acct'\n\t3) restart robinhood."
+#define DROP_MESSAGE "you may have moved or removed a policy definition. Database schema needs to be altered accordingly."
+#define DROP_ACCT_MSG "\nYou should:\n\t1) Stop all running robinhood processes\n\t2) Clear accounting info using 'rbh-config reset_acct'\n\t3) Restart robinhood."
 
 /**
  * Check table fields.
@@ -856,8 +855,17 @@ static int check_table_stripe_info(db_conn_t *pconn)
         switch(check_field_name_type("validator", "INT", &curr_field_index, STRIPE_INFO_TABLE,
                                      fieldtab, typetab))
         {
-            case -1: return DB_BAD_SCHEMA;
+            case -1:
+                return DB_BAD_SCHEMA;
             case 1:
+                /* only run conversion for other programs than reporting commands */
+                if (report_only)
+                {
+                    DisplayLog(LVL_CRIT, LISTMGR_TAG, "Incompatible DB type for "
+                               STRIPE_INFO_TABLE".validator");
+                    return DB_BAD_SCHEMA;
+                }
+
                 DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Detected type change for "
                            STRIPE_INFO_TABLE".validator (<= 2.5.3): running conversion");
                 /* run type conversion */
