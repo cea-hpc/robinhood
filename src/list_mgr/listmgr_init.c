@@ -152,8 +152,24 @@ static void append_field(GString *str, bool is_first, db_type_e type,
     }
 }
 
+static const db_type_u *default_field_value(int attr_index)
+{
+    static const db_type_u default_uid = {.val_str = ACCT_DEFAULT_OWNER};
+    static const db_type_u default_gid = {.val_str = ACCT_DEFAULT_GROUP};
 
-static void append_field_def(int i, GString *str, bool is_first, db_type_u *default_value)
+    switch (attr_index)
+    {
+        case ATTR_INDEX_uid:
+            return &default_uid;
+        case ATTR_INDEX_gid:
+            return &default_gid;
+        default:
+            return NULL;
+    }
+    UNREACHED();
+}
+
+static void append_field_def(int i, GString *str, bool is_first)
 {
     unsigned int idx;
 
@@ -176,10 +192,10 @@ static void append_field_def(int i, GString *str, bool is_first, db_type_u *defa
     append_field(str, is_first, field_infos[i].db_type,
                  field_infos[i].db_type_size,
                  field_infos[i].field_name,
-                 default_value);
+                 default_field_value(i));
 }
 
-#define DROP_MESSAGE "you may have moved or removed a policy definition. Database schema needs to be altered accordingly."
+#define DROP_MESSAGE "database schema needs to be altered accordingly."
 #define DROP_ACCT_MSG "\nYou should:\n\t1) Stop all running robinhood processes\n\t2) Clear accounting info using 'rbh-config reset_acct'\n\t3) Restart robinhood."
 
 /**
@@ -202,7 +218,7 @@ static int _check_field_name(const char *name, int *curr_field_index,
         else
             DisplayLog(LVL_CRIT, LISTMGR_TAG,
                        "Incompatible database schema (missing field '%s' in table %s):"
-                       " "DROP_MESSAGE, name, table);
+                       " "DROP_MESSAGE, name, table); /* TODO: don't display that if a change is expected => display in caller */
         return -1;
     }
     /* check that this is the expected field */
@@ -237,7 +253,7 @@ static int _check_field_name(const char *name, int *curr_field_index,
 static int check_field_name(const char *name, int *curr_field_index,
                             char *table, char **fieldtab)
 {
-    if (_check_field_name(name,curr_field_index,table,fieldtab) == 0)
+    if (_check_field_name(name, curr_field_index, table, fieldtab) == 0)
     {
         (*curr_field_index)++;
         return 0;
@@ -245,7 +261,6 @@ static int check_field_name(const char *name, int *curr_field_index,
     return -1;
 }
 
-#ifdef _LUSTRE
 static void drop_chars(char *str, int start_off, int end_off)
 {
     /* drop len chars */
@@ -334,6 +349,79 @@ static int convert_field_type(db_conn_t *pconn, const char *table,
     return 0;
 }
 
+static int change_field_name(db_conn_t *pconn, const char *table, const char *old_name,
+                              const char *new_name, int field_index)
+{
+    /* syntax: ALTER TABLE <tablename> CHANGE <OldColumnName> <NewColunmName> <DATATYPE>; */
+    GString *query = g_string_new(NULL);
+    int rc;
+
+    g_string_printf(query, "ALTER TABLE %s CHANGE %s", table, old_name);
+    append_field_def(field_index, query, true);
+
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "sql> %s", query->str);
+
+    rc = db_exec_sql(pconn, query->str, NULL);
+    if (rc)
+    {
+        char buff[1024];
+
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to rename field '%s' to '%s': Error: %s",
+                    old_name, new_name, db_errmsg(pconn, buff, sizeof(buff)));
+        return rc;
+    }
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "%s.%s successfully renamed to %s.%s", table,
+               old_name, table, new_name);
+    return 0;
+}
+
+/* describe name change comatibility */
+struct name_compat {
+    const char *old_name;
+    const char *new_name;
+};
+
+/**
+ * Handle compatibility with old field names.
+ * @retval 1 if field has been converted/renamed.
+ * @retval 0 id field matches no rename rule.
+ * @retval < 0 on error.
+ */
+static int check_renamed_field(db_conn_t *pconn, const char *table_name,
+                               int field_index, const char *curr_field_name,
+                               const struct name_compat *compat_table)
+{
+    int i, rc;
+
+    assert(compat_table != NULL);
+
+    /* handle compatibility with old field names */
+    for (i = 0; compat_table[i].old_name != NULL; i++)
+    {
+        if (!strcmp(field_name(field_index), compat_table[i].new_name)
+            && !strcmp(curr_field_name,
+                       compat_table[i].old_name)
+            && !report_only)
+        {
+            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Detected old field '%s' "
+                       "in table %s: renaming to '%s'.",
+                       compat_table[i].old_name, table_name,
+                       compat_table[i].new_name);
+
+            rc = change_field_name(pconn, table_name, compat_table[i].old_name,
+                                   compat_table[i].new_name, field_index);
+            if (rc)
+                /* db errors codes are > 0 */
+                return -rc;
+
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 /** @return -1 on error, 0 if OK, 1 if conversion is required */
 static int check_field_name_type(const char *name, const char *type, int *curr_field_index,
                                  char *table, char **fieldtab, char **typetab)
@@ -347,9 +435,8 @@ static int check_field_name_type(const char *name, const char *type, int *curr_f
     (*curr_field_index)++;
     return 0;
 }
-#endif
 
-static inline int check_field(int i, int * curr_field_index, char *table, char **fieldtab)
+static inline int check_field(int i, int *curr_field_index, char *table, char **fieldtab)
 {
     return check_field_name(field_name(i), curr_field_index, table, fieldtab);
 }
@@ -421,6 +508,7 @@ static void append_size_range_op(GString *request, bool leading_comma, char *pre
     g_string_append_printf(request, ", %s=CAST(%s as SIGNED)%sCAST(IFNULL(%s>=%u,0) as SIGNED)",
                            sz_field[i], sz_field[i], op, value, i-1);
 }
+
 
 /**
  * Check what tables are used as source for accounting.
@@ -561,6 +649,12 @@ static int create_table_vars(db_conn_t *pconn)
     return rc;
 }
 
+static struct name_compat main_name_compat[] = {
+    {"owner",   "uid"},
+    {"gr_name", "gid"},
+    {NULL,      NULL},
+};
+
 static int check_table_main(db_conn_t *pconn)
 {
     char strbuf[4096];
@@ -584,7 +678,21 @@ static int check_table_main(db_conn_t *pconn)
             if (is_main_field(i) && !is_funcattr(i))
             {
                 if (check_field(i, &curr_field_index, MAIN_TABLE, fieldtab))
-                    return DB_BAD_SCHEMA;
+                {
+                    /* convert renamed fields */
+                    rc = check_renamed_field(pconn, MAIN_TABLE, i,
+                                             fieldtab[curr_field_index],
+                                             main_name_compat);
+                    if (rc < 0)
+                        /* DB error */
+                        return -rc;
+                    else if (rc != 1)
+                        /* not a renamed field */
+                        return DB_BAD_SCHEMA;
+
+                    /* OK, renamed */
+                    curr_field_index ++;
+                }
             }
         }
 
@@ -615,7 +723,6 @@ static int create_table_main(db_conn_t *pconn)
 {
     GString    *request;
     int         i, rc, cookie;
-    db_type_u   default_val;
 
     request = g_string_new("CREATE TABLE "MAIN_TABLE" (id "PK_TYPE" PRIMARY KEY");
 
@@ -624,18 +731,7 @@ static int create_table_main(db_conn_t *pconn)
     {
         if (is_main_field(i) && !is_funcattr(i))
         {
-            if (i == ATTR_INDEX_uid)
-            {
-                default_val.val_str = ACCT_DEFAULT_OWNER;
-                append_field_def(i, request, 0, &default_val);
-            }
-            else if (i == ATTR_INDEX_gid)
-            {
-                default_val.val_str = ACCT_DEFAULT_GROUP;
-                append_field_def(i, request, 0, &default_val);
-            }
-            else
-                 append_field_def(i, request, 0, NULL);
+            append_field_def(i, request, 0);
         }
     }
 
@@ -720,7 +816,7 @@ static int create_table_dnames(db_conn_t *pconn)
     {
         if (is_names_field(i) && !is_funcattr(i))
         {
-            append_field_def(i, request, 0, NULL);
+            append_field_def(i, request, 0);
         }
     }
     g_string_append(request, ")");
@@ -804,7 +900,7 @@ static int create_table_annex(db_conn_t *pconn)
     {
         if (is_annex_field(i) && !is_funcattr(i))
         {
-            append_field_def(i, request, 0, NULL);
+            append_field_def(i, request, 0);
         }
     }
     g_string_append(request, ")");
@@ -1149,7 +1245,7 @@ static int create_table_acct(db_conn_t *pconn)
     {
         if (is_acct_pk(i))
         {
-            append_field_def(i, request, is_first_acct_field, NULL);
+            append_field_def(i, request, is_first_acct_field);
             is_first_acct_field = false;
         }
     }
@@ -1158,7 +1254,7 @@ static int create_table_acct(db_conn_t *pconn)
     while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         if (is_acct_field(i))
-            append_field_def(i, request, is_first_acct_field, NULL);
+            append_field_def(i, request, is_first_acct_field);
     }
 
     /* count field */
@@ -1261,7 +1357,7 @@ static int create_table_softrm(db_conn_t *pconn)
     while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         if (is_softrm_field(i))
-            append_field_def(i, request, 0, NULL);
+            append_field_def(i, request, 0);
     }
     g_string_append(request, ")");
     append_engine(request);
