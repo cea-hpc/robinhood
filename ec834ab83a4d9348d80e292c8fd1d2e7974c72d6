@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_631cfc13",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 7800,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-08T19:05:28Z",
+      "side": 1,
+      "message": "\"man chown\" only mention \":\" as separator",
+      "revId": "ec834ab83a4d9348d80e292c8fd1d2e7974c72d6",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
