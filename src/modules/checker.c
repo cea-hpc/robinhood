@@ -24,7 +24,7 @@
  * It implement a 'last_check' criteria, to allow defining
  * a check interval in policy rules (e.g. last_check > 7d).
  * It implement a 'last_success' criteria, to report
- * last successfull command execution.
+ * last successful command execution.
  * It also maintain a status (ok/failed), which is the
  * status of the last command run on the entry.
  */

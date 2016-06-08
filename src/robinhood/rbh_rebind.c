@@ -61,7 +61,7 @@ static struct option option_tab[] =
 
 /* Bold start character sequence */
 #define _B "[1m"
-/* Bold end charater sequence */
+/* Bold end character sequence */
 #define B_ "[m"
 
 /* Underline start character sequence */

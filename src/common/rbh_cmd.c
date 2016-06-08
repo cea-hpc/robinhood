@@ -29,7 +29,7 @@
 
 /**
  * When executing an external processes, two I/O channels are open on its
- * stdout / stderr streams.  Everytime a line is read from these channels
+ * stdout / stderr streams.  Every time a line is read from these channels
  * we call a user-provided function back.
  */
 struct io_chan_arg {

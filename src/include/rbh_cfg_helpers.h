@@ -164,13 +164,13 @@ typedef struct cfg_param_t {
 } cfg_param_t;
 #define END_OF_PARAMS {NULL, 0, 0, NULL, 0}
 
-int read_scalar_params(config_item_t block, const char *block_name, 
+int read_scalar_params(config_item_t block, const char *block_name,
                        const cfg_param_t * params, char *msgout);
 
 /**
  * Build a policy boolean expression from the given block
  * \param smi(in) when specifying a policy scope, indicate the
- *                related status manager ('status' criteria is policy dependant).
+ *                related status manager ('status' criteria is policy dependent).
  */
 #include "rbh_boolexpr.h"
 #include "list_mgr.h"

@@ -410,7 +410,7 @@ typedef enum
     T_NONE = 0,                                  /* not set */
     T_MAIN,                                      /* fields in main table */
     T_DNAMES,                                    /* files in dir names table */
-    T_ANNEX,                                     /* fiels in annex table */
+    T_ANNEX,                                     /* fields in annex table */
     T_STRIPE_INFO,                               /* field in stripe info table */
     T_STRIPE_ITEMS,                              /* field in stripe items table */
     T_ACCT,                                      /* fields in accounting table */
@@ -439,7 +439,7 @@ static inline const char * table2name(table_enum table)
 
 typedef enum {
     ADD,
-    SUBSTRACT
+    SUBTRACT
 } operation_type;
 
 void           add_source_fields_for_gen(uint32_t *std_mask);

@@ -33,7 +33,7 @@ SUMMARY="/tmp/test_${PROC}_summary.$$"
 ERROR=0
 RC=0
 SKIP=0
-SUCCES=0
+SUCCESS=0
 DO_SKIP=0
 
 function error_reset
@@ -312,7 +312,7 @@ function run_test
 			fi
 		else
 			echo "TEST #$index : OK" >> $SUMMARY
-			SUCCES=$(($SUCCES+1))
+			SUCCESS=$(($SUCCESS+1))
 			if (( $junit )); then
 				junit_report_success "robinhood.$PURPOSE.Posix" "Test #$index: $desc" "$dur"
 			fi
@@ -352,15 +352,15 @@ if (( $junit )); then
 	tfinal=`date "+%s.%N"`
 	dur=`echo "($tfinal-$tinit)" | bc -l`
 	echo "total test duration: $dur sec"
-	junit_write_xml "$dur" $RC $(( $RC + $SUCCES ))
+	junit_write_xml "$dur" $RC $(( $RC + $SUCCESS ))
 	rm -f $TMPXML_PREFIX.stderr $TMPXML_PREFIX.stdout $TMPXML_PREFIX.tc
 fi
 
 rm -f $SUMMARY
 if (( $RC > 0 )); then
-	echo "$RC tests FAILED, $SUCCES successful, $SKIP skipped"
+	echo "$RC tests FAILED, $SUCCESS successful, $SKIP skipped"
 else
-	echo "All tests passed ($SUCCES successful, $SKIP skipped)"
+	echo "All tests passed ($SUCCESS successful, $SKIP skipped)"
 fi
 rm -f $TMPERR_FILE
 exit $RC

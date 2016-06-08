@@ -391,7 +391,7 @@ static bool allow_null(unsigned int attr_index, const filter_comparator_t *comp,
 
 /* Extract simple pieces of expressions and append them to filter.
  * The resulting filter is expected to return a larger set than the actual condition.
- * Ignore conflicting criterias.
+ * Ignore conflicting criteria.
  * \param expr_flag indicate if BEGIN/END parenthesing is needed
  * \param depth indicate the current parenthesing depth
  * \param op_ctx indicate the current operation context: e.g. AND for 'x and y and z'

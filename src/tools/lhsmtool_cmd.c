@@ -801,7 +801,7 @@ static gpointer subproc_mgr_main(gpointer data)
  * and publish them to the working threads.
  *
  * It keeps an fd open on the lustre filesystem root to prevent it from being
- * unmounter accidentaly.
+ * unmounter accidentally.
  */
 static int ct_producer_setup(void)
 {

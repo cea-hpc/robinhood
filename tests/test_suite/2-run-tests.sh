@@ -158,7 +158,7 @@ fi
 function flush_data
 {
     if [[ -n "$SYNC" ]]; then
-      # if the agent is on the same node as the writter, we are not sure
+      # if the agent is on the same node as the writer, we are not sure
       # data has been flushed to OSTs
       echo "Flushing data to OSTs"
       sync
@@ -206,7 +206,7 @@ SUMMARY="/tmp/test_${PROC}_summary.$$"
 NB_ERROR=0
 RC=0
 SKIP=0
-SUCCES=0
+SUCCESS=0
 DO_SKIP=0
 
 function error_reset
@@ -469,7 +469,7 @@ function migration_test
     	check_db_error rh_chglogs.log
 
 	echo "3-Applying migration policy ($policy_str)..."
-	# start a migration files should notbe migrated this time
+	# start a migration files should not be migrated this time
 	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log || error ""
 
 	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
@@ -978,7 +978,7 @@ function test_lru_policy
     sleep 1
 
 	echo "3-Applying migration policy ($policy_str)..."
-	# start a migration files should notbe migrated this time
+	# start a migration files should not be migrated this time
 
 	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l FULL -L rh_migr.log   || error ""
     [ "$DEBUG" = "1" ] && grep "SELECT ENTRIES" rh_migr.log
@@ -1197,7 +1197,7 @@ function xattr_test
     	check_db_error rh_chglogs.log
 
 	echo "3-Applying migration policy ($policy_str)..."
-	# start a migration files should notbe migrated this time
+	# start a migration files should not be migrated this time
 	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error ""
 
 	nb_migr=`grep "$ARCH_STR" rh_migr.log | wc -l`
@@ -1385,7 +1385,7 @@ function test_hsm_remove
     if (( $is_lhsm != 0 )); then
         extra=1 # +1 for file.a
         extra_list=(a) # should be in softrm
-        extra_excl=(b) # shouldnt be in softrm
+        extra_excl=(b) # shouldn't be in softrm
         echo "Archiving $expected_rm files..."
         flush_data
         for i in $(seq 1 $expected_rm) a; do
@@ -1773,7 +1773,7 @@ function test_custom_purge
     touch "$RH_ROOT/foo2 ; exit 1" || error "couldn't create file"
     touch "$RH_ROOT/foo3' ';' 'exit' '1'" || error "couldn't create file"
 
-	echo "Inital scan..."
+	echo "Initial scan..."
 	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log
 	check_db_error rh_scan.log
 
@@ -2351,7 +2351,7 @@ function test_rh_report_split_user_group
 					sum_no_split_file=`egrep -e "^$user.*file.*" rh_report_no_split.log | awk -F ',' '{array[$1]+=$'$((j-1))'}END{for (name in array) {print array[name]}}'`
                                         if (( $sum_split_dir != $sum_no_split_dir || $sum_split_file != $sum_no_split_file )); then
 						error "Unexpected value: dircount=$sum_split_dir/$sum_no_split_dir, filecount: $sum_split_file/$sum_no_split_file"
-						echo "Splitted report: "
+						echo "Split report: "
 						cat rh_report_split.log
 						echo "Summed report: "
 						cat rh_report_no_split.log
@@ -2362,7 +2362,7 @@ function test_rh_report_split_user_group
                                         sum_no_split=`egrep -e "^$user" rh_report_no_split.log | awk -F ',' '{array[$1]+=$'$((j-1))'}END{for (name in array) {print array[name]}}'`
 					if (( $sum_split != $sum_no_split )); then
 						error "Unexpected value: filecount: $sum_split/$sum_no_split"
-						echo "Splitted report: "
+						echo "Split report: "
 						cat rh_report_split.log
 						echo "Summed report: "
 						cat rh_report_no_split.log
@@ -2435,7 +2435,7 @@ function test_dircount_report
 
 	clean_logs
 
-	# inital scan
+	# initial scan
 	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading chglog"
 	check_db_error rh_chglogs.log
 
@@ -2784,7 +2784,7 @@ function path_test
 
 
 	echo "3-Applying migration policy ($policy_str)..."
-	# start a migration files should notbe migrated this time
+	# start a migration files should not be migrated this time
 	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l DEBUG -L rh_migr.log   || error ""
 
 	# count the number of file for each policy
@@ -2955,7 +2955,7 @@ function update_test
 		(( $nb_getstatus == 1 )) || error "********** TEST FAILED: wrong count of getstatus: $nb_getstatus"
 	fi
 
-	# kill remaning event handler
+	# kill remaining event handler
 	sleep 1
 	pkill -9 $PROC
 }
@@ -3852,7 +3852,7 @@ function test_checker
     touch $RH_ROOT/file.3
 
     :> rh_migr.log
-    # rerun (changes occured!)
+    # rerun (changes occurred!)
     sleep 5
     echo "New sum (last_check OK)"
     $RH -f $RBH_CFG_DIR/$config_file --run=checksum --target=all -l DEBUG -L rh_migr.log ||
@@ -3964,7 +3964,7 @@ function test_cnt_trigger
 	clean_logs
 
 	if (( $is_hsmlite != 0 )); then
-        # this mode may create an extra inode in filesystem: inital scan
+        # this mode may create an extra inode in filesystem: initial scan
         # to take it into account
 		$RH -f $RBH_CFG_DIR/$config_file --scan --once -l MAJOR -L rh_scan.log || error "executing $CMD --scan"
 		check_db_error rh_scan.log
@@ -4211,7 +4211,7 @@ function test_trigger_check
     wait_stable_df
 
 	if (( $is_hsmlite != 0 )); then
-        # this mode may create an extra inode in filesystem: inital scan
+        # this mode may create an extra inode in filesystem: initial scan
         # to take it into account
 		$RH -f $RBH_CFG_DIR/$config_file --scan --once -l MAJOR -L rh_scan.log || error "executing $CMD --scan"
 		check_db_error rh_scan.log
@@ -4528,7 +4528,7 @@ function fileclass_test
     done
 
 	echo "3-Applying migration policy ($policy_str)..."
-	# start a migration files should notbe migrated this time
+	# start a migration files should not be migrated this time
 	$RH -f $RBH_CFG_DIR/$config_file --run=migration --target=all -l FULL -L rh_migr.log   || error ""
 
     [ "$DEBUG" = "1" ] && grep action_params rh_migr.log
@@ -4883,13 +4883,13 @@ function partial_paths
     touch $RH_ROOT/dir3/file4
 
     # initial scan
-    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing initial scan"
     check_db_error rh_scan.log
 
     # remove a path component from the DB
     id=$(get_id $RH_ROOT/dir1/dir2)
     [ -z $id ] && error "could not get id"
-    # FIXEME only for Lustre 2.x
+    # FIXME only for Lustre 2.x
     mysql $RH_DB -e "DELETE FROM NAMES WHERE id='$id'" || error "DELETE request"
 
 	if (( $is_hsmlite + $is_lhsm > 0 )); then
@@ -4997,7 +4997,7 @@ function test_mnt_point
     done
 
     # scan the filesystem
-    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing initial scan"
     check_db_error rh_scan.log
 
     # check that rbh-find output is correct (2 methods)
@@ -5070,7 +5070,7 @@ function test_compress
 
     # scan the filesystem (compress=no)
     export compress=no
-    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing initial scan"
     check_db_error rh_scan.log
 
     # check file status
@@ -5149,7 +5149,7 @@ function test_compress
     done
 
     export compress=no
-    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing initial scan"
     check_db_error rh_scan.log
 
     # check file status
@@ -5296,7 +5296,7 @@ function test_diff
 
     # initial scan
     echo "1-Initial scan..."
-    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing initial scan"
 
     # new entry (file & dir)
     touch $RH_ROOT/dir.1/file.new || error "touch"
@@ -5391,7 +5391,7 @@ function test_diff_apply_fs # test diff --apply=fs in particular for entry recov
 
     # run initial scan
     echo "Initial scan..."
-    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing initial scan"
 
     # save contents of bin.1
     find $RH_ROOT/bin.1 -printf "%n %y %m %T@ %g %u %p %l\n" > find.out || error "find error"
@@ -5516,7 +5516,7 @@ function test_completion
 
     # do the scan
     echo "scan..."
-    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing inital scan"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing initial scan"
 
     # if flavor is OK: completion command must have been called
     if [ "$flavor" = "OK" ]; then
@@ -5636,7 +5636,7 @@ function test_rename
     mv -f $RH_ROOT/dir.2/file.1 $RH_ROOT/dir.2/file.2
     # 4) upper level directory rename
     mv $RH_ROOT/dir.3/subdir $RH_ROOT/dir.3/subdir.rnm
-    # 5) overwritting a hardlink
+    # 5) overwriting a hardlink
     mv -f $RH_ROOT/dir.2/file.4 $hlink
 
     # get target fids
@@ -6284,7 +6284,7 @@ function test_hardlinks
     mv -f $RH_ROOT/dir.2/file.1 $RH_ROOT/dir.2/file.2
     # 4) upper level directory rename
     mv $RH_ROOT/dir.3/subdir $RH_ROOT/dir.3/subdir.rnm
-    # 5) overwritting a hardlink
+    # 5) overwriting a hardlink
     mv -f $RH_ROOT/dir.2/file.4 ${hlinks[0]}
     ((nb_ln--))
     # 6) creating new link to "dir.4/file.1"
@@ -7244,7 +7244,7 @@ function recov_filters
         echo "sqdlqsldsqmdl" >> $RH_ROOT/dir.$d/delta || error "appending dir.$d/delta"
         # force modification (in case Lustre don't report small data changes)
         touch $RH_ROOT/dir.$d/delta || error "touching dir.$d/delta"
-        echo "qsldjkqlsdkqs" >> $RH_ROOT/dir.$d/nobkp || error "writting to dir.$d/nobkp"
+        echo "qsldjkqlsdkqs" >> $RH_ROOT/dir.$d/nobkp || error "writing to dir.$d/nobkp"
         mv $RH_ROOT/dir.$d/rename $RH_ROOT/dir.$d/rename.mv || error "renaming 'rename'"
         mv $RH_ROOT/dir.$d/empty_rnm $RH_ROOT/dir.$d/empty_rnm.mv || error "renaming 'empty_rnm'"
     done
@@ -8307,7 +8307,7 @@ function run_test
 		else
 			grep "Failed" $CLEAN 2>/dev/null
 			echo "TEST #$index : OK" >> $SUMMARY
-			SUCCES=$(($SUCCES+1))
+			SUCCESS=$(($SUCCESS+1))
 			if (( $junit )); then
 				junit_report_success "robinhood.$PURPOSE.Lustre" "Test #$index: $title" "$dur"
 			fi
@@ -8495,7 +8495,7 @@ function check_alert
 #	alertKey = alert name which is the string to find $occur times
 #	expectedEntries = list of word to find at least one time if alertKey is found
 #		ex: expectedEntry="file.1;file.2;file.3", expectedEntry="file.1" ...
-#	occur = expected nb of occurences for alertKey
+#	occur = expected nb of occurrences for alertKey
 #	logFile = name of the file to scan
 
 	# get input parameters ......................
@@ -8528,7 +8528,7 @@ function check_alert
 
 	else
 		# the alertKey has been not found as expected
-		echo "ERROR in check_alert: Bad number of occurences for $alertKey: expected=$occur & found=$nbOccur"
+		echo "ERROR in check_alert: Bad number of occurrences for $alertKey: expected=$occur & found=$nbOccur"
 		return 1
 	fi
 
@@ -9136,7 +9136,7 @@ function trigger_purge_QUOTA_EXCEEDED
 	indice=1
     while [ $elem -lt $limit ]
     do
-        # write 2M to fullfill 2 stripes
+        # write 2M to fulfill 2 stripes
         dd if=/dev/zero of=$RH_ROOT/file.$indice bs=2M count=1 conv=sync >/dev/null 2>/dev/null
         if (( $? != 0 )); then
             echo "WARNING: failed to write $RH_ROOT/file.$indice"
@@ -9251,7 +9251,7 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
     dd_err_count=0
     while [ $elem -lt $limit ]
     do
-        # write 2M to fullfill 2 stripes
+        # write 2M to fulfill 2 stripes
         dd if=/dev/zero of=$RH_ROOT/file.$indice bs=2M count=1 conv=sync >/dev/null 2>$dd_out
         if (( $? != 0 )); then
             [[ -z "$one_error" ]] && one_error="failed to write $RH_ROOT/file.$indice: $(cat $dd_out)"
@@ -11060,15 +11060,15 @@ if (( $junit )); then
 	tfinal=`date "+%s.%N"`
 	dur=`echo "($tfinal-$tinit)" | bc -l`
 	echo "total test duration: $dur sec"
-	junit_write_xml "$dur" $RC $(( $RC + $SUCCES ))
+	junit_write_xml "$dur" $RC $(( $RC + $SUCCESS ))
 	rm -f $TMPXML_PREFIX.stderr $TMPXML_PREFIX.stdout $TMPXML_PREFIX.tc
 fi
 
 rm -f $SUMMARY
 if (( $RC > 0 )); then
-	echo "$RC tests FAILED, $SUCCES successful, $SKIP skipped"
+	echo "$RC tests FAILED, $SUCCESS successful, $SKIP skipped"
 else
-	echo "All tests passed ($SUCCES successful, $SKIP skipped)"
+	echo "All tests passed ($SUCCESS successful, $SKIP skipped)"
 fi
 rm -f $TMPERR_FILE
 exit $RC

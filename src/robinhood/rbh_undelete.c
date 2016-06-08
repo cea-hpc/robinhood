@@ -13,7 +13,7 @@
  */
 
 /**
- * Command for restoring an entry that was accidentaly removed from filesystem.
+ * Command for restoring an entry that was accidentally removed from filesystem.
  */
 
 #ifdef HAVE_CONFIG_H
@@ -72,7 +72,7 @@ static sm_instance_t *smi = NULL;
 
 /* Bold start character sequence */
 #define _B "[1m"
-/* Bold end charater sequence */
+/* Bold end character sequence */
 #define B_ "[m"
 
 /* Underline start character sequence */

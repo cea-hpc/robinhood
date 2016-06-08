@@ -1741,7 +1741,7 @@ static void *trigger_check_thr(void *thr_arg)
                 max_usage = pol->trigger_info[i].last_usage;
         }
 
-        /* Finaly update max_usage in persistent stats */
+        /* Finally update max_usage in persistent stats */
         if (max_usage > 0.0)
         {
             snprintf(tmpstr, sizeof(tmpstr), "%.2f", max_usage);
@@ -2080,7 +2080,7 @@ void policy_module_dump_stats(policy_info_t *policy)
 
     for (i = 0; i < AS_ENUM_COUNT; i++)
     {
-        /* always display AS_OK and display error only if they have occured */
+        /* always display AS_OK and display error only if they have occurred */
         if ((status_tab[i] > 0) || (i == AS_OK))
             DisplayLog(LVL_MAJOR, "STATS", "    %-30s = %u",
                        action_status_descr[i], status_tab[i]);

@@ -120,7 +120,7 @@ static struct diff_options options;
 
 /* Bold start character sequence */
 #define _B "[1m"
-/* Bold end charater sequence */
+/* Bold end character sequence */
 #define B_ "[m"
 
 /* Underline start character sequence */
@@ -604,7 +604,7 @@ int main(int argc, char **argv)
             options.diff_arg.lovea_file = fopen(fname, "w");
             if (options.diff_arg.lovea_file == NULL)
             {
-                DisplayLog(LVL_CRIT, DIFF_TAG, "Failed to open %s for writting: %s",
+                DisplayLog(LVL_CRIT, DIFF_TAG, "Failed to open %s for writing: %s",
                            fname, strerror(errno));
                 exit(1);
             }
@@ -612,7 +612,7 @@ int main(int argc, char **argv)
             options.diff_arg.fid_remap_file = fopen(fname, "w");
             if (options.diff_arg.fid_remap_file == NULL)
             {
-                DisplayLog(LVL_CRIT, DIFF_TAG, "Failed to open %s for writting: %s",
+                DisplayLog(LVL_CRIT, DIFF_TAG, "Failed to open %s for writing: %s",
                            fname, strerror(errno));
                 exit(1);
             }

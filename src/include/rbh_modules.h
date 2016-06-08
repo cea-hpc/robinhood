@@ -59,7 +59,7 @@ status_manager_t *module_get_status_manager(const char *name);
 /**
  * Get an action function from a robinhood dynamic module. Actions function
  * names are of the form <module_name>.<action>. We expect the whole string
- * here. This fucntion will dlopen() the appropriate module if need be. The
+ * here. This function will dlopen() the appropriate module if need be. The
  * library handle will then remain cached until module_unload_all() is called.
  *
  * \param[in] name  The function name, <module_name>.<action>

@@ -701,7 +701,7 @@ static int perform_rmdir_recurse( unsigned int *p_nb_top,
     ATTR_MASK_SET( &attr_set, name );
 
 #ifndef _HAVE_FID
-    /* not needed for fid adressing */
+    /* not needed for fid addressing */
     ATTR_MASK_SET( &attr_set, fullpath ) ;
 #endif
 

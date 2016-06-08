@@ -517,7 +517,7 @@ struct lmgr_report_t *ListMgr_Report(lmgr_t *p_mgr,
         }
         else
         {
-            /* process NAMES filters appart, as with must then join with DISTINCT(id) */
+            /* process NAMES filters apart, as with must then join with DISTINCT(id) */
             filter_where(p_mgr, p_filter, &fcnt, true, !GSTRING_EMPTY(where),
                          where);
 

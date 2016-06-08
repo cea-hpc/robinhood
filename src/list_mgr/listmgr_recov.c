@@ -206,7 +206,7 @@ int ListMgr_RecovStatus( lmgr_t * p_mgr, lmgr_recov_stat_t * p_stats )
  *          the stats indicate the recovery states we can expect.
  *  \retval DB_ALREADY_EXISTS a recovery process already started
  *          and was not properly completed. stats indicate the current status.
- *  \retval error   another error occured.
+ *  \retval error   another error occurred.
  */
 int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_recov_stat_t * p_stats )
 {
