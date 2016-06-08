@@ -1466,7 +1466,7 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
             /* first index of new filesets is the current count */
             curr_idx = p_policies->fileset_count;
 
-            /* add as many slots as sub-blocks oin Filesets blocks. */
+            /* add as many slots as sub-blocks in Filesets blocks. */
             nb_sub_items = rh_config_GetNbItems(root_block);
             rc = add_fileset_slots(p_policies, nb_sub_items);
             if (rc)

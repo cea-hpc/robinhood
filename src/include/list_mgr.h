@@ -593,7 +593,7 @@ void           ListMgr_ForceCommitFlag(lmgr_t * p_mgr, bool force_commit);
 
 /**
  * Check if the last operation was really committed
- * @return true if the last operation has been commited,
+ * @return true if the last operation has been committed,
  * @return false if commit is deferred.
  */
 bool           ListMgr_GetCommitStatus(lmgr_t *p_mgr);
@@ -604,7 +604,7 @@ bool           ListMgr_GetCommitStatus(lmgr_t *p_mgr);
  * @param p_mgr pointer to a DB connection
  * @param p_id pointer to an entry identifier
  * @return 1 if entry exists
- * @return 0 if doesnt exist
+ * @return 0 if doesn't exist
  * @return a negative value on error
  */
 int            ListMgr_Exists( lmgr_t * p_mgr, const entry_id_t * p_id );
@@ -719,7 +719,7 @@ int ListMgr_MassSoftRemove(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
                            time_t rm_time, rm_cb_func_t);
 
 /**
- * Definitly remove an entry from the delayed removal table.
+ * Definitely remove an entry from the delayed removal table.
  */
 int ListMgr_SoftRemove_Discard(lmgr_t *p_mgr, const entry_id_t *p_id);
 
@@ -811,7 +811,7 @@ typedef struct _lmgr_recov_stat
  *          the stats indicate the recovery states we can expect.
  *  \retval DB_ALREADY_EXISTS a recovery process already started
  *          and was not properly completed.
- *  \retval error   another error occured.
+ *  \retval error   another error occurred.
  */
 int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
                        lmgr_recov_stat_t * p_stats );
@@ -1062,7 +1062,7 @@ void           ListMgr_CloseProfile( struct lmgr_profile_t *p_iter );
 /** @} */
 
 /**
- * Persistant variable management
+ * Persistent variable management
  *
  * \addtogroup PERSISTENT_VARS_MGMT
  * @{
@@ -1070,7 +1070,7 @@ void           ListMgr_CloseProfile( struct lmgr_profile_t *p_iter );
 /*
  * Name of variables stored in database
  */
-// FIXME this is policy dependant
+// FIXME this is policy dependent
 //#define LAST_PURGE_TIME     "LastPurgeTime"
 //#define LAST_PURGE_TARGET   "LastPurgeTarget"
 //#define LAST_PURGE_STATUS   "LastPurgeStatus"

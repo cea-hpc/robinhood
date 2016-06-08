@@ -2197,7 +2197,7 @@ int mkdir_recurse(const char * full_path, mode_t mode, entry_id_t *dir_id)
         curr++;
     }
 
-    /* finaly create last level of dir */
+    /* finally create last level of dir */
     DisplayLog(LVL_FULL, MKDIR_TAG, "mkdir(%s)", full_path );
     if ( (mkdir( full_path, mode ) != 0) && (errno != EEXIST) )
     {

@@ -131,7 +131,7 @@ typedef struct _type_bool_expr_
 
 } type_bool_expr;
 
-/* decribes unions/intersections of classes */
+/* describes unions/intersections of classes */
 typedef struct _type_set_
 {
     enum { SET_SINGLETON, SET_NEGATION, SET_BINARY } set_type;

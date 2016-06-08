@@ -136,7 +136,7 @@ config_file_t rh_config_ParseFile( char *file_path )
 
 
 /* If config_ParseFile returns a NULL pointer,
- * config_GetErrorMsg returns a detailled message
+ * config_GetErrorMsg returns a detailed message
  * to indicate the reason for this error.
  */
 char          *rh_config_GetErrorMsg( void )

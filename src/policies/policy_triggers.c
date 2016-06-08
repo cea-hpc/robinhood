@@ -1225,7 +1225,7 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
 
     /* update last purge time and target */
 //  sprintf( timestamp, "%lu", ( unsigned long ) time( NULL ) );
-// FIXME this is policy dependant
+// FIXME this is policy dependent
 //    ListMgr_SetVar( &lmgr, LAST_PURGE_TIME, timestamp );
 //    ListMgr_SetVar( &lmgr, LAST_PURGE_TARGET, "Filesystem" );
 
@@ -1289,7 +1289,7 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
 
         //snprintf(status_str, 1024, "Success (%llu entries, %llu blocks released)",
         //         nbr_purged, blocks_purged);
-// FIXME this is policy dependant
+// FIXME this is policy dependent
 //        ListMgr_SetVar(&lmgr, LAST_PURGE_STATUS, status_str);
     }
     else if (policy_rc == ENOENT)
@@ -1300,7 +1300,7 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
                    param2targetstr(param, buff, sizeof(buff)));
 
 //        snprintf(status_str, 1024, "No list available");
-// FIXME this is policy dependant
+// FIXME this is policy dependent
 //        ListMgr_SetVar(&lmgr, LAST_PURGE_STATUS, status_str);
     }
     else if (policy_rc == ECANCELED)
@@ -1316,7 +1316,7 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
 
 //        snprintf(status_str, 1024, "Purge on %s aborted by admin (after releasing %llu entries, %llu blocks)",
 //                 global_config.fs_path, nbr_purged, blocks_purged);
-// FIXME this is policy dependant
+// FIXME this is policy dependent
 //        ListMgr_SetVar(&lmgr, LAST_PURGE_STATUS, status_str);
     }
     else
@@ -1337,7 +1337,7 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
 //        snprintf(status_str, 1024, "Error %d after releasing %llu entries, %llu blocks released in %s",
 //                 policy_rc, nbr_purged, blocks_purged, global_config.fs_path);
 
-// FIXME this is policy dependant
+// FIXME this is policy dependent
 //        ListMgr_SetVar(&lmgr, LAST_PURGE_STATUS, status_str);
     }
     FlushLogs();
@@ -1668,7 +1668,7 @@ static void *trigger_check_thr(void *thr_arg)
                 max_usage = pol->trigger_info[i].last_usage;
         }
 
-        /* Finaly update max_usage in persistent stats */
+        /* Finally update max_usage in persistent stats */
         if (max_usage > 0.0)
         {
             snprintf(tmpstr, sizeof(tmpstr), "%.2f", max_usage);
@@ -1995,7 +1995,7 @@ void policy_module_dump_stats(policy_info_t *policy)
 
     for (i = 0; i < AS_ENUM_COUNT; i++)
     {
-        /* always display AS_OK and display error only if they have occured */
+        /* always display AS_OK and display error only if they have occurred */
         if ((status_tab[i] > 0) || (i == AS_OK))
             DisplayLog(LVL_MAJOR, "STATS", "    %-30s = %u",
                        action_status_descr[i], status_tab[i]);

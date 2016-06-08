@@ -793,7 +793,7 @@ static inline struct attr_display_spec *attr_info(int index)
 
     if (is_status(index))
     {
-        /* build a special decriptor (/!\ not reentrant) */
+        /* build a special descriptor (/!\ not reentrant) */
         tmp_rec.attr_index = index;
         tmp_rec.name = get_sm_instance(attr2status_index(index))->user_name;
         tmp_rec.length_csv = tmp_rec.length_full = 15;
@@ -802,7 +802,7 @@ static inline struct attr_display_spec *attr_info(int index)
     }
     else if (is_sm_info(index))
     {
-         /* build a special decriptor (/!\ not reentrant) */
+         /* build a special descriptor (/!\ not reentrant) */
         tmp_rec.attr_index = index;
         tmp_rec.name = sm_attr_info[attr2sminfo_index(index)].user_attr_name;
         tmp_rec.length_csv = tmp_rec.length_full = 15;

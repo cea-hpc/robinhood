@@ -471,7 +471,7 @@ static const function_def_t *get_function_by_attr(int attr_index)
 /* print function call */
 static void print_func_call(GString *str, int func_index, const char *prefix)
 {
-    const function_def_t *func = get_function_by_attr(func_index); 
+    const function_def_t *func = get_function_by_attr(func_index);
     char **args;
     if (func == NULL) /* unexpected: BUG */
         RBH_BUG("call for non-function attr");
@@ -525,7 +525,7 @@ int attrmask2fieldlist(GString *str, attr_mask_t attr_mask, table_enum table,
     unsigned int   nbfields = 0;
     char          *for_update_str = "";
 
-    /* optim: exit immediatly if no field matches */
+    /* optim: exit immediately if no field matches */
     if ((table == T_MAIN) && !main_fields(attr_mask))
         return 0;
     if ((table == T_ANNEX) && !annex_fields(attr_mask))
@@ -588,7 +588,7 @@ int attrmask2fieldoperation(GString *str, attr_mask_t attr_mask,
     unsigned int  nbfields = 0;
     char operator;
 
-    if (operation == SUBSTRACT)
+    if (operation == SUBTRACT)
         operator = '-';
     else
         operator = '+';
@@ -636,7 +636,7 @@ int attrmask2fieldcomparison(GString *str, attr_mask_t attr_mask,
         {
             if (match_table(table, i))
             {
-                g_string_append_printf(str, "%s %s%s%s%s%s ", 
+                g_string_append_printf(str, "%s %s%s%s%s%s ",
                             nbfields == 0 ? "" : separator, left_prefix,
                             field_name(i), comparator, right_prefix,
                             field_name(i));
@@ -1580,7 +1580,7 @@ int _lmgr_begin(lmgr_t *p_mgr, int behavior)
     {
         int rc = DB_SUCCESS;
 
-        /* if last operation was commited, issue a begin statement */
+        /* if last operation was committed, issue a begin statement */
         if (p_mgr->last_commit == 0)
         {
             rc = db_exec_sql(&p_mgr->conn, "BEGIN", NULL);
@@ -1638,7 +1638,7 @@ void ListMgr_ForceCommitFlag(lmgr_t *p_mgr, bool force_commit)
 }
 
 /** check if the last operation was really committed
- * @return TRUE if the last operation has been commited,
+ * @return TRUE if the last operation has been committed,
  * @return FALSE if commit is deferred.
  */
 bool ListMgr_GetCommitStatus(lmgr_t *p_mgr)
@@ -1961,7 +1961,7 @@ int _lmgr_delayed_retry(lmgr_t *lmgr, int errcode, const char *func, int line)
             gettimeofday(&now, NULL);
             timersub(&now, &lmgr->first_error, &diff);
 
-            /* Only notify success if the suceeded function
+            /* Only notify success if the succeeded function
              * is the same as the last error.
              */
             if ((lmgr->last_err_func == func) && (lmgr->last_err_line == line)
@@ -1972,7 +1972,7 @@ int _lmgr_delayed_retry(lmgr_t *lmgr, int errcode, const char *func, int line)
                            lmgr->retry_count, diff.tv_sec, diff.tv_usec/1000);
             }
 
-            /* reset retry delay if no error occured,
+            /* reset retry delay if no error occurred,
              * or if the error is not retryable */
             lmgr->retry_delay = 0;
             lmgr->retry_count = 0;

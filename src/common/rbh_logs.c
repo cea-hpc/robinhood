@@ -616,7 +616,7 @@ void DisplayReport( const char *format, ... )
     display_line_log( &report, NULL, format, args );
     va_end( args );
 
-    /* always flush reports, because we don't want to loose events */
+    /* always flush reports, because we don't want to lose events */
     flush_log_descr( &report );
 
 } /* DisplayReport */
@@ -758,7 +758,7 @@ static void FlushAlerts(bool release_mutex_asap)
             display_line_log_(&alert, "ALERT", "=== END OF ALERT REPORT ===");
         }
 
-        /* always flush alerts, because we don't want to loose events */
+        /* always flush alerts, because we don't want to lose events */
         flush_log_descr(&alert);
     }
 
@@ -942,7 +942,7 @@ void RaiseAlert( const char *title, const char *format, ... )
         display_line_log( &alert, "ALERT", format, args );
         va_end( args );
 
-        /* always flush alerts, because we don't want to loose events */
+        /* always flush alerts, because we don't want to lose events */
         flush_log_descr( &alert );
     }
 

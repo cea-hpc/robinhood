@@ -156,7 +156,7 @@ daemon_exist()
 #
 # check_or_start_fs()
 # checks if another daemon is not already running for the same purpose,
-# then (optionaly) launchs a new daemon with a specific configuration file and a specific pid file.
+# then (optionally) launches a new daemon with a specific configuration file and a specific pid file.
 #
 check_or_start_fs()
 {

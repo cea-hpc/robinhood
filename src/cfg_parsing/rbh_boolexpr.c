@@ -169,7 +169,7 @@ static struct criteria_descr_t {
     [CRITERIA_POOL] = {"ost_pool", ATTR_MASK_stripe_info, PT_STRING, 0},
     [CRITERIA_OST] =  {"ost_index", ATTR_MASK_stripe_items, PT_INT, PFLG_POSITIVE},
 #endif
-    /* status mask is context dependant */
+    /* status mask is context dependent */
     [CRITERIA_STATUS] = {"status", 0, PT_STRING, PFLG_STATUS | PFLG_NO_WILDCARDS},
     /* /!\ str2criteria relies on the fact that CRITERIA_XATTR is after
      * the last standard criteria */
@@ -681,7 +681,7 @@ int ConstantBoolExpr(bool constant, bool_node_t *p_bool_node)
 /**
  * Build a policy boolean expression from the given block
  * \param smi(in) when specifying a policy scope, indicate the
- *                related status manager ('status' criteria is policy dependant).
+ *                related status manager ('status' criteria is policy dependent).
  */
 int GetBoolExpr(config_item_t block, const char *block_name,
                 bool_node_t *p_bool_node, attr_mask_t *p_attr_mask,

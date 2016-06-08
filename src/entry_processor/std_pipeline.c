@@ -98,7 +98,7 @@ pipeline_stage_t std_pipeline[] = {
 #endif
 
 #ifdef HAVE_CHANGELOGS
-    /* only 1 thread here because commiting records must be sequential
+    /* only 1 thread here because committing records must be sequential
      * (in the same order as changelog) */
     {STAGE_CHGLOG_CLR, "STAGE_CHGLOG_CLR", EntryProc_chglog_clr, NULL, NULL, /* XXX could be batched? */
      STAGE_FLAG_SEQUENTIAL | STAGE_FLAG_SYNC, 1},
@@ -510,7 +510,7 @@ static int EntryProc_ProcessLogRec( struct entry_proc_op_t *p_op )
         else if ( p_op->db_exists ) /* entry still exists and is known in DB */
         {
             /* Remove the name only. Keep the inode information since
-             * there is more file names refering to it. */
+             * there is more file names referring to it. */
             p_op->db_op_type = OP_TYPE_REMOVE_ONE;
             return STAGE_PRE_APPLY;
         }
@@ -1834,7 +1834,7 @@ int            EntryProc_chglog_clr( struct entry_proc_op_t * p_op, lmgr_t * lmg
 
     if ( p_op->callback_func )
     {
-        /* if operation was commited, Perform callback to info collector */
+        /* if operation was committed, Perform callback to info collector */
         rc = p_op->callback_func( lmgr, p_op, p_op->callback_param );
 
         if ( rc )

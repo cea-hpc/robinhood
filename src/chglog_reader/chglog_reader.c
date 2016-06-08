@@ -181,14 +181,14 @@ static void free_extra_info2( void * ptr )
 }
 
 /**
- * Clear the changelogs up to the last commited number seen.
+ * Clear the changelogs up to the last committed number seen.
  */
 static int clear_changelog_records(reader_thr_info_t * p_info)
 {
     int rc;
 
     if (p_info->last_committed_record == 0) {
-        /* No record was ever commited. Stop here because calling
+        /* No record was ever committed. Stop here because calling
          * llapi_changelog_clear() with record 0 will clear all
          * records, leading to a potential record loss. */
         return 0;
@@ -241,7 +241,7 @@ static int log_record_callback( lmgr_t *lmgr, struct entry_proc_op_t * pop, void
         return EINVAL;
     }
 
-    /* New highest commited record so far. */
+    /* New highest committed record so far. */
     p_info->last_committed_record = logrec->cr_index;
 
     /* batching llapi_changelog_clear() calls.
@@ -681,7 +681,7 @@ static CL_REC_TYPE * create_fake_unlink_record(const reader_thr_info_t *p_info,
     CL_REC_TYPE *rec;
     size_t name_len;
 
-    /* Build a simple changelog record with no extention (jobid, rename...).
+    /* Build a simple changelog record with no extension (jobid, rename...).
      * So, just allocate enough space for the record and the source name. */
     name_len = strlen(rh_get_cl_cr_name(rec_in));
     rec = MemAlloc(sizeof(CL_REC_TYPE) + name_len + 1);
@@ -731,7 +731,7 @@ static CL_REC_TYPE * create_fake_rename_record(const reader_thr_info_t *p_info,
     CL_REC_TYPE *rec;
     size_t sname_len;
 
-    /* Build a simple changelog record with no extention (jobid, rename...).
+    /* Build a simple changelog record with no extension (jobid, rename...).
      * So, just allocate enough space for the record and the source name. */
     sname_len = changelog_rec_snamelen(rec_in);
     rec = MemAlloc(sizeof(CL_REC_TYPE) + sname_len + 1);

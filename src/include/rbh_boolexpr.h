@@ -151,7 +151,7 @@ typedef union
     obj_type_t         type;              /* for conditions based on object type */
 } compare_value_t;
 
-/* indicates that the compare triplet is for mathcing any level
+/* indicates that the compare triplet is for matching any level
  * of directories.
  */
 #define CMP_FLG_ANY_LEVEL 0x00000001

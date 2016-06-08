@@ -94,7 +94,7 @@ rbh_cksum() {
 
 	# check if dv changed since last check
 	if [[ -n "$output" ]]; then
-		# abritrary choice: dv can contain :, cksum cannot
+		# arbitrary choice: dv can contain :, cksum cannot
 		dv_old=${output%:*}
 
 		if [[ "$dv" != "$dv_old" ]]; then

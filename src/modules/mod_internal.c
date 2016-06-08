@@ -226,7 +226,7 @@ static int builtin_copy_standard(const struct copy_info *cp_nfo,
     }
 
     /* Free the kernel buffer cache as we don't expect to read the files again.
-     * This can be done immediatly for the read file.
+     * This can be done immediately for the read file.
      * For the written file, we need to flush it to disk to ensure
      * that it is correctly archived and to allow freeing the buffer cache. */
     rc = flush_data(srcfd, dstfd, flags);

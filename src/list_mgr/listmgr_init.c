@@ -1547,9 +1547,9 @@ static int create_trig_acct_delete(db_conn_t *pconn)
                            "SET val="ACCT_SZ_VAL("OLD.size")";"
                            "UPDATE " ACCT_TABLE " SET ");
     /* update ACCT_TABLE SET ... */
-    attrmask2fieldoperation(request, acct_attr_set, T_ACCT, "OLD.", SUBSTRACT);
+    attrmask2fieldoperation(request, acct_attr_set, T_ACCT, "OLD.", SUBTRACT);
     g_string_append(request, ", " ACCT_FIELD_COUNT  "=" ACCT_FIELD_COUNT  "-1");
-    append_size_range_op(request, true, "OLD.", "val", SUBSTRACT);
+    append_size_range_op(request, true, "OLD.", "val", SUBTRACT);
 
     /* ... WHERE ... */
     g_string_append(request, " WHERE ");
@@ -1592,7 +1592,7 @@ static int create_trig_acct_update(db_conn_t *pconn)
     /* Trigger on update */
 
     /* In case the owner or group changes, we
-     * must substract old information in previous raw
+     * must subtract old information in previous raw
      * and add new information to the new raw.
      */
     /* Simple case: owner and group are still the same */
@@ -1669,9 +1669,9 @@ static int create_trig_acct_update(db_conn_t *pconn)
                     "\tUPDATE " ACCT_TABLE " SET ");
 
     /* generate operations as follows: size=size-Old.size, blocks=blocks-Old.blocks */
-    attrmask2fieldoperation(request, acct_attr_set, T_ACCT, "OLD.", SUBSTRACT);
+    attrmask2fieldoperation(request, acct_attr_set, T_ACCT, "OLD.", SUBTRACT);
     g_string_append(request, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "-1 ");
-    append_size_range_op(request, true, "OLD.", "val_old", SUBSTRACT);
+    append_size_range_op(request, true, "OLD.", "val_old", SUBTRACT);
     g_string_append(request, " WHERE ");
     attrmask2fieldcomparison(request, acct_pk_attr_set, T_ACCT, "", "OLD.", "=", "AND");
     g_string_append(request, ";\nEND IF;\n");

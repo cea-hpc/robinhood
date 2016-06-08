@@ -1374,7 +1374,7 @@ relative:
         setattrs = false;
     }
 
-    /* finaly create this dir */
+    /* finally create this dir */
     DisplayLog(LVL_FULL, TAG, "mkdir(%s)", full_path);
     if ((mkdir(full_path, mode) != 0) && (errno != EEXIST))
     {

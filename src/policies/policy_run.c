@@ -644,7 +644,7 @@ static bool check_limit(policy_info_t *policy,
     if (total == 0)
         return false;
 
-    /* stop if too many error occured */
+    /* stop if too many error occurred */
     if ((policy->config->suspend_error_pct > 0.0)
         && (policy->config->suspend_error_min > 0)
         && (errors >= policy->config->suspend_error_min))
@@ -1856,7 +1856,7 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
     /* convert posix attributes to attr structure */
     stat2rbh_attrs(&entry_md, new_attr_set, true);
 
-    /* set update time of the stucture */
+    /* set update time of the structure */
     ATTR_MASK_SET(new_attr_set, md_update);
     ATTR(new_attr_set, md_update) = time(NULL);
 
@@ -1959,7 +1959,7 @@ if (ATTR_MASK_TEST(&p_item->entry_attr, fullpath))
     /* convert posix attributes to attr structure */
     stat2rbh_attrs(&entry_md, new_attr_set, true);
 
-    /* set update time of the stucture */
+    /* set update time of the structure */
     ATTR_MASK_SET(new_attr_set, md_update);
     ATTR(new_attr_set, md_update) = time(NULL);
 
@@ -2413,8 +2413,8 @@ static void   *thr_policy_run(void *arg)
     while (Queue_Get(&pol->queue, &p_queue_entry) == 0)
         process_entry(pol, &lmgr, (queue_item_t *)p_queue_entry, true);
 
-    /* Error occured in purge queue management... */
-    DisplayLog(LVL_CRIT, tag(pol), "An error occured in policy run queue management. Exiting.");
+    /* Error occurred in purge queue management... */
+    DisplayLog(LVL_CRIT, tag(pol), "An error occurred in policy run queue management. Exiting.");
     exit(-1);
     return NULL;                /* for avoiding compiler warnings */
 }

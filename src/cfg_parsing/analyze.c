@@ -583,7 +583,7 @@ static void print_list_ident( FILE * output, list_items * list, unsigned int ind
         }
         else
         {
-            fprintf( output, "/!\\ UNKOWN ITEM TYPE %d\n", curr_item->type );
+            fprintf( output, "/!\\ UNKNOWN ITEM TYPE %d\n", curr_item->type );
         }
 
         curr_item = curr_item->next;

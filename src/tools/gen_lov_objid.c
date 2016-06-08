@@ -181,7 +181,7 @@ int main( int argc, char **argv )
     out = fopen(output_file, "w");
     if (!out)
     {
-        DisplayLog(LVL_CRIT, TAG, "Failed to open '%s' for writting: %s", output_file,
+        DisplayLog(LVL_CRIT, TAG, "Failed to open '%s' for writing: %s", output_file,
                    strerror(errno));
         return errno;
     }

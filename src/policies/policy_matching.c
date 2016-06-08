@@ -1211,7 +1211,7 @@ static policy_match_t _is_whitelisted(const policy_descr_t *policy,
         {
             char buff[1024];
             BoolExpr2str(&list[i].bool_expr, buff, 1024);
-            DisplayLog(LVL_CRIT, POLICY_TAG, "An error occured while checking this whitelist rule: %s", buff);
+            DisplayLog(LVL_CRIT, POLICY_TAG, "An error occurred while checking this whitelist rule: %s", buff);
             rc = POLICY_ERR;
             break;
         }
@@ -1258,7 +1258,7 @@ static policy_match_t _is_whitelisted(const policy_descr_t *policy,
             printf("   -> error\n");
 #endif
             DisplayLog(LVL_CRIT, POLICY_TAG,
-                        "An error occured when checking ignore_fileclass rule");
+                        "An error occurred when checking ignore_fileclass rule");
             rc = POLICY_ERR;
             break;
         case POLICY_NO_MATCH:
@@ -1356,7 +1356,7 @@ int match_classes(const entry_id_t *id, attr_set_t *p_attrs_new,
                            fset->fileset_id);
                 break;
             case POLICY_ERR:
-                DisplayLog(LVL_CRIT, POLICY_TAG, "An error occured when checking fileset '%s'",
+                DisplayLog(LVL_CRIT, POLICY_TAG, "An error occurred when checking fileset '%s'",
                            fset->fileset_id);
                 break;
             case POLICY_NO_MATCH:

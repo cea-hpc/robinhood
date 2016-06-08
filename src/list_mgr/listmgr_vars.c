@@ -12,7 +12,7 @@
  * accept its terms.
  */
 /**
- * Persistant variables management
+ * Persistent variables management
  */
 
 #ifdef HAVE_CONFIG_H

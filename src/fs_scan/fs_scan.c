@@ -280,7 +280,7 @@ static bool ignore_entry(char *fullpath, char *name, unsigned int depth, struct 
             break;
 
         case POLICY_ERR:
-            DisplayLog( LVL_CRIT, FSSCAN_TAG, "An error occured when checking ignore rule" );
+            DisplayLog( LVL_CRIT, FSSCAN_TAG, "An error occurred when checking ignore rule" );
             rc = POLICY_ERR;
             break;
 
@@ -638,7 +638,7 @@ static inline int check_entry_dev(dev_t entry_dev, dev_t *root_dev, const char *
         if (entry_dev != *root_dev)
         {
             /* if new root dev != just retrieved root dev
-             * a remount occured while we were checking.
+             * a remount occurred while we were checking.
              * Return error so the caller update its dev.
              */
             if (is_root)
@@ -737,7 +737,7 @@ static int open_noatime(const char *path, int rddir)
 }
 #endif
 
-/** disable GC if a transient directory error occured */
+/** disable GC if a transient directory error occurred */
 static void check_dir_error(int rc)
 {
     if (rc != 0 && abs(rc) != ENOENT && abs(rc) != ESTALE)
@@ -835,7 +835,7 @@ static int process_one_entry(thread_scan_info_t *p_info,
         if (is_lustre_fs && (rc == -ESHUTDOWN))
         {
             /* File can't be stat because it is on a disconnected OST.
-             * Still push it to the pipeline, to avoid loosing valid info
+             * Still push it to the pipeline, to avoid losing valid info
              * in the DB.
              */
             DisplayLog(LVL_EVENT, FSSCAN_TAG, "Entry %s is on inactive OST or MDT. "
