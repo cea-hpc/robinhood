@@ -16,6 +16,24 @@
       "revId": "ec834ab83a4d9348d80e292c8fd1d2e7974c72d6",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_a3e0c4fb",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 7800,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-06-08T19:14:03Z",
+      "side": 1,
+      "message": "\u0027.\u0027 is an older(?) notation, but \u0027:\u0027 seems to be preferred these days. I\u0027ll update the patch.",
+      "parentUuid": "baa041b7_631cfc13",
+      "revId": "ec834ab83a4d9348d80e292c8fd1d2e7974c72d6",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
