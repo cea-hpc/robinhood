@@ -277,6 +277,13 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
 
         switch (*str)
         {
+        case 'A':
+            disp_mask.std |= ATTR_MASK_last_access;
+            str = append_time_format(str, chunk);
+            if (str == NULL)
+                return NULL;
+            break;
+
         case 'b':
             disp_mask.std |= ATTR_MASK_blocks;
             g_string_append(chunk->format, "zu");
@@ -324,6 +331,13 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
             g_string_append(chunk->format, "zu");
             break;
 
+        case 'T':
+            disp_mask.std |= ATTR_MASK_last_mod;
+            str = append_time_format(str, chunk);
+            if (str == NULL)
+                return NULL;
+            break;
+
         case 'u':
             disp_mask.std |= ATTR_MASK_uid;
             if (global_config.uid_gid_as_numbers)
@@ -350,20 +364,6 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
             {
             case 'C':
                 disp_mask.std |= ATTR_MASK_creation_time;
-                str = append_time_format(str, chunk);
-                if (str == NULL)
-                    return NULL;
-                break;
-
-            case 'A':
-                disp_mask.std |= ATTR_MASK_last_access;
-                str = append_time_format(str, chunk);
-                if (str == NULL)
-                    return NULL;
-                break;
-
-            case 'M':
-                disp_mask.std |= ATTR_MASK_last_mod;
                 str = append_time_format(str, chunk);
                 if (str == NULL)
                     return NULL;
@@ -519,6 +519,10 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
             printf(format);
             break;
 
+        case 'A':
+            printf_date(chunk, ATTR(attrs, last_access));
+            break;
+
         case 'b':
             printf(format, ATTR(attrs, blocks));
             break;
@@ -565,6 +569,10 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
             printf(format, ATTR(attrs, size));
             break;
 
+        case 'T':
+            printf_date(chunk, ATTR(attrs, last_mod));
+            break;
+
         case 'u':
             if (global_config.uid_gid_as_numbers)
                 printf(format, ATTR(attrs, uid).num);
@@ -604,14 +612,6 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
             {
             case 'C':
                 printf_date(chunk, ATTR(attrs, creation_time));
-                break;
-
-            case 'A':
-                printf_date(chunk, ATTR(attrs, last_access));
-                break;
-
-            case 'M':
-                printf_date(chunk, ATTR(attrs, last_mod));
                 break;
 
             case 'c':

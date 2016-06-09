@@ -7720,22 +7720,22 @@ function test_rbh_find_printf
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%RCF")
     [[ $STR == "$(date +%F)" ]] || error "unexpected rbh-find result (204): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%RAF")
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%AF")
     [[ $STR == "$(date +%F)" ]] || error "unexpected rbh-find result (205): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%RMF")
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%TF")
     [[ $STR == "$(date +%F)" ]] || error "unexpected rbh-find result (206): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%RA-" 2>&1)
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%A-" 2>&1)
     [[ $STR == *"%-"* ]] || error "unexpected rbh-find result (207): $STR" # NB: invalid format
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%RMG")
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%TG")
     [[ $STR == "$(date +%G)" ]] || error "unexpected rbh-find result (208): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RCc %RMA %RAp %RAT" 2>&1)
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RCc %TA %Ap %AT" 2>&1)
     [[ $STR == *"QWERTY"* ]] || error "unexpected rbh-find result (209): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RCOe %RMOS %RAEx %RAEY" 2>&1)
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RCOe %TOS %AEx %AEY" 2>&1)
     [[ $STR == *"QWERTY"* ]] || error "unexpected rbh-find result (211): $STR"
 
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RCOA" 2>&1)
