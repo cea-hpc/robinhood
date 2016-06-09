@@ -160,6 +160,8 @@ static struct criteria_descr_t {
                         PFLG_POSITIVE | PFLG_COMPARABLE},
     [CRITERIA_LAST_MOD] = {"last_mod", ATTR_MASK_last_mod, PT_DURATION,
                         PFLG_POSITIVE | PFLG_COMPARABLE},
+    [CRITERIA_LAST_MDCHANGE] = {"last_mdchange", ATTR_MASK_last_mdchange, PT_DURATION,
+                        PFLG_POSITIVE | PFLG_COMPARABLE},
     [CRITERIA_CREATION] = {"creation", ATTR_MASK_creation_time, PT_DURATION,
                         PFLG_POSITIVE | PFLG_COMPARABLE},
     /* needs a 'remove' status manager */
@@ -217,6 +219,8 @@ unsigned int str2lru_attr(const char *str, const struct sm_instance *smi)
             return ATTR_INDEX_last_access;
         else if (!strcasecmp(str, criteria2str(CRITERIA_LAST_MOD)))
             return ATTR_INDEX_last_mod;
+        else if (!strcasecmp(str, criteria2str(CRITERIA_LAST_MDCHANGE)))
+            return ATTR_INDEX_last_mdchange;
         else if (!strcasecmp(str, criteria2str(CRITERIA_CREATION)))
             return ATTR_INDEX_creation_time;
         else if (!strcasecmp(str, criteria2str(CRITERIA_RMTIME)))
@@ -1007,6 +1011,7 @@ static int print_condition( const compare_triplet_t * p_triplet, char *out_str, 
 
     case CRITERIA_LAST_ACCESS:
     case CRITERIA_LAST_MOD:
+    case CRITERIA_LAST_MDCHANGE:
     case CRITERIA_CREATION:
     case CRITERIA_RMTIME:
         FormatDurationFloat( tmp_buff, 256, p_triplet->val.duration );
@@ -1218,6 +1223,7 @@ bool update_boolexpr(bool_node_t *tgt, const bool_node_t *src)
             /* duration conditions */
         case CRITERIA_LAST_ACCESS:
         case CRITERIA_LAST_MOD:
+        case CRITERIA_LAST_MDCHANGE:
         case CRITERIA_CREATION:
             if (p_triplet1->val.duration != p_triplet2->val.duration)
             {

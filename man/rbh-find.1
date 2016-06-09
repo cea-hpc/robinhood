@@ -36,6 +36,10 @@
 [-|+]<val>[s|m|h|d|y] (s: sec, m: min, h: hour, d:day, y:year. default unit is days)
 .TP
 .B
+\fB-ctime\fP \fItime_crit\fP
+[-|+]<val>[s|m|h|d|y] (s: sec, m: min, h: hour, d:day, y:year. default unit is days)
+.TP
+.B
 \fB-mtime\fP \fItime_crit\fP
 [-|+]<val>[s|m|h|d|y] (s: sec, m: min, h: hour, d:day, y:year. default unit is days)
 .TP
@@ -105,6 +109,10 @@ Robinhood’s "last access time", which is a compound of the file's atime and mt
 .B
 %b
 Number of blocks
+.TP
+.B
+%C
+Robinhood’s "last MD change" which is the ctime of the file.
 .TP
 .B
 %d

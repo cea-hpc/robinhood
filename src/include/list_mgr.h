@@ -453,7 +453,7 @@ static inline void attr_mask_unset_index(attr_mask_t *mask, unsigned int index)
 #define POSIX_ATTR_MASK (ATTR_MASK_size | ATTR_MASK_blocks | ATTR_MASK_owner \
                          | ATTR_MASK_gr_name | ATTR_MASK_last_access \
                          | ATTR_MASK_last_mod | ATTR_MASK_type | ATTR_MASK_mode \
-                         | ATTR_MASK_nlink)
+                         | ATTR_MASK_nlink | ATTR_MASK_last_mdchange)
 
 
 /** unset read-only attributes from mask */

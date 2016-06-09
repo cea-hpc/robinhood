@@ -614,6 +614,11 @@ const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
             strftime(out, out_sz, "%Y/%m/%d %T", localtime_r(&tt, &stm));
             return out;
 
+        case ATTR_INDEX_last_mdchange:
+            tt = ATTR(attrs, last_mdchange);
+            strftime(out, out_sz, "%Y/%m/%d %T", localtime_r(&tt, &stm));
+            return out;
+
         case ATTR_INDEX_creation_time:
             tt = ATTR(attrs, creation_time);
             strftime(out, out_sz, "%Y/%m/%d %T", localtime_r(&tt, &stm));
@@ -762,6 +767,7 @@ struct attr_display_spec {
         /* times */
         {ATTR_INDEX_last_access,   "last_access", 20, 20},
         {ATTR_INDEX_last_mod,      "last_mod", 20, 20},
+        {ATTR_INDEX_last_mdchange, "last_mdchange", 20, 20},
         {ATTR_INDEX_creation_time, "creation", 20, 20},
         {ATTR_INDEX_rm_time,       "rm_time", 20, 20},
         {ATTR_INDEX_md_update,     "md updt", 20, 20},
