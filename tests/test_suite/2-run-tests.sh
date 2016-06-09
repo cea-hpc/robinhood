@@ -3892,7 +3892,7 @@ function test_action_check
     local t0=$(date +%s)
     $RH -f $RBH_CFG_DIR/$config_file --scan --run=migration --target=all -I -l DEBUG -L rh_migr.log
 
-    # check status of files in DB: 
+    # check status of files in DB:
     $REPORT -f $RBH_CFG_DIR/$config_file --status-info lhsm --csv -q | tee report.out
 
     find_valueInCSVreport report.out archiving $FCOUNT 3 || error "Invalid count of entries with status 'archiving'"
@@ -3919,7 +3919,7 @@ function test_action_check
 
     # next check is after 10 sec
     sleep 10
-    
+
     local run_check=$(grep "Checking status of outstanding actions" rh_migr.log | wc -l)
     (( $run_check == 2 )) || error "No 2nd check was done after 10 sec"
 
@@ -3932,7 +3932,7 @@ function test_action_check
     else
         echo "Enlapsed: $enlapsed, nb_check=$nb_check, $nb_sync changed to 'synchro'"
     fi
-    
+
     # wait for all files to be synchro
     if (( $nb_sync < $FCOUNT )); then
         # once all actions are finished, check entry status changed accordingly
@@ -7522,7 +7522,7 @@ function test_rbh_find_printf
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "parent fid=%Rp\n")
     #[[ $STR == "parent fid=0x200000007:0x1:0x0" ]] || error "unexpected rbh-find result (203): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%RCF")
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%RRF")
     [[ $STR == "$(date +%F)" ]] || error "unexpected rbh-find result (204): $STR"
 
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%RAF")
@@ -7537,22 +7537,22 @@ function test_rbh_find_printf
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%RMG")
     [[ $STR == "$(date +%G)" ]] || error "unexpected rbh-find result (208): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RCc %RMA %RAp %RAT" 2>&1)
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RRc %RMA %RAp %RAT" 2>&1)
     [[ $STR == *"QWERTY"* ]] || error "unexpected rbh-find result (209): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RCOe %RMOS %RAEx %RAEY" 2>&1)
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RROe %RMOS %RAEx %RAEY" 2>&1)
     [[ $STR == *"QWERTY"* ]] || error "unexpected rbh-find result (211): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RCOA" 2>&1)
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RROA" 2>&1)
     [[ $STR == *"QWERTY %OA"* ]] || error "unexpected rbh-find result (212): $STR" # NB: invalid format
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RCEB" 2>&1)
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RREB" 2>&1)
     [[ $STR == *"QWERTY %EB"* ]] || error "unexpected rbh-find result (213): $STR" # NB: invalid format
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%RC{%A, %B %dth, %Y %F}" 2>&1)
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%RR{%A, %B %dth, %Y %F}" 2>&1)
     [[ $STR == *"Error:"* ]] && error "unexpected rbh-find result (214): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%RC{%A, " 2>&1)
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%RR{%A, " 2>&1)
     [[ $STR == *"Error: invalid string format"* ]] || error "unexpected rbh-find result (215): $STR"
 
     # Test various combinations
@@ -10643,7 +10643,7 @@ function TEST_OTHER_PARAMETERS_4
     pid=$!
 
     # wait for runtime_interval
-    echo "sleep 11 seconds" 
+    echo "sleep 11 seconds"
     sleep 11
         (( $is_lhsm > 0 )) && wait_done 60
 

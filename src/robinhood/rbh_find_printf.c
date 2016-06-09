@@ -342,7 +342,7 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
 
             switch (*str)
             {
-            case 'C':
+            case 'R':
                 disp_mask.std |= ATTR_MASK_creation_time;
                 str = append_time_format(str, chunk);
                 if (str == NULL)
@@ -590,7 +590,7 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
             /* Robinhood specifiers */
             switch (chunk->sub_directive)
             {
-            case 'C':
+            case 'R':
                 printf_date(chunk, ATTR(attrs, creation_time));
                 break;
 
