@@ -57,6 +57,7 @@ static struct option option_tab[] =
     {"msec", required_argument, NULL, 'z'},
     {"atime", required_argument, NULL, 'A'},
     {"amin", required_argument, NULL, 'a'},
+    {"ctime", required_argument, NULL, 'I'},
     {"status", required_argument, NULL, 'S'},
 #ifdef _LUSTRE
     {"ost", required_argument, NULL, 'o'},
@@ -90,7 +91,7 @@ static struct option option_tab[] =
 
 };
 
-#define SHORT_OPT_STRING    "lpOu:g:t:s:n:S:o:P:E:A:M:C:m:z:f:d:hV!bUGc"
+#define SHORT_OPT_STRING    "lpOu:g:t:s:n:S:o:P:E:A:M:C:I:m:z:f:d:hV!bUGc"
 
 #define TYPE_HELP "'f' (file), 'd' (dir), 'l' (symlink), 'b' (block), 'c' (char), 'p' (named pipe/FIFO), 's' (socket)"
 #define SIZE_HELP "[-|+]<val>[K|M|G|T]"
@@ -125,6 +126,10 @@ struct find_opt
     compare_direction_t crt_compar;
     time_t              crt_val;
 
+    // ctime cond: gt/eq/lt <time>
+    compare_direction_t chg_compar;
+    time_t              chg_val;
+
     // mtime cond: gt/eq/lt <time>
     compare_direction_t mod_compar;
     time_t              mod_val;
@@ -157,6 +162,7 @@ struct find_opt
     unsigned int match_crtime:1;
     unsigned int match_mtime:1;
     unsigned int match_atime:1;
+    unsigned int match_ctime:1;
 #ifdef _LUSTRE
     unsigned int match_ost:1;
     unsigned int match_pool:1;
@@ -187,7 +193,7 @@ struct find_opt
     .ls = 0, .lsost = 0, .lsclass = 0, .lsstatus = 0, .print = 1, .printf = 0,
     .match_user = 0, .match_group = 0,
     .match_type = 0, .match_size = 0, .match_name = 0,
-    .match_crtime = 0, .match_mtime = 0, .match_atime = 0,
+    .match_crtime = 0, .match_mtime = 0, .match_atime = 0, .match_ctime = 0,
     .match_status = 0, .statusneg = 0,
     .userneg = 0 , .groupneg = 0, .nameneg = 0,
     .no_dir = 0, .dir_only = 0, .exec = 0
@@ -314,6 +320,18 @@ static int mkfilters(bool exclude_dirs)
         query_mask.std |= ATTR_MASK_last_mod;
     }
 
+    if (prog_options.match_ctime)
+    {
+        compare_value_t val;
+        val.duration = prog_options.chg_val;
+        if (!is_expr)
+            CreateBoolCond(&match_expr, prog_options.chg_compar, CRITERIA_LAST_MDCHANGE, val);
+        else
+            AppendBoolCond(&match_expr, prog_options.chg_compar, CRITERIA_LAST_MDCHANGE, val);
+        is_expr = 1;
+        query_mask.std |= ATTR_MASK_last_mdchange;
+    }
+
     if (prog_options.match_atime)
     {
         compare_value_t val;
@@ -434,6 +452,8 @@ static const char *help_string =
     "    " _B "-name" B_ " " _U "filename" U_ "\n"
     "    " _B "-crtime" B_ " " _U "time_crit" U_ "\n"
     "       "TIME_HELP"\n"
+    "    " _B "-ctime" B_ " " _U "time_crit" U_ "\n"
+    "       "TIME_HELP"\n"
     "    " _B "-mtime" B_ " " _U "time_crit" U_ "\n"
     "       "TIME_HELP"\n"
     "    " _B "-mmin" B_ " " _U "minute_crit" U_ "\n"
@@ -466,6 +486,7 @@ static const char *help_string =
     "            " _B "%%%%" B_ "\t Escapes %\n"
     "            " _B "%%A" B_ "\t Robinhood’s \"last access time\", which is a compound of the file's atime and mtime, unless the global configuration " _B "last_access_only_atime" B_ " is set, in which case it is exactly the atime of the file. An " _B "strftime" B_ "(1) directive must be added. For example: " _B "%%Ap %%AT" B_ ". This option can also take an strftime format option between brackets. For instance: " _B "%%A{%%A, %%B %%dth, %%Y %%F}" B_ ".\n"
     "            " _B "%%b" B_ "\t Number of blocks\n"
+    "            " _B "%%C" B_ "\t Robinhood’s \"last MD change\" which is the ctime of the file.\n"
     "            " _B "%%d" B_ "\t Depth\n"
     "            " _B "%%f" B_ "\t File name, without its path\n"
     "            " _B "%%g" B_ "\t Group name\n"
@@ -694,7 +715,7 @@ static int set_size_filter(char * str)
     return 0;
 }
 
-typedef enum {atime, rh_crtime, mtime} e_time;
+typedef enum {atime, rh_crtime, mtime, rh_ctime} e_time;
 /* parse time filter and set prog_options struct */
 static int set_time_filter(char * str, unsigned int multiplier,
                            bool allow_suffix, e_time what)
@@ -723,30 +744,36 @@ static int set_time_filter(char * str, unsigned int multiplier,
 
     if ((n == 1) || !strcmp(suffix, ""))
     {
-        if (what == rh_crtime)
+        switch(what)
         {
+        case rh_crtime:
             prog_options.crt_compar = comp;
             if (multiplier != 0)
                 prog_options.crt_val = val * multiplier;
             else /* default multiplier is days */
                 prog_options.crt_val =  val * 86400;
-        }
-        else
-        if (what == mtime)
-        {
+            break;
+        case mtime:
             prog_options.mod_compar = comp;
             if (multiplier != 0)
                 prog_options.mod_val = val * multiplier;
             else /* default multiplier is days */
                 prog_options.mod_val =  val * 86400;
-        }
-        else
-        {
+            break;
+        case rh_ctime:
+            prog_options.chg_compar = comp;
+            if (multiplier != 0)
+                prog_options.chg_val = val * multiplier;
+            else /* default multiplier is days */
+                prog_options.chg_val =  val * 86400;
+            break;
+        case atime:
             prog_options.acc_compar = comp;
             if (multiplier != 0)
                 prog_options.acc_val = val * multiplier;
             else /* default multiplier is days */
                 prog_options.acc_val =  val * 86400;
+            break;
         }
     }
     else
@@ -772,21 +799,25 @@ static int set_time_filter(char * str, unsigned int multiplier,
                 fprintf(stderr, "Invalid suffix for time: '%s'. Expected time format: "TIME_HELP"\n", str);
                 return -EINVAL;
         }
-        if (what == rh_crtime)
+
+        switch(what)
         {
+        case rh_crtime:
             prog_options.crt_compar = comp;
             prog_options.crt_val = val;
-        }
-        else
-        if (what == mtime)
-        {
+            break;
+        case rh_ctime:
+            prog_options.chg_compar = comp;
+            prog_options.chg_val = val;
+            break;
+        case mtime:
             prog_options.mod_compar = comp;
             prog_options.mod_val = val;
-        }
-        else
-        {
+            break;
+        case atime:
             prog_options.acc_compar = comp;
             prog_options.acc_val = val;
+            break;
         }
     }
     return 0;
@@ -1402,6 +1433,16 @@ int main(int argc, char **argv)
         case 'C':
             toggle_option(match_crtime, "crtime");
             if (set_time_filter(optarg, 0, true, rh_crtime))
+                exit(1);
+            if (neg) {
+                fprintf(stderr, "! (-not) is not supported for time criteria\n");
+                exit(1);
+            }
+            break;
+
+        case 'I':
+            toggle_option(match_ctime, "ctime");
+            if (set_time_filter(optarg, 0, true, rh_ctime))
                 exit(1);
             if (neg) {
                 fprintf(stderr, "! (-not) is not supported for time criteria\n");

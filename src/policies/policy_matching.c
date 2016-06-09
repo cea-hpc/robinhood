@@ -667,6 +667,12 @@ int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
         p_value->value.val_uint = time(NULL) - time_modify(p_comp->val.duration, time_mod);
         break;
 
+    case CRITERIA_LAST_MDCHANGE:
+        *p_attr_index = ATTR_INDEX_last_mdchange;
+        *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op));
+        p_value->value.val_uint = time(NULL) - time_modify(p_comp->val.duration, time_mod);
+        break;
+
     case CRITERIA_RMTIME:
         if (smi == NULL || !(smi->sm->flags & SM_DELETED))
         {
@@ -900,6 +906,16 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
 
         rc = int_compare(time(NULL) - ATTR(p_entry_attr, creation_time), p_triplet->op,
                           time_modify(p_triplet->val.duration, p_pol_mod));
+        return BOOL2POLICY(rc);
+
+        break;
+
+    case CRITERIA_LAST_MDCHANGE:
+        /* last_mdchange (ctime) is required */
+        CHECK_ATTR(p_entry_attr, last_mdchange, no_warning);
+
+        rc = int_compare(time(NULL) - ATTR(p_entry_attr, last_mdchange), p_triplet->op,
+                         time_modify(p_triplet->val.duration, p_pol_mod));
         return BOOL2POLICY(rc);
 
         break;
