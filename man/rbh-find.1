@@ -95,6 +95,15 @@ with some Robinhood additions prefixed with %R:
 .RS
 .IP %%
 Escapes %
+.IP %A
+Robinhood’s "last access time", which is a compound of
+the file's atime and mtime, unless the global configuration
+\fBlast_access_only_atime\fP is set, in which case it is exactly the
+atime of the file.
+
+An \fBstrftime\fP(1) directive must be added. For example: \fB%Ap
+%AT\fP. This option can also take an strftime format option between
+brackets. For instance: \fB%A{%A, %B %dth, %Y %F}\fP.
 .IP %b
 Number of blocks
 .IP %d
@@ -113,20 +122,22 @@ Number of hard links
 Full file name
 .IP %s
 File size
+.IP %T
+Robinhood’s "modification time", which is the file's mtime.
 .IP %u
 File owner
 .IP %Y
 Full file type (file, dir, fifo, ...)
 .IP %y
 File type as one letter (f, d, p, ...)
-.IP %RA
 .IP %RC
-.IP %RM
-Print Robinhood's "last access time", "creation time" and
-"modification time". These are not always the same as the file's
-atime/ctime/mtime attributes. An \fBstrftime\fP(1) directive must be
-added. For example: \fB%RCc %RMA %RAp %RAT\fP.
-This option can also take an strftime format option between
+Robinhood’s "creation time", which is the oldest ctime seen for that
+file. It is always lesser or equal to the current ctime of the
+file. When Lustre changelogs are used, "creation time" is really
+the creation time.
+
+An \fBstrftime\fP(1) directive must be added. For example: \fB%RCc\fP.
+This option can also take an strftime format option between curly
 brackets. For instance: \fB%RC{%A, %B %dth, %Y %F}\fP.
 .IP %Rc
 File class
@@ -141,6 +152,10 @@ dot, followed by the attribute name. For example:
 Lustre OSTS
 .IP %Rp
 Lustre parent FID
+
+An \fBstrftime\fP(1) directive must be added. For example: \fB%TA
+%Tp %TT\fP.  This option can also take an strftime format option
+between brackets. For instance: \fB%T{%A, %B %dth, %Y %F}\fP.
 .IP \e\e
 Escapes \\
 .IP \en
