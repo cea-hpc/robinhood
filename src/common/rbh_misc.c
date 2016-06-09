@@ -492,6 +492,9 @@ void stat2rbh_attrs(const struct stat *p_inode, attr_set_t *p_attr_set,
 
         ATTR_MASK_SET( p_attr_set, last_mod );
         ATTR( p_attr_set, last_mod ) = p_inode->st_mtime;
+
+        ATTR_MASK_SET(p_attr_set, last_mdchange);
+        ATTR(p_attr_set, last_mdchange) = p_inode->st_ctime;
     }
 
     if (ATTR_MASK_TEST(p_attr_set, creation_time))
@@ -580,6 +583,11 @@ void rbh_attrs2stat(const attr_set_t *p_attr_set, struct stat *p_inode)
         p_inode->st_mtime = ATTR(p_attr_set, last_mod);
     else /* default to current time */
         p_inode->st_mtime = time(NULL);
+
+    if (ATTR_MASK_TEST(p_attr_set, last_mdchange))
+        p_inode->st_ctime = ATTR(p_attr_set, last_mdchange);
+    else /* default to current time */
+        p_inode->st_ctime = time(NULL);
 }
 
 #ifndef HAVE_GETMNTENT_R
@@ -1637,6 +1645,20 @@ int PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
         }
     }
 
+    if (mask.std & ATTR_MASK_last_mdchange)
+    {
+        if (brief)
+        {
+            written += snprintf(out_str + written, strsize - written, "change=%u,",
+                    ATTR(p_attr_set, last_mdchange));
+        }
+        else
+        {
+            FormatDurationFloat(tmpbuf, 256, time(NULL) - ATTR(p_attr_set, last_mdchange));
+            written += snprintf(out_str + written, strsize - written, "Last Change: %s ago\n", tmpbuf);
+        }
+    }
+
     if (mask.std & ATTR_MASK_creation_time)
     {
         if (brief)
@@ -1908,7 +1930,8 @@ int            ApplyAttrs(const entry_id_t *p_id, const attr_set_t *p_attr_new,
          * else, we have no idea of what's in the file...
          */
     }
-    if (mask.std & (ATTR_MASK_last_access | ATTR_MASK_last_mod))
+    if (mask.std & (ATTR_MASK_last_access | ATTR_MASK_last_mod |
+                    ATTR_MASK_last_mdchange))
     {
         struct utimbuf t = {
             .actime = -1,

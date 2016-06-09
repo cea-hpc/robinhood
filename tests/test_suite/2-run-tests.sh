@@ -5029,6 +5029,115 @@ function test_mnt_point
     fi
 }
 
+# Create a file and touch it to set atime/mtime. Check that crtime and
+# ctime are properly set, using the search criteria of rbh-find, and
+# display of rbh-report. Check that creation_time never changes while
+# ctime does.
+function posix_acmtime
+{
+    config_file=$1
+    local cfg=$RBH_CFG_DIR/$config_file
+    clean_logs
+
+    # create file
+    echo "1-Creating file..."
+    rm -f $RH_ROOT/file
+    dd if=/dev/zero of=$RH_ROOT/file bs=10 count=1 >/dev/null 2>/dev/null || error "writing file"
+
+    # Set a given atime and mtime. touch can't change ctime.
+    touch -m -t 201004171230 $RH_ROOT/file
+    touch -a -t 201004171300 $RH_ROOT/file
+    stat $RH_ROOT/file | grep --quiet "Modify: 2010-04-17 12:30:00" || error "bad mtime"
+    stat $RH_ROOT/file | grep --quiet "Access: 2010-04-17 13:00:00" || error "bad atime"
+
+    echo "2-Initial scan of filesystem"
+    $RH -f $cfg --scan -l FULL -L rh_scan.log  --once || error ""
+
+    $REPORT -f $RBH_CFG_DIR/$config_file -e $RH_ROOT/file > report.out
+
+    # Check that the DB has the correct atime and mtime
+    egrep --quiet "last_mod\s+:\s+2010/04/17 12:30:00" report.out || error "bad mtime"
+    egrep --quiet "last_access\s+:\s+2010/04/17 13:00:00" report.out || error "bad atime"
+
+    # Ensure that the DB and FS agree on atime/mtime and ctime, this
+    # time using rbh-find.
+    local real_acmtime=$(stat -c '%X %Y %Z' $RH_ROOT/file)
+    local db_acmtime=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%As %Ts %Cs")
+    [[ $real_acmtime == $db_acmtime ]] || error "FS and DB times don't match1"
+
+    local crtime=$(egrep "creation\s+:" report.out)
+    local ctime=$(egrep "last_mdchange\s+:" report.out)
+
+    # Check crtime and ctime in a small time interval
+    [[ $($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -crtime -30s) ]] || error "file not found1"
+    [[ $($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -crtime +1s) ]] && error "file found1"
+
+    [[ $($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -ctime -30s) ]] || error "file not found2"
+    [[ $($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -ctime +1s) ]] && error "file found2"
+
+    echo "3-Change mtime"
+
+    # Sleep lomg enough the time to change by at least one second, so ctime will be
+    # updatedwhen the file is touched.
+    sleep 5
+
+    # Again, check crtime and ctime. Both must fail as the file is at
+    # least 5s old now.
+    [[ $($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -crtime -1s) ]] && error "file found3"
+    [[ $($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -ctime -1s) ]] && error "file found4"
+
+    # Make mtime > atime. Normally last_access would take the value of
+    # the most recent of atime and mtime, but with the
+    # last_access_only_atime option, it should stay at atime.
+    touch -m -t 201004171400 $RH_ROOT/file
+    stat $RH_ROOT/file | grep --quiet "Modify: 2010-04-17 14:00:00" || error "bad mtime"
+    stat $RH_ROOT/file | grep --quiet "Access: 2010-04-17 13:00:00" || error "bad atime"
+    $RH -f $cfg --scan -l FULL -L rh_scan.log  --once || error ""
+    $REPORT -f $RBH_CFG_DIR/$config_file -e $RH_ROOT/file > report.out
+
+    # Again, check crtime and ctime. Hopefully less than 5 seconds
+    # elapsed between touch and this command.
+    [[ $($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -crtime -4s) ]] && error "file found1"
+    [[ $($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -ctime -4s) ]] || error "file not found2"
+
+    egrep --quiet "last_mod\s+:\s+2010/04/17 14:00:00" report.out || error "bad mtime"
+    egrep --quiet "last_access\s+:\s+2010/04/17 13:00:00" report.out || error "bad atime"
+
+    # Check that FS and DB agree, using rbh-find
+    local real_acmtime=$(stat -c '%X %Y %Z' $RH_ROOT/file)
+    local db_acmtime=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%As %Ts %Cs")
+    [[ $real_acmtime == $db_acmtime ]] || error "FS and DB times don't match2"
+
+    # Check that FS and DB agree, using rbh-report
+    local newcrtime=$(egrep "creation\s+:" report.out)
+    local newctime=$(egrep "last_mdchange\s+:" report.out)
+
+    [[ $ctime != $newctime ]] || error "ctime hasn't changed"
+    [[ $crtime = $newcrtime ]] || error "creation time has changed"
+
+    ctime=$newctime
+
+    echo "4-Change atime"
+    touch -a -t 201004171600 $RH_ROOT/file
+
+    stat $RH_ROOT/file | grep --quiet "Modify: 2010-04-17 14:00:00" || error "bad mtime"
+    stat $RH_ROOT/file | grep --quiet "Access: 2010-04-17 16:00:00" || error "bad atime"
+
+    $RH -f $cfg --scan -l FULL -L rh_scan.log  --once || error ""
+
+    # Check that FS and DB agree, using rbh-find
+    local real_acmtime=$(stat -c '%X %Y %Z' $RH_ROOT/file)
+    local db_acmtime=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%As %Ts %Cs")
+    [[ $real_acmtime == $db_acmtime ]] || error "FS and DB times don't match3"
+
+    # Check that FS and DB agree, using rbh-report
+    local newcrtime=$(egrep "creation\s+:" report.out)
+    local newctime=$(egrep "last_mdchange\s+:" report.out)
+
+    [[ $ctime = $newctime ]] || error "ctime has changed"
+    [[ $crtime = $newcrtime ]] || error "creation time has changed"
+}
+
 function check_status_count
 {
     report=$1
@@ -7531,16 +7640,22 @@ function test_rbh_find_printf
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%TF")
     [[ $STR == "$(date +%F)" ]] || error "unexpected rbh-find result (206): $STR"
 
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%CF")
+    [[ $STR == "$(date +%F)" ]] || error "unexpected rbh-find result (206b): $STR"
+
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%A-" 2>&1)
     [[ $STR == *"%-"* ]] || error "unexpected rbh-find result (207): $STR" # NB: invalid format
 
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%TG")
     [[ $STR == "$(date +%G)" ]] || error "unexpected rbh-find result (208): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RCc %TA %Ap %AT" 2>&1)
-    [[ $STR == *"QWERTY"* ]] || error "unexpected rbh-find result (209): $STR"
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%CG")
+    [[ $STR == "$(date +%G)" ]] || error "unexpected rbh-find result (209): $STR"
 
-    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RCOe %TOS %AEx %AEY" 2>&1)
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RCc %TA %CA %Ap %AT" 2>&1)
+    [[ $STR == *"QWERTY"* ]] || error "unexpected rbh-find result (210): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RCOe %TOS %COS %AEx %AEY" 2>&1)
     [[ $STR == *"QWERTY"* ]] || error "unexpected rbh-find result (211): $STR"
 
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "QWERTY %RCOA" 2>&1)
@@ -10820,6 +10935,7 @@ function runtest_118
 }
 runtest_118
 
+run_test 120 posix_acmtime posix_acmtime.conf "Test for posix ctimes"
 
 #### policy matching tests  ####
 
