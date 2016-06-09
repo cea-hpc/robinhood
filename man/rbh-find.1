@@ -120,16 +120,18 @@ Full file type (file, dir, fifo, ...)
 .IP %y
 File type as one letter (f, d, p, ...)
 .IP %RR
-.IP %RC
+.IP %RA
 .IP %RM
+.IP %RC
 Respectively print Robinhood’s "creation time" (\fB%RR\fP), "last
-access time" (\fB%RA\fP) and "modification time" (\fB%RM\fP). "creation time"
-(\fB%RR\fP) is the oldest creation time seen for that file. It is
-always lesser or equal to the ctime of the file. "last access time"
-(\fB%RA\fP) is a compound of the file's atime and mtime, unless the
-configuration \fBlast_access_only_atime\fP is set, in which case it is
-exactly the atime of the file. "modification time" (\fB%RM\fP) is the
-file's mtime.
+access time" (\fB%RA\fP), "modification time" (\fB%RM\fP) and "last MD
+change" (\fB%RC\fP). "creation time" (\fB%RR\fP) is the oldest
+creation time seen for that file. It is always lesser or equal to the
+ctime of the file. "last access time" (\fB%RA\fP) is a compound of the
+file's atime and mtime, unless the configuration
+\fBlast_access_only_atime\fP is set, in which case it is exactly the
+atime of the file. "modification time" (\fB%RM\fP) is the file's
+mtime. "last MD change" (\fB%RC\fP) is the ctime of the file.
 
 An \fBstrftime\fP(1) directive must be
 added. For example: \fB%RCc %RMA %RAp %RAT\fP.

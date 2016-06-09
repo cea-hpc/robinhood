@@ -363,6 +363,13 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
                     return NULL;
                 break;
 
+            case 'C':
+                disp_mask.std |= ATTR_MASK_last_mdchange;
+                str = append_time_format(str, chunk);
+                if (str == NULL)
+                    return NULL;
+                break;
+
             case 'c':
                 disp_mask.std |= ATTR_MASK_fileclass;
                 g_string_append_c(chunk->format, 's');
@@ -600,6 +607,10 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
 
             case 'M':
                 printf_date(chunk, ATTR(attrs, last_mod));
+                break;
+
+            case 'C':
+                printf_date(chunk, ATTR(attrs, last_mdchange));
                 break;
 
             case 'c':
