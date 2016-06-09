@@ -99,6 +99,10 @@ with some Robinhood additions prefixed with %R:
 Escapes %
 .TP
 .B
+%A
+Robinhood’s "last access time", which is a compound of the file's atime and mtime, unless the global configuration last_access_only_atime is set, in which case it is exactly the atime of the file. An \fBstrftime\fP(1) directive must be added. For example: %Ap %AT. This option can also take an strftime format option between brackets. For instance: %A{%A, %B %dth, %Y %F}.
+.TP
+.B
 %b
 Number of blocks
 .TP
@@ -135,6 +139,10 @@ Full file name
 File size
 .TP
 .B
+%T
+Robinhood’s "modification time", which is the file's mtime.
+.TP
+.B
 %u
 File owner
 .TP
@@ -147,8 +155,8 @@ Full file \fItype\fP (file, dir, fifo, \.\.\.)
 File \fItype\fP as one letter (f, d, p, \.\.\.)
 .TP
 .B
-%RA, %RC, %RM
-Print Robinhood's "last access time", "creation time" and "modification time". These are not always the same as the file's atime/ctime/mtime attributes. An \fBstrftime\fP(1) directive must be added. For example: %RCc %RMA %RAp %RAT. This option can also take an strftime format option between brackets. For instance: %RC{%A, %B %dth, %Y %F}.
+%RC
+Robinhood’s "creation time", which is the oldest ctime seen for that file. It is always lesser or equal to the current ctime of the file. When Lustre changelogs are used, "creation time" is really the creation time. An \fBstrftime\fP(1) directive must be added. For example: %RCc. This option can also take an strftime format option between curly brackets. For instance: %RC{%A, %B %dth, %Y %F}.
 .TP
 .B
 %Rc
