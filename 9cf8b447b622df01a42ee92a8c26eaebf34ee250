@@ -16,6 +16,23 @@
       "revId": "9cf8b447b622df01a42ee92a8c26eaebf34ee250",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_f610bd5b",
+        "filename": "src/list_mgr/listmgr_init.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 403,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-12T20:29:47Z",
+      "side": 1,
+      "message": "Actually the segfault was here.",
+      "revId": "9cf8b447b622df01a42ee92a8c26eaebf34ee250",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
