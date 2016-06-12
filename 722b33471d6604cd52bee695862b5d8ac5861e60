@@ -1,0 +1,208 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_769eed64",
+        "filename": "src/cfg_parsing/rbh_boolexpr.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 27,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-12T16:50:05Z",
+      "side": 1,
+      "message": "What are you using from this header?\nIf you need somthing from it, i\u0027d prefer you move it to a  common part (rbh_misc.h or rbh_boolexpr.h) instead of having such kind of include paths.",
+      "revId": "722b33471d6604cd52bee695862b5d8ac5861e60",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_36874514",
+        "filename": "src/common/global_config.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 205,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-12T16:50:05Z",
+      "side": 1,
+      "message": "This should not be modified dynamically! The DB schema cannot handle that.",
+      "revId": "722b33471d6604cd52bee695862b5d8ac5861e60",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_f680bdf9",
+        "filename": "src/list_mgr/listmgr_init.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 641,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-12T16:50:05Z",
+      "side": 1,
+      "message": "Isn\u0027t there a #define in some system headers for NOBODY and NOGROUP?",
+      "revId": "722b33471d6604cd52bee695862b5d8ac5861e60",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_d685b907",
+        "filename": "src/list_mgr/listmgr_init.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 649,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-12T16:50:05Z",
+      "side": 1,
+      "message": "idem",
+      "revId": "722b33471d6604cd52bee695862b5d8ac5861e60",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_b67b5529",
+        "filename": "src/policies/policy_run.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 28,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-12T16:50:05Z",
+      "side": 1,
+      "message": "See my comment in rbh_boolexpr.c",
+      "revId": "722b33471d6604cd52bee695862b5d8ac5861e60",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_76acad8c",
+        "filename": "src/policies/policy_triggers.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 29,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-12T16:50:05Z",
+      "side": 1,
+      "message": "see my comment in rbh_boolexpr.c",
+      "revId": "722b33471d6604cd52bee695862b5d8ac5861e60",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_f6e55ddc",
+        "filename": "src/robinhood/cmd_helpers.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 1204,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-12T16:50:05Z",
+      "side": 1,
+      "message": "move to rbh_misc.c",
+      "revId": "722b33471d6604cd52bee695862b5d8ac5861e60",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_16e1e1d0",
+        "filename": "src/robinhood/cmd_helpers.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 180,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-12T16:50:05Z",
+      "side": 1,
+      "message": "move to rbh_misc.h",
+      "revId": "722b33471d6604cd52bee695862b5d8ac5861e60",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_1608c190",
+        "filename": "src/robinhood/rbh_du.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 238,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-12T16:50:05Z",
+      "side": 1,
+      "message": "this part of the code could be made more compact by setting val and the comparator depending of uid_gid_as_numbers.",
+      "revId": "722b33471d6604cd52bee695862b5d8ac5861e60",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_f6fc3d74",
+        "filename": "src/robinhood/rbh_du.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 263,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-12T16:50:05Z",
+      "side": 1,
+      "message": "idem",
+      "revId": "722b33471d6604cd52bee695862b5d8ac5861e60",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_362aa5e8",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 3
+      },
+      "lineNbr": 5430,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-12T16:50:05Z",
+      "side": 1,
+      "message": "Why is that?\nThis test just checks that no entries remain in DB after a create/unlink sequence.",
+      "revId": "722b33471d6604cd52bee695862b5d8ac5861e60",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_d6381940",
+        "filename": "tests/test_suite/cfg/common.conf",
+        "patchSetId": 3
+      },
+      "lineNbr": 8,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-12T16:50:05Z",
+      "side": 1,
+      "message": "Can you fix the tabs just above at the same time, thanks.",
+      "revId": "722b33471d6604cd52bee695862b5d8ac5861e60",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
