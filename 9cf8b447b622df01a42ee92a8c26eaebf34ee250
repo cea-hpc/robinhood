@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_1667a126",
+        "filename": "src/list_mgr/listmgr_init.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 401,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-12T19:53:08Z",
+      "side": 1,
+      "message": "Any idea why it SEGFAULTs here?",
+      "revId": "9cf8b447b622df01a42ee92a8c26eaebf34ee250",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
