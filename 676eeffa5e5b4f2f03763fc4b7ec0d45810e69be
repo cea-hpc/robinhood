@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_d525ac0a",
+        "filename": "man/rbh-find.1",
+        "patchSetId": 1
+      },
+      "lineNbr": 121,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-13T19:15:41Z",
+      "side": 1,
+      "message": "Avoid prefixing with %R when the option matches standard find options.\n\nYou should use the same notation as find for values that are not specific to robinhood: %a/%Ak, %c/%Ck, %t/%Tk\n\nc: ctime\nm: modification (\u003dmtime in v3)\na: atime (\u003dvalue depends on last_access_only_atime parameter)\n\nAbout creation: it starts to appear in recent linux releases (shown as \"Birth\" in stat output). I don\u0027t know what will be the character to display it with find...\n\nYou can keep %R for Robinhood specific attributes, e.g.:\nf fid\nF fileclass\nM Status manager attributes.",
+      "revId": "676eeffa5e5b4f2f03763fc4b7ec0d45810e69be",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
