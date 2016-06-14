@@ -1,0 +1,55 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_0cb54d7d",
+        "filename": "src/policies/policy_matching.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 670,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-14T19:07:34Z",
+      "side": 1,
+      "message": "(Not related to this patch) One day we should refactor these criteria to avoid code duplication...",
+      "revId": "d364366e23e903a9cbe7bc019641abf61d8f14f6",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_4c623518",
+        "filename": "src/robinhood/rbh_find.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 60,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-14T19:07:34Z",
+      "side": 1,
+      "message": "As \u0027lsclass\u0027 is a new option of v3, I think it is still time to get \u0027-c\u0027 option for ctime and assign lsclass to another short option.",
+      "revId": "d364366e23e903a9cbe7bc019641abf61d8f14f6",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_4c30f507",
+        "filename": "tests/test_suite/cfg/posix_acmtime.conf",
+        "patchSetId": 3
+      },
+      "lineNbr": 8,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-14T19:07:34Z",
+      "side": 1,
+      "message": "(minor, suggestion) perhaps you could add this option as an environment variable in \"common.conf\", export the default for last_access_only_atime in the whole test_suite and override it in your particular test?",
+      "revId": "d364366e23e903a9cbe7bc019641abf61d8f14f6",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
