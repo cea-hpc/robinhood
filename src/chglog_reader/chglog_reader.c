@@ -1074,6 +1074,49 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
     return cl_continue;
 }
 
+static void check_reopen_f_changelog(void)
+{
+    static ino_t ino = 0;
+    struct stat filestat;
+    int rc;
+
+    /* Nothing to do if no dump_file defined */
+    if (EMPTY_STRING(cl_reader_config.dump_file))
+        return;
+
+    /* Check if file changed first; won't be called first time */
+    if (f_changelog)
+    {
+        rc = stat(cl_reader_config.dump_file, &filestat);
+        if ((rc == -1 && errno == ENOENT) ||
+            (rc == 0  && filestat.st_ino != ino))
+        {
+            /* File disappeared or renamed, close and mark for reopen */
+            fclose(f_changelog);
+            f_changelog = NULL;
+        }
+    }
+
+    /* Open dump file if not currently opened */
+    if (!f_changelog)
+    {
+        f_changelog = fopen(cl_reader_config.dump_file, "a");
+        if (f_changelog == NULL)
+        {
+            DisplayLog(LVL_CRIT, CHGLOG_TAG,
+                       "Failed to open %s to dump incoming changelogs",
+                       cl_reader_config.dump_file);
+        }
+        else
+        {
+            DisplayLog(LVL_EVENT, CHGLOG_TAG, "Dumping changelogs to: %s",
+                       cl_reader_config.dump_file);
+
+            if (fstat(fileno(f_changelog), &filestat) != -1)
+                ino = filestat.st_ino;
+        }
+    }
+}
 
 /** a thread that reads lines from a given changelog */
 static void * chglog_reader_thr( void *  arg )
@@ -1082,6 +1125,9 @@ static void * chglog_reader_thr( void *  arg )
     CL_REC_TYPE * p_rec = NULL;
     cl_status_e st;
     time_t next_push_time = time(NULL) + cl_reader_config.queue_check_interval; /* Next time we will have to push. */
+
+    /* open changelog dump file before doing any processing */
+    check_reopen_f_changelog();
 
     /* loop until a TERM signal is caught */
     while ( !info->force_stop )
@@ -1092,8 +1138,12 @@ static void * chglog_reader_thr( void *  arg )
             process_op_queue(info, false);
 
             next_push_time = time(NULL) + cl_reader_config.queue_check_interval;
+
             if (f_changelog)
+            {
                 fflush(f_changelog);
+                check_reopen_f_changelog();
+            }
         }
 
         st = cl_get_one(info, &p_rec);
@@ -1191,16 +1241,6 @@ int cl_reader_start(run_flags_t flags, int mdt_index)
 
     /* saves the current config and parameter flags */
     behavior_flags = flags;
-
-    if (!EMPTY_STRING(cl_reader_config.dump_file))
-    {
-        f_changelog = fopen(cl_reader_config.dump_file, "a");
-        if (f_changelog == NULL)
-            DisplayLog(LVL_CRIT, CHGLOG_TAG, "Failed to open %s to dump incoming changelogs",
-                       cl_reader_config.dump_file);
-        else
-            DisplayLog(LVL_EVENT, CHGLOG_TAG, "Dumping changelogs to: %s", cl_reader_config.dump_file);
-    }
 
     /* create thread params */
     reader_info = (reader_thr_info_t*)MemCalloc(cl_reader_config.mdt_count,
