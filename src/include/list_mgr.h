@@ -51,6 +51,7 @@
 #define DB_TRG_NOT_EXISTS      15
 #define DB_DEADLOCK            16
 #define DB_BAD_SCHEMA          17
+#define DB_NEED_ALTER          18
 
 static inline const char *lmgr_err2str(int err)
 {
@@ -73,6 +74,7 @@ static inline const char *lmgr_err2str(int err)
         case DB_TRG_NOT_EXISTS:     return "trigger doesn't exist";
         case DB_DEADLOCK:           return "deadlock or timeout";
         case DB_BAD_SCHEMA:         return "invalid DB schema";
+        case DB_NEED_ALTER:         return "schema needs to be altered";
         default:                    return "unknown error";
     }
 }
@@ -576,8 +578,13 @@ typedef struct lmgr_sort_type_t
 
 /* -------- Main functions -------- */
 
+enum lmgr_init_flags {
+    LIF_REPORT_ONLY = (1 << 0), /* report only, no action on DB schema */
+    LIF_ALTER_DB    = (1 << 1), /* allow altering DB (insert/drop fields) */
+};
+
 /** Initialize the List Manager */
-int            ListMgr_Init(bool report_only);
+int            ListMgr_Init(enum lmgr_init_flags flags);
 
 /** Create a connection to the database for current thread */
 int            ListMgr_InitAccess( lmgr_t * p_mgr );
@@ -773,19 +780,6 @@ struct lmgr_iterator_t *ListMgr_ListUntagged( lmgr_t * p_mgr,
 
 
 #ifdef _HSM_LITE
-
-/** FIXME RBHv3 RECOV_ATTR_MASK, SOFTRM_MASK
- * For recovery: status manager needs entry status + backend info.
- * For undelete: status manager needs backend info.
- */
-#if 0
-#define RECOV_ATTR_MASK ( ATTR_MASK_fullpath | ATTR_MASK_size | ATTR_MASK_owner | \
-                          ATTR_MASK_gr_name | ATTR_MASK_last_mod | ATTR_MASK_backendpath | \
-                          ATTR_MASK_status | ATTR_MASK_stripe_info | ATTR_MASK_type | \
-                          ATTR_MASK_mode | ATTR_MASK_link )
-
-#define SOFTRM_MASK (POSIX_ATTR_MASK | ATTR_MASK_fullpath | ATTR_MASK_backendpath | ATTR_MASK_rm_time)
-#endif
 
 /**
  * Filesystem recovery from backup.

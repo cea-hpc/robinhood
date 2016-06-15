@@ -248,16 +248,18 @@ void separated_db2list_inplace(char *list)
     list[len-2] = '\0';
 }
 
-/* @TODO use pre-generated field masks? */
-static inline bool match_table(table_enum t, unsigned int attr_index)
+bool match_table(table_enum t, unsigned int attr_index)
 {
     return ((t == T_MAIN) && is_main_field(attr_index)) ||
                ((t == T_DNAMES) && is_names_field(attr_index)) ||
                ((t == T_ANNEX) && is_annex_field(attr_index)) ||
                ((t == T_RECOV) && is_recov_field(attr_index)) ||
-               ((t == T_SOFTRM || t == T_TMP_SOFTRM) && is_softrm_field(attr_index)) ||
-               ((t == T_ACCT) && is_acct_field(attr_index)) ||
-               ((t == T_ACCT) && is_acct_pk(attr_index));
+               ((t == T_SOFTRM || t == T_TMP_SOFTRM)
+                                  && is_softrm_field(attr_index)) ||
+               ((t == T_ACCT) && (is_acct_field(attr_index)
+                                  || is_acct_pk(attr_index))) ||
+               ((t == T_ACCT_PK) && is_acct_pk(attr_index)) ||
+               ((t == T_ACCT_VAL) && is_acct_field(attr_index));
 }
 
 /** get the table for the given attr index */
