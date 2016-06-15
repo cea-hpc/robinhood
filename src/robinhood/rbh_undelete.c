@@ -674,10 +674,11 @@ int main(int argc, char **argv)
     }
 
     /* Initialize list manager */
-    rc = ListMgr_Init(false);
+    rc = ListMgr_Init(0);
     if (rc)
     {
-        DisplayLog(LVL_CRIT, LOGTAG, "Error %d initializing list manager", rc);
+        DisplayLog(LVL_CRIT, LOGTAG, "Error initializing list manager: %s (%d)",
+                   lmgr_err2str(rc), rc);
         exit(rc);
     }
     DisplayLog(LVL_DEBUG, LOGTAG, "ListManager successfully initialized");

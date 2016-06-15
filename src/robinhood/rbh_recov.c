@@ -778,11 +778,12 @@ int main( int argc, char **argv )
         exit(rc);
 
     /* Initialize list manager */
-    rc = ListMgr_Init(&config.lmgr_config, false);
-    if ( rc )
+    rc = ListMgr_Init(0);
+    if (rc)
     {
-        DisplayLog( LVL_CRIT, RECOV_TAG, "Error %d initializing list manager", rc );
-        exit( rc );
+        DisplayLog(LVL_CRIT, RECOV_TAG, "Error initializing list manager: %s (%d)",
+                   lmgr_err2str(rc), rc);
+        exit(rc);
     }
     else
         DisplayLog( LVL_DEBUG, RECOV_TAG, "ListManager successfully initialized" );

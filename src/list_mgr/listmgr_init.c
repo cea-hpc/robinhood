@@ -28,7 +28,9 @@
 
 /* global symbols */
 static const char *acct_info_table = NULL;
-static bool report_only = false;
+static enum lmgr_init_flags init_flags;
+#define report_only (!!(init_flags & LIF_REPORT_ONLY))
+#define alter_db    (!!(init_flags & LIF_ALTER_DB))
 
 #define MAX_DB_FIELDS 64
 
@@ -247,9 +249,6 @@ static void append_field_def(int i, GString *str, bool is_first)
                  default_field_value(i));
 }
 
-#define DROP_MESSAGE "database schema needs to be altered accordingly."
-#define DROP_ACCT_MSG "\nYou should:\n\t1) Stop all running robinhood processes\n\t2) Clear accounting info using 'rbh-config reset_acct'\n\t3) Restart robinhood."
-
 /**
  * Check table fields.
  * @param i
@@ -258,19 +257,14 @@ static void append_field_def(int i, GString *str, bool is_first)
  * @return -1 on error
  */
 static int _check_field_name(const char *name, int *curr_field_index,
-                            char *table, char **fieldtab)
+                             const char *table, char **fieldtab)
 {
     if ((*curr_field_index >= MAX_DB_FIELDS)
         || (fieldtab[*curr_field_index] == NULL))
     {
-        if (!strcmp(table, ACCT_TABLE))
-            DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                       "Incompatible database schema (missing field '%s' in table %s):"
-                       " "DROP_ACCT_MSG, name, table);
-        else
-            DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                       "Incompatible database schema (missing field '%s' in table %s):"
-                       " "DROP_MESSAGE, name, table); /* TODO: don't display that if a change is expected => display in caller */
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Database schema: missing field '%s' in table %s.",
+                   name, table);
         return -1;
     }
     /* check that this is the expected field */
@@ -280,30 +274,17 @@ static int _check_field_name(const char *name, int *curr_field_index,
         return 0;
     }
 
-    DisplayLog(LVL_DEBUG, LISTMGR_TAG, "%s: %s expected, %s found", table,
+    DisplayLog(LVL_DEBUG, LISTMGR_TAG, "%s: '%s' expected, '%s' found", table,
                name, fieldtab[*curr_field_index]);
-    if (!report_only)
-    {
-        if (!strcmp(table, ACCT_TABLE))
-            DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                       "Incompatible database schema (unexpected field '%s' in table %s: '%s' expected): "DROP_ACCT_MSG,
-                       fieldtab[*curr_field_index], table, name);
-        else
-            DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                       "Incompatible database schema (unexpected field '%s' in table %s: '%s' expected): "DROP_MESSAGE,
-                       fieldtab[*curr_field_index], table, name);
-        return -1;
-    }
-    /* report only: warn & skip this field */
-    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Warning: unexpected field '%s' in table %s: '%s' expected",
+
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG,
+               "Database schema: unexpected field '%s' in table %s: '%s' expected.",
                fieldtab[*curr_field_index], table, name);
-    /* skip & check next field instead */
-    (*curr_field_index) ++;
-    return _check_field_name(name, curr_field_index, table, fieldtab);
+    return -1;
 }
 
 static int check_field_name(const char *name, int *curr_field_index,
-                            char *table, char **fieldtab)
+                            const char *table, char **fieldtab)
 {
     if (_check_field_name(name, curr_field_index, table, fieldtab) == 0)
     {
@@ -390,6 +371,7 @@ static int convert_field_type(db_conn_t *pconn, const char *table,
     DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Converting type of %s.%s to '%s'...%s",
                table, field, type, timestr);
     rc = db_exec_sql(pconn, query, NULL);
+
     if (rc)
     {
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
@@ -401,6 +383,7 @@ static int convert_field_type(db_conn_t *pconn, const char *table,
     return 0;
 }
 
+/** Rename field 'old_name' to 'new_name' */
 static int change_field_name(db_conn_t *pconn, const char *table, const char *old_name,
                               const char *new_name, int field_index)
 {
@@ -414,6 +397,8 @@ static int change_field_name(db_conn_t *pconn, const char *table, const char *ol
     DisplayLog(LVL_VERB, LISTMGR_TAG, "sql> %s", query->str);
 
     rc = db_exec_sql(pconn, query->str, NULL);
+    g_string_free(query, TRUE);
+
     if (rc)
     {
         char buff[1024];
@@ -428,6 +413,147 @@ static int change_field_name(db_conn_t *pconn, const char *table, const char *ol
     return 0;
 }
 
+
+static int change_id_field(db_conn_t *pconn, const char *table, const char *old_name,
+                           const char *new_name)
+{
+    /* syntax: ALTER TABLE <tablename> CHANGE <OldColumnName> <NewColunmName> <DATATYPE>; */
+    GString *query = g_string_new(NULL);
+    int rc;
+
+    g_string_printf(query, "ALTER TABLE %s CHANGE %s", table, old_name);
+    append_field(query, true, DB_ID, 0, new_name, NULL);
+
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "sql> %s", query->str);
+
+    rc = db_exec_sql(pconn, query->str, NULL);
+    g_string_free(query, TRUE);
+
+    if (rc)
+    {
+        char buff[1024];
+
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to rename field '%s' to '%s': Error: %s",
+                    old_name, new_name, db_errmsg(pconn, buff, sizeof(buff)));
+        return rc;
+    }
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "%s.%s successfully renamed to %s.%s", table,
+               old_name, table, new_name);
+    return 0;
+}
+
+/** Insert field defined by 'def_index' after 'prev_field'. */
+static int insert_field(db_conn_t *pconn, const char *table, int def_index,
+                        const char *prev_field)
+{
+    /* syntax: ALTER TABLE <tablename> ADD <field_name> <field_type> AFTER <prev_field_name> */
+    GString *query;
+    int rc;
+
+    if (!alter_db)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG, "DB schema change detected: field '%s.%s' must be added "
+                   " => Run 'robinhood --alter-db' to apply this change.", table, field_name(def_index));
+        return DB_NEED_ALTER;
+    }
+
+    if (prev_field)
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "=> Inserting field '%s' in table %s after '%s'",
+                   field_name(def_index), table, prev_field);
+    else
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "=> Appending field '%s' in table %s",
+                   field_name(def_index), table);
+
+    query = g_string_new(NULL);
+    g_string_printf(query, "ALTER TABLE %s ADD ", table);
+    append_field_def(def_index, query, true);
+    if (prev_field != NULL)
+        g_string_append_printf(query," AFTER %s", prev_field);
+
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "sql> %s", query->str);
+
+    rc = db_exec_sql(pconn, query->str, NULL);
+    g_string_free(query, TRUE);
+
+    if (rc)
+    {
+        char buff[1024];
+
+        DisplayLog(LVL_CRIT, LISTMGR_TAG, "Failed to insert field '%s': Error: %s",
+                   field_name(def_index), db_errmsg(pconn, buff, sizeof(buff)));
+        return rc;
+    }
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "%s.%s successfully inserted", table,
+               field_name(def_index));
+    return 0;
+}
+
+static int drop_field(db_conn_t *pconn, const char *table, const char *field)
+{
+    /* syntax: ALTER TABLE <tablename> DROP <field_name> */
+    GString *query;
+    int rc;
+
+    if (!alter_db)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG, "DB schema change detected: field '%s.%s' must be DROPPED "
+                   " => Run 'robinhood --alter-db' to confirm this change.", table, field);
+        return DB_NEED_ALTER;
+    }
+
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "=> Dropping field '%s' from table %s",
+               field, table);
+
+    query = g_string_new(NULL);
+    g_string_printf(query, "ALTER TABLE %s DROP %s", table, field);
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "sql> %s", query->str);
+
+    rc = db_exec_sql(pconn, query->str, NULL);
+    g_string_free(query, TRUE);
+
+    if (rc)
+    {
+        char buff[1024];
+
+        DisplayLog(LVL_CRIT, LISTMGR_TAG, "Failed to drop field '%s': Error: %s",
+                   field, db_errmsg(pconn, buff, sizeof(buff)));
+        return rc;
+    }
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "%s.%s successfully dropped.", table,
+               field);
+    return 0;
+}
+
+/** check if the given DB field is in next expected ones */
+static bool is_next_expected(table_enum table, const char *db_field_name,
+                             int curr_field_def_index, bool allow_func_attr,
+                             int *found_index)
+{
+    int i, cookie;
+
+    if (found_index)
+        *found_index = -1;
+
+    /* end of table, must insert as last field */
+    if (db_field_name == NULL)
+        return false;
+
+    cookie = curr_field_def_index;
+    while ((i = attr_index_iter(0, &cookie)) != -1)
+    {
+
+        if (match_table(table, i) && (allow_func_attr || !is_funcattr(i))
+            && !strcmp(db_field_name, field_name(i)))
+        {
+            if (found_index)
+                *found_index = i;
+            return true;
+        }
+    }
+    return false;
+}
+
 /* describe name change comatibility */
 struct name_compat {
     const char *old_name;
@@ -440,28 +566,47 @@ struct name_compat {
  * @retval 0 id field matches no rename rule.
  * @retval < 0 on error.
  */
-static int check_renamed_field(db_conn_t *pconn, const char *table_name,
-                               int field_index, const char *curr_field_name,
-                               const struct name_compat *compat_table)
+static int check_renamed_db_field(db_conn_t *pconn, table_enum table,
+                                  int field_index, const char *curr_field_name,
+                                  const struct name_compat *compat_table,
+                                  bool allow_func_attr)
 {
     int i, rc;
+    const char *tname = table2name(table);
 
-    assert(compat_table != NULL);
+    /* no table (or end of table) => not a rename */
+    if (compat_table == NULL || curr_field_name == NULL)
+        return 0;
 
     /* handle compatibility with old field names */
     for (i = 0; compat_table[i].old_name != NULL; i++)
     {
-        if (!strcmp(field_name(field_index), compat_table[i].new_name)
-            && !strcmp(curr_field_name,
-                       compat_table[i].old_name)
-            && !report_only)
-        {
-            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Detected old field '%s' "
-                       "in table %s: renaming to '%s'.",
-                       compat_table[i].old_name, table_name,
-                       compat_table[i].new_name);
+        /* does the DB field matches the old name? */
+        if (strcmp(curr_field_name, compat_table[i].old_name))
+            continue;
 
-            rc = change_field_name(pconn, table_name, compat_table[i].old_name,
+        /* DB field matches */
+        DisplayLog(LVL_FULL, LISTMGR_TAG, "DB field '%s' matches an old name for '%s'",
+                   curr_field_name, compat_table[i].new_name);
+
+        /* does it match the currently expected one? */
+        if (!strcmp(field_name(field_index), compat_table[i].new_name))
+        {
+            if (!alter_db)
+            {
+                DisplayLog(LVL_CRIT, LISTMGR_TAG, "DB schema change detected: "
+                           "field '%s.%s' renamed to '%s.%s' "
+                           " => Run 'robinhood --alter-db' to apply this change.",
+                           tname, compat_table[i].old_name,
+                           tname, compat_table[i].new_name);
+                return -DB_NEED_ALTER;
+            }
+
+            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Renaming old field '%s.%s' "
+                       "to '%s.%s'.", tname, compat_table[i].old_name,
+                       tname, compat_table[i].new_name);
+
+            rc = change_field_name(pconn, tname, compat_table[i].old_name,
                                    compat_table[i].new_name, field_index);
             if (rc)
                 /* db errors codes are > 0 */
@@ -469,14 +614,62 @@ static int check_renamed_field(db_conn_t *pconn, const char *table_name,
 
             return 1;
         }
+        /* not an handled case */
+        DisplayLog(LVL_DEBUG, LISTMGR_TAG, "Unhandled rename case");
+        return 0;
     }
 
     return 0;
 }
 
+/** return the oldname for a new field */
+static const char *get_old_name(const struct name_compat *compat_table,
+                                const char *new_name)
+{
+    int i;
+
+    /* no compat table => no old name */
+    if (compat_table == NULL)
+        return NULL;
+
+    /* handle compatibility with old field names */
+    for (i = 0; compat_table[i].old_name != NULL; i++)
+    {
+        /* does the entry matches the new name */
+        if (!strcmp(new_name, compat_table[i].new_name))
+            return compat_table[i].old_name;
+    }
+    return NULL;
+}
+
+/** check if the given field definition is in the next DB fields */
+static bool is_next_db_field(const char *field_def_name, char * const *curr_field,
+                             int *shift)
+{
+    *shift = 0;
+
+    curr_field++; /* start from next field */
+    while (*curr_field != NULL)
+    {
+        (*shift)++;
+        if (!strcmp(*curr_field, field_def_name))
+            return true;
+        curr_field++;
+    }
+    return false;
+}
+
+static inline void swap_db_fields(char **field_tab, int i1, int i2)
+{
+    char *tmp = field_tab[i1];
+
+    field_tab[i1] = field_tab[i2];
+    field_tab[i2] = tmp;
+}
+
 /** @return -1 on error, 0 if OK, 1 if conversion is required */
 static int check_field_name_type(const char *name, const char *type, int *curr_field_index,
-                                 char *table, char **fieldtab, char **typetab)
+                                 const char *table, char **fieldtab, char **typetab)
 {
     if (_check_field_name(name, curr_field_index, table, fieldtab) != 0)
         return -1;
@@ -488,7 +681,7 @@ static int check_field_name_type(const char *name, const char *type, int *curr_f
     return 0;
 }
 
-static inline int check_field(int i, int *curr_field_index, char *table, char **fieldtab)
+static inline int check_field(int i, int *curr_field_index, const char *table, char **fieldtab)
 {
     return check_field_name(field_name(i), curr_field_index, table, fieldtab);
 }
@@ -502,13 +695,159 @@ static inline int has_extra_field(int curr_field_index, const char *table,
         {
             if (warn)
                 DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                           "Incompatible database schema (unexpected field '%s'"
-                           " in table %s): " DROP_MESSAGE,
+                           "Database schema: extra field '%s' in table %s.",
                            fieldtab[curr_field_index], table);
             return true;
         }
         return false;
 }
+
+/** Check current field and fix the DB schema if 'alter_db' is specified */
+static int check_and_fix_field(db_conn_t *pconn,
+                               int def_index, int *db_index,
+                               table_enum table, char **fieldtab,
+                               const struct name_compat *compat_table,
+                               const char **last_field, bool allow_func_attr)
+{
+    int rc, shift;
+
+recheck:
+    if (check_field(def_index, db_index, table2name(table), fieldtab) == 0)
+    {
+        /* check_field should have increased db_index */
+        assert(*db_index > 0);
+        *last_field = fieldtab[*db_index-1];
+        /* OK */
+        return 0;
+    }
+
+    /*  field appending case (end of table) */
+    if (fieldtab[*db_index] == NULL)
+    {
+        rc = insert_field(pconn, table2name(table), def_index, NULL);
+        if (rc == DB_SUCCESS && rc == DB_NEED_ALTER)
+            /* NEED_ALTER: still update last_field to check other tables */
+            *last_field = field_name(def_index);
+
+        return rc;
+    }
+
+    DisplayLog(LVL_FULL, LISTMGR_TAG, "Checking if '%s' is renamed",
+               fieldtab[*db_index]);
+    /* convert renamed fields */
+    rc = check_renamed_db_field(pconn, table, def_index, fieldtab[*db_index],
+                                compat_table, allow_func_attr);
+    if (rc == 1 || rc == -DB_NEED_ALTER)
+    {
+        /* NEED_ALTER: still update last_field to check next fields and tables */
+        *last_field = field_name(def_index);
+        (*db_index) ++;
+        return rc == 1 ? 0 : -rc;
+    } else if (rc < 0)
+        /* DB error */
+        return -rc;
+
+    /* The current DB field is one of the next expected ones */
+    if (is_next_expected(table, fieldtab[*db_index], def_index,
+                            allow_func_attr, NULL))
+    {
+        int shift;
+
+        /* 2 cases:
+         * 1) fields have been shuffled: in this case,
+         *    the expected field is one of the next DB fields.
+         * 2) the expected field must be inserted.
+         */
+        if (is_next_db_field(field_name(def_index), fieldtab + *db_index, &shift))
+        {
+            DisplayLog(LVL_EVENT, LISTMGR_TAG,
+                       "Shuffled DB fields: avoid changing "
+                       "the order of policy definitions "
+                       "to avoid this warning.");
+            /* virtually swap the 2 field so that the related next field check
+             * will be OK */
+            swap_db_fields(fieldtab, *db_index, *db_index + shift);
+            /* current field is OK */
+            *last_field = fieldtab[*db_index];
+            (*db_index) ++;
+            return 0;
+        }
+
+        rc = insert_field(pconn, table2name(table), def_index, *last_field);
+        if (rc == DB_SUCCESS && rc == DB_NEED_ALTER)
+            /* NEED_ALTER: still update last_field to check other tables */
+            *last_field = field_name(def_index);
+
+        return rc; /* SUCCESS or NEED_ALTER */
+    }
+
+    /* If expected field in found later in the table, swap them
+     * and keep current DB field for later */
+    if (is_next_db_field(field_name(def_index), fieldtab + *db_index, &shift))
+    {
+        DisplayLog(LVL_FULL, LISTMGR_TAG, "'%s' is in next DB fields",
+                   field_name(def_index));
+        /* swap fields and keep current DB field for later */
+        swap_db_fields(fieldtab, *db_index, *db_index + shift);
+        /* current field is OK */
+        *last_field = fieldtab[*db_index];
+        (*db_index) ++;
+        return 0;
+    }
+
+    /* does this field has an old name ?*/
+    const char *old_name = get_old_name(compat_table, field_name(def_index));
+    if (old_name != NULL && is_next_db_field(old_name, fieldtab + *db_index, &shift))
+    {
+        /* swap and recheck */
+        swap_db_fields(fieldtab, *db_index, *db_index + shift);
+        goto recheck;
+    }
+
+    /* Expected field is not in DB => insert it */
+    rc = insert_field(pconn, table2name(table), def_index, *last_field);
+    if (rc == 0 || rc == DB_NEED_ALTER)
+        *last_field = field_name(def_index);
+    return rc;
+}
+
+/** drop extra fields at the end of a table */
+static int drop_extra_fields(db_conn_t *pconn, int curr_field_index,
+                             table_enum table, char **fieldtab)
+{
+    bool need_alter = false;
+    int rc = 0;
+
+    /* is there any extra field ? */
+    if (!has_extra_field(curr_field_index, table2name(table), fieldtab,
+                         !report_only))
+        return 0;
+
+    /* This is allowed, in particular for read-only case, if the report
+     * command don't have all policies defined in its configuration file. */
+    if (report_only)
+    {
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Warning: extra fields found in "
+                   "table %s: '%s'", table2name(table), fieldtab[curr_field_index]);
+        return need_alter ? DB_NEED_ALTER : 0;
+    }
+
+    while (fieldtab[curr_field_index] != NULL)
+    {
+        rc = drop_field(pconn, table2name(table), fieldtab[curr_field_index]);
+        if (rc != 0 && rc != DB_NEED_ALTER)
+            return rc;
+
+        if (rc == DB_NEED_ALTER)
+            need_alter = true;
+
+        curr_field_index ++;
+    }
+
+    return (rc == 0 && need_alter) ? DB_NEED_ALTER : rc;
+}
+
+
 
 /**
  * @param op_subs replacement for 'FLOOR(LOG2(<prefix>.size)/5)' (eg. local variable)
@@ -702,15 +1041,27 @@ static int create_table_vars(db_conn_t *pconn)
 }
 
 static struct name_compat main_name_compat[] = {
-    {"owner",   "uid"},
-    {"gr_name", "gid"},
+    {"owner",        "uid"},
+    {"gr_name",      "gid"},
+/* Lustre/HSM fields */
+    {"no_release",   "lhsm_norels"},
+    {"no_archive",   "lhsm_noarch"},
+
     {NULL,      NULL},
 };
+
+/* FIXME: these fields were in ANNEX_INFO */
+/*
+    {"last_archive", "lhsm_lstarc"},
+    {"last_restore", "lhsm_lstrst"},
+    {"archive_id",    "lhsm_archid"},
+*/
 
 static int check_table_main(db_conn_t *pconn)
 {
     char strbuf[4096];
     char *fieldtab[MAX_DB_FIELDS];
+    bool need_alter = false;
 
     int rc = db_list_table_fields(pconn, MAIN_TABLE, fieldtab, MAX_DB_FIELDS,
                                   strbuf, sizeof(strbuf));
@@ -718,49 +1069,33 @@ static int check_table_main(db_conn_t *pconn)
     {
         int i, cookie;
         int curr_field_index = 0;
+        const char *last = NULL;
 
         /* check primary key */
         if (check_field_name("id", &curr_field_index, MAIN_TABLE, fieldtab))
             return DB_BAD_SCHEMA;
+        last = "id";
 
         /* std fields + SM status + SM specific info */
         cookie = -1;
         while ((i = attr_index_iter(0, &cookie)) != -1)
         {
+            /* is this field part of MAIN_TABLE? */
             if (is_main_field(i) && !is_funcattr(i))
             {
-                if (check_field(i, &curr_field_index, MAIN_TABLE, fieldtab))
-                {
-                    /* convert renamed fields */
-                    rc = check_renamed_field(pconn, MAIN_TABLE, i,
-                                             fieldtab[curr_field_index],
-                                             main_name_compat);
-                    if (rc < 0)
-                        /* DB error */
-                        return -rc;
-                    else if (rc != 1)
-                        /* not a renamed field */
-                        return DB_BAD_SCHEMA;
-
-                    /* OK, renamed */
-                    curr_field_index ++;
-                }
+                rc = check_and_fix_field(pconn, i, &curr_field_index, T_MAIN,
+                                         fieldtab, main_name_compat, &last, false);
+                if (rc == DB_NEED_ALTER)
+                    need_alter = true;
+                    /* don't return immediately, to report about other fields */
+                else if (rc)
+                    return rc;
             }
         }
 
-        /* is there any extra field ? */
-        if (has_extra_field(curr_field_index, MAIN_TABLE, fieldtab, !report_only))
-        {
-            /* This is allowed, in particular for read-only case, if the report
-             * command don't have all policies defined in its configuration file. */
-            if (report_only)
-            {
-                DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Warning: extra fields found in "
-                           MAIN_TABLE" table: '%s'", fieldtab[curr_field_index]);
-                return 0;
-            }
-            return DB_BAD_SCHEMA;
-        }
+        rc = drop_extra_fields(pconn, curr_field_index, T_MAIN, fieldtab);
+        if (rc)
+            return rc;
     }
     else if (rc != DB_NOT_EXISTS)
     {
@@ -768,7 +1103,7 @@ static int check_table_main(db_conn_t *pconn)
                        "Error checking database schema: %s",
                        db_errmsg(pconn, strbuf, sizeof(strbuf)));
     }
-    return rc;
+    return (rc == 0 && need_alter) ? DB_NEED_ALTER : rc;
 }
 
 static int create_table_main(db_conn_t *pconn)
@@ -903,6 +1238,8 @@ static int check_table_annex(db_conn_t *pconn)
     int rc, i, cookie;
     char  strbuf[4096];
     char *fieldtab[MAX_DB_FIELDS];
+    const char *last = NULL;
+    bool need_alter = false;
 
     rc = db_list_table_fields(pconn, ANNEX_TABLE, fieldtab, MAX_DB_FIELDS,
                               strbuf, sizeof(strbuf));
@@ -914,20 +1251,23 @@ static int check_table_annex(db_conn_t *pconn)
         /* check primary key */
         if (check_field_name("id", &curr_field_index, ANNEX_TABLE, fieldtab))
             return DB_BAD_SCHEMA;
+        last = "id";
 
         cookie = -1;
         while ((i = attr_index_iter(0, &cookie)) != -1)
         {
             if (is_annex_field(i) && !is_funcattr(i))
             {
-                if (check_field(i, &curr_field_index, ANNEX_TABLE, fieldtab))
-                    return DB_BAD_SCHEMA;
+                rc = check_and_fix_field(pconn, i, &curr_field_index, T_ANNEX,
+                                         fieldtab, NULL, &last, false);
+                if (rc)
+                    return rc;
             }
         }
 
-        /* is there any extra field ? */
-        if (has_extra_field(curr_field_index, ANNEX_TABLE, fieldtab, true))
-            return DB_BAD_SCHEMA;
+        rc = drop_extra_fields(pconn, curr_field_index, T_ANNEX, fieldtab);
+        if (rc)
+            return rc;
     }
     else if (rc != DB_NOT_EXISTS)
     {
@@ -935,7 +1275,7 @@ static int check_table_annex(db_conn_t *pconn)
                        "Error checking database schema: %s",
                        db_errmsg(pconn, strbuf, sizeof(strbuf)));
     }
-    return rc;
+    return (rc == 0 && need_alter) ? DB_NEED_ALTER : rc;
 }
 
 static int create_table_annex(db_conn_t *pconn)
@@ -1132,6 +1472,31 @@ static void disable_acct(void)
     acct_attr_set = null_mask;
 }
 
+static int acct_drop_or_warn(db_conn_t *pconn)
+{
+    char strbuf[4096];
+    int  rc;
+
+    if (!alter_db)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG, "DB schema change detected: "
+                   "modification in "ACCT_TABLE" requires to drop and repopulate the table"
+                   " => Run 'robinhood --alter-db' to apply this change.");
+        return DB_NEED_ALTER;
+    }
+    DisplayLog(LVL_CRIT, LISTMGR_TAG, "DB schema change detected:"
+               " dropping and repopulating table "ACCT_TABLE);
+    rc = db_drop_component(pconn, DBOBJ_TABLE, ACCT_TABLE);
+    /* on success, return DB_NOT_EXISTS to re-create the table */
+    if (rc == DB_SUCCESS)
+        return DB_NOT_EXISTS;
+
+    DisplayLog(LVL_CRIT, LISTMGR_TAG,
+               "Failed to drop table: Error: %s",
+               db_errmsg(pconn, strbuf, sizeof(strbuf)));
+    return rc;
+}
+
 static int check_table_acct(db_conn_t *pconn)
 {
     int i, rc;
@@ -1144,6 +1509,7 @@ static int check_table_acct(db_conn_t *pconn)
     {
         int cookie;
         int curr_field_index = 0;
+        const char *last = NULL;
 
         /* When running daemon mode with accounting disabled: drop ACCT table,
          * else it may become inconsistent. */
@@ -1167,8 +1533,19 @@ static int check_table_acct(db_conn_t *pconn)
         {
             if (is_acct_pk(i))
             {
-                if (check_field(i, &curr_field_index, ACCT_TABLE, fieldtab))
-                    return DB_BAD_SCHEMA;
+                enum lmgr_init_flags save_flags = init_flags;
+
+                /* only shuffling is allowed in PK, no insert/drop */
+                /* => force no alter_db */
+                init_flags &= ~LIF_ALTER_DB;
+                rc = check_and_fix_field(pconn, i, &curr_field_index, T_ACCT_PK,
+                                         fieldtab, main_name_compat, &last, false);
+                init_flags = save_flags;
+                if (rc != 0 && rc != DB_NEED_ALTER)
+                    return rc;
+
+                if (rc == DB_NEED_ALTER)
+                    return acct_drop_or_warn(pconn);
             }
         }
         /* check other fields */
@@ -1177,13 +1554,15 @@ static int check_table_acct(db_conn_t *pconn)
         {
             if (is_acct_field(i))
             {
-                if (check_field(i, &curr_field_index, ACCT_TABLE, fieldtab))
-                    return DB_BAD_SCHEMA;
+                rc = check_and_fix_field(pconn, i, &curr_field_index, T_ACCT_VAL,
+                                         fieldtab, main_name_compat, &last, false);
+                if (rc)
+                    return rc;
             }
         }
         /* check count field*/
         if (check_field_name(ACCT_FIELD_COUNT, &curr_field_index, ACCT_TABLE, fieldtab))
-            return DB_BAD_SCHEMA;
+            return acct_drop_or_warn(pconn);
 
         /* check size range fields */
         /* based on log2(size/32) => 0 1 32 1K 32K 1M 32M 1G 32G 1T */
@@ -1193,21 +1572,11 @@ static int check_table_acct(db_conn_t *pconn)
                 return DB_BAD_SCHEMA;
         }
 
-        if (has_extra_field(curr_field_index, ACCT_TABLE, fieldtab, !report_only))
-        {
-            /* This is allowed, in particular for read-only case, if the report
-             * command don't have all policies defined in its configuration file. */
-            if (report_only)
-            {
-                DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Warning: extra fields found in "
-                           ACCT_TABLE" table: '%s'", fieldtab[curr_field_index]);
-                return 0;
-            }
-
-            return DB_BAD_SCHEMA;
-        }
+        rc = drop_extra_fields(pconn, curr_field_index, T_ACCT, fieldtab);
+        if (rc)
+            return rc;
     }
-    else if ( rc == DB_NOT_EXISTS )
+    else if (rc == DB_NOT_EXISTS)
     {
         if (report_only)
         {
@@ -1354,38 +1723,61 @@ static int check_table_softrm(db_conn_t *pconn)
     int rc, cookie;
     char  strbuf[4096];
     char *fieldtab[MAX_DB_FIELDS];
+    bool need_alter = false;
 
     rc = db_list_table_fields(pconn, SOFT_RM_TABLE, fieldtab, MAX_DB_FIELDS,
                               strbuf, sizeof(strbuf));
     if (rc == DB_SUCCESS)
     {
+        const char *last = NULL;
         int curr_index = 0;
         int i;
 
         /* check primary key */
         if (check_field_name("id", &curr_index, SOFT_RM_TABLE, fieldtab))
-            return DB_BAD_SCHEMA;
+        {
+            /* check old name 'fid' */
+            if (!strcmp("fid", fieldtab[0]))
+            {
+                if (!alter_db) {
+                    DisplayLog(LVL_CRIT, LISTMGR_TAG, "DB schema change detected: "
+                               "field '%s.%s' renamed to '%s.%s' "
+                               " => Run 'robinhood --alter-db' to apply this change.",
+                               SOFT_RM_TABLE, "fid",
+                               SOFT_RM_TABLE, "id");
+                    need_alter = true;
+                }
+                else
+                {
+                    rc = change_id_field(pconn, SOFT_RM_TABLE, "fid", "id");
+                    if (rc)
+                        return rc;
+                    curr_index++;
+                }
+            }
+            else
+                return DB_BAD_SCHEMA;
+        }
+        last = "id";
 
         cookie = -1;
         while ((i = attr_index_iter(0, &cookie)) != -1)
         {
-            if (is_softrm_field(i)) /* no func attr in softrm table */
+            if (is_softrm_field(i))
             {
-                if (check_field(i, &curr_index, SOFT_RM_TABLE, fieldtab))
-                    return DB_BAD_SCHEMA;
+                rc = check_and_fix_field(pconn, i, &curr_index, T_SOFTRM,
+                                         fieldtab, main_name_compat, &last, true);
+                if (rc == DB_NEED_ALTER)
+                    need_alter = true;
+                    /* don't return immediately, to report about other fields */
+                else if (rc)
+                    return rc;
             }
         }
-        /* is there any extra field ? */
-        if (has_extra_field(curr_index, SOFT_RM_TABLE, fieldtab, !report_only))
-        {
-            if (report_only) {
-                /* This may happen if not all policies are defined in a report command. */
-                DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Warning: extra fields found in "
-                           SOFT_RM_TABLE" table: '%s'", fieldtab[curr_index]);
-                return 0;
-            }
-            return DB_BAD_SCHEMA;
-        }
+
+        rc = drop_extra_fields(pconn, curr_index, T_SOFTRM, fieldtab);
+        if (rc)
+            return rc;
     }
     else if (rc != DB_NOT_EXISTS)
     {
@@ -1393,7 +1785,7 @@ static int check_table_softrm(db_conn_t *pconn)
                    "Error checking database schema: %s",
                    db_errmsg(pconn, strbuf, sizeof(strbuf)));
     }
-    return rc;
+    return (rc == 0 && need_alter) ? DB_NEED_ALTER : rc;
 }
 
 static int create_table_softrm(db_conn_t *pconn)
@@ -2033,7 +2425,7 @@ static const dbobj_descr_t  o_list[] = {
  * Initialize the database access module and
  * check and create the schema.
  */
-int ListMgr_Init(bool report_access_only)
+int ListMgr_Init(enum lmgr_init_flags flags)
 {
     int            rc;
     db_conn_t      conn;
@@ -2042,7 +2434,7 @@ int ListMgr_Init(bool report_access_only)
     bool create_all_triggers = false;
 
     /* store the parameter as a global variable */
-    report_only = report_access_only;
+    init_flags = flags;
 
     /* initialize attr masks for each table */
     init_attrset_masks(&lmgr_config);
@@ -2098,6 +2490,15 @@ int ListMgr_Init(bool report_access_only)
                         goto close_conn;
                 }
                 break;
+
+            case DB_NEED_ALTER:
+                if (report_only)
+                    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "WARNING: ALTER required on %s %s",
+                               dbobj2str(o->o_type), o->o_name);
+                else
+                    goto close_conn;
+                break;
+
             default: /* error */
                 goto close_conn;
         }
