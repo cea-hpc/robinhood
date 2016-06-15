@@ -60,6 +60,7 @@ static time_t  boot_time;
 #define RUN_POLICIES      266
 #define TGT_USAGE         267
 #define FORCE_ALL         268
+#define ALTER_DB          269
 
 /* deprecated params */
 #define FORCE_OST_PURGE   270
@@ -73,7 +74,6 @@ static time_t  boot_time;
 #define MIGR_ONE_FILE     284
 
 #define DEPRECATED_WM     290
-
 
 #define ACTION_MASK_SCAN                0x00000001
 #define ACTION_MASK_PURGE               0x00000002
@@ -131,6 +131,8 @@ static struct option option_tab[] = {
     {"detach", no_argument, NULL, 'd'},
     {"no-limit", no_argument, NULL, NO_LIMIT},
     {"no-gc", no_argument, NULL, NO_GC},
+    {"alter-db", no_argument, NULL, ALTER_DB},
+    {"alterdb", no_argument, NULL, ALTER_DB},
     /* generic policies equivalent for --sync: alias to --once --no-limit --ignore-conditions --force */
     {"force-all", no_argument, NULL, FORCE_ALL},
     {"forceall", no_argument, NULL, FORCE_ALL},
@@ -213,6 +215,7 @@ typedef struct rbh_options {
     double         usage_target; /* set -1.0 if not set */
 
     int            mdtidx;
+    enum lmgr_init_flags db_flags;
 
 } rbh_options;
 
@@ -325,7 +328,9 @@ static const char *behavior_help =
     "    " _B "-O" B_ ", " _B "--once" B_ "\n"
     "        Perform only one pass of the specified action and exit.\n"
     "    " _B "-d" B_ ", " _B "--detach" B_ "\n"
-    "        Daemonize the process (detach from parent process).\n";
+    "        Daemonize the process (detach from parent process).\n"
+    "    " _B "--alter-db" B_ "\n"
+    "        Allow database schema modifications (backup your DB before using this).\n";
 
 static const char *config_help =
     _B "Config file options:" B_ "\n"
@@ -1108,6 +1113,9 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
         case 'd':
             opt->detach = true;
             break;
+        case ALTER_DB:
+            opt->db_flags |= LIF_ALTER_DB;
+            break;
         case 'f':
             rh_strncpy(opt->config_file, optarg, MAX_OPT_LEN);
             break;
@@ -1817,10 +1825,11 @@ int main(int argc, char **argv)
         DisplayLog(LVL_VERB, MAIN_TAG, "Signal handler thread started successfully");
 
     /* Initialize list manager */
-    rc = ListMgr_Init(false);
+    rc = ListMgr_Init(options.db_flags);
     if (rc)
     {
-        DisplayLog(LVL_CRIT, MAIN_TAG, "Error %d initializing list manager", rc);
+        DisplayLog(LVL_CRIT, MAIN_TAG, "Error initializing list manager: %s (%d)",
+                   lmgr_err2str(rc), rc);
         exit(rc);
     }
     else
