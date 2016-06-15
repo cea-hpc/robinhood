@@ -2889,11 +2889,12 @@ int main( int argc, char **argv )
                     global_config.fs_path, strerror(abs(rc)));
 
     /* Initialize list manager */
-    rc = ListMgr_Init(true);
-    if ( rc )
+    rc = ListMgr_Init(LIF_REPORT_ONLY);
+    if (rc)
     {
-        DisplayLog( LVL_CRIT, REPORT_TAG, "Error %d initializing list manager", rc );
-        exit( rc );
+        DisplayLog(LVL_CRIT, REPORT_TAG, "Error initializing list manager: %s (%d)",
+                   lmgr_err2str(rc), rc);
+        exit(rc);
     }
     else
         DisplayLog( LVL_DEBUG, REPORT_TAG, "ListManager successfully initialized" );

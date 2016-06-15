@@ -213,7 +213,7 @@ fi
 
 PROC=$CMD
 
-CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log rh_syntax.log recov.log rh_scan.log /tmp/rh_alert.log rh_rmdir.log"
+CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log rh_syntax.log recov.log rh_scan.log /tmp/rh_alert.log rh_rmdir.log rh.log"
 
 SUMMARY="/tmp/test_${PROC}_summary.$$"
 
@@ -1591,6 +1591,18 @@ function test_lhsm_remove
     fi
 }
 
+function populate
+{
+	local entries=$1
+	local i
+	for i in `seq 1 $entries`; do
+		((dir_c=$i % 10))
+		((subdir_c=$i % 100))
+		dir=$RH_ROOT/dir.$dir_c/subdir.$subdir_c
+		mkdir -p $dir || error "creating directory $dir"
+		echo "file.$i" > $dir/file.$i || error "creating file $dir/file.$i"
+	done
+}
 
 
 function mass_softrm
@@ -1610,13 +1622,7 @@ function mass_softrm
 
 	# populate filesystem
 	echo "1-Populating filesystem..."
-	for i in `seq 1 $entries`; do
-		((dir_c=$i % 10))
-		((subdir_c=$i % 100))
-		dir=$RH_ROOT/dir.$dir_c/subdir.$subdir_c
-		mkdir -p $dir || error "creating directory $dir"
-		echo "file.$i" > $dir/file.$i || error "creating file $dir/file.$i"
-	done
+	populate $entries
 
 	# how many subdirs in dir.1?
 	nbsubdirs=$( ls $RH_ROOT/dir.1 | grep subdir | wc -l )
@@ -5332,6 +5338,165 @@ function posix_acmtime
     [[ $crtime = $newcrtime ]] || error "creation time has changed"
 
     export RBH_TEST_LAST_ACCESS_ONLY_ATIME=${org_RBH_TEST_LAST_ACCESS_ONLY_ATIME}
+}
+
+# test various scenarios of DB schema changes
+function db_schema_convert
+{
+    local schema25=$RBH_CFG_DIR/rbh25.sql
+    local cfg1=$RBH_CFG_DIR/test1.conf
+    local cfg2=$RBH_CFG_DIR/test_checker.conf
+    local cfg3=$RBH_CFG_DIR/test_checker_invert.conf
+
+    mysql $RH_DB < $schema25 || error "importing DB schema"
+
+    local nbent=100
+    populate $nbent
+
+    :> rh.log
+    echo "rbh-report"
+    # run rbhv3 report
+    $REPORT -f $cfg1 -i -l FULL 2>&1 > rh.log
+    [ "$DEBUG" = "1" ] && cat rh.log
+
+    # robinhood should have suggested to run '--alter-db'
+    grep "Run 'robinhood --alter-db'" rh.log || error "robinhood should have reported DB schema changes"
+
+    # no ALTER TABLE expected
+    grep "ALTER TABLE" rh.log && error "no ALTER TABLE expected"
+
+    :> rh.log
+    echo "robinhood (no alter-db)"
+    # run a simple rbhv3 over this initial schema
+    $RH -f $cfg1 --scan --once -l FULL -L rh.log
+
+    # robinhood should have suggested to run '--alter-db'
+    grep "Run 'robinhood --alter-db'" rh.log || error "robinhood should have reported DB schema changes"
+
+    # no ALTER TABLE expected
+    grep "ALTER TABLE" rh.log && error "no ALTER TABLE expected"
+
+    :> rh.log
+    echo "robinhood --alter-db"
+    # run alter DB on initial schema
+    $RH -f $cfg1 --alter-db -l FULL -L rh.log
+
+    [ "$DEBUG" = "1" ] && cat rh.log
+    grep "ALTER TABLE" rh.log || error "ALTER TABLE expected"
+
+    # after alter, no more DB change should be reported
+    :> rh.log
+
+    echo "robinhood on converted DB"
+    $RH -f $cfg1 --scan --once -l VERB -L rh.log
+    grep "DB schema change detected" rh.log && error "DB should be right"
+    check_db_error rh.log
+    [ "$DEBUG" = "1" ] && cat rh.log
+    :> rh.log
+    $REPORT -f $cfg1 -i > rh.log || error "Report should succeed"
+    grep "Run 'robinhood --alter-db'" rh.log && error "DB should be right"
+    [ "$DEBUG" = "1" ] && cat rh.log
+    config_file=$(basename $cfg1) check_fcount $nbent
+
+    # now use cfg2
+    :> rh.log
+    echo "cfg2: robinhood (no alter-db)"
+    # run a simple rbhv3 over this initial schema
+    $RH -f $cfg2 --scan --once -l FULL -L rh.log
+
+    # robinhood should have suggested to run '--alter-db'
+    grep "Run 'robinhood --alter-db'" rh.log || error "robinhood should have reported DB schema changes"
+
+    # no ALTER TABLE expected
+    grep "ALTER TABLE" rh.log && error "no ALTER TABLE expected"
+
+    :> rh.log
+    echo "cfg2: robinhood --alter-db"
+    # run alter DB on initial schema
+    $RH -f $cfg2 --alter-db -l FULL -L rh.log
+
+    [ "$DEBUG" = "1" ] && cat rh.log
+    grep "ALTER TABLE" rh.log || error "ALTER TABLE expected"
+
+    # after alter, no more DB change should be reported
+    :> rh.log
+    echo "cfg2: robinhood on converted DB"
+    $RH -f $cfg2 --scan --once -l VERB -L rh.log
+    grep "DB schema change detected" rh.log && error "DB should be right"
+    check_db_error rh.log
+    [ "$DEBUG" = "1" ] && cat rh.log
+    :> rh.log
+    $REPORT -f $cfg2 -i > rh.log || error "Report should succeed"
+    grep "Run 'robinhood --alter-db'" rh.log && error "DB should be right"
+    [ "$DEBUG" = "1" ] && cat rh.log
+    config_file=$(basename $cfg2) check_fcount $nbent
+
+    # now test inversion with cfg3
+    :> rh.log
+    echo "cfg3: robinhood (no alter-db)"
+    # run a simple rbhv3 over this initial schema
+    $RH -f $cfg3 --scan --once -l FULL -L rh.log
+
+    # robinhood must report field shuffling
+    grep "Shuffled DB fields" rh.log || error "lismgr should report shuffled fields"
+    # alter is only required for the ACCT_STAT table
+    grep "Run 'robinhood --alter-db'" rh.log | grep -v "modification in ACCT_STAT" && error "lismgr should deal with field shuffling"
+    # no ALTER TABLE expected
+    grep "ALTER TABLE" rh.log && error "no ALTER TABLE expected"
+
+    :> rh.log
+    # scan successful?
+    echo "cfg3: scan"
+    $RH -f $cfg3 --scan --once --alter-db -l MAJOR -L rh.log || error "scan failed"
+    grep "FS Scan finished" rh.log || error "Scan failed?"
+    # DB errors reported during scan?
+    check_db_error rh.log
+
+    # report should work
+    echo "cfg3: report"
+    $REPORT -f $cfg3 -i -l FULL 2>&1 > rh.log || error "Report should work"
+    grep "Run 'robinhood --alter-db'" rh.log && error "DB should be right"
+    [ "$DEBUG" = "1" ] && cat rh.log
+    config_file=$(basename $cfg3) check_fcount $nbent
+
+    # back to cfg1
+    echo "cfg1: report"
+    $REPORT -f $cfg1 -i -l FULL 2>&1 > rh.log || error "Report should work"
+    [ "$DEBUG" = "1" ] && cat rh.log
+    grep "Run 'robinhood --alter-db'" rh.log | grep -v "modification in ACCT_STAT" && error "report should deal with policy removal"
+    config_file=$(basename $cfg1) check_fcount $nbent
+
+    :> rh.log
+    echo "cfg1: robinhood (no alter-db)"
+    # run a simple rbhv3 over this initial schema
+    $RH -f $cfg1 --scan --once -l FULL -L rh.log
+
+    # robinhood should have suggested to run '--alter-db'
+    grep "Run 'robinhood --alter-db'" rh.log || error "robinhood should have reported DB schema changes"
+
+    # no ALTER TABLE expected
+    grep "ALTER TABLE" rh.log && error "no ALTER TABLE expected"
+
+    :> rh.log
+    echo "cfg1: robinhood --alter-db"
+    # run alter DB on initial schema
+    $RH -f $cfg1 --alter-db -l FULL -L rh.log
+
+    [ "$DEBUG" = "1" ] && cat rh.log
+    grep "ALTER TABLE" rh.log || error "ALTER TABLE expected"
+
+    # after alter, no more DB change should be reported
+    :> rh.log
+    echo "cfg1: robinhood on converted DB"
+    $RH -f $cfg1 --scan --once -l FULL -L rh.log
+    grep "DB schema change detected" rh.log && error "DB should be right"
+    check_db_error rh.log
+    [ "$DEBUG" = "1" ] && cat rh.log
+    :> rh.log
+    $REPORT -f $cfg1 -i > rh.log || error "Report should succeed"
+    grep "Run 'robinhood --alter-db'" rh.log && error "DB should be right"
+    [ "$DEBUG" = "1" ] && cat rh.log
+    config_file=$(basename $cfg1) check_fcount $nbent
 }
 
 function check_status_count
@@ -11188,6 +11353,7 @@ runtest_118
 
 run_test 119 uid_gid_as_numbers uidgidnum.conf "Store UIDs and GIDs as numbers"
 run_test 120 posix_acmtime common.conf "Test for posix ctimes"
+run_test 121 db_schema_convert "" "Test DB schema conversion"
 
 #### policy matching tests  ####
 

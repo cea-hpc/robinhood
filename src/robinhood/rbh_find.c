@@ -1671,10 +1671,11 @@ int main(int argc, char **argv)
                 global_config.fs_path, strerror(abs(rc)));
 
     /* Initialize list manager (report only) */
-    rc = ListMgr_Init(true);
+    rc = ListMgr_Init(LIF_REPORT_ONLY);
     if (rc)
     {
-        DisplayLog(LVL_CRIT, FIND_TAG, "Error %d initializing list manager", rc);
+        DisplayLog(LVL_CRIT, FIND_TAG, "Error initializing list manager: %s (%d)",
+                   lmgr_err2str(rc), rc);
         exit(rc);
     }
     else
