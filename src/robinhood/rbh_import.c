@@ -529,10 +529,11 @@ int main( int argc, char **argv )
         exit(rc);
 
     /* Initialize list manager */
-    rc = ListMgr_Init(&config.lmgr_config, false);
+    rc = ListMgr_Init(0);
     if ( rc )
     {
-        DisplayLog( LVL_CRIT, LOGTAG, "Error %d initializing list manager", rc );
+        DisplayLog(LVL_CRIT, LOGTAG, "Error initializing list manager: %s (%d)",
+                   lmgr_err2str(rc), rc);
         exit( rc );
     }
     else
