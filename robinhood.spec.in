@@ -136,7 +136,7 @@ Tools for MDS recovery.
 %package tests
 Summary: Test suite for Robinhood
 Group: Applications/System
-Requires: robinhood robinhood-adm
+Requires: robinhood robinhood-adm bc
 Release: @RELEASE@.noarch
 
 %description tests
