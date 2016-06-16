@@ -16,6 +16,24 @@
       "revId": "e1563e83fa3c743ef83556aa2a42bfc599dd52b6",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_68b5dece",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1088,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-06-16T08:09:13Z",
+      "side": 1,
+      "message": "Hmm this is going to need heavy machinery then (rwlock like other log functions I guess)...\n\nWould probably better to add some code in rbh_logs.c for it and have a DisplayChangelog function there instead of duplicating the feature ?\n(That\u0027ll move the config option from ChangeLog {dump_file} to Log { Changelog_file } though, unsure if it\u0027s possible to keep compat config-wise)",
+      "parentUuid": "baa041b7_6804bec5",
+      "revId": "e1563e83fa3c743ef83556aa2a42bfc599dd52b6",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
