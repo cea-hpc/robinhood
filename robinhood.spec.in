@@ -209,6 +209,7 @@ install -m 444 scripts/robinhood@.service $RPM_BUILD_ROOT/%{_unitdir}/robinhood@
 %else
 %post posix
 %endif
+/sbin/ldconfig
 %if %{defined suse_version}
 %service_add_post robinhood.service robinhood@.service
 %else
