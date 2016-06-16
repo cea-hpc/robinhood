@@ -5087,14 +5087,15 @@ function uid_gid_as_numbers
     egrep --quiet "\s3476576,\s+0,.*/file5" rh_report.log || error "bad for file5"
 
     $REPORT -f $RBH_CFG_DIR/$config_file --top-user > rh_report.log
-    grep --quiet "1,    3476576,   97.66 KB,        512,          1,   97.66 KB" rh_report.log || error "bad top user1"
-    grep --quiet "2,          0,    9.78 KB,    1.00 KB,          2,    4.89 KB" rh_report.log || error "bad top user3"
-    grep --quiet "3,    7856568,       1000,        512,          1,       1000" rh_report.log || error "bad top user3"
-    grep --quiet "4,         12,        100,        512,          1,        100" rh_report.log || error "bad top user3"
+    # spc used (4th field) depends on filesystem preallocation algorithm: don't rely on it.
+    grep --quiet -e "1,    3476576,   97.66 KB, [^,]*,[ ]* 1,   97.66 KB" rh_report.log || error "bad top user1"
+    grep --quiet -e "2,          0,    9.78 KB, [^,]*,[ ]* 2,    4.89 KB" rh_report.log || error "bad top user3"
+    grep --quiet -e "3,    7856568,       1000, [^,]*,[ ]* 1,       1000" rh_report.log || error "bad top user3"
+    grep --quiet -e "4,         12,        100, [^,]*,[ ]* 1,        100" rh_report.log || error "bad top user3"
 
     $REPORT -f $RBH_CFG_DIR/$config_file --top-size > rh_report.log
-    grep --quiet "1,                        /mnt/lustre/file5,   97.66 KB,    3476576," rh_report.log || error "bad top size1"
-    grep --quiet "5,                        /mnt/lustre/file1,         10,          0," rh_report.log || error "bad top size2"
+    grep --quiet -e "1, [ ]* $RH_ROOT/file5,   97.66 KB,    3476576," rh_report.log || error "bad top size1"
+    grep --quiet -e "5, [ ]* $RH_ROOT/file1,         10,          0," rh_report.log || error "bad top size2"
 
     $REPORT -f $RBH_CFG_DIR/$config_file --dump > rh_report.log
     grep --quiet "file,       1000,    7856568,     345654,.*/file3" rh_report.log || error "bad dump1"
@@ -5197,12 +5198,12 @@ function uid_gid_as_numbers
 
     echo "5-Check rbh-find with printf"
     $FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT -printf "%p:%g:%u\n" > find.out
-    grep --quiet "/mnt/lustre:0:0" find.out
-    grep --quiet "/mnt/lustre/file1:0:0" find.out || error "bad for file1"
-    grep --quiet "/mnt/lustre/file2:16:12" find.out || error "bad for file2"
-    grep --quiet "/mnt/lustre/file3:345654:7856568" find.out || error "bad for file3"
-    grep --quiet "/mnt/lustre/file4:645767:0" find.out || error "bad for file4"
-    grep --quiet "/mnt/lustre/file5:0:3476576" find.out || error "bad for file5"
+    grep --quiet "$RH_ROOT:0:0" find.out
+    grep --quiet "$RH_ROOT/file1:0:0" find.out || error "bad for file1"
+    grep --quiet "$RH_ROOT/file2:16:12" find.out || error "bad for file2"
+    grep --quiet "$RH_ROOT/file3:345654:7856568" find.out || error "bad for file3"
+    grep --quiet "$RH_ROOT/file4:645767:0" find.out || error "bad for file4"
+    grep --quiet "$RH_ROOT/file5:0:3476576" find.out || error "bad for file5"
 
     echo "6-Check rbh-du"
     # Each file has a precise size, so we know what the result in
