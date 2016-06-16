@@ -562,7 +562,7 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
             break;
 
         case 'p':
-            printf(format, ATTR(attrs, fullpath));
+            printf(format, id->fullname);
             break;
 
         case 's':
