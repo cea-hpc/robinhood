@@ -7615,10 +7615,12 @@ function test_rbh_find_printf
 
     # create a file
     echo "1-Creating file..."
-    rm -f $RH_ROOT/testf
-    dd if=/dev/zero of=$RH_ROOT/testf bs=1k count=1 >/dev/null 2>/dev/null || error "writing file"
+    local srcfile=$RH_ROOT/test_printf/testf
+    rm -f $srcfile
+    mkdir -p $RH_ROOT/test_printf/
+    dd if=/dev/zero of=$srcfile bs=1k count=1 >/dev/null 2>/dev/null || error "writing file"
 
-    local fid=$(get_id "$RH_ROOT/testf")
+    local fid=$(get_id "$srcfile")
 
     if (( $no_log )); then
         echo "2-Scanning..."
@@ -7631,9 +7633,9 @@ function test_rbh_find_printf
 
     if (( $is_lhsm != 0 )); then
         echo "3-Archiving the files"
-        $LFS hsm_archive $RH_ROOT/testf || error "executing lfs hsm_archive"
+        $LFS hsm_archive $srcfile || error "executing lfs hsm_archive"
 
-        wait_hsm_state $RH_ROOT/testf 0x00000009
+        wait_hsm_state $srcfile 0x00000009
 
 	echo "4-Reading changelogs..."
 	$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
@@ -7642,7 +7644,7 @@ function test_rbh_find_printf
 
     echo "5-rbh-find checks"
 
-    # Basic functionnality
+    # Basic functionality
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "")
     [[ $STR == "" ]] || error "unexpected rbh-find result (001): $STR"
 
@@ -7650,16 +7652,16 @@ function test_rbh_find_printf
     [[ $STR == "some string" ]] || error "unexpected rbh-find result (002): $STR"
 
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "some string %p")
-    [[ $STR == "some string $RH_ROOT/testf" ]] || error "unexpected rbh-find result (003): $STR"
+    [[ $STR == "some string $srcfile" ]] || error "unexpected rbh-find result (003): $STR"
 
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "some string %p after")
-    [[ $STR == "some string $RH_ROOT/testf after" ]] || error "unexpected rbh-find result (004): $STR"
+    [[ $STR == "some string $srcfile after" ]] || error "unexpected rbh-find result (004): $STR"
 
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "X%%Y")
     [[ $STR == "X%Y" ]] || error "unexpected rbh-find result (005): $STR"
 
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "some string %%%p after")
-    [[ $STR == "some string %$RH_ROOT/testf after" ]] || error "unexpected rbh-find result (006): $STR"
+    [[ $STR == "some string %$srcfile after" ]] || error "unexpected rbh-find result (006): $STR"
 
     # Test each directive
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "blocks=%b")
@@ -7681,7 +7683,7 @@ function test_rbh_find_printf
     [[ $STR == "nlinks: 1" ]] || error "unexpected rbh-find result (105): $STR"
 
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%p\n")
-    [[ $STR == "$RH_ROOT/testf" ]] || error "unexpected rbh-find result (106): $STR"
+    [[ $STR == "$srcfile" ]] || error "unexpected rbh-find result (106): $STR"
 
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "size %s\n")
     [[ $STR == "size 1024" ]] || error "unexpected rbh-find result (107): $STR"
@@ -7697,6 +7699,24 @@ function test_rbh_find_printf
 
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "short type %y\n")
     [[ $STR == "short type f" ]] || error "unexpected rbh-find result (111): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%p\n")
+    [[ $STR == "$srcfile" ]] || error "unexpected rbh-find result (112): $STR"
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%f\n")
+    [[ $STR == "testf" ]] || error "unexpected rbh-find result (113): $STR"
+
+    STR=$($FIND $RH_ROOT/ -nobulk -type f -f $RBH_CFG_DIR/$config_file -printf "%p\n")
+    [[ $STR == "$srcfile" ]] || error "unexpected rbh-find result (114): $STR"
+
+    STR=$($FIND $RH_ROOT/ -nobulk -type f -f $RBH_CFG_DIR/$config_file -printf "%f\n")
+    [[ $STR == "testf" ]] || error "unexpected rbh-find result (115): $STR"
+
+    STR=$($FIND $RH_ROOT/test_printf -type f -f $RBH_CFG_DIR/$config_file -printf "%p\n")
+    [[ $STR == "$srcfile" ]] || error "unexpected rbh-find result (116): $STR"
+
+    STR=$($FIND $RH_ROOT/test_printf -type f -f $RBH_CFG_DIR/$config_file -printf "%f\n")
+    [[ $STR == "testf" ]] || error "unexpected rbh-find result (117): $STR"
 
     # Test each Robinhood sub-directive
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf " %Rc rh class\n")
@@ -7753,7 +7773,7 @@ function test_rbh_find_printf
 
     # Test various combinations
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "FILE %p %s %Y %y %Rc %u %n and stop\n")
-    [[ $STR == "FILE $RH_ROOT/testf 1024 file f [n/a] $root_str 1 and stop" ]] || error "unexpected rbh-find result (300): $STR"
+    [[ $STR == "FILE $srcfile 1024 file f [n/a] $root_str 1 and stop" ]] || error "unexpected rbh-find result (300): $STR"
 
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%s\t%d\t%y")
     [[ $STR == "1024	0	f" ]] || error "unexpected rbh-find result (301): $STR"
