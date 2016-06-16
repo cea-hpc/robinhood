@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_6804bec5",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1088,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-16T06:37:16Z",
+      "side": 1,
+      "message": "Is this function thread-safe? (it doesn\u0027t look so).\n\nThere may be several changelog reader threads in the case of a DNE configuration!",
+      "revId": "e1563e83fa3c743ef83556aa2a42bfc599dd52b6",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
