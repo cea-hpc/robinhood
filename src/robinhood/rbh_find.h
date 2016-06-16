@@ -69,6 +69,8 @@ struct find_opt
     unsigned int lsstatus:1;
     unsigned int print:1;
     unsigned int printf:1;
+    unsigned int escaped:1;
+
     /* condition flags */
     unsigned int match_user:1;
     unsigned int match_group:1;
@@ -99,6 +101,7 @@ struct find_opt
     unsigned int exec:1;
 
 };
+extern struct find_opt prog_options;
 
 const char *type2char(const char *type);
 const char type2onechar(const char *type);
