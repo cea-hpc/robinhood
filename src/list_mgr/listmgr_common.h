@@ -590,9 +590,10 @@ void separated_db2list_inplace(char *list);
 
 static inline const char *field_name(unsigned int index)
 {
-    if (is_std_attr(index))
+    if (is_std_attr(index)) {
+        assert(index < ATTR_COUNT);
         return field_infos[index].field_name;
-    else if (is_status(index))
+    } else if (is_status(index))
         return get_sm_instance(attr2status_index(index))->db_field;
     else if (is_sm_info(index))
         return sm_attr_info[attr2sminfo_index(index)].db_attr_name;
@@ -602,9 +603,10 @@ static inline const char *field_name(unsigned int index)
 
 static inline db_type_e field_type(unsigned int index)
 {
-    if (is_std_attr(index)) /* ensure index < ATTR_COUNT */
+    if (is_std_attr(index)) { /* ensure index < ATTR_COUNT */
+        assert(index < ATTR_COUNT);
         return field_infos[index].db_type;
-    else if (is_status(index))
+    } else if (is_status(index))
         return DB_TEXT;
     else if (is_sm_info(index))
         return sm_attr_info[attr2sminfo_index(index)].def->db_type;
