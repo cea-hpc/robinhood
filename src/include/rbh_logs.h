@@ -45,6 +45,8 @@ typedef struct log_config__
     char           alert_mail[256];
     char           alert_file[RBH_PATH_MAX];
 
+    char           changelogs_file[RBH_PATH_MAX];
+
     int            syslog_facility;
     int            syslog_priority;
 
@@ -135,6 +137,11 @@ void vDisplayLogFn(log_level debug_level, const char *tag, const char *format,
 /* Displays a line in the report file */
 void           DisplayReport( const char *format, ... )
                     __attribute__((format(printf, 1, 2))); /* 1=format 2=params */
+
+#ifdef HAVE_CHANGELOGS
+void           DisplayChangelogs( const char *format, ... )
+                    __attribute__((format(printf, 1, 2))); /* 1=format 2=params */
+#endif
 
 /* Displays a line in the alert file / send a mail */
 void           RaiseAlert( const char *title, const char *format, ... )

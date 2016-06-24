@@ -84,6 +84,9 @@ typedef struct _log_stream_
 static log_stream_t log     = RBH_LOG_INITIALIZER;
 static log_stream_t report  = RBH_LOG_INITIALIZER;
 static log_stream_t alert   = RBH_LOG_INITIALIZER;
+#ifdef HAVE_CHANGELOGS
+static log_stream_t chglogs = RBH_LOG_INITIALIZER;
+#endif
 
 /* syslog info */
 static bool syslog_opened = false;
@@ -346,6 +349,15 @@ int InitializeLogs(const char *program_name)
             return rc;
     }
 
+#ifdef HAVE_CHANGELOGS
+    if (!EMPTY_STRING(log_config.changelogs_file))
+    {
+        rc = init_log_descr(log_config.changelogs_file, &chglogs);
+        if (rc)
+            return rc;
+    }
+#endif
+
     /* Update log level for external components we get logs from (LLAPI...) */
     rbh_adjust_log_level_external();
 
@@ -383,6 +395,9 @@ void FlushLogs( void )
     flush_log_descr( &log );
     flush_log_descr( &report );
     flush_log_descr( &alert );
+#ifdef HAVE_CHANGELOGS
+    flush_log_descr( &chglogs );
+#endif
 }
 
 
@@ -441,6 +456,11 @@ static void test_file_names( void )
 
     if ( !EMPTY_STRING( log_config.alert_file ) )
         test_log_descr( log_config.alert_file, &alert );
+
+#ifdef HAVE_CHANGELOGS
+    if ( !EMPTY_STRING( log_config.changelogs_file ) )
+        test_log_descr( log_config.changelogs_file, &chglogs );
+#endif
 }
 
 
@@ -621,6 +641,20 @@ void DisplayReport( const char *format, ... )
 
 } /* DisplayReport */
 
+#ifdef HAVE_CHANGELOGS
+void DisplayChangelogs( const char *format, ... )
+{
+    va_list        args;
+
+    /* Bail out if no file defined */
+    if (EMPTY_STRING(log_config.changelogs_file))
+        return;
+
+    va_start( args, format );
+    display_line_log( &chglogs, NULL, format, args );
+    va_end( args );
+}
+#endif
 
 void Alert_StartBatching()
 {
@@ -970,6 +1004,10 @@ static void log_cfg_set_default(void *module_config)
     rh_strncpy(conf->alert_file, "/var/log/robinhood_alerts.log", 1024);
     conf->alert_mail[0] = '\0';
 
+#ifdef HAVE_CHANGELOGS
+    conf->changelogs_file[0] = '\0';
+#endif
+
     conf->syslog_facility = LOG_LOCAL1;
     conf->syslog_priority = LOG_INFO;
 
@@ -1016,6 +1054,11 @@ static void log_cfg_write_template(FILE * output)
     print_line(output, 1, "alert_file = \"/var/log/robinhood_alerts.log\" ;");
     print_line(output, 1, "alert_mail = \"root@localhost\" ;");
     fprintf(output, "\n");
+#ifdef HAVE_CHANGELOGS
+    print_line(output, 1, "# File to dump changelogs into");
+    print_line(output, 1, "changelogs_file = \"/var/log/robinhood_cl.log\"");
+#endif
+    fprintf(output, "\n");
     print_line(output, 1, "# Interval for dumping stats (to logfile)");
     print_line(output, 1, "stats_interval = 20min ;");
     fprintf(output, "\n");
@@ -1045,6 +1088,9 @@ static int log_cfg_read(config_file_t config, void *module_config, char *msg_out
     static const char *allowed_params[] = { "debug_level", "log_file", "report_file",
         "alert_file", "alert_mail", "stats_interval", "batch_alert_max",
         "alert_show_attrs", "syslog_facility", "log_procname", "log_hostname",
+#ifdef HAVE_CHANGELOGS
+        "changelogs_file",
+#endif
         NULL
     };
 
@@ -1058,6 +1104,11 @@ static int log_cfg_read(config_file_t config, void *module_config, char *msg_out
             conf->alert_file, sizeof(conf->alert_file)},
         {"alert_mail", PT_STRING, PFLG_MAIL,
             conf->alert_mail, sizeof(conf->alert_mail)},
+#ifdef HAVE_CHANGELOGS
+        {"changelogs_file", PT_STRING,
+            PFLG_ABSOLUTE_PATH | PFLG_NO_WILDCARDS | PFLG_STDIO_ALLOWED,
+            conf->changelogs_file, sizeof(conf->changelogs_file)},
+#endif
             /* TODO add cfg flag: clean if not found */
         {"stats_interval", PT_DURATION, PFLG_POSITIVE | PFLG_NOT_NULL,
             &conf->stats_interval, 0},
@@ -1170,6 +1221,19 @@ static int log_cfg_reload(log_config_t *conf)
         DisplayLog( LVL_MAJOR, "LogConfig",
                     RBH_LOG_CONFIG_BLOCK
                     "::alert_mail changed in config file, but cannot be modified dynamically" );
+
+#ifdef HAVE_CHANGELOGS
+    if ( strcmp( conf->changelogs_file, log_config.changelogs_file ) )
+    {
+        DisplayLog( LVL_MAJOR, "LogConfig", RBH_LOG_CONFIG_BLOCK "::changelogs_file modified: '%s'->'%s'",
+                    log_config.changelogs_file, conf->changelogs_file );
+
+        /* lock file name to avoid reading inconsistent filenames */
+        pthread_rwlock_wrlock( &chglogs.f_lock );
+        strcpy( log_config.changelogs_file, conf->changelogs_file );
+        pthread_rwlock_unlock( &chglogs.f_lock );
+    }
+#endif
 
     if ( conf->stats_interval != log_config.stats_interval )
     {
