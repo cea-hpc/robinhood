@@ -70,9 +70,6 @@ typedef struct chglog_reader_config_t
     bool mds_has_lu543;
     bool mds_has_lu1331;
 
-    /* file to dump all changelog records */
-    char dump_file[RBH_PATH_MAX];
-
 } chglog_reader_config_t;
 
 /** start ChangeLog Readers
