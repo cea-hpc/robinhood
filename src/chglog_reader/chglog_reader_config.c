@@ -61,7 +61,6 @@ static void cl_reader_set_default_cfg(void *module_config)
    p_config->queue_check_interval = 1; /* every second */
    p_config->mds_has_lu543 = false;
    p_config->mds_has_lu1331 = false;
-   p_config->dump_file[0] = '\0'; /* no dump file */
 
    /* acknowledge 1024 records at once */
    p_config->batch_ack_count = 1024;
@@ -84,7 +83,6 @@ static void cl_reader_write_default(FILE *output)
     print_line(output, 1, "queue_check_interval : 1s");
     print_line(output, 1, "mds_has_lu543    : no");
     print_line(output, 1, "mds_has_lu1331   : no");
-    print_line(output, 1, "dump_file        : (none)");
 
     print_end_block(output, 0);
 }
@@ -135,7 +133,6 @@ static void cl_reader_write_template(FILE *output)
     fprintf(output, "\n");
 
     print_line(output, 1, "# uncomment to dump all changelog records to the file");
-    print_line(output, 1, "#dump_file = \"/var/log/robinhood/changelog_dump.log\";");
 
     print_end_block( output, 0 );
 }
@@ -227,7 +224,7 @@ static int cl_reader_read_cfg(config_file_t config, void *module_config,
     {
         "force_polling", "polling_interval", "batch_ack_count",
         "queue_max_size", "queue_max_age", "queue_check_interval",
-        "mds_has_lu543", "mds_has_lu1331", MDT_DEF_BLOCK, "dump_file",
+        "mds_has_lu543", "mds_has_lu1331", MDT_DEF_BLOCK,
         NULL
     };
 
@@ -245,8 +242,6 @@ static int cl_reader_read_cfg(config_file_t config, void *module_config,
             &p_config->queue_check_interval, 0},
         {"mds_has_lu543", PT_BOOL, 0, &p_config->mds_has_lu543, 0},
         {"mds_has_lu1331", PT_BOOL, 0, &p_config->mds_has_lu1331, 0},
-        {"dump_file", PT_STRING, PFLG_ABSOLUTE_PATH | PFLG_NO_WILDCARDS,
-            p_config->dump_file, sizeof(p_config->dump_file)},
         END_OF_PARAMS
     };
 
