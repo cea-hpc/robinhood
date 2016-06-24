@@ -135,7 +135,6 @@ static run_flags_t behavior_flags = 0;
 
 /** array of reader info */
 static reader_thr_info_t  *reader_info = NULL;
-static FILE *f_changelog = NULL;
 
 
 /**
@@ -319,7 +318,8 @@ static void dump_record(int debug_level, const char *mdt, const CL_REC_TYPE *rec
     int left = sizeof(record_str);
 
     /* No need to go further if the log level is not right. */
-    if (f_changelog == NULL && log_config.debug_level < debug_level)
+    if (EMPTY_STRING(log_config.changelogs_file) &&
+        log_config.debug_level < debug_level)
         return;
 
 #ifdef _LUSTRE_HSM
@@ -387,8 +387,7 @@ static void dump_record(int debug_level, const char *mdt, const CL_REC_TYPE *rec
         record_str[RBH_PATH_MAX-1] = '\0';
 
     DisplayLog(debug_level, CHGLOG_TAG, "%s", record_str);
-    if (f_changelog)
-        fprintf(f_changelog, "%s\n", record_str);
+    DisplayChangelogs("%s", record_str);
 }
 
 /* Dumps the nth most recent entries in the queue. If -1, dump them
@@ -795,9 +794,8 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
      * might create a duplicate operation anyway. */
     if (can_ignore_record(p_info, p_rec)) {
         DisplayLog( LVL_FULL, CHGLOG_TAG, "Ignoring event %s", changelog_type2str(opnum) );
-        if (f_changelog)
-            fprintf(f_changelog, "(ignored redundant record %s:%llu)\n", mdtname(p_info),
-                    p_rec->cr_index);
+        DisplayChangeLogs("(ignored redundant record %s:%llu)",
+                          mdtname(p_info), p_rec->cr_index);
         p_info->suppressed_records ++;
         llapi_changelog_free( &p_rec );
         goto done;
@@ -995,11 +993,11 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
     /* get next record */
     rc = llapi_changelog_recv(info->chglog_hdlr, pp_rec);
 
-    if (f_changelog && rc != 0 && rc != 1)
+    if (!EMPTY_STRING(log_config.changelogs_file) && rc != 0 && rc != 1)
     {
-        fprintf(f_changelog, ">>> llapi_changelog_recv returned error %d (last record = %llu)\n",
+        DisplayChangelogs(">>> llapi_changelog_recv returned error %d (last record = %llu)",
                 rc, info->last_read_record);
-        fflush(f_changelog);
+        FlushLogs();
     }
 
     switch(rc) {
@@ -1092,8 +1090,9 @@ static void * chglog_reader_thr( void *  arg )
             process_op_queue(info, false);
 
             next_push_time = time(NULL) + cl_reader_config.queue_check_interval;
-            if (f_changelog)
-                fflush(f_changelog);
+
+            if (!EMPTY_STRING(log_config.changelogs_file))
+                FlushLogs();
         }
 
         st = cl_get_one(info, &p_rec);
@@ -1109,14 +1108,8 @@ static void * chglog_reader_thr( void *  arg )
     /* Stopping. Flush the internal queue. */
     process_op_queue(info, true);
 
-    if (f_changelog)
-    {
-        fflush(f_changelog);
-        fclose(f_changelog);
-        f_changelog = NULL;
-    }
-
     DisplayLog(LVL_CRIT, CHGLOG_TAG, "Changelog reader thread terminating");
+    FlushLogs();
     return NULL;
 
 }
@@ -1191,16 +1184,6 @@ int cl_reader_start(run_flags_t flags, int mdt_index)
 
     /* saves the current config and parameter flags */
     behavior_flags = flags;
-
-    if (!EMPTY_STRING(cl_reader_config.dump_file))
-    {
-        f_changelog = fopen(cl_reader_config.dump_file, "a");
-        if (f_changelog == NULL)
-            DisplayLog(LVL_CRIT, CHGLOG_TAG, "Failed to open %s to dump incoming changelogs",
-                       cl_reader_config.dump_file);
-        else
-            DisplayLog(LVL_EVENT, CHGLOG_TAG, "Dumping changelogs to: %s", cl_reader_config.dump_file);
-    }
 
     /* create thread params */
     reader_info = (reader_thr_info_t*)MemCalloc(cl_reader_config.mdt_count,
