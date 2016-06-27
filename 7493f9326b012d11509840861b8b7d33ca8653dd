@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_0244c318",
+        "filename": "scripts/sysconfig_robinhood.in",
+        "patchSetId": 1
+      },
+      "lineNbr": 11,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-06-27T12:20:27Z",
+      "side": 1,
+      "message": "no longer --detach?",
+      "revId": "7493f9326b012d11509840861b8b7d33ca8653dd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
