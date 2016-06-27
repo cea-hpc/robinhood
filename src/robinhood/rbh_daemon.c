@@ -80,14 +80,6 @@ static time_t  boot_time;
 #define ACTION_MASK_HANDLE_EVENTS       0x00000004
 #define ACTION_MASK_RUN_POLICIES        0x00000008
 
-#ifdef HAVE_CHANGELOGS
-    #define DEFAULT_ACTION_MASK     (ACTION_MASK_HANDLE_EVENTS | ACTION_MASK_RUN_POLICIES)
-    #define DEFAULT_ACTION_HELP   "--read-log --run=all"
-#else
-    #define DEFAULT_ACTION_MASK     (ACTION_MASK_SCAN | ACTION_MASK_RUN_POLICIES)
-    #define DEFAULT_ACTION_HELP   "--scan --run=all"
-#endif
-
 /* currently running modules */
 static int     running_mask = 0;
 /* selected modules (used for reloading config) */
@@ -272,9 +264,7 @@ static const char *action_help =
     "    " _B "-C" B_ " " _U"policy1,policy2..."U_", "
             _B "--check-thresholds" B_"[=" _U "policy1,policy2..." U_ "]\n"
     "        Only check trigger thresholds without applying policy actions.\n"
-    "        If no policy is specified (or 'all'), check all triggers.\n"
-    "\n"
-    "    Note: if no action is specified, the default action set is: "DEFAULT_ACTION_HELP"\n";
+    "        If no policy is specified (or 'all'), check all triggers.\n";
 
 static const char *run_help =
     _B "Policy run options:" B_ "\n"
@@ -906,27 +896,17 @@ static int parse_target_usage(const char *str, double *val)
     return 0;
 }
 
-#define SET_ACTION_FLAG( _f_ )  do {                                    \
-                                    if ( is_default_actions )           \
-                                    {                                   \
-                                        is_default_actions = false;     \
-                                        *action_mask = _f_;             \
-                                    }                                   \
-                                    else                                \
-                                        *action_mask |= _f_;            \
-                                } while(0)
-
 /** parse options in robinhood command line */
 static int rh_read_parameters(const char *bin, int argc, char **argv,
                               int *action_mask, struct rbh_options *opt)
 {
     int            c, option_index = 0;
-    bool           is_default_actions = true;
     char           err_msg[4096];
 
-    *action_mask = DEFAULT_ACTION_MASK;
+    /* no action, by default */
+    *action_mask = 0;
 
-    zero_options( &options );
+    zero_options(&options);
 
     /* parse command line options */
     while ((c = getopt_long(argc, argv, SHORT_OPT_STRING SHORT_OPT_DEPRECATED,
@@ -940,7 +920,7 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
              * => continue to -S:
              */
         case 'S':
-            SET_ACTION_FLAG( ACTION_MASK_SCAN );
+            *action_mask |= ACTION_MASK_SCAN;
 
             if (optarg) {       /* optional argument => partial scan*/
                 opt->flags |= RUNFLG_ONCE;
@@ -968,7 +948,7 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
              * => continue to -C
              */
         case 'C':
-            SET_ACTION_FLAG(ACTION_MASK_RUN_POLICIES);
+            *action_mask |= ACTION_MASK_RUN_POLICIES;
             opt->flags |= RUNFLG_CHECK_ONLY;
             /* 4 cases:
              *  --run=foo,bar --check-thresholds=bah,boo
@@ -1013,7 +993,7 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
                      "-r | --read-log option is only supported in Lustre v2.x versions.\n" );
             return ENOTSUP;
 #else
-            SET_ACTION_FLAG( ACTION_MASK_HANDLE_EVENTS );
+            *action_mask |= ACTION_MASK_HANDLE_EVENTS;
 #ifdef HAVE_DNE
             if (optarg) {  /* optional argument => MDT index */
                 opt->mdtidx = str2int(optarg);
@@ -1062,8 +1042,7 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
             else if (optarg != NULL && !EMPTY_STRING(optarg))
             {
                 /* was there a previous '--run' without policies? */
-                if (!is_default_actions &&
-                    (*action_mask) & ACTION_MASK_RUN_POLICIES)
+                if ((*action_mask) & ACTION_MASK_RUN_POLICIES)
                 {
                     fprintf(stderr, "ERROR: multiple inconsistent '--run' or '--check-thresholds' "
                             "parameters on command line.\n");
@@ -1075,7 +1054,7 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
             }
             /* Set it at the end, to check if a previous --run
              * or --check-threshold was specified */
-            SET_ACTION_FLAG(ACTION_MASK_RUN_POLICIES);
+            *action_mask |= ACTION_MASK_RUN_POLICIES;
             break;
 
         case 't':

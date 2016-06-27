@@ -8,5 +8,4 @@
 
 # options for starting the daemon
 # eg. --scan --purge (leave empty for default actions).
-# RBH_OPT="--scan --detach"
-
+RBH_OPT="@INPUT_OPT@ --run=all"

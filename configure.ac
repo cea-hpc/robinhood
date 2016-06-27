@@ -102,6 +102,9 @@ AC_ARG_ENABLE([lustre], AS_HELP_STRING([--disable-lustre],
               [Disable all lustre specific features]),
               [support_lustre="$enableval"],[support_lustre="yes"])
 
+# default input option is --scan
+INPUT_OPT="--scan"
+
 # shook requires Lustre + FID support + shook library
 # hsm_lite requires Lustre + FID support
 # lustre_hsm requires Lustre >= 2.5
@@ -242,6 +245,8 @@ if test "x$support_lustre" = "xyes" ; then
                     #include <asm/types.h>
                     #include <lustre/lustre_user.h>
                 ])
+                # default option for sysconfig
+                INPUT_OPT="--readlog"
             fi
 
             if test "x$have_llapi_changelog_start" = "xyes" && \
@@ -319,6 +324,7 @@ else
 fi # end of Lustre support
 
 AC_SUBST(DV_CMD)
+AC_SUBST(INPUT_OPT)
 
 AC_CHECK_HEADERS([attr/xattr.h],[],[AC_MSG_ERROR([libattr-devel is not installed.])])
 
