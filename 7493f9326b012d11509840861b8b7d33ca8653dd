@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_8d0c7f43",
+        "filename": "configure.ac",
+        "patchSetId": 1
+      },
+      "lineNbr": 106,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-28T18:24:22Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "baa041b7_f5e997b8",
+      "revId": "7493f9326b012d11509840861b8b7d33ca8653dd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_0244c318",
         "filename": "scripts/sysconfig_robinhood.in",
         "patchSetId": 1
@@ -30,6 +48,24 @@
       "writtenOn": "2016-06-27T12:20:27Z",
       "side": 1,
       "message": "no longer --detach?",
+      "revId": "7493f9326b012d11509840861b8b7d33ca8653dd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_ed1aeb7b",
+        "filename": "scripts/sysconfig_robinhood.in",
+        "patchSetId": 1
+      },
+      "lineNbr": 11,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-06-28T18:24:22Z",
+      "side": 1,
+      "message": "detach is added by robinhood service on el6, and is not needed for el7 systemd service (right?)",
+      "parentUuid": "baa041b7_0244c318",
       "revId": "7493f9326b012d11509840861b8b7d33ca8653dd",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
