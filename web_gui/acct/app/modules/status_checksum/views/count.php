@@ -2,13 +2,12 @@
 /* -*- mode: php; c-basic-offset: 4; indent-tabs-mode: nil; -*-
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
-
     $graph = new ezcGraphPieChart();
     $graph->palette = new ezcGraphPaletteEzBlue();
     $graph->legend = false; 
-    $graph->data['Volume per status'] = new ezcGraphArrayDataSet( $top_size );
+    $graph->data['File number per status'] = new ezcGraphArrayDataSet( $top_count );
 
-    $graph->data['Volume per status']->highlight['Others'] = true;
+    $graph->data['File number per status']->highlight['Others'] = true;
 
     $graph->renderer = new ezcGraphRenderer3d();
 
@@ -30,13 +29,13 @@
     $graph->options->font = 'app/img/KhmerOSclassic.ttf';
 
     $graph->driver->options->imageFormat = IMG_PNG; 
-    $graph->render( 532, 195, 'app/img/graph/statusVolumePieGraph.png' );
+    $graph->render( 532, 195, 'app/img/graph/statusCountPieGraph.png' );
 
-    echo '<h2>Volume per status </h2>';
-    
+    echo '<h2>File count per status</h2>';
+
 ?>
 
-<img src="app/img/graph/statusVolumePieGraph.png"/>
+<img src="app/img/graph/statusCountPieGraph.png"/>
 <table class="simple">
      <thead>
         <tr>
@@ -47,30 +46,31 @@
     </thead>
     <tbody>
         <?php
-
-        reset( $top_size );
-        $count = $statistics->getCount();
-        for ($i = 0; $i < sizeof($top_size)-1; $i++)
+        reset( $top_count );
+        $blks = $statistics->getBlocks();
+        for ($i = 0; $i < sizeof($top_count)-1; $i++)
         {
-            $status = key($top_size);
+            $status = key($top_count);
             ?>
             <tr>
                 <td>
-                     <?php echo "<a href='".str_replace( " ", "%20", $status).
-                        "_status_popup.php'rel='#volume'>".$status."</a>"; ?>
+                    <?php echo "<a href='".str_replace( " ", "%20", $status).
+                        "_status_checksum_popup.php'rel='#count'>".$status."</a>"; ?>
                 </td>
-                <td><?php echo formatSizeNumber( $top_size[$status] ); ?></td>
-                <td><?php echo formatNumber( $count[$status] ); ?></td>
+                <td><?php echo formatSizeNumber( $blks[$status] *DEV_BSIZE); ?></td>
+                <td><?php echo formatNumber( $top_count[$status] ); ?></td>
             </tr>
             <?php
-            next($top_size);
+            next($top_count);
         }
     ?>
     </tbody>
 </table>
 
+
+
 <!-- POPUP -->
-<div class="apple_overlay" id="volume">
+<div class="apple_overlay" id="count">
     <!-- the status detailed stat is loaded inside this tag -->
     <div class="contentWrap"></div>
 </div>

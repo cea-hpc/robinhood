@@ -46,8 +46,11 @@ class MenuManager
                 case GROUP:
                     $menu[] = 'Groups';
                     break;
-                case STATUS:
-                    $menu[] = 'Status';
+                case STATUS_HSM:
+                    $menu[] = 'Status_HSM';
+                    break;
+                case STATUS_CHECKSUM:
+                    $menu[] = 'Status_Checksum';
                     break;
                 case $sz_range_fields[0]:
                     $menu[] = 'Sizes';

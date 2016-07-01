@@ -20,6 +20,9 @@ define("BLOCKS" , "blocks");
 define("SIZE" , "size");
 define("COUNT" , "count");
 define("STATUS" , "status");
+define("STATUS_HSM" , "lhsm_status");
+define("STATUS_CHECKSUM" , "checksum_status");
+
 
 define("VARNAME", "varname");
 define("VARVALUE", "value");
@@ -33,10 +36,6 @@ define("DEV_BSIZE", 512);
 // max search results
 define("MAX_SEARCH_RESULT", 5000);
 
-$hsmlite_status_tab = array( "unknown", "new", "modified", 
-	     		     "retrieving", "archiving",
-        		     "synchro", "released", "release_pending",
-			     "removed" );
 $hsm_status_tab = array( "unknown", "new", "modified",
 			 "retrieving", "archiving",
 			 "synchro", "released", "release_pending" );
