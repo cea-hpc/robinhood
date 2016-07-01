@@ -55,7 +55,7 @@
             <tr>
                 <td>
                     <?php echo "<a href='".str_replace( " ", "%20", $status).
-                        "_status_popup.php'rel='#count'>".$status."</a>"; ?>
+                        "_status_hsm_popup.php'rel='#count'>".$status."</a>"; ?>
                 </td>
                 <td><?php echo formatSizeNumber( $blks[$status] *DEV_BSIZE); ?></td>
                 <td><?php echo formatNumber( $top_count[$status] ); ?></td>

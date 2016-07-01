@@ -2,9 +2,9 @@
 /* -*- mode: php; c-basic-offset: 4; indent-tabs-mode: nil; -*-
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
-require "app/model/StatusManager.class.php";
+require "app/model/Status_checksumManager.class.php";
 
-class StatusController extends Controller
+class Status_checksumController extends Controller
 {
     public function executeMain()
     {
@@ -16,7 +16,7 @@ class StatusController extends Controller
         $menuManager = new MenuManager();
         $sections = $menuManager->getSections();
 
-        $statusManager = new StatusManager();
+        $statusManager = new Status_checksumManager();
         $result = $statusManager->getStat();
 
         $count = $result->getCount();
@@ -67,7 +67,7 @@ class StatusController extends Controller
 
     public function executePopup()
     {
-        $statusManager = new StatusManager();
+        $statusManager = new Status_checksumManager();
         $acct_schema = $statusManager->getAcctSchema();
 
         //if the user name contains spaces, replace %20 by a space
