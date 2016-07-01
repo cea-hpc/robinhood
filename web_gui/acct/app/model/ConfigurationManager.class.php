@@ -42,8 +42,10 @@ class ConfigurationManager
                 case GROUP;
                     return 'group';
                     break;
-                case STATUS;
-                    return 'status';
+                case STATUS_HSM;
+                    return 'status_hsm';
+                case STATUS_CHECKSUM;
+                    return 'status_checksum';
                     break;
                 default;
                     break;

@@ -43,17 +43,6 @@ if( isset( $file_created ) && $file_created == TRUE )
          <label>Password</label>
          <input type="password" name="password" />
       </p>
-
-      <p>
-         <label>Robinhood mode:</label>
-	 <select name="flavor">
-		<OPTION VALUE="tmp_fs_mgr" SELECTED>robinhood-tmp_fs_mgr</OPTION>
-		<OPTION VALUE="backup">robinhood-backup</OPTION>
-		<OPTION VALUE="hsm">robinhood-hsm</OPTION>
-		<OPTION VALUE="shook">robinhood-shook</OPTION>
-	 </select>
-      </p>
-      
       <button type="submit">Submit</button>
       <button type="reset">Reset</button>
 
