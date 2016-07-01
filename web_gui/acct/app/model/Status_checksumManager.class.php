@@ -3,7 +3,7 @@
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
 
-class StatusManager
+class Status_checksumManager
 {
     private $db_request;
 
@@ -36,13 +36,13 @@ class StatusManager
         $count = array();
         $size = array();
         $blks = array();
-        $db_result = $this->db_request->select( null, ACCT_TABLE, array(STATUS), null );
+        $db_result = $this->db_request->select( null, ACCT_TABLE, array(STATUS_CHECKSUM), null );
 
         $stat = new Statistics();
 
         foreach( $db_result as $line )
         {
-	    $stname = $this->db_request->statusName($line[STATUS]);
+	    $stname = $line[STATUS_CHECKSUM];
             $count[$stname] = $line['SUM('.COUNT.')'];
             $size[$stname] = $line['SUM('.SIZE.')'];
             $blks[$stname] = $line['SUM('.BLOCKS.')'];
@@ -61,8 +61,7 @@ class StatusManager
     */
     public function getDetailedStat( $status, $sort )
     {
-	$st_idx = $this->db_request->statusIndex( $status );
-        $db_result = $this->db_request->select( array( STATUS => $st_idx ), ACCT_TABLE, null, $sort );
+        $db_result = $this->db_request->select( array( STATUS_CHECKSUM => $status ), ACCT_TABLE, null, $sort );
         return $db_result;
     }
 
