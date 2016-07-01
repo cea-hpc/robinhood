@@ -22,7 +22,7 @@
         ?>
             <tr class="gradeB">
                 <?php
-                echo "<td><a href='".str_replace( " ", "%20", $status)."_status_popup.php'
+                echo "<td><a href='".str_replace( " ", "%20", $status)."_status_checksum_popup.php'
                         rel='#overlay'>".$status."</a></td>";
                 $spc = $blks[$status] * DEV_BSIZE;
                 ?>
