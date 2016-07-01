@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_da60e937",
+        "filename": "web_gui/acct/app/define/variables_def.php",
+        "patchSetId": 4
+      },
+      "lineNbr": 31,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-07-01T19:07:02Z",
+      "side": 1,
+      "message": "this may work: \"one_path(id)\" as value for PATH",
+      "revId": "294b1f77e0ccaa8c2f82ecec673f75b7cae2d442",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_da7909fe",
+        "filename": "web_gui/acct/app/define/variables_def.php",
+        "patchSetId": 4
+      },
+      "lineNbr": 39,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-07-01T19:07:02Z",
+      "side": 1,
+      "message": "is it still used?",
+      "revId": "294b1f77e0ccaa8c2f82ecec673f75b7cae2d442",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
