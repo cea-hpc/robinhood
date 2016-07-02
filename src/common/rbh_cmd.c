@@ -47,9 +47,10 @@ struct io_chan_arg {
  * reference counting for this purpose.
  */
 struct exec_ctx {
-    GMainLoop   *loop;
-    int          ref;
-    int          rc;
+    GMainLoop    *loop;
+    GMainContext *gctx;
+    int           ref;
+    int           rc;
 };
 
 static inline void ctx_incref(struct exec_ctx *ctx)
@@ -189,6 +190,50 @@ static int iochan_null_enc(GIOChannel *chan) {
 }
 
 /**
+ * g_child_watch_add will bind the source to the "main" main context,
+ * g_main_context_get_default(), which is not what we want
+ */
+static int g_child_watch_add_tothread(GPid pid,
+                                      GChildWatchFunc function,
+                                      gpointer data)
+{
+    GSource *source;
+    guint id;
+
+    g_return_val_if_fail (function != NULL, 0);
+    g_return_val_if_fail (pid > 0, 0);
+
+    source = g_child_watch_source_new (pid);
+
+    g_source_set_callback (source, (GSourceFunc) function, data, NULL);
+    id = g_source_attach (source, g_main_context_get_thread_default());
+    g_source_unref (source);
+
+    return id;
+}
+
+static int g_io_add_watch_tothread (GIOChannel   *channel,
+                                    GIOCondition  condition,
+                                    GIOFunc       func,
+                                    gpointer      user_data)
+{
+    GSource *source;
+    guint id;
+
+    g_return_val_if_fail (channel != NULL, 0);
+
+    source = g_io_create_watch (channel, condition);
+
+    g_source_set_callback (source, (GSourceFunc)func, user_data, NULL);
+
+    id = g_source_attach (source, g_main_context_get_thread_default());
+    g_source_unref (source);
+
+    return id;
+}
+
+
+/**
  * Execute synchronously an external command, read its output and invoke
  * a user-provided filter function on every line of it.
  */
@@ -206,7 +251,9 @@ int execute_shell_command(char **cmd, parse_cb_t cb_func, void *cb_arg)
     bool              success;
     int               rc = 0;
 
-    ctx.loop = g_main_loop_new(NULL, false);
+    ctx.gctx = g_main_context_new();
+    g_main_context_push_thread_default(ctx.gctx);
+    ctx.loop = g_main_loop_new(ctx.gctx, false);
     ctx.ref  = 0;
     ctx.rc   = 0;
 
@@ -235,7 +282,7 @@ int execute_shell_command(char **cmd, parse_cb_t cb_func, void *cb_arg)
 
     /* register a watcher in the loop, thus increase refcount of our exec_ctx */
     ctx_incref(&ctx);
-    g_child_watch_add(pid, watch_child_cb, &ctx);
+    g_child_watch_add_tothread(pid, watch_child_cb, &ctx);
 
     if (cb_func != NULL)
     {
@@ -267,14 +314,18 @@ int execute_shell_command(char **cmd, parse_cb_t cb_func, void *cb_arg)
         ctx_incref(&ctx);
         ctx_incref(&ctx);
 
-        g_io_add_watch(out_chan, G_IO_IN | G_IO_HUP, readline_cb, &out_args);
-        g_io_add_watch(err_chan, G_IO_IN | G_IO_HUP, readline_cb, &err_args);
+        g_io_add_watch_tothread(out_chan, G_IO_IN | G_IO_HUP,
+                                readline_cb, &out_args);
+        g_io_add_watch_tothread(err_chan, G_IO_IN | G_IO_HUP,
+                                readline_cb, &err_args);
     }
 
     g_main_loop_run(ctx.loop);
 
 out_free:
     g_main_loop_unref(ctx.loop);
+    g_main_context_pop_thread_default(ctx.gctx);
+    g_main_context_unref(ctx.gctx);
 
     if (err_desc)
         g_error_free(err_desc);
