@@ -318,9 +318,9 @@ rm -rf $RPM_BUILD_ROOT
 %endif
 
 %defattr(-,root,root,-)
-#%doc README
-#%doc COPYING
-#%doc ChangeLog
+%doc README
+%doc COPYING
+%doc ChangeLog
 
 # everythink in sbin, except rbh-config which is in adm
 %if %{with shook}
@@ -385,6 +385,9 @@ rm -rf $RPM_BUILD_ROOT
 %endif
 
 %changelog
+
+* Sun Jul 03 2016 Thomas Leibovici <thomas.leibovici@cea.fr> 3.0-0.beta1
+- Robinhood v3 beta1
 
 * Fri Mar 25 2016 Thomas Leibovici <thomas.leibovici@cea.fr> 3.0-0.alpha2
 - Robinhood v3 alpha2
