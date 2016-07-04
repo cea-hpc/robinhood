@@ -373,7 +373,7 @@ static int cb_collect_stdout(void *arg, char *line, size_t size, int stream)
                 g_string_append(out, line);
             break;
         case STDERR_FILENO:
-            DisplayLog(LVL_EVENT, "cmd_stderr", line);
+            DisplayLog(LVL_EVENT, "cmd_stderr", "%s", line);
             break;
     }
 

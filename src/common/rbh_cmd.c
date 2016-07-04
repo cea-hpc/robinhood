@@ -358,6 +358,6 @@ int cb_stderr_to_log(void *arg, char *line, size_t size, int stream)
     if ((len > 0) && (line[len - 1] == '\n'))
         line[len - 1] = '\0';
 
-    DisplayLogFn(lvl, TAG, line);
+    DisplayLogFn(lvl, TAG, "%s", line);
     return 0;
 }
