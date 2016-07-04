@@ -1669,7 +1669,7 @@ function mass_softrm
         echo "4-Removing files in $RH_ROOT/dir.1..."
 	rm -rf "$RH_ROOT/dir.1" || error "removing files in $RH_ROOT/dir.1"
 
-	# at least 1 second must be enlapsed since last entry change (sync)
+	# at least 1 second must be elapsed since last entry change (sync)
 	sleep 1
 
 	echo "5-Update DB with a new scan..."
@@ -2206,7 +2206,7 @@ function test_maint_mode
 		if grep "$ARCH_STR" rh_migr.log ; then
 			arch_done=1
 			now=`date +%s`
-			# delay_min must be enlapsed
+			# delay_min must be elapsed
 			(( $now >= $t0 + $delay_min )) || error "file migrated before dealy min"
 			# migr_policy_delay must not been reached
 			(( $now < $t0 + $migr_policy_delay )) || error "file already reached policy delay"
@@ -2894,7 +2894,7 @@ function update_test
 
 		(( $nb_getattr == $expect_attr )) || error "********** TEST FAILED: wrong count of getattr: $nb_getattr (t=$t), expected=$expect_attr"
 		# the path may be retrieved at the first loop (at creation)
-		# but not during the next loop (as long as enlapsed time < update_period)
+		# but not during the next loop (as long as elapsed time < update_period)
 		if (( $i > 1 )) && (( `date "+%s"` - $init < $update_period )); then
 			nb_getpath=`grep getpath=1 $LOG | wc -l`
 			grep "getpath=1" $LOG
@@ -2902,7 +2902,7 @@ function update_test
 			(( $nb_getpath == 0 )) || error "********** TEST FAILED: wrong count of getpath: $nb_getpath (t=$t), expected=0"
 		fi
 
-		# wait for 5s to be fully enlapsed
+		# wait for 5s to be fully elapsed
 		while (( `date "+%s"` - $start <= $event_updt_min )); do
 			usleep 100000
 		done
@@ -2938,7 +2938,7 @@ function update_test
 		(( $nb_getpath == 0 )) || error "********** TEST FAILED: wrong count of getpath: $nb_getpath"
 
 		# attributes may be retrieved at the first loop (at creation)
-		# but not during the next loop (as long as enlapsed time < update_period)
+		# but not during the next loop (as long as elapsed time < update_period)
 		if (( $i > 1 )) && (( `date "+%s"` - $init < $update_period )); then
 			nb_getattr=`grep getattr=1 $LOG | wc -l`
 			echo "nb attr update: $nb_getattr"
@@ -3933,12 +3933,12 @@ function test_action_check
 
     # early check of entries status (hopefully, no timeout reached yet? (3s))
     local t1=$(date +%s)
-    local enlapsed=$(($t1-$t0))
+    local elapsed=$(($t1-$t0))
     local nb_check=$(grep "Updating status of" rh_migr.log | wc -l)
-    if (( $enlapsed < $ACT_TIMEO && $nb_check > 0 )); then
+    if (( $elapsed < $ACT_TIMEO && $nb_check > 0 )); then
         error "No action check should be done after $enlasped sec < $ACT_TIMEO"
     else
-        echo "Enlapsed: $enlapsed, nb_check=$nb_check"
+        echo "Enlapsed: $elapsed, nb_check=$nb_check"
     fi
 
     # next check is after 10 sec
@@ -3948,13 +3948,13 @@ function test_action_check
     (( $run_check == 2 )) || error "No 2nd check was done after 10 sec"
 
     t1=$(date +%s)
-    enlapsed=$(($t1-$t0))
+    elapsed=$(($t1-$t0))
     nb_check=$(grep "Updating status of" rh_migr.log | wc -l)
     local nb_sync=$(grep "changed: now 'synchro'" rh_migr.log | wc -l)
     if (( $nb_check != $FCOUNT )); then
-        error "All actions should have been checked now (enlapsed: $enlapsed, nb_check=$nb_check)"
+        error "All actions should have been checked now (elapsed: $elapsed, nb_check=$nb_check)"
     else
-        echo "Enlapsed: $enlapsed, nb_check=$nb_check, $nb_sync changed to 'synchro'"
+        echo "Enlapsed: $elapsed, nb_check=$nb_check, $nb_sync changed to 'synchro'"
     fi
 
     # wait for all files to be synchro
@@ -4363,106 +4363,109 @@ function check_released
 
 function test_periodic_trigger
 {
-	config_file=$1
-	sleep_time=$2
-	policy_str=$3
+    config_file=$1
+    sleep_time=$2
+    policy_str=$3
 
-	clean_logs
+    clean_logs
 
-	t0=`date +%s`
-	echo "1-Populating filesystem..."
-	# create 3 files of each type
-	# (*.1, *.2, *.3, *.4)
-	for i in `seq 1 4`; do
-		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $RH_ROOT/file.$i"
-		dd if=/dev/zero of=$RH_ROOT/foo.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $RH_ROOT/foo.$i"
-		dd if=/dev/zero of=$RH_ROOT/bar.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $RH_ROOT/bar.$i"
+    t0=`date +%s`
+    echo "1-Populating filesystem..."
+    # create 3 files of each type
+    # (*.1, *.2, *.3, *.4)
+    for i in `seq 1 4`; do
+        dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $RH_ROOT/file.$i"
+        dd if=/dev/zero of=$RH_ROOT/foo.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $RH_ROOT/foo.$i"
+        dd if=/dev/zero of=$RH_ROOT/bar.$i bs=1M count=1 >/dev/null 2>/dev/null || error "$? writing $RH_ROOT/bar.$i"
 
-    	flush_data
-		if (( $is_lhsm != 0 )); then
-			$LFS hsm_archive $RH_ROOT/file.$i $RH_ROOT/foo.$i $RH_ROOT/bar.$i
-		fi
-	done
+        flush_data
+        if (( $is_lhsm != 0 )); then
+            $LFS hsm_archive $RH_ROOT/file.$i $RH_ROOT/foo.$i $RH_ROOT/bar.$i
+        fi
+    done
 
-	if (( $is_lhsm != 0 )); then
-		wait_done 60 || error "Copy timeout"
-	fi
-
-
-	# scan
-	echo "2-Populating robinhood database (scan)..."
-	if (( $is_hsmlite != 0 )); then
-        # scan and sync
-		$RH -f $RBH_CFG_DIR/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
-  		check_db_error rh_migr.log
-    else
-	    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log || error "executing $CMD --scan"
-  		check_db_error rh_scan.log
+    if (( $is_lhsm != 0 )); then
+        wait_done 60 || error "Copy timeout"
     fi
 
-	# make sure files are old enough
-	sleep 2
 
-	# start periodic trigger in background
-	echo "3.1-checking trigger for first policy run..."
-	$RH -f $RBH_CFG_DIR/$config_file --run=purge -l DEBUG -L rh_purge.log &
-	sleep 2
+    # scan
+    echo "2-Populating robinhood database (scan)..."
+    if (( $is_hsmlite != 0 )); then
+        # scan and sync
+        $RH -f $RBH_CFG_DIR/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+          check_db_error rh_migr.log
+    else
+        $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log || error "executing $CMD --scan"
+          check_db_error rh_scan.log
+    fi
 
-	t1=`date +%s`
-	((delta=$t1 - $t0))
+    # make sure files are old enough
+    sleep 2
 
-    clean_caches # blocks is cached
-	# it first must have purged *.1 files (not others)
-	check_released "$RH_ROOT/file.1" || error "$RH_ROOT/file.1 should have been released after $delta s"
-	check_released "$RH_ROOT/foo.1"  || error "$RH_ROOT/foo.1 should have been released after $delta s"
-	check_released "$RH_ROOT/bar.1"  || error "$RH_ROOT/bar.1 should have been released after $delta s"
-	check_released "$RH_ROOT/file.2" && error "$RH_ROOT/file.2 shouldn't have been released after $delta s"
-	check_released "$RH_ROOT/foo.2"  && error "$RH_ROOT/foo.2 shouldn't have been released after $delta s"
-	check_released "$RH_ROOT/bar.2"  && error "$RH_ROOT/bar.2 shouldn't have been released after $delta s"
+    # start periodic trigger in background
+    echo "3.1-checking trigger for first policy run..."
+    $RH -f $RBH_CFG_DIR/$config_file --run=purge -l DEBUG -L rh_purge.log &
+    sleep 2
 
-	((sleep_time=$sleep_time-$delta))
-	sleep $(( $sleep_time + 2 ))
-	# now, *.2 must have been purged
-	echo "3.2-checking trigger for second policy run..."
-
-	t2=`date +%s`
-	((delta=$t2 - $t0))
+    t1=`date +%s`
+    ((delta=$t1 - $t0))
 
     clean_caches # blocks is cached
-	check_released "$RH_ROOT/file.2" || error "$RH_ROOT/file.2 should have been released after $delta s"
-	check_released "$RH_ROOT/foo.2" || error "$RH_ROOT/foo.2 should have been released after $delta s"
-	check_released "$RH_ROOT/bar.2" || error "$RH_ROOT/bar.2 should have been released after $delta s"
-	check_released "$RH_ROOT/file.3" && error "$RH_ROOT/file.3 shouldn't have been released after $delta s"
-	check_released "$RH_ROOT/foo.3"  && error "$RH_ROOT/foo.3 shouldn't have been released after $delta s"
-	check_released "$RH_ROOT/bar.3" && error "$RH_ROOT/bar.3 shouldn't have been released after $delta s"
+    # it first must have purged *.1 files (not others)
+    check_released "$RH_ROOT/file.1" || error "$RH_ROOT/file.1 should have been released after $delta s"
+    check_released "$RH_ROOT/foo.1"  || error "$RH_ROOT/foo.1 should have been released after $delta s"
+    check_released "$RH_ROOT/bar.1"  || error "$RH_ROOT/bar.1 should have been released after $delta s"
+    check_released "$RH_ROOT/file.2" && error "$RH_ROOT/file.2 shouldn't have been released after $delta s"
+    check_released "$RH_ROOT/foo.2"  && error "$RH_ROOT/foo.2 shouldn't have been released after $delta s"
+    check_released "$RH_ROOT/bar.2"  && error "$RH_ROOT/bar.2 shouldn't have been released after $delta s"
 
-	# wait 20 more secs (so another purge policy is applied)
-	sleep 20
-	# now, it's *.3
-	# *.4 must be preserved
-	echo "3.3-checking trigger for third policy..."
+    ((sleep_time=$sleep_time-$delta))
+    sleep $(( $sleep_time + 5 ))
+    # now, *.2 must have been purged
+    echo "3.2-checking trigger for second policy run..."
 
-	t3=`date +%s`
-	((delta=$t3 - $t0))
+    t2=`date +%s`
+    ((delta=$t2 - $t0))
 
     clean_caches # blocks is cached
-	check_released "$RH_ROOT/file.3" || error "$RH_ROOT/file.3 should have been released after $delta s"
-	check_released "$RH_ROOT/foo.3"  || error "$RH_ROOT/foo.3 should have been released after $delta s"
-	check_released "$RH_ROOT/bar.3"  || error "$RH_ROOT/bar.3 should have been released after $delta s"
-	check_released "$RH_ROOT/file.4" && error "$RH_ROOT/file.4 shouldn't have been released after $delta s"
-	check_released "$RH_ROOT/foo.4"  && error "$RH_ROOT/foo.4 shouldn't have been released after $delta s"
-	check_released "$RH_ROOT/bar.4"  && error "$RH_ROOT/bar.4 shouldn't have been released after $delta s"
+    check_released "$RH_ROOT/file.2" || error "$RH_ROOT/file.2 should have been released after $delta s ($(date))"
+    check_released "$RH_ROOT/foo.2" || error "$RH_ROOT/foo.2 should have been released after $delta s ($(date))"
+    check_released "$RH_ROOT/bar.2" || error "$RH_ROOT/bar.2 should have been released after $delta s ($(date))"
+    check_released "$RH_ROOT/file.3" && error "$RH_ROOT/file.3 shouldn't have been released after $delta s"
+    check_released "$RH_ROOT/foo.3"  && error "$RH_ROOT/foo.3 shouldn't have been released after $delta s"
+    check_released "$RH_ROOT/bar.3" && error "$RH_ROOT/bar.3 shouldn't have been released after $delta s"
 
-	# final check: 3x "Policy run summary: [...] 3 successful actions"
-    nb_pass=$(grep -c "Policy run summary:.* 3 successful actions" rh_purge.log)
-	if (( $nb_pass == 3 )); then
-		echo "OK: triggered 3 times"
-	else
-		error "unexpected trigger count $nb_pass (in $delta sec)"
-	fi
+    # wait 20 more secs (so another purge policy is applied)
+    sleep 20
+    # now, it's *.3
+    # *.4 must be preserved
+    echo "3.3-checking trigger for third policy..."
 
-	# terminate
-	pkill -9 $PROC
+    t3=`date +%s`
+    ((delta=$t3 - $t0))
+
+    clean_caches # blocks is cached
+    check_released "$RH_ROOT/file.3" || error "$RH_ROOT/file.3 should have been released after $delta s"
+    check_released "$RH_ROOT/foo.3"  || error "$RH_ROOT/foo.3 should have been released after $delta s"
+    check_released "$RH_ROOT/bar.3"  || error "$RH_ROOT/bar.3 should have been released after $delta s"
+    check_released "$RH_ROOT/file.4" && error "$RH_ROOT/file.4 shouldn't have been released after $delta s"
+    check_released "$RH_ROOT/foo.4"  && error "$RH_ROOT/foo.4 shouldn't have been released after $delta s"
+    check_released "$RH_ROOT/bar.4"  && error "$RH_ROOT/bar.4 shouldn't have been released after $delta s"
+
+    # final check: 3x "Policy run summary: [...] 3 successful actions"
+    nb_pass=$(grep -c "Checking trigger " rh_purge.log)
+    # trig count should be (elapsed/period) +/- 1
+    min_trig=$(($delta/10 - 1))
+    max_trig=$(($delta/10 + 1))
+    if (( $nb_pass < $min_trig )) || (( $nb_pass > $max_trig )); then
+        error "unexpected trigger count $nb_pass (in $delta sec)"
+    else
+        echo "OK: triggered $nb_pass times in $delta sec"
+    fi
+
+    # terminate
+    pkill -9 $PROC
 }
 
 function fileclass_test
