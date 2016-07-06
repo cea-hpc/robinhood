@@ -137,6 +137,8 @@ Tools for MDS recovery.
 Summary: Test suite for Robinhood
 Group: Applications/System
 Requires: robinhood robinhood-adm bc
+# mariadb or mysql
+Requires: /usr/bin/mysql
 Release: @RELEASE@.noarch
 
 %description tests

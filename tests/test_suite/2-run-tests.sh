@@ -341,7 +341,6 @@ function clean_fs
 
 	[ "$DEBUG" = "1" ] && echo "Destroying any running instance of robinhood..."
 	pkill robinhood
-	pkill rbh-lhsm
 
 	if [ -f rh.pid ]; then
 		echo "killing remaining robinhood process..."
@@ -349,7 +348,7 @@ function clean_fs
 		rm -f rh.pid
 	fi
 
-	sleep 1
+	pgrep -f robinhood && sleep 1 && pkill -9 -f robinhood
 	[ "$DEBUG" = "1" ] && echo "Cleaning robinhood's DB..."
 	$CFG_SCRIPT empty_db $RH_DB > /dev/null
 
@@ -357,7 +356,6 @@ function clean_fs
 	if (( $no_log==0 )); then
 	   $LFS changelog_clear lustre-MDT0000 cl1 0
 	fi
-
 }
 
 function ensure_init_backend()
@@ -2257,10 +2255,10 @@ function test_rh_report
 	echo "3.Checking reports..."
 	for i in `seq 1 $dircount`; do
 	    # posix FS do some block preallocation, so we don't know the exact space used:
-    	# compare with 'du' return instead.
+    	# compare with 'du -b' instead.
         if [ -n "$POSIX_MODE" ]; then
-		    real=`du -B 512 -c $RH_ROOT/dir.$i/* | grep total | awk '{print $1}'`
-    		real=`echo "$real*512" | bc -l`
+		    real=`du -b -c $RH_ROOT/dir.$i/* | grep total | awk '{print $1}'`
+    		#real=`echo "$real*512" | bc -l`
         else
             real=$(($i*1024*1024))
         fi
@@ -3827,7 +3825,7 @@ function test_checker
     # default dataversion is mtime+size
     # use data_version with lustre 2.4+
     if [ $FS_TYPE = "lustre" ]; then
-        lfs help | grep -q data_version && export RBH_CKSUM_DV_CMD="lfs data_version"
+        $LFS help | grep -q data_version && export RBH_CKSUM_DV_CMD="lfs data_version"
     fi
 
     # create initial version of files
@@ -3837,6 +3835,12 @@ function test_checker
     $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log ||
         error "scan error"
     check_db_error rh_scan.log
+
+    # if robinhood is not installed, use rbh_cksum.sh from script directory 
+    if [ -d "../../src/robinhood" ]; then
+        export PATH="$PATH:../../../scripts/"
+    # else use the installed one
+    fi
 
     # run before 5s (no checksumming: last_mod < 5)
     echo "No sum (last_mod criteria for new entries)"

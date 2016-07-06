@@ -6,6 +6,7 @@ if COMMON_RPMS
 nobase_dist_pkgdata_DATA =              \
     test_suite/README.rst               \
     test_suite/cfg/*.conf               \
+    test_suite/cfg/*.sql                \
     test_suite/valgrind.supp            \
     huge_posix/cfg/*.conf
 
