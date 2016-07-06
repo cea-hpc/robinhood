@@ -147,44 +147,54 @@ static uint64_t fsidto64(fsid_t fsid)
 /* this set of functions is for retrieving/checking mount point
  * and fs name (once for all threads):
  */
-static void _set_mount_point(char *mntpnt)
+static int _set_mount_point(char *mntpnt)
 {
     char path[RBH_PATH_MAX + 100];
 
-    /* cannot change during a run */
-    if (mount_len == 0)
+    /* don't change mount_path while already running */
+    if (mount_len != 0)
+        return 0;
+
+    strcpy(path, mntpnt);
+
+    /* remove final slash, if any */
+    if ((mount_len > 1) && (path[mount_len-1] == '/'))
     {
-        strcpy(path, mntpnt);
+        path[mount_len-1] = '\0';
+    }
 
-        /* remove final slash, if any */
-        if ((mount_len > 1) && (path[mount_len-1] == '/'))
-        {
-            path[mount_len-1] = '\0';
-        }
-
-        mount_point = strdup(path);
-        mount_len = strlen(mount_point);
+    mount_point = strdup(path);
+    mount_len = strlen(mount_point);
 
 #ifdef _HAVE_FID
-        /* build the .lustre directory */
-        if (asprintf(&dot_lustre_dir, "%s/%s", path, DOTLUSTRE) == -1)
-            RBH_BUG("Not enough memory to initialize");
+    int rc;
 
-        /* build the .fid directory */
-        if (asprintf(&fid_dir, "%s%s", path, FIDDIR) == -1)
-            RBH_BUG("Not enough memory to initialize");
+    /* build the .lustre directory */
+    if (asprintf(&dot_lustre_dir, "%s/%s", path, DOTLUSTRE) == -1)
+        RBH_BUG("Not enough memory to initialize");
 
-        /* also get their fid */
+    /* build the .fid directory */
+    if (asprintf(&fid_dir, "%s%s", path, FIDDIR) == -1)
+        RBH_BUG("Not enough memory to initialize");
 
-        if (path2id(dot_lustre_dir, &dot_lustre_fid, NULL))
-            DisplayLog(LVL_MAJOR, __func__, "Error: failed to get FID for special directory <%s>",
-                       dot_lustre_dir);
-
-        if (path2id(fid_dir, &fid_fid, NULL))
-            DisplayLog(LVL_MAJOR, __func__, "Error: failed to get FID for special directory <%s>",
-                       fid_dir);
-#endif
+    /* also get their fid */
+    rc = path2id(dot_lustre_dir, &dot_lustre_fid, NULL);
+    if (rc)
+    {
+        DisplayLog(LVL_MAJOR, __func__, "Error: failed to get FID for special directory <%s>: %s.",
+                   dot_lustre_dir, strerror(abs(rc)));
+        return rc;
     }
+
+    rc = path2id(fid_dir, &fid_fid, NULL);
+    if (rc)
+    {
+        DisplayLog(LVL_MAJOR, __func__, "Error: failed to get FID for special directory <%s>: %s.",
+                   fid_dir, strerror(abs(rc)));
+        return rc;
+    }
+#endif
+    return 0;
 }
 
 static int set_fs_info(char *name, char *mountp, dev_t dev, fsid_t fsid)
@@ -192,7 +202,10 @@ static int set_fs_info(char *name, char *mountp, dev_t dev, fsid_t fsid)
     int rc = 0;
 
     P(mount_point_lock);
-    _set_mount_point(mountp);
+    rc = _set_mount_point(mountp);
+    if (rc)
+        goto out_unlock;
+
     strcpy(fsname, name);
     dev_id = dev;
 
@@ -225,6 +238,7 @@ static int set_fs_info(char *name, char *mountp, dev_t dev, fsid_t fsid)
         DisplayLog(LVL_CRIT, "FSInfo", "Failed to get id for root directory %s: %s",
                    mountp, strerror(-rc));
 
+out_unlock:
     V(mount_point_lock);
     return rc;
 }
@@ -939,7 +953,7 @@ int InitFS( void )
 #endif
 
     rc = check_fs_info(global_config.fs_path, global_config.fs_type, NULL, NULL,
-                     global_config.check_mounted, true);
+                       global_config.check_mounted, true);
     if (rc)
     {
         DisplayLog( LVL_CRIT, "InitFS", "Error %d checking Filesystem", rc );
