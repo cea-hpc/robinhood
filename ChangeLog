@@ -11,8 +11,8 @@ Main changes in robinhood 3.0:
 * Enabling the Robinhood community:
     - Share your custom policy definitions and plugins, so that other community members can benefit from them and enrich them!
 * All Robinhood features in a single instance:
-    - All policies can be implemented in a single robinhood instance.
     - No more distinct and incompatible robinhood "flavors" (tmpfs, lhsm, backup...)
+    - All policies can be implemented in a single robinhood instance.
 * Get a better overlook of your filesystem contents than ever!
     - Tag your filesystem entries based on arbitrary criteria using the new fileclass implementation.
     - Flexible reporting with "rbh-find --printf"
@@ -24,7 +24,7 @@ Main changes in robinhood 3.0:
     - Implement Lustre/HSM with any backend, using the generic command copytool shipped with robinhood: 'lhsmtool_cmd'.
     - UUID support for Lustre/HSM copytools.
 * Convenient:
-    - automatic DB conversion after major upgrades.
+    - Automatic DB conversion after major upgrades.
 * Even more robust & Improved code quality.
 
 Changes between version 2.5.4 and 2.5.5:
