@@ -298,7 +298,7 @@ rm -rf $RPM_BUILD_ROOT
 %files webgui
 
 # set apache permissions
-%defattr(750,root,apache)
+%defattr(750,root,apache,-)
 %{installdir_www}/robinhood
 
 %files tests
