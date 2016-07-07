@@ -5437,7 +5437,7 @@ function db_schema_convert
     config_file=$(basename $cfg2) check_fcount $nbent
 
     # test inversion only if the tested mode has a status manager
-    if [[ "$STATUS_MGR" != "none" ]]; then
+    if [[ "$STATUS_MGR" != "none" ]]; then
 	    # now test inversion with cfg3
 	    :> rh.log
 	    echo "cfg3: robinhood (no alter-db)"
@@ -5505,6 +5505,39 @@ function db_schema_convert
     grep "Run 'robinhood --alter-db'" rh.log && error "DB should be right"
     [ "$DEBUG" = "1" ] && cat rh.log
     config_file=$(basename $cfg1) check_fcount $nbent
+}
+
+# Create files with random names, and use rbh-find on them
+function random_names
+{
+    config_file=$1
+
+    local num_files=500
+
+    clean_logs
+    $CFG_SCRIPT empty_db $RH_DB > /dev/null
+
+    echo "1-Creating files..."
+    rm -rf $RH_ROOT/random/
+    mkdir $RH_ROOT/random/
+
+    echo Creating $num_files files with random names
+    $(dirname $0)/create-random $num_files 200 $RH_ROOT/random || error "creating files failed"
+    echo Done creating files
+
+    echo "2-Scan of filesystem"
+    $RH -f $RBH_CFG_DIR/$config_file --scan -l FULL -L rh_scan.log --once || error ""
+
+    echo "3-Find tests"
+    $FIND -f $RBH_CFG_DIR/$config_file -type f $RH_ROOT/random/ > find.out || error "find failed1"
+    $FIND -f $RBH_CFG_DIR/$config_file -type f -printf "file=%p\n" $RH_ROOT/random/ > find.out || error "find failed2"
+
+    # When the names are escaped, we will get 1 line per file
+    $FIND -f $RBH_CFG_DIR/$config_file -type f -printf "file=%p\n" --escaped $RH_ROOT/random/ > find.out || error "find failed3"
+    wc -l < find.out | grep --quiet "^${num_files}$" || error "should have found ${num_files} files"
+
+    echo "4-Cleanup"
+    rm -rf $RH_ROOT/random/
 }
 
 function check_status_count
@@ -11362,6 +11395,7 @@ runtest_118
 run_test 119 uid_gid_as_numbers uidgidnum.conf "Store UIDs and GIDs as numbers"
 run_test 120 posix_acmtime common.conf "Test for posix ctimes"
 run_test 121 db_schema_convert "" "Test DB schema conversion"
+run_test 122 random_names common.conf "Test random file names"
 
 #### policy matching tests  ####
 

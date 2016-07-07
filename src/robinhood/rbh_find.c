@@ -42,6 +42,7 @@
 #define LSSTATUS_OPT 260
 #define PRINTF_OPT 261
 #define LSCLASS_OPT 262
+#define ESCAPED_OPT 263
 
 static struct option option_tab[] =
 {
@@ -71,6 +72,7 @@ static struct option option_tab[] =
     {"ls", no_argument, NULL, 'l'},
     {"print", no_argument, NULL, 'p'},
     {"printf", required_argument, NULL, PRINTF_OPT},
+    {"escaped", no_argument, NULL, ESCAPED_OPT},
     {"exec", required_argument, NULL, 'E'},
     /* TODO dry-run mode for exec ? */
 
@@ -112,6 +114,7 @@ struct find_opt prog_options = {
     .filter_smi = NULL, .filter_status_name = NULL, .filter_status_value = NULL,
     .bulk = bulk_unspec,
     .ls = 0, .lsost = 0, .lsclass = 0, .lsstatus = 0, .print = 1, .printf = 0,
+    .escaped = 0,
     .match_user = 0, .match_group = 0,
     .match_type = 0, .match_size = 0, .match_name = 0,
     .match_crtime = 0, .match_mtime = 0, .match_atime = 0, .match_ctime = 0,
@@ -454,6 +457,7 @@ static const char *help_string =
     "            " _B "\\\\" B_ "\t Escapes \\\n"
     "            " _B "\\n" B_ "\t Newline\n"
     "            " _B "\\t" B_ "\t Tab\n"
+    "    " _B "-escaped" B_" \t When -printf is used, escape unprintable characters.\n"
     "\n"
     _B "Actions:" B_ "\n"
     "    " _B "-exec" B_" "_U "\"cmd\"" U_ "\n"
@@ -1481,6 +1485,10 @@ int main(int argc, char **argv)
                 fprintf(stderr, "! (-not) unexpected before -printf option\n");
                 exit(1);
             }
+            break;
+
+        case ESCAPED_OPT:
+            prog_options.escaped = 1;
             break;
 
         case 'E':

@@ -1,3 +1,5 @@
+SUBDIRS=test_suite
+
 pkgdatadir=@datarootdir@/@PACKAGE_NAME@/tests
 
 if COMMON_RPMS

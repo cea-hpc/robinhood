@@ -16,6 +16,8 @@
 #include "config.h"
 #endif
 
+#include <ctype.h>
+
 #include <glib.h>
 
 #include "cmd_helpers.h"
@@ -64,6 +66,33 @@ struct fchunk {
 /* The SM status cannot be retrieved or read like the other SM
  * attributes. So make a special case for it. */
 #define SUB_DIRECTIVE_STATUS 0x7876
+
+/* Escape a file name to create a valid string. Valid filenames
+ * characters are all except NULL and /. But not everything else is
+ * printable. This function returns a statically allocated string
+ * which will be overwritten by subsequent calls. */
+static const char *escape_name(const char *fullname)
+{
+    const unsigned char *src = (const unsigned char *)fullname;
+    static GString *dest;
+
+    if (dest == NULL)
+        dest = g_string_sized_new(100);
+    else
+        g_string_truncate(dest, 0);
+
+    while (*src)
+    {
+        if (isprint(*src) && *src != '\\')
+            g_string_append_c(dest, *src);
+        else
+            g_string_append_printf(dest, "\\%03o", *src);
+
+        src ++;
+    }
+
+    return dest->str;
+}
 
 /* Extract the field length from a printf specifier. e.g. "%-20s" will
  * set the field to "-20" and return the next position in the string. */
@@ -573,7 +602,10 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
             break;
 
         case 'p':
-            printf(format, id->fullname);
+            if (prog_options.escaped)
+                printf(format, escape_name(id->fullname));
+            else
+                printf(format, id->fullname);
             break;
 
         case 's':
