@@ -13,7 +13,6 @@
  * accept its terms.
  */
 
-
 /**
  * \file    chglog_reader.c
  * \author  Th. Leibovici
@@ -49,8 +48,7 @@
 #define CHGLOG_TAG  "ChangeLog"
 
 /* reader thread info, one per MDT */
-typedef struct reader_thr_info_t
-{
+typedef struct reader_thr_info_t {
     /** reader thread index */
     unsigned int thr_index;
 
@@ -71,7 +69,7 @@ typedef struct reader_thr_info_t
     unsigned long long suppressed_records;
 
     /** time when the last line was read */
-    time_t  last_read_time;
+    time_t last_read_time;
 
     /** time of the last read record */
     struct timeval last_read_record_time;
@@ -92,10 +90,10 @@ typedef struct reader_thr_info_t
     unsigned int nb_reopen;
 
     /** thread was asked to stop */
-    unsigned int force_stop : 1;
+    unsigned int force_stop:1;
 
     /** log handler */
-    void * chglog_hdlr;
+    void *chglog_hdlr;
 
     /** Queue of pending changelogs to push to the pipeline. */
     struct rh_list_head op_queue;
@@ -105,13 +103,14 @@ typedef struct reader_thr_info_t
      * table is also in the op_queue list. This hash table doesn't
      * need a lock per slot since there is only one reader. The
      * slot counts won't be used either. */
-    struct id_hash * id_hash;
+    struct id_hash *id_hash;
 
-    unsigned long long cl_counters[CL_LAST]; /* since program start time */
-    unsigned long long cl_reported[CL_LAST]; /* last reported stat (for incremental diff) */
+    ull_t cl_counters[CL_LAST]; /* since program start time */
+    ull_t cl_reported[CL_LAST]; /* last reported stat (for incremental diff) */
     time_t last_report;
 
-    /* to compute relative changelog speed (timeframe of read changelog since the last report) */
+    /* to compute relative changelog speed
+     * (timeframe of read changelog since the last report) */
     struct timeval last_report_record_time;
     unsigned long long last_report_record_id;
     unsigned int last_reopen;
@@ -120,7 +119,7 @@ typedef struct reader_thr_info_t
      * followed by a CL_EXT, however these may not be
      * contiguous. Temporarily store the CL_RENAME changelog until we
      * get the CL_EXT. */
-    CL_REC_TYPE * cl_rename;
+    CL_REC_TYPE *cl_rename;
 
 } reader_thr_info_t;
 
@@ -131,25 +130,24 @@ extern chglog_reader_config_t cl_reader_config;
 static run_flags_t behavior_flags = 0;
 
 /* stop reading logs when reaching end of file? */
-#define one_shot ( behavior_flags & RUNFLG_ONCE )
+#define one_shot (behavior_flags & RUNFLG_ONCE)
 
 /** array of reader info */
-static reader_thr_info_t  *reader_info = NULL;
-
+static reader_thr_info_t *reader_info = NULL;
 
 /**
  * Close the changelog for a thread.
  */
-static int log_close( reader_thr_info_t * p_info )
+static int log_close(reader_thr_info_t *p_info)
 {
     int rc;
 
     /* close the log and clear input buffers */
     rc = llapi_changelog_fini(&p_info->chglog_hdlr);
 
-    if ( rc )
+    if (rc)
         DisplayLog(LVL_CRIT, CHGLOG_TAG, "Error %d closing changelog: %s",
-            rc, strerror(abs(rc)) );
+                   rc, strerror(abs(rc)));
 
     return abs(rc);
 }
@@ -157,22 +155,20 @@ static int log_close( reader_thr_info_t * p_info )
 /**
  * Free allocated structures in op_extra_info_t field.
  */
-static void free_extra_info( void * ptr )
+static void free_extra_info(void *ptr)
 {
-    op_extra_info_t * p_info = (op_extra_info_t*)ptr;
+    op_extra_info_t *p_info = (op_extra_info_t *)ptr;
 
-    if ( p_info->is_changelog_record && p_info->log_record.p_log_rec )
-    {
-        llapi_changelog_free( &p_info->log_record.p_log_rec );
+    if (p_info->is_changelog_record && p_info->log_record.p_log_rec) {
+        llapi_changelog_free(&p_info->log_record.p_log_rec);
     }
 }
 
-static void free_extra_info2( void * ptr )
+static void free_extra_info2(void *ptr)
 {
-    op_extra_info_t * p_info = (op_extra_info_t*)ptr;
+    op_extra_info_t *p_info = (op_extra_info_t *)ptr;
 
-    if ( p_info->is_changelog_record && p_info->log_record.p_log_rec )
-    {
+    if (p_info->is_changelog_record && p_info->log_record.p_log_rec) {
         /* if this is a locally allocated record, just "free" it */
         free(p_info->log_record.p_log_rec);
         p_info->log_record.p_log_rec = NULL;
@@ -182,7 +178,7 @@ static void free_extra_info2( void * ptr )
 /**
  * Clear the changelogs up to the last committed number seen.
  */
-static int clear_changelog_records(reader_thr_info_t * p_info)
+static int clear_changelog_records(reader_thr_info_t *p_info)
 {
     int rc;
 
@@ -193,7 +189,8 @@ static int clear_changelog_records(reader_thr_info_t * p_info)
         return 0;
     }
 
-    DisplayLog(LVL_DEBUG, CHGLOG_TAG, "%s: acknowledging ChangeLog records up to #%llu",
+    DisplayLog(LVL_DEBUG, CHGLOG_TAG,
+               "%s: acknowledging ChangeLog records up to #%llu",
                p_info->mdtdevice, p_info->last_committed_record);
 
     DisplayLog(LVL_FULL, CHGLOG_TAG, "llapi_changelog_clear('%s', '%s', %llu)",
@@ -202,16 +199,15 @@ static int clear_changelog_records(reader_thr_info_t * p_info)
                p_info->last_committed_record);
 
     rc = llapi_changelog_clear(p_info->mdtdevice,
-                    cl_reader_config.mdt_def[p_info->thr_index].reader_id,
-                    p_info->last_committed_record);
+                               cl_reader_config.mdt_def[p_info->thr_index].
+                               reader_id, p_info->last_committed_record);
 
-    if (rc)
-    {
-            DisplayLog( LVL_CRIT, CHGLOG_TAG,
-                        "ERROR: llapi_changelog_clear(\"%s\", \"%s\", %llu) returned %d",
-                        p_info->mdtdevice,
-                        cl_reader_config.mdt_def[p_info->thr_index].reader_id,
-                        p_info->last_committed_record, rc );
+    if (rc) {
+        DisplayLog(LVL_CRIT, CHGLOG_TAG,
+                   "ERROR: llapi_changelog_clear(\"%s\", \"%s\", %llu) returned %d",
+                   p_info->mdtdevice,
+                   cl_reader_config.mdt_def[p_info->thr_index].reader_id,
+                   p_info->last_committed_record, rc);
     } else {
         p_info->last_cleared_record = p_info->last_committed_record;
     }
@@ -224,19 +220,19 @@ static int clear_changelog_records(reader_thr_info_t * p_info)
  * DB callback function: this is called when a given ChangeLog record
  * has been successfully applied to the database.
  */
-static int log_record_callback( lmgr_t *lmgr, struct entry_proc_op_t * pop, void * param )
+static int log_record_callback(lmgr_t *lmgr, struct entry_proc_op_t *pop,
+                               void *param)
 {
     int rc;
-    reader_thr_info_t * p_info = (reader_thr_info_t *) param;
-    CL_REC_TYPE * logrec = pop->extra_info.log_record.p_log_rec;
+    reader_thr_info_t *p_info = (reader_thr_info_t *)param;
+    CL_REC_TYPE *logrec = pop->extra_info.log_record.p_log_rec;
 
     /** Check that a log record is set for this entry
      * (should always be the case).
      */
-    if ( !pop->extra_info.is_changelog_record || (logrec == NULL ) )
-    {
-        DisplayLog( LVL_CRIT, CHGLOG_TAG, "Error: log record callback function"
-                    " has been called for a non-changelog entry" );
+    if (!pop->extra_info.is_changelog_record || (logrec == NULL)) {
+        DisplayLog(LVL_CRIT, CHGLOG_TAG, "Error: log record callback function"
+                   " has been called for a non-changelog entry");
         return EINVAL;
     }
 
@@ -251,22 +247,20 @@ static int log_record_callback( lmgr_t *lmgr, struct entry_proc_op_t * pop, void
      * do nothing in all other cases:
      */
     if ((cl_reader_config.batch_ack_count > 1)
-         && (logrec->cr_index < p_info->last_pushed)
-         && ((logrec->cr_index - p_info->last_cleared_record)
-             < cl_reader_config.batch_ack_count))
-    {
-        DisplayLog(LVL_FULL, CHGLOG_TAG, "callback - %s cl_record: %llu, last_cleared: %llu, last_pushed: %llu",
+        && (logrec->cr_index < p_info->last_pushed)
+        && ((logrec->cr_index - p_info->last_cleared_record)
+            < cl_reader_config.batch_ack_count)) {
+        DisplayLog(LVL_FULL, CHGLOG_TAG,
+                   "callback - %s cl_record: %llu, last_cleared: %llu, last_pushed: %llu",
                    p_info->mdtdevice, logrec->cr_index,
-                   p_info->last_cleared_record,
-                   p_info->last_pushed);
+                   p_info->last_cleared_record, p_info->last_pushed);
         /* do nothing, don't clear log now */
         return 0;
     }
 
     rc = clear_changelog_records(p_info);
 
-    if ((rc == 0) &&  (p_info->last_committed_record != 0))
-    {
+    if ((rc == 0) && (p_info->last_committed_record != 0)) {
         char var_tmp[256];
         char val_tmp[256];
         /* save the last committed record, so we don't get old records from
@@ -275,7 +269,8 @@ static int log_record_callback( lmgr_t *lmgr, struct entry_proc_op_t * pop, void
                 cl_reader_config.mdt_def[p_info->thr_index].mdt_name);
         sprintf(val_tmp, "%llu", p_info->last_committed_record);
         if (ListMgr_SetVar(lmgr, var_tmp, val_tmp))
-            DisplayLog(LVL_MAJOR, CHGLOG_TAG, "Failed to save last committed record for %s",
+            DisplayLog(LVL_MAJOR, CHGLOG_TAG,
+                       "Failed to save last committed record for %s",
                        cl_reader_config.mdt_def[p_info->thr_index].mdt_name);
     }
 
@@ -285,7 +280,7 @@ static int log_record_callback( lmgr_t *lmgr, struct entry_proc_op_t * pop, void
 #ifdef _LUSTRE_HSM
 static const char *get_event_name(unsigned int cl_event)
 {
-    static const char *event_name[] = {
+    static const char * const event_name[] = {
         "archive", "restore", "cancel", "release", "remove", "state",
     };
 
@@ -297,9 +292,12 @@ static const char *get_event_name(unsigned int cl_event)
 #endif
 
 #define CL_BASE_FORMAT "%s: %llu %02d%-5s %u.%09u 0x%x%s t="DFID
-#define CL_BASE_ARG(_mdt, _rec_) (_mdt), (_rec_)->cr_index, (_rec_)->cr_type, changelog_type2str((_rec_)->cr_type), \
-               (uint32_t)cltime2sec((_rec_)->cr_time), cltime2nsec((_rec_)->cr_time), \
-               (_rec_)->cr_flags & CLF_FLAGMASK, flag_buff, PFID(&(_rec_)->cr_tfid)
+#define CL_BASE_ARG(_mdt, _rec_) (_mdt), (_rec_)->cr_index, (_rec_)->cr_type, \
+                                 changelog_type2str((_rec_)->cr_type),        \
+                                 (uint32_t)cltime2sec((_rec_)->cr_time),      \
+                                 cltime2nsec((_rec_)->cr_time),               \
+                                 (_rec_)->cr_flags & CLF_FLAGMASK, flag_buff, \
+                                 PFID(&(_rec_)->cr_tfid)
 #define CL_NAME_FORMAT "p="DFID" %.*s"
 #define CL_NAME_ARG(_rec_) PFID(&(_rec_)->cr_pfid), (_rec_)->cr_namelen, \
         rh_get_cl_cr_name(_rec_)
@@ -309,7 +307,8 @@ static const char *get_event_name(unsigned int cl_event)
 #endif
 
 /* Dump a single record. */
-static void dump_record(int debug_level, const char *mdt, const CL_REC_TYPE *rec)
+static void dump_record(int debug_level, const char *mdt,
+                        const CL_REC_TYPE *rec)
 {
     char flag_buff[256] = "";
     char record_str[RBH_PATH_MAX] = "";
@@ -326,17 +325,17 @@ static void dump_record(int debug_level, const char *mdt, const CL_REC_TYPE *rec
     if (rec->cr_type == CL_HSM)
         g_snprintf(flag_buff, sizeof(flag_buff), "(%s%s,rc=%d)",
                    get_event_name(hsm_get_cl_event(rec->cr_flags)),
-                   hsm_get_cl_flags(rec->cr_flags) & CLF_HSM_DIRTY? ",dirty":"",
+                   hsm_get_cl_flags(rec->
+                                    cr_flags) & CLF_HSM_DIRTY ? ",dirty" : "",
                    hsm_get_cl_error(rec->cr_flags));
 #endif
 
     len = snprintf(curr, left, CL_BASE_FORMAT, CL_BASE_ARG(mdt, rec));
     curr += len;
     left -= len;
-    if (left > 0 && rec->cr_namelen)
-    {
+    if (left > 0 && rec->cr_namelen) {
         /* this record has a 'name' field. */
-        len = snprintf(curr, left, " "CL_NAME_FORMAT, CL_NAME_ARG(rec));
+        len = snprintf(curr, left, " " CL_NAME_FORMAT, CL_NAME_ARG(rec));
         curr += len;
         left -= len;
     }
@@ -354,7 +353,7 @@ static void dump_record(int debug_level, const char *mdt, const CL_REC_TYPE *rec
 
             cr_rename = changelog_rec_rename((CL_REC_TYPE *)rec);
             if (fid_is_sane(&cr_rename->cr_sfid)) {
-                len = snprintf(curr, left, " "CL_EXT_FORMAT,
+                len = snprintf(curr, left, " " CL_EXT_FORMAT,
                                PFID(&cr_rename->cr_sfid),
                                PFID(&cr_rename->cr_spfid),
                                (int)changelog_rec_snamelen((CL_REC_TYPE *)rec),
@@ -364,7 +363,8 @@ static void dump_record(int debug_level, const char *mdt, const CL_REC_TYPE *rec
             }
         }
         if (rec->cr_flags & CLF_JOBID) {
-            struct changelog_ext_jobid *jobid = changelog_rec_jobid((CL_REC_TYPE *)rec);
+            struct changelog_ext_jobid *jobid =
+                changelog_rec_jobid((CL_REC_TYPE *)rec);
 
             len = snprintf(curr, left, " J=%s", jobid->cr_jobid);
             curr += len;
@@ -372,7 +372,7 @@ static void dump_record(int debug_level, const char *mdt, const CL_REC_TYPE *rec
         }
 #elif defined(HAVE_CHANGELOG_EXTEND_REC)
         if (fid_is_sane(&rec->cr_sfid)) {
-            len = snprintf(curr, left, " "CL_EXT_FORMAT,
+            len = snprintf(curr, left, " " CL_EXT_FORMAT,
                            PFID(&rec->cr_sfid),
                            PFID(&rec->cr_spfid),
                            changelog_rec_snamelen((CL_REC_TYPE *)rec),
@@ -384,7 +384,7 @@ static void dump_record(int debug_level, const char *mdt, const CL_REC_TYPE *rec
     }
 
     if (left <= 0)
-        record_str[RBH_PATH_MAX-1] = '\0';
+        record_str[RBH_PATH_MAX - 1] = '\0';
 
     DisplayLog(debug_level, CHGLOG_TAG, "%s", record_str);
     DisplayChangelogs("%s", record_str);
@@ -396,8 +396,7 @@ static void dump_op_queue(reader_thr_info_t *p_info, int debug_level, int num)
 {
     entry_proc_op_t *op;
 
-    if (log_config.debug_level < debug_level ||
-        num == 0)
+    if (log_config.debug_level < debug_level || num == 0)
         return;
 
     rh_list_for_each_entry_reverse(op, &p_info->op_queue, list) {
@@ -405,7 +404,7 @@ static void dump_op_queue(reader_thr_info_t *p_info, int debug_level, int num)
                     op->extra_info.log_record.p_log_rec);
 
         if (num != -1) {
-            num --;
+            num--;
             if (num == 0)
                 return;
         }
@@ -413,7 +412,7 @@ static void dump_op_queue(reader_thr_info_t *p_info, int debug_level, int num)
 }
 
 /** extract parent_id and name attributes from the changelog record */
-static void set_name(CL_REC_TYPE * logrec, entry_proc_op_t * p_op)
+static void set_name(CL_REC_TYPE *logrec, entry_proc_op_t *p_op)
 {
     /* is there entry name in log rec? */
     if (logrec->cr_namelen == 0)
@@ -423,34 +422,31 @@ static void set_name(CL_REC_TYPE * logrec, entry_proc_op_t * p_op)
                sizeof(ATTR(&p_op->fs_attrs, name)));
 
     /* parent id is always set when name is (Cf. comment in lfs.c) */
-    if (fid_is_sane(&logrec->cr_pfid))
-    {
+    if (fid_is_sane(&logrec->cr_pfid)) {
         ATTR_MASK_SET(&p_op->fs_attrs, parent_id);
         ATTR(&p_op->fs_attrs, parent_id) = logrec->cr_pfid;
 
         ATTR_MASK_SET(&p_op->fs_attrs, path_update);
         ATTR(&p_op->fs_attrs, path_update) = time(NULL);
-    }
-    else
-    {
-        DisplayLog(LVL_MAJOR, CHGLOG_TAG, "Error: insane parent fid "DFID
+    } else {
+        DisplayLog(LVL_MAJOR, CHGLOG_TAG, "Error: insane parent fid " DFID
                    " in %s changelog record (namelen=%u)",
                    PFID(&logrec->cr_pfid),
                    changelog_type2str(logrec->cr_type), logrec->cr_namelen);
     }
 }
 
-
 /* Push the oldest (all=FALSE) or all (all=TRUE) entries into the pipeline. */
 static void process_op_queue(reader_thr_info_t *p_info, bool push_all)
 {
     time_t oldest = time(NULL) - cl_reader_config.queue_max_age;
-    CL_REC_TYPE * rec;
+    CL_REC_TYPE *rec;
 
     DisplayLog(LVL_FULL, CHGLOG_TAG, "processing changelog queue");
 
-    while(!rh_list_empty(&p_info->op_queue)) {
-        entry_proc_op_t *op = rh_list_first_entry(&p_info->op_queue, entry_proc_op_t, list);
+    while (!rh_list_empty(&p_info->op_queue)) {
+        entry_proc_op_t *op =
+            rh_list_first_entry(&p_info->op_queue, entry_proc_op_t, list);
 
         /* Stop when the queue is below our limit, and when the oldest
          * element is still new enough. */
@@ -464,7 +460,8 @@ static void process_op_queue(reader_thr_info_t *p_info, bool push_all)
 
         rec = op->extra_info.log_record.p_log_rec;
         DisplayLog(LVL_FULL, CHGLOG_TAG, "pushing cl record #%llu: age=%ld",
-                   rec->cr_index, time(NULL) - op->timestamp.changelog_inserted);
+                   rec->cr_index,
+                   time(NULL) - op->timestamp.changelog_inserted);
         /* Push the entry to the pipeline */
         p_info->last_pushed = rec->cr_index;
 
@@ -473,25 +470,28 @@ static void process_op_queue(reader_thr_info_t *p_info, bool push_all)
         set_name(rec, op);
         EntryProcessor_Push(op);
 
-        p_info->op_queue_count --;
+        p_info->op_queue_count--;
     }
 }
 
 /* Flags to insert_into_hash. */
-#define PLR_FLG_FREE2       0x0001 /* must free changelog record on completion */
-#define CHECK_IF_LAST_ENTRY 0x0002 /* check whether the unlinked file is the last one. */
-#define GET_FID_FROM_DB     0x0004 /* fid is not valid, get it from DB */
+#define PLR_FLG_FREE2       0x0001  /* must free changelog record
+                                       on completion */
+#define CHECK_IF_LAST_ENTRY 0x0002  /* check whether the unlinked file is
+                                       the last one. */
+#define GET_FID_FROM_DB     0x0004  /* fid is not valid, get it from DB */
 
 /* Insert the operation into the internal hash table. */
-static int insert_into_hash( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, unsigned int flags )
+static int insert_into_hash(reader_thr_info_t *p_info, CL_REC_TYPE *p_rec,
+                            unsigned int flags)
 {
     entry_proc_op_t *op;
     struct id_hash_slot *slot;
 
-    op = EntryProcessor_Get( );
+    op = EntryProcessor_Get();
     if (!op) {
-        DisplayLog( LVL_CRIT, CHGLOG_TAG,
-                    "CRITICAL ERROR: EntryProcessor_Get failed to allocate a new op" );
+        DisplayLog(LVL_CRIT, CHGLOG_TAG,
+                   "CRITICAL ERROR: EntryProcessor_Get failed to allocate a new op");
         return -1;
     }
 
@@ -514,7 +514,8 @@ static int insert_into_hash( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, un
 
     /* if the unlink record is not tagged as last unlink,
      * always check the previous value of nlink in DB */
-    op->check_if_last_entry = (p_rec->cr_type == CL_UNLINK) && !(p_rec->cr_flags & CLF_UNLINK_LAST);
+    op->check_if_last_entry = (p_rec->cr_type == CL_UNLINK)
+        && !(p_rec->cr_flags & CLF_UNLINK_LAST);
     op->get_fid_from_db = !!(flags & GET_FID_FROM_DB);
 
     /* set callback function + args */
@@ -523,12 +524,12 @@ static int insert_into_hash( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, un
 
     /* Set entry ID */
     if (!op->get_fid_from_db)
-        EntryProcessor_SetEntryId( op, &p_rec->cr_tfid );
+        EntryProcessor_SetEntryId(op, &p_rec->cr_tfid);
 
     /* Add the entry on the pending queue ... */
     op->timestamp.changelog_inserted = time(NULL);
     rh_list_add_tail(&op->list, &p_info->op_queue);
-    p_info->op_queue_count ++;
+    p_info->op_queue_count++;
 
     /* ... and the hash table. */
     slot = get_hash_slot(p_info->id_hash, &op->entry_id);
@@ -543,8 +544,8 @@ static int insert_into_hash( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec, un
  * if it can be skipped altogether. */
 static const struct {
     enum { IGNORE_NEVER = 0,    /* default */
-           IGNORE_MASK,         /* mask must be set, and record has a FID */
-           IGNORE_ALWAYS
+        IGNORE_MASK,    /* mask must be set, and record has a FID */
+        IGNORE_ALWAYS
     } ignore;
     unsigned int ignore_mask;
 } record_filters[CL_LAST] = {
@@ -558,13 +559,18 @@ static const struct {
     /* Similar operation (data changes). For instance, if the current
      * operation is a CLOSE, drop it if we find a previous
      * TRUNC/CLOSE/MTIME or CREATE for the same FID. */
-    [CL_TRUNC] = { IGNORE_MASK, 1<<CL_TRUNC | 1<<CL_CLOSE | 1<<CL_MTIME | 1<<CL_CREATE },
-    [CL_CLOSE] = { IGNORE_MASK, 1<<CL_TRUNC | 1<<CL_CLOSE | 1<<CL_MTIME | 1<<CL_CREATE },
-    [CL_MTIME] = { IGNORE_MASK, 1<<CL_TRUNC | 1<<CL_CLOSE | 1<<CL_MTIME | 1<<CL_CREATE | 1<<CL_MKNOD | 1<<CL_MKDIR },
+    [CL_TRUNC] = { IGNORE_MASK, 1<<CL_TRUNC | 1<<CL_CLOSE | 1<<CL_MTIME
+                   | 1<<CL_CREATE },
+    [CL_CLOSE] = { IGNORE_MASK, 1<<CL_TRUNC | 1<<CL_CLOSE | 1<<CL_MTIME
+                   | 1<<CL_CREATE },
+    [CL_MTIME] = { IGNORE_MASK, 1<<CL_TRUNC | 1<<CL_CLOSE | 1<<CL_MTIME
+                   | 1<<CL_CREATE | 1<<CL_MKNOD | 1<<CL_MKDIR },
 
     /* Similar operations (metadata changes). */
-    [CL_CTIME] = { IGNORE_MASK, 1<<CL_CTIME | 1<<CL_SETATTR | 1<<CL_CREATE | 1<<CL_MKNOD | 1<<CL_MKDIR },
-    [CL_SETATTR] = { IGNORE_MASK, 1<<CL_CTIME | 1<<CL_SETATTR | 1<<CL_CREATE | 1<<CL_MKNOD | 1<<CL_MKDIR },
+    [CL_CTIME] = { IGNORE_MASK, 1<<CL_CTIME | 1<<CL_SETATTR | 1<<CL_CREATE
+                   | 1<<CL_MKNOD | 1<<CL_MKDIR },
+    [CL_SETATTR] = { IGNORE_MASK, 1<<CL_CTIME | 1<<CL_SETATTR | 1<<CL_CREATE
+                   | 1<<CL_MKNOD | 1<<CL_MKDIR },
 };
 
 /* Decides whether a new changelog record can be ignored. Ignoring a
@@ -594,23 +600,22 @@ static bool can_ignore_record(const reader_thr_info_t *p_info,
     slot = get_hash_slot(p_info->id_hash, &logrec_in->cr_tfid);
     ignore_mask = record_filters[logrec_in->cr_type].ignore_mask;
 
-    rh_list_for_each_entry_safe_reverse(op, t1, &slot->list, id_hash_list)
-    {
+    rh_list_for_each_entry_safe_reverse(op, t1, &slot->list, id_hash_list) {
         CL_REC_TYPE *logrec = op->extra_info.log_record.p_log_rec;
 
         /* If the type of record matches what we're looking for, and
          * it's for the same FID, then we can ignore the new
          * record. */
-        if ((ignore_mask & (1<<logrec->cr_type)) &&
+        if ((ignore_mask & (1 << logrec->cr_type)) &&
             entry_id_equal(&logrec->cr_tfid, &logrec_in->cr_tfid)) {
 
             /* if the matching record is n, and ignored record is n+1,
              * acknownledging(n) can also acknownledge(n+1),
              * as they refer to the same entry.
              */
-            if (logrec_in->cr_index == logrec->cr_index + 1)
-            {
-                DisplayLog(LVL_FULL, CHGLOG_TAG, "acknowledging %llu will acknowledge %llu too",
+            if (logrec_in->cr_index == logrec->cr_index + 1) {
+                DisplayLog(LVL_FULL, CHGLOG_TAG,
+                           "acknowledging %llu will acknowledge %llu too",
                            logrec->cr_index, logrec_in->cr_index);
                 logrec->cr_index++;
             }
@@ -622,19 +627,21 @@ static bool can_ignore_record(const reader_thr_info_t *p_info,
 }
 
 /**
- * Convert rename flags to unlink flags, depending on Lustre client/server versions.
+ * Convert rename flags to unlink flags, depending on Lustre client/server
+ * versions.
  * @param[in]     flags            cr_flags from rename changelog record.
- * @param[in,out] pipeline_flags   indicate if specific processing is needed in pipeline.
+ * @param[in,out] pipeline_flags   indicate if specific processing is needed
+ *                                 in pipeline.
  */
-static uint16_t cl_rename2unlink_flags(uint16_t flags, unsigned int *pipeline_flags)
+static uint16_t cl_rename2unlink_flags(uint16_t flags,
+                                       unsigned int *pipeline_flags)
 {
     uint16_t retflg = 0;
 
 #ifdef CLF_RENAME_LAST
     /* The client support LU-1331 (since CLF_RENAME_LAST is
      * defined) but that may not be the case of the server. */
-    if (cl_reader_config.mds_has_lu1331)
-    {
+    if (cl_reader_config.mds_has_lu1331) {
         if (flags & CLF_RENAME_LAST)
             retflg |= CLF_UNLINK_LAST;
 #ifdef CLF_RENAME_LAST_EXISTS
@@ -670,9 +677,9 @@ static uint16_t cl_rename2unlink_flags(uint16_t flags, unsigned int *pipeline_fl
  * operation is deleting the destination, so we need to insert a fake
  * CL_UNLINK into the pipeline for that operation.
  */
-static CL_REC_TYPE * create_fake_unlink_record(const reader_thr_info_t *p_info,
-                                               CL_REC_TYPE *rec_in,
-                                               unsigned int *insert_flags)
+static CL_REC_TYPE *create_fake_unlink_record(const reader_thr_info_t *p_info,
+                                              CL_REC_TYPE *rec_in,
+                                              unsigned int *insert_flags)
 {
     CL_REC_TYPE *rec;
     size_t name_len;
@@ -695,14 +702,14 @@ static CL_REC_TYPE * create_fake_unlink_record(const reader_thr_info_t *p_info,
 
     /* unlinked entry is the target name */
     memcpy(rh_get_cl_cr_name(rec), rh_get_cl_cr_name(rec_in), name_len);
-    rh_get_cl_cr_name(rec)[name_len] = 0; /* terminate string */
+    rh_get_cl_cr_name(rec)[name_len] = 0;   /* terminate string */
     rec->cr_namelen = name_len + 1;
 
     rec->cr_type = CL_UNLINK;
     rec->cr_index = rec_in->cr_index - 1;
 
     DisplayLog(LVL_DEBUG, CHGLOG_TAG,
-               "Unlink: object="DFID", name=%.*s, flags=%#x",
+               "Unlink: object=" DFID ", name=%.*s, flags=%#x",
                PFID(&rec->cr_tfid), rec->cr_namelen,
                rh_get_cl_cr_name(rec), rec->cr_flags);
 
@@ -721,8 +728,8 @@ static CL_REC_TYPE * create_fake_unlink_record(const reader_thr_info_t *p_info,
  *
  * This is only used if LU-1331 fix is present on the Lustre server.
  */
-static CL_REC_TYPE * create_fake_rename_record(const reader_thr_info_t *p_info,
-                                               CL_REC_TYPE *rec_in)
+static CL_REC_TYPE *create_fake_rename_record(const reader_thr_info_t *p_info,
+                                              CL_REC_TYPE *rec_in)
 {
     CL_REC_TYPE *rec;
     size_t sname_len;
@@ -738,11 +745,11 @@ static CL_REC_TYPE * create_fake_rename_record(const reader_thr_info_t *p_info,
     memcpy(rec, rec_in, sizeof(CL_REC_TYPE));
 
     /* set target flags before using any accessor on it */
-    rec->cr_flags = 0; /* simplest record */
+    rec->cr_flags = 0;  /* simplest record */
 
-    rec->cr_namelen = sname_len + 1; /* add 1 for final NULL-byte */
+    rec->cr_namelen = sname_len + 1;    /* add 1 for final NULL-byte */
     memcpy(rh_get_cl_cr_name(rec), changelog_rec_sname(rec_in), sname_len);
-    rh_get_cl_cr_name(rec)[sname_len] = 0; /* terminate string */
+    rh_get_cl_cr_name(rec)[sname_len] = 0;  /* terminate string */
 
     /* we don't want to acknowledge this record as long as the 2
      * records are not processed. acknowledge n-1 instead */
@@ -750,26 +757,27 @@ static CL_REC_TYPE * create_fake_rename_record(const reader_thr_info_t *p_info,
 
 #ifdef HAVE_FLEX_CL
     {
-        const struct changelog_ext_rename *cr_ren_in = changelog_rec_rename(rec_in);
+        const struct changelog_ext_rename *cr_ren_in =
+            changelog_rec_rename(rec_in);
 
-        rec->cr_tfid = cr_ren_in->cr_sfid; /* the renamed fid */
+        rec->cr_tfid = cr_ren_in->cr_sfid;  /* the renamed fid */
         rec->cr_pfid = cr_ren_in->cr_spfid; /* the source parent */
     }
 #else
     rec->cr_tfid = rec_in->cr_sfid; /* the renamed fid */
-    rec->cr_pfid = rec_in->cr_spfid; /* the source parent */
+    rec->cr_pfid = rec_in->cr_spfid;    /* the source parent */
 #endif
 
     return rec;
 }
 #endif
 
-#define mdtname(_info) cl_reader_config.mdt_def[(_info)->thr_index].mdt_name
+#define mdtname(_info) (cl_reader_config.mdt_def[(_info)->thr_index].mdt_name)
 
 /**
  * This handles a single log record.
  */
-static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
+static int process_log_rec(reader_thr_info_t *p_info, CL_REC_TYPE *p_rec)
 {
     unsigned int opnum;
 
@@ -777,28 +785,28 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
     dump_record(LVL_DEBUG, mdtname(p_info), p_rec);
 
     /* update stats */
-    opnum = p_rec->cr_type ;
+    opnum = p_rec->cr_type;
     if ((opnum >= 0) && (opnum < CL_LAST))
-        p_info->cl_counters[opnum] ++;
+        p_info->cl_counters[opnum]++;
     else {
-        DisplayLog( LVL_CRIT, CHGLOG_TAG,
-                    "Log record type %d out of bounds.",
-                    opnum );
+        DisplayLog(LVL_CRIT, CHGLOG_TAG,
+                   "Log record type %d out of bounds.", opnum);
         return EINVAL;
     }
 
     /* This record might be of interest. But try to check whether it
      * might create a duplicate operation anyway. */
     if (can_ignore_record(p_info, p_rec)) {
-        DisplayLog( LVL_FULL, CHGLOG_TAG, "Ignoring event %s", changelog_type2str(opnum) );
-        DisplayChangelogs("(ignored redundant record %s:%llu)",
-                          mdtname(p_info), p_rec->cr_index);
-        p_info->suppressed_records ++;
-        llapi_changelog_free( &p_rec );
+        DisplayLog(LVL_FULL, CHGLOG_TAG, "Ignoring event %s",
+                   changelog_type2str(opnum));
+        DisplayChangelogs("(ignored redundant record %s:%llu)", mdtname(p_info),
+                          p_rec->cr_index);
+        p_info->suppressed_records++;
+        llapi_changelog_free(&p_rec);
         goto done;
     }
 
-    p_info->interesting_records ++;
+    p_info->interesting_records++;
 
     if (p_rec->cr_type == CL_RENAME) {
         /* Ensure there is no pending rename. */
@@ -810,15 +818,13 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
             dump_op_queue(p_info, LVL_CRIT, 32);
 
             /* Discarding bogus entry. */
-            llapi_changelog_free( &p_info->cl_rename );
+            llapi_changelog_free(&p_info->cl_rename);
             p_info->cl_rename = NULL;
         }
-
 #if defined(HAVE_CHANGELOG_EXTEND_REC) || defined(HAVE_FLEX_CL)
         /* extended record: 1 single RENAME record per rename op;
          * there is no EXT. */
-        if (rh_is_rename_one_record(p_rec))
-        {
+        if (rh_is_rename_one_record(p_rec)) {
             CL_REC_TYPE *p_rec2;
 #ifdef HAVE_FLEX_CL
             struct changelog_ext_rename *cr_ren;
@@ -828,39 +834,39 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
              * and LU-1331. */
             if (!cl_reader_config.mds_has_lu543 ||
                 !cl_reader_config.mds_has_lu1331) {
-                DisplayLog(LVL_EVENT, CHGLOG_TAG, "LU-1331 is fixed in this version of Lustre.");
+                DisplayLog(LVL_EVENT, CHGLOG_TAG,
+                           "LU-1331 is fixed in this version of Lustre.");
 
                 cl_reader_config.mds_has_lu543 = true;
                 cl_reader_config.mds_has_lu1331 = true;
             }
 
-            if (!FID_IS_ZERO(&p_rec->cr_tfid))
-            {
-                CL_REC_TYPE * unlink;
+            if (!FID_IS_ZERO(&p_rec->cr_tfid)) {
+                CL_REC_TYPE *unlink;
                 unsigned int insert_flags;
 
                 unlink = create_fake_unlink_record(p_info,
-                                                   p_rec,
-                                                   &insert_flags);
+                                                   p_rec, &insert_flags);
                 if (unlink) {
                     insert_into_hash(p_info, unlink, insert_flags);
                 } else {
-                    DisplayLog( LVL_CRIT, CHGLOG_TAG,
-                                "Could not allocate an UNLINK record." );
+                    DisplayLog(LVL_CRIT, CHGLOG_TAG,
+                               "Could not allocate an UNLINK record.");
                 }
             }
-
 #ifdef HAVE_FLEX_CL
             cr_ren = changelog_rec_rename(p_rec);
             DisplayLog(LVL_DEBUG, CHGLOG_TAG,
-                       "Rename: object="DFID", old parent/name="DFID"/%.*s, new parent/name="DFID"/%.*s",
+                       "Rename: object=" DFID ", old parent/name=" DFID
+                       "/%.*s, new parent/name=" DFID "/%.*s",
                        PFID(&cr_ren->cr_sfid), PFID(&cr_ren->cr_spfid),
-                       (int)changelog_rec_snamelen(p_rec), changelog_rec_sname(p_rec),
-                       PFID(&p_rec->cr_pfid),
+                       (int)changelog_rec_snamelen(p_rec),
+                       changelog_rec_sname(p_rec), PFID(&p_rec->cr_pfid),
                        p_rec->cr_namelen, rh_get_cl_cr_name(p_rec));
 #else
             DisplayLog(LVL_DEBUG, CHGLOG_TAG,
-                       "Rename: object="DFID", old parent/name="DFID"/%s, new parent/name="DFID"/%.*s",
+                       "Rename: object=" DFID ", old parent/name=" DFID
+                       "/%s, new parent/name=" DFID "/%.*s",
                        PFID(&p_rec->cr_sfid), PFID(&p_rec->cr_spfid),
                        changelog_rec_sname(p_rec), PFID(&p_rec->cr_pfid),
                        p_rec->cr_namelen, rh_get_cl_cr_name(p_rec));
@@ -875,33 +881,30 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
             insert_into_hash(p_info, p_rec2, PLR_FLG_FREE2);
 
             /* 2) update RNMTO */
-            p_rec->cr_type = CL_EXT; /* CL_RENAME -> CL_RNMTO */
+            p_rec->cr_type = CL_EXT;    /* CL_RENAME -> CL_RNMTO */
 #ifdef HAVE_FLEX_CL
-            p_rec->cr_tfid = cr_ren->cr_sfid; /* removed fid -> renamed fid */
+            p_rec->cr_tfid = cr_ren->cr_sfid;   /* removed fid -> renamed fid */
 #else
-            p_rec->cr_tfid = p_rec->cr_sfid; /* removed fid -> renamed fid */
+            p_rec->cr_tfid = p_rec->cr_sfid;    /* removed fid -> renamed fid */
 #endif
             insert_into_hash(p_info, p_rec, 0);
-        }
-        else
+        } else
 #endif
         {
             /* This CL_RENAME is followed by CL_EXT, so keep it until
              * then. */
             p_info->cl_rename = p_rec;
         }
-    }
-    else if (p_rec->cr_type == CL_EXT) {
+    } else if (p_rec->cr_type == CL_EXT) {
 
         if (!p_info->cl_rename) {
             /* Should never happen. */
-            DisplayLog( LVL_CRIT, CHGLOG_TAG,
-                        "Got CL_EXT without a CL_RENAME." );
+            DisplayLog(LVL_CRIT, CHGLOG_TAG, "Got CL_EXT without a CL_RENAME.");
             dump_record(LVL_CRIT, mdtname(p_info), p_rec);
             dump_op_queue(p_info, LVL_CRIT, 32);
 
             /* Discarding bogus entry. */
-            llapi_changelog_free( &p_rec );
+            llapi_changelog_free(&p_rec);
 
             goto done;
         }
@@ -911,7 +914,8 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
              !entry_id_equal(&p_info->cl_rename->cr_tfid, &p_rec->cr_tfid))) {
             /* tfid if 0, or the two fids are different, so we have LU-543. */
             cl_reader_config.mds_has_lu543 = true;
-            DisplayLog(LVL_EVENT, CHGLOG_TAG, "LU-543 is fixed in this version of Lustre.");
+            DisplayLog(LVL_EVENT, CHGLOG_TAG,
+                       "LU-543 is fixed in this version of Lustre.");
         }
 
         /* We now have a CL_RENAME and a CL_EXT. */
@@ -919,7 +923,7 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
          * e.g. "mv a b" and b exists => rm b.
          */
         if (!FID_IS_ZERO(&p_rec->cr_tfid)) {
-            CL_REC_TYPE * unlink;
+            CL_REC_TYPE *unlink;
             unsigned int insert_flags;
 
             /* Push an unlink. */
@@ -928,8 +932,8 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
             if (unlink) {
                 insert_into_hash(p_info, unlink, insert_flags);
             } else {
-                DisplayLog( LVL_CRIT, CHGLOG_TAG,
-                            "Could not allocate an UNLINK record." );
+                DisplayLog(LVL_CRIT, CHGLOG_TAG,
+                           "Could not allocate an UNLINK record.");
             }
         }
 
@@ -952,52 +956,50 @@ static int process_log_rec( reader_thr_info_t * p_info, CL_REC_TYPE * p_rec )
         insert_into_hash(p_info, p_info->cl_rename, 0);
         p_info->cl_rename = NULL;
         insert_into_hash(p_info, p_rec, 0);
-    }
-    else {
+    } else {
         /* build the record to be processed in the pipeline */
         insert_into_hash(p_info, p_rec, 0);
     }
 
-done:
+ done:
     return 0;
 }
 
-static inline void cl_update_stats(reader_thr_info_t * info, CL_REC_TYPE * p_rec)
+static inline void cl_update_stats(reader_thr_info_t *info,
+                                   CL_REC_TYPE *p_rec)
 {
-        /* update thread info */
-        info->last_read_time = time(NULL);
-        info->nb_read ++;
-        info->last_read_record =  p_rec->cr_index;
-        info->last_read_record_time.tv_sec = (time_t)cltime2sec(p_rec->cr_time);
-        info->last_read_record_time.tv_usec = cltime2nsec(p_rec->cr_time)/1000;
+    /* update thread info */
+    info->last_read_time = time(NULL);
+    info->nb_read++;
+    info->last_read_record = p_rec->cr_index;
+    info->last_read_record_time.tv_sec = (time_t)cltime2sec(p_rec->cr_time);
+    info->last_read_record_time.tv_usec = cltime2nsec(p_rec->cr_time) / 1000;
 
-        /* if no record has been read, save it as the previous last */
-        if (info->last_report_record_id == 0)
-        {
-            info->last_report_record_id = info->last_read_record - 1;
-            info->last_report_record_time = info->last_read_record_time;
-        }
+    /* if no record has been read, save it as the previous last */
+    if (info->last_report_record_id == 0) {
+        info->last_report_record_id = info->last_read_record - 1;
+        info->last_report_record_time = info->last_read_record_time;
+    }
 }
 
-
 /* get a changelog line (with retries) */
-typedef enum {cl_ok, cl_continue, cl_stop} cl_status_e;
+typedef enum { cl_ok, cl_continue, cl_stop } cl_status_e;
 
-static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
+static cl_status_e cl_get_one(reader_thr_info_t *info, CL_REC_TYPE **pp_rec)
 {
     int rc;
 
     /* get next record */
     rc = llapi_changelog_recv(info->chglog_hdlr, pp_rec);
 
-    if (!EMPTY_STRING(log_config.changelogs_file) && rc != 0 && rc != 1)
-    {
-        DisplayChangelogs(">>> llapi_changelog_recv returned error %d (last record = %llu)",
-                rc, info->last_read_record);
+    if (!EMPTY_STRING(log_config.changelogs_file) && rc != 0 && rc != 1) {
+        DisplayChangelogs
+            (">>> llapi_changelog_recv returned error %d (last record = %llu)",
+             rc, info->last_read_record);
         FlushLogs();
     }
 
-    switch(rc) {
+    switch (rc) {
     case 0:
         /* Successfully retrieved a record. Update thread info. pp_rec
          * should never be NULL. */
@@ -1005,16 +1007,15 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
 
         return cl_ok;
 
-    case 1:                     /* EOF */
-    case -EINVAL:               /* FS unmounted */
-    case -EPROTO:               /* error in KUC channel */
+    case 1:    /* EOF */
+    case -EINVAL:  /* FS unmounted */
+    case -EPROTO:  /* error in KUC channel */
 
         /* warn if it is an error */
         if (rc != 1)
             DisplayLog(LVL_EVENT, CHGLOG_TAG,
                        "Error %d in llapi_changelog_recv(): %s. "
-                       "Trying to reopen it.",
-                       rc, strerror(-rc));
+                       "Trying to reopen it.", rc, strerror(-rc));
 
         if (one_shot)
             return cl_stop;
@@ -1022,26 +1023,23 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
         /* Close, wait and open the log again (from last_read_record + 1) */
         log_close(info);
 
-        if ( cl_reader_config.force_polling )
-        {
+        if (cl_reader_config.force_polling) {
             DisplayLog(LVL_FULL, CHGLOG_TAG,
                        "EOF reached on changelog from %s, reopening in %ld sec",
                        info->mdtdevice, cl_reader_config.polling_interval);
             /* sleep during polling interval */
-            rh_sleep( cl_reader_config.polling_interval );
-        }
-        else
-        {
-            DisplayLog( LVL_EVENT, CHGLOG_TAG,
-                        "WARNING: EOF reached on ChangeLog whereas FOLLOW flag "
-                        "was specified. Re-opening in 1 sec..." );
-            rh_sleep( 1 );
+            rh_sleep(cl_reader_config.polling_interval);
+        } else {
+            DisplayLog(LVL_EVENT, CHGLOG_TAG,
+                       "WARNING: EOF reached on ChangeLog whereas FOLLOW flag "
+                       "was specified. Re-opening in 1 sec...");
+            rh_sleep(1);
         }
 
-        info->nb_reopen ++;
+        info->nb_reopen++;
 
-        rc = llapi_changelog_start( &info->chglog_hdlr, info->flags,
-                                    info->mdtdevice, info->last_read_record + 1 );
+        rc = llapi_changelog_start(&info->chglog_hdlr, info->flags,
+                                   info->mdtdevice, info->last_read_record + 1);
         if (rc) {
             /* will try to recover from this error */
             rh_sleep(1);
@@ -1050,14 +1048,14 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
         return cl_continue;
 
     case -EINTR:
-        DisplayLog( LVL_EVENT, CHGLOG_TAG,
-                    "llapi_changelog_recv() interrupted. Retrying." );
+        DisplayLog(LVL_EVENT, CHGLOG_TAG,
+                   "llapi_changelog_recv() interrupted. Retrying.");
         return cl_continue;
 
     default:
-        DisplayLog( LVL_CRIT, CHGLOG_TAG,
-                    "Error in llapi_changelog_recv(): %d: %s",
-                    rc, strerror(abs(rc)));
+        DisplayLog(LVL_CRIT, CHGLOG_TAG,
+                   "Error in llapi_changelog_recv(): %d: %s",
+                   rc, strerror(abs(rc)));
 
         /* will try to recover from this error */
         rh_sleep(1);
@@ -1069,18 +1067,17 @@ static cl_status_e cl_get_one(reader_thr_info_t * info,  CL_REC_TYPE ** pp_rec)
     return cl_continue;
 }
 
-
 /** a thread that reads lines from a given changelog */
-static void * chglog_reader_thr( void *  arg )
+static void *chglog_reader_thr(void *arg)
 {
-    reader_thr_info_t * info = (reader_thr_info_t*) arg;
-    CL_REC_TYPE * p_rec = NULL;
+    reader_thr_info_t *info = (reader_thr_info_t *)arg;
+    CL_REC_TYPE *p_rec = NULL;
     cl_status_e st;
-    time_t next_push_time = time(NULL) + cl_reader_config.queue_check_interval; /* Next time we will have to push. */
+    /* Next time we will have to push. */
+    time_t next_push_time = time(NULL) + cl_reader_config.queue_check_interval;
 
     /* loop until a TERM signal is caught */
-    while ( !info->force_stop )
-    {
+    while (!info->force_stop) {
         /* Is it time to flush? */
         if (info->op_queue_count >= cl_reader_config.queue_max_size ||
             next_push_time <= time(NULL)) {
@@ -1093,13 +1090,13 @@ static void * chglog_reader_thr( void *  arg )
         }
 
         st = cl_get_one(info, &p_rec);
-        if (st == cl_continue )
+        if (st == cl_continue)
             continue;
         else if (st == cl_stop)
             break;
 
         /* handle the line and push it to the pipeline */
-        process_log_rec( info, p_rec );
+        process_log_rec(info, p_rec);
     }
 
     /* Stopping. Flush the internal queue. */
@@ -1116,20 +1113,18 @@ static void * chglog_reader_thr( void *  arg )
  * that keeps in <defunc> state.
  * So we work around this issue by trapping SIGCHILD signals.
  */
-static void action_sigchld( int sig )
+static void action_sigchld(int sig)
 {
-    pid_t child ;
-    do
-    {
+    pid_t child;
+    do {
         /* wait for all terminated children
          * and stop on end of list or error.
          */
-        child = waitpid( -1, NULL, WNOHANG ) ;
-    } while ( child > 0 );
+        child = waitpid(-1, NULL, WNOHANG);
+    } while (child > 0);
 
 }
 #endif
-
 
 /** start ChangeLog Reader module */
 int cl_reader_start(run_flags_t flags, int mdt_index)
@@ -1137,45 +1132,43 @@ int cl_reader_start(run_flags_t flags, int mdt_index)
     int i, rc;
     char mdtdevice[128];
 #ifdef _LLAPI_FORKS
-    struct sigaction act_sigchld ;
+    struct sigaction act_sigchld;
 #endif
 
-    for (i = 0; i < cl_reader_config.mdt_count; i++)
-    {
+    for (i = 0; i < cl_reader_config.mdt_count; i++) {
         if (mdt_index == -1 || mdt_index == i)
             DisplayLog(LVL_FULL, CHGLOG_TAG, "mdt[%u] = %s", i,
                        cl_reader_config.mdt_def[i].mdt_name);
     }
 
     /* check parameters */
-    if ( (cl_reader_config.mdt_count == 0) || (cl_reader_config.mdt_def == NULL) )
-    {
-        DisplayLog( LVL_CRIT, CHGLOG_TAG,
-                    "ERROR: no MDT ChangeLog has been defined in configuration" );
+    if ((cl_reader_config.mdt_count == 0)
+        || (cl_reader_config.mdt_def == NULL)) {
+        DisplayLog(LVL_CRIT, CHGLOG_TAG,
+                   "ERROR: no MDT ChangeLog has been defined in configuration");
         return EINVAL;
     }
 #ifndef HAVE_DNE
-    else if ((cl_reader_config.mdt_count > 1) || (mdt_index > 0))
-    {
+    else if ((cl_reader_config.mdt_count > 1) || (mdt_index > 0)) {
         DisplayLog(LVL_CRIT, CHGLOG_TAG,
                    "ERROR: multiple MDTs are not supported with this version of Lustre");
         return ENOTSUP;
     }
 #endif
-    else if (mdt_index >= (int)cl_reader_config.mdt_count)
-    {
-        DisplayLog(LVL_CRIT, CHGLOG_TAG, "The specified mdt_index (%d) exceeds the MDT count in configuration file (%u)",
+    else if (mdt_index >= (int)cl_reader_config.mdt_count) {
+        DisplayLog(LVL_CRIT, CHGLOG_TAG,
+                   "The specified mdt_index (%d) exceeds the MDT count in configuration file (%u)",
                    mdt_index, cl_reader_config.mdt_count);
         return EINVAL;
     }
 
-    if (mdt_index != -1)
-    {
+    if (mdt_index != -1) {
         /* hack the configuration structure to keep only the specified MDT */
         if (mdt_index != 0)
             cl_reader_config.mdt_def[0] = cl_reader_config.mdt_def[mdt_index];
         cl_reader_config.mdt_count = 1;
-        DisplayLog(LVL_MAJOR, CHGLOG_TAG, "Starting changelog reader only for %s, as specified by command line",
+        DisplayLog(LVL_MAJOR, CHGLOG_TAG,
+                   "Starting changelog reader only for %s, as specified by command line",
                    cl_reader_config.mdt_def[0].mdt_name);
     }
 
@@ -1183,26 +1176,25 @@ int cl_reader_start(run_flags_t flags, int mdt_index)
     behavior_flags = flags;
 
     /* create thread params */
-    reader_info = (reader_thr_info_t*)MemCalloc(cl_reader_config.mdt_count,
-                                                sizeof(reader_thr_info_t));
+    reader_info = (reader_thr_info_t *)MemCalloc(cl_reader_config.mdt_count,
+                                                  sizeof(reader_thr_info_t));
 
-    if ( reader_info == NULL )
+    if (reader_info == NULL)
         return ENOMEM;
 
 #ifdef _LLAPI_FORKS
     /* initialize sigchild handler */
-    memset( &act_sigchld, 0, sizeof( act_sigchld ) ) ;
-    act_sigchld.sa_flags = 0 ;
-    act_sigchld.sa_handler = action_sigchld ;
-    if( sigaction( SIGCHLD, &act_sigchld, NULL ) == -1 )
-    {
+    memset(&act_sigchld, 0, sizeof(act_sigchld));
+    act_sigchld.sa_flags = 0;
+    act_sigchld.sa_handler = action_sigchld;
+    if (sigaction(SIGCHLD, &act_sigchld, NULL) == -1) {
         DisplayLog(LVL_CRIT, CHGLOG_TAG,
                    "ERROR: Could not initialize SIGCHLD handler: %s",
-                   strerror(errno) );
+                   strerror(errno));
         return errno;
     }
     DisplayLog(LVL_DEBUG, CHGLOG_TAG,
-               "Ready to trap SIGCHLD from liblustreapi child process" );
+               "Ready to trap SIGCHLD from liblustreapi child process");
 #endif
 
     Alert_StartBatching();
@@ -1215,9 +1207,8 @@ int cl_reader_start(run_flags_t flags, int mdt_index)
         dbget = 0;
 
     /* create one reader per MDT */
-    for ( i = 0; i < cl_reader_config.mdt_count ; i++ )
-    {
-        reader_thr_info_t * info = &reader_info[i];
+    for (i = 0; i < cl_reader_config.mdt_count; i++) {
+        reader_thr_info_t *info = &reader_info[i];
 
         /* retrieve from the first unacknowledged record */
         unsigned long long last_rec = 0;
@@ -1228,55 +1219,54 @@ int cl_reader_start(run_flags_t flags, int mdt_index)
         info->last_report = time(NULL);
         info->id_hash = id_hash_init(ID_CHGLOG_HASH_SIZE, false);
 
-        snprintf( mdtdevice, 128, "%s-%s", get_fsname(),
-                  cl_reader_config.mdt_def[i].mdt_name );
+        snprintf(mdtdevice, 128, "%s-%s", get_fsname(),
+                 cl_reader_config.mdt_def[i].mdt_name);
 
         info->mdtdevice = strdup(mdtdevice);
-        info->flags = ((one_shot || cl_reader_config.force_polling)?0:CHANGELOG_FLAG_FOLLOW)
+        info->flags =
+            ((one_shot
+              || cl_reader_config.force_polling) ? 0 : CHANGELOG_FLAG_FOLLOW)
             | CHANGELOG_FLAG_BLOCK;
 
-        if (dbget)
-        {
+        if (dbget) {
             char lastcl_var[256];
             char val_str[1024];
 
             sprintf(lastcl_var, "%s_%s", CL_LAST_COMMITTED,
                     cl_reader_config.mdt_def[i].mdt_name);
-            if (ListMgr_GetVar(&lmgr, lastcl_var, val_str, sizeof(val_str)) == DB_SUCCESS)
-            {
-                  last_rec = str2bigint(val_str);
-                  if (last_rec == -1LL)
-                      last_rec = 0;
-                  else
-                      /* start rec = last rec + 1 */
-                      last_rec ++;
+            if (ListMgr_GetVar(&lmgr, lastcl_var, val_str, sizeof(val_str)) ==
+                DB_SUCCESS) {
+                last_rec = str2bigint(val_str);
+                if (last_rec == -1LL)
+                    last_rec = 0;
+                else
+                    /* start rec = last rec + 1 */
+                    last_rec++;
             }
         }
-        DisplayLog(LVL_DEBUG, CHGLOG_TAG, "Opening chglog for %s (start_rec=%llu)",
-                   mdtdevice, last_rec);
+        DisplayLog(LVL_DEBUG, CHGLOG_TAG,
+                   "Opening chglog for %s (start_rec=%llu)", mdtdevice,
+                   last_rec);
 
         /* open the changelog (if we are in one_shot mode,
          * don't use the CHANGELOG_FLAG_FOLLOW flag)
          */
         rc = llapi_changelog_start(&info->chglog_hdlr,
-                                   info->flags,
-                                   info->mdtdevice, last_rec);
+                                   info->flags, info->mdtdevice, last_rec);
 
-        if ( rc )
-        {
-                DisplayLog(LVL_CRIT, CHGLOG_TAG,
-                    "ERROR %d opening changelog for MDT '%s': %s",
-                    rc, mdtdevice, strerror(abs(rc)) );
-                return abs(rc);
+        if (rc) {
+            DisplayLog(LVL_CRIT, CHGLOG_TAG,
+                       "ERROR %d opening changelog for MDT '%s': %s",
+                       rc, mdtdevice, strerror(abs(rc)));
+            return abs(rc);
         }
 
         /* then create the thread that manages it */
-        if ( pthread_create(&info->thr_id, NULL, chglog_reader_thr, info) )
-        {
+        if (pthread_create(&info->thr_id, NULL, chglog_reader_thr, info)) {
             int err = errno;
             DisplayLog(LVL_CRIT, CHGLOG_TAG,
-                "ERROR creating ChangeLog reader thread: %s",
-                strerror(err) );
+                       "ERROR creating ChangeLog reader thread: %s",
+                       strerror(err));
             return err;
         }
 
@@ -1288,22 +1278,20 @@ int cl_reader_start(run_flags_t flags, int mdt_index)
     return 0;
 }
 
-
 /** terminate ChangeLog Readers */
 int cl_reader_terminate(void)
 {
     unsigned int i;
 
     /* ask threads to stop */
-    for ( i = 0; i < cl_reader_config.mdt_count; i++ )
-    {
+    for (i = 0; i < cl_reader_config.mdt_count; i++) {
         reader_info[i].force_stop = true;
     }
 
-    DisplayLog( LVL_EVENT, CHGLOG_TAG,
-                "Stop request has been sent to all ChangeLog reader threads" );
+    DisplayLog(LVL_EVENT, CHGLOG_TAG,
+               "Stop request has been sent to all ChangeLog reader threads");
 
-    cl_reader_wait(  );
+    cl_reader_wait();
 
     return 0;
 }
@@ -1312,11 +1300,10 @@ int cl_reader_terminate(void)
 int cl_reader_wait(void)
 {
     int i;
-    void * ret;
+    void *ret;
 
-    for ( i = 0; i < cl_reader_config.mdt_count; i++ )
-    {
-        pthread_join( reader_info[i].thr_id, &ret );
+    for (i = 0; i < cl_reader_config.mdt_count; i++) {
+        pthread_join(reader_info[i].thr_id, &ret);
     }
 
     Alert_EndBatching();
@@ -1329,9 +1316,8 @@ int cl_reader_done(void)
 {
     int i;
 
-    for ( i = 0; i < cl_reader_config.mdt_count; i++ )
-    {
-        reader_thr_info_t * info = &reader_info[i];
+    for (i = 0; i < cl_reader_config.mdt_count; i++) {
+        reader_thr_info_t *info = &reader_info[i];
 
         /* Clear the records that are still batched for clearing. */
         clear_changelog_records(info);
@@ -1347,117 +1333,136 @@ int cl_reader_done(void)
 /** dump changelog processing stats */
 int cl_reader_dump_stats(void)
 {
-    unsigned int i,j;
+    unsigned int i, j;
     char tmp_buff[256];
-    char * ptr;
+    char *ptr;
     struct tm paramtm;
 
     /* ask threads to stop */
 
-    for ( i = 0; i < cl_reader_config.mdt_count; i++ )
-    {
+    for (i = 0; i < cl_reader_config.mdt_count; i++) {
         double speed, speed2;
         unsigned int interval, interval2 = 0;
 
-        DisplayLog( LVL_MAJOR, "STATS", "ChangeLog reader #%u:", i );
+        DisplayLog(LVL_MAJOR, "STATS", "ChangeLog reader #%u:", i);
 
-        DisplayLog( LVL_MAJOR, "STATS", "   fs_name    =   %s",
-                    get_fsname() );
-        DisplayLog( LVL_MAJOR, "STATS", "   mdt_name   =   %s",
-                    cl_reader_config.mdt_def[i].mdt_name );
-        DisplayLog( LVL_MAJOR, "STATS", "   reader_id  =   %s",
-                    cl_reader_config.mdt_def[i].reader_id );
-        DisplayLog( LVL_MAJOR, "STATS", "   records read        = %llu",
-                    reader_info[i].nb_read );
-        DisplayLog( LVL_MAJOR, "STATS", "   interesting records = %llu",
-                    reader_info[i].interesting_records );
-        DisplayLog( LVL_MAJOR, "STATS", "   suppressed records  = %llu",
-                    reader_info[i].suppressed_records );
-        DisplayLog( LVL_MAJOR, "STATS", "   records pending     = %u",
-                    reader_info[i].op_queue_count );
+        DisplayLog(LVL_MAJOR, "STATS", "   fs_name    =   %s", get_fsname());
+        DisplayLog(LVL_MAJOR, "STATS", "   mdt_name   =   %s",
+                   cl_reader_config.mdt_def[i].mdt_name);
+        DisplayLog(LVL_MAJOR, "STATS", "   reader_id  =   %s",
+                   cl_reader_config.mdt_def[i].reader_id);
+        DisplayLog(LVL_MAJOR, "STATS", "   records read        = %llu",
+                   reader_info[i].nb_read);
+        DisplayLog(LVL_MAJOR, "STATS", "   interesting records = %llu",
+                   reader_info[i].interesting_records);
+        DisplayLog(LVL_MAJOR, "STATS", "   suppressed records  = %llu",
+                   reader_info[i].suppressed_records);
+        DisplayLog(LVL_MAJOR, "STATS", "   records pending     = %u",
+                   reader_info[i].op_queue_count);
 
-        if (reader_info[i].nb_read)
-        {
+        if (reader_info[i].nb_read) {
             time_t now = time(NULL);
 
-            strftime( tmp_buff, 256, "%Y/%m/%d %T",
-                      localtime_r( &reader_info[i].last_read_time, &paramtm ) );
-            DisplayLog( LVL_MAJOR, "STATS", "   last received            = %s", tmp_buff );
+            strftime(tmp_buff, 256, "%Y/%m/%d %T",
+                     localtime_r(&reader_info[i].last_read_time, &paramtm));
+            DisplayLog(LVL_MAJOR, "STATS", "   last received            = %s",
+                       tmp_buff);
 
-            strftime( tmp_buff, 256, "%Y/%m/%d %T",
-                      localtime_r( &reader_info[i].last_read_record_time.tv_sec, &paramtm ) );
-            DisplayLog( LVL_MAJOR, "STATS", "   last read record time    = %s.%06u",
-                        tmp_buff, (unsigned int)reader_info[i].last_read_record_time.tv_usec );
+            strftime(tmp_buff, 256, "%Y/%m/%d %T",
+                     localtime_r(&reader_info[i].last_read_record_time.tv_sec,
+                                 &paramtm));
+            DisplayLog(LVL_MAJOR, "STATS",
+                       "   last read record time    = %s.%06u", tmp_buff,
+                       (unsigned int)reader_info[i].last_read_record_time.
+                       tv_usec);
 
-            DisplayLog( LVL_MAJOR, "STATS", "   last read record id      = %llu",
-                        reader_info[i].last_read_record );
-            DisplayLog( LVL_MAJOR, "STATS", "   last pushed record id    = %llu",
-                        reader_info[i].last_pushed );
-            DisplayLog( LVL_MAJOR, "STATS", "   last committed record id = %llu",
-                        reader_info[i].last_committed_record );
-            DisplayLog( LVL_MAJOR, "STATS", "   last cleared record id   = %llu",
-                        reader_info[i].last_cleared_record );
+            DisplayLog(LVL_MAJOR, "STATS", "   last read record id      = %llu",
+                       reader_info[i].last_read_record);
+            DisplayLog(LVL_MAJOR, "STATS", "   last pushed record id    = %llu",
+                       reader_info[i].last_pushed);
+            DisplayLog(LVL_MAJOR, "STATS", "   last committed record id = %llu",
+                       reader_info[i].last_committed_record);
+            DisplayLog(LVL_MAJOR, "STATS", "   last cleared record id   = %llu",
+                       reader_info[i].last_cleared_record);
 
-            if (reader_info[i].last_report_record_id && (now > reader_info[i].last_report))
-            {
+            if (reader_info[i].last_report_record_id
+                && (now > reader_info[i].last_report)) {
                 interval = now - reader_info[i].last_report;
                 /* interval except time for reopening */
-                interval2 = interval - (reader_info[i].nb_reopen - reader_info[i].last_reopen)
-                            * cl_reader_config.polling_interval;
+                interval2 =
+                    interval - (reader_info[i].nb_reopen -
+                                reader_info[i].last_reopen)
+                    * cl_reader_config.polling_interval;
 
                 /* compute speed (rec/sec) */
-                speed = (double)(reader_info[i].last_read_record - reader_info[i].last_report_record_id)/(double)interval;
-                if ((interval2 != 0) && (interval2 != interval))
-                {
-                    speed2 = (double)(reader_info[i].last_read_record - reader_info[i].last_report_record_id)/(double)interval2;
-                    DisplayLog( LVL_MAJOR, "STATS", "   read speed               = %.2f record/sec (%.2f incl. idle time)", speed2, speed );
-                }
-                else
-                    DisplayLog( LVL_MAJOR, "STATS", "   read speed               = %.2f record/sec", speed );
+                speed =
+                    (double)(reader_info[i].last_read_record -
+                             reader_info[i].last_report_record_id) /
+                    (double)interval;
+                if ((interval2 != 0) && (interval2 != interval)) {
+                    speed2 =
+                        (double)(reader_info[i].last_read_record -
+                                 reader_info[i].last_report_record_id) /
+                        (double)interval2;
+                    DisplayLog(LVL_MAJOR, "STATS",
+                               "   read speed               = %.2f record/sec (%.2f incl. idle time)",
+                               speed2, speed);
+                } else
+                    DisplayLog(LVL_MAJOR, "STATS",
+                               "   read speed               = %.2f record/sec",
+                               speed);
 
                 /* compute relative speed (sec/sec) or (h/h) or (d/d) */
-                speed = (double)(reader_info[i].last_read_record_time.tv_sec + reader_info[i].last_read_record_time.tv_usec*0.000001
-                                 - reader_info[i].last_report_record_time.tv_sec - reader_info[i].last_report_record_time.tv_usec*0.000001)/(double)interval;
-                DisplayLog( LVL_MAJOR, "STATS", "   processing speed ratio   = %.2f", speed );
+                speed =
+                    (double)(reader_info[i].last_read_record_time.tv_sec +
+                             reader_info[i].last_read_record_time.tv_usec *
+                             0.000001 -
+                             reader_info[i].last_report_record_time.tv_sec -
+                             reader_info[i].last_report_record_time.tv_usec *
+                             0.000001) / (double)interval;
+                DisplayLog(LVL_MAJOR, "STATS",
+                           "   processing speed ratio   = %.2f", speed);
             }
 
         }
 
-        if ( reader_info[i].force_stop )
-            DisplayLog( LVL_MAJOR, "STATS", "   status                   = terminating");
-        else if (interval2 == 0) /* spends its time polling */
-        {
+        if (reader_info[i].force_stop)
+            DisplayLog(LVL_MAJOR, "STATS",
+                       "   status                   = terminating");
+        else if (interval2 == 0) {  /* spends its time polling */
             /* more than a single record read? */
-            if (reader_info[i].last_read_record - reader_info[i].last_report_record_id > 1)
-                DisplayLog( LVL_MAJOR, "STATS", "   status                   = almost idle");
+            if (reader_info[i].last_read_record -
+                reader_info[i].last_report_record_id > 1)
+                DisplayLog(LVL_MAJOR, "STATS",
+                           "   status                   = almost idle");
             else
-                DisplayLog( LVL_MAJOR, "STATS", "   status                   = idle");
-        }
-        else if (reader_info[i].nb_reopen == reader_info[i].last_reopen) /* no reopen: it is busy reading changelogs */
-            DisplayLog( LVL_MAJOR, "STATS", "   status                   = busy");
+                DisplayLog(LVL_MAJOR, "STATS",
+                           "   status                   = idle");
+        } else if (reader_info[i].nb_reopen == reader_info[i].last_reopen)
+            /* no reopen: it is busy reading changelogs */
+            DisplayLog(LVL_MAJOR, "STATS",
+                       "   status                   = busy");
 
-        DisplayLog( LVL_MAJOR, "STATS", "   ChangeLog stats:");
+        DisplayLog(LVL_MAJOR, "STATS", "   ChangeLog stats:");
 
         tmp_buff[0] = '\0';
         ptr = tmp_buff;
-        for (j = 0; j < CL_LAST; j++)
-        {
+        for (j = 0; j < CL_LAST; j++) {
             /* flush full line */
-            if (ptr - tmp_buff >= 80)
-            {
-                DisplayLog( LVL_MAJOR, "STATS", "   %s", tmp_buff );
+            if (ptr - tmp_buff >= 80) {
+                DisplayLog(LVL_MAJOR, "STATS", "   %s", tmp_buff);
                 tmp_buff[0] = '\0';
                 ptr = tmp_buff;
             }
             if (ptr != tmp_buff)
-                ptr += sprintf( ptr, ", ");
+                ptr += sprintf(ptr, ", ");
 
-            ptr += sprintf( ptr, "%s: %llu", changelog_type2str(j),
-                            reader_info[i].cl_counters[j] );
+            ptr += sprintf(ptr, "%s: %llu", changelog_type2str(j),
+                           reader_info[i].cl_counters[j]);
         }
         /* last unflushed line */
         if (ptr != tmp_buff)
-            DisplayLog( LVL_MAJOR, "STATS", "   %s", tmp_buff );
+            DisplayLog(LVL_MAJOR, "STATS", "   %s", tmp_buff);
     }
 
     return 0;
@@ -1472,38 +1477,41 @@ int cl_reader_store_stats(lmgr_t *lmgr)
 
     /* ask threads to stop */
 
-    if ( cl_reader_config.mdt_count > 1 )
-        DisplayLog( LVL_MAJOR, CHGLOG_TAG, "WARNING: more than 1 MDT changelog reader, only 1st reader stats will be stored in DB" );
-    else if ( cl_reader_config.mdt_count < 1 )
-        return ENOENT; /* nothing to be stored */
+    if (cl_reader_config.mdt_count > 1)
+        DisplayLog(LVL_MAJOR, CHGLOG_TAG,
+                   "WARNING: more than 1 MDT changelog reader, only 1st reader stats will be stored in DB");
+    else if (cl_reader_config.mdt_count < 1)
+        return ENOENT;  /* nothing to be stored */
 
-    sprintf( tmp_buff, "%llu", reader_info[0].last_read_record );
-    ListMgr_SetVar( lmgr, CL_LAST_READ_REC_ID, tmp_buff );
+    sprintf(tmp_buff, "%llu", reader_info[0].last_read_record);
+    ListMgr_SetVar(lmgr, CL_LAST_READ_REC_ID, tmp_buff);
     reader_info[0].last_report_record_id = reader_info[0].last_read_record;
 
-    strftime( tmp_buff, 256, "%Y/%m/%d %T",
-              localtime_r( &reader_info[0].last_read_record_time.tv_sec, &paramtm ) );
-    sprintf( tmp_buff, "%s.%06u", tmp_buff, (unsigned int)reader_info[0].last_read_record_time.tv_usec );
-    ListMgr_SetVar( lmgr, CL_LAST_READ_REC_TIME, tmp_buff );
-    reader_info[0].last_report_record_time = reader_info[0].last_read_record_time;
+    strftime(tmp_buff, 256, "%Y/%m/%d %T",
+             localtime_r(&reader_info[0].last_read_record_time.tv_sec,
+                         &paramtm));
+    sprintf(tmp_buff, "%s.%06u", tmp_buff,
+            (unsigned int)reader_info[0].last_read_record_time.tv_usec);
+    ListMgr_SetVar(lmgr, CL_LAST_READ_REC_TIME, tmp_buff);
+    reader_info[0].last_report_record_time =
+        reader_info[0].last_read_record_time;
 
-    strftime( tmp_buff, 256, "%Y/%m/%d %T",
-              localtime_r( &reader_info[0].last_read_time, &paramtm ) );
-    ListMgr_SetVar( lmgr, CL_LAST_READ_TIME, tmp_buff );
+    strftime(tmp_buff, 256, "%Y/%m/%d %T",
+             localtime_r(&reader_info[0].last_read_time, &paramtm));
+    ListMgr_SetVar(lmgr, CL_LAST_READ_TIME, tmp_buff);
 
-    sprintf( tmp_buff, "%llu", reader_info[0].last_committed_record );
-    ListMgr_SetVar( lmgr, CL_LAST_COMMITTED, tmp_buff );
+    sprintf(tmp_buff, "%llu", reader_info[0].last_committed_record);
+    ListMgr_SetVar(lmgr, CL_LAST_COMMITTED, tmp_buff);
 
-
-    for (i = 0; i < CL_LAST; i++)
-    {
+    for (i = 0; i < CL_LAST; i++) {
         /* get and set (increment) */
         char varname[256];
         char last_val[256];
         unsigned long long last, current, diff;
 
-        sprintf( varname, "%s_%s", CL_COUNT_PREFIX, changelog_type2str(i) );
-        if (ListMgr_GetVar(lmgr, varname, last_val, sizeof(last_val)) != DB_SUCCESS)
+        sprintf(varname, "%s_%s", CL_COUNT_PREFIX, changelog_type2str(i));
+        if (ListMgr_GetVar(lmgr, varname, last_val, sizeof(last_val)) !=
+            DB_SUCCESS)
             last = 0;
         else
             last = str2bigint(last_val);
@@ -1513,24 +1521,23 @@ int cl_reader_store_stats(lmgr_t *lmgr)
         diff = current - reader_info[0].cl_reported[i];
 
         /* new value = last + diff */
-        sprintf( tmp_buff, "%llu", last + diff );
-        if ( ListMgr_SetVar( lmgr, varname, tmp_buff ) == DB_SUCCESS )
+        sprintf(tmp_buff, "%llu", last + diff);
+        if (ListMgr_SetVar(lmgr, varname, tmp_buff) == DB_SUCCESS)
             /* last_reported is now current */
             reader_info[0].cl_reported[i] = current;
 
         /* save diff */
-        sprintf( varname, "%s_%s", CL_DIFF_PREFIX, changelog_type2str(i) );
-        sprintf( tmp_buff, "%llu", diff );
-        ListMgr_SetVar( lmgr, varname, tmp_buff );
+        sprintf(varname, "%s_%s", CL_DIFF_PREFIX, changelog_type2str(i));
+        sprintf(tmp_buff, "%llu", diff);
+        ListMgr_SetVar(lmgr, varname, tmp_buff);
     }
 
     /* indicate diff interval */
-    sprintf( tmp_buff, "%lu", time(NULL) - reader_info[0].last_report );
-    ListMgr_SetVar( lmgr, CL_DIFF_INTERVAL, tmp_buff );
+    sprintf(tmp_buff, "%lu", time(NULL) - reader_info[0].last_report);
+    ListMgr_SetVar(lmgr, CL_DIFF_INTERVAL, tmp_buff);
     reader_info[0].last_report = time(NULL);
 
     reader_info[0].last_reopen = reader_info[0].nb_reopen;
 
     return 0;
 }
-
