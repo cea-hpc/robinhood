@@ -41,7 +41,7 @@
 #define DEBUG_YACC   rh_config_print_list
 #else
 /* do nothing */
-static void DEBUG_YACC( FILE * output, list_items * list ) { return ;}
+static void DEBUG_YACC( FILE * output, list_items * list ) {return ;}
 #endif
 
 

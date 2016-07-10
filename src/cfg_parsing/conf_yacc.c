@@ -106,7 +106,7 @@
 #define DEBUG_YACC   rh_config_print_list
 #else
 /* do nothing */
-static void DEBUG_YACC( FILE * output, list_items * list ) { return ;}
+static void DEBUG_YACC( FILE * output, list_items * list ) {return ;}
 #endif
 
 
@@ -131,8 +131,8 @@ static void DEBUG_YACC( FILE * output, list_items * list ) { return ;}
 
 /* In a future release of Bison, this section will be replaced
    by #include "y.tab.h".  */
-#ifndef YY_YY_Y_TAB_H_INCLUDED
-# define YY_YY_Y_TAB_H_INCLUDED
+#ifndef YY_YY_CONF_YACC_H_INCLUDED
+# define YY_YY_CONF_YACC_H_INCLUDED
 /* Debug traces.  */
 #ifndef YYDEBUG
 # define YYDEBUG 0
@@ -221,7 +221,7 @@ extern YYSTYPE yylval;
 
 int yyparse (void);
 
-#endif /* !YY_YY_Y_TAB_H_INCLUDED  */
+#endif /* !YY_YY_CONF_YACC_H_INCLUDED  */
 
 /* Copy the second part of user declarations.  */
 
