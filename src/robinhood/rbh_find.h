@@ -93,6 +93,9 @@ struct find_opt
     unsigned int groupneg:1;
     unsigned int nameneg:1;
 
+    /* case insensitive name */
+    unsigned int iname:1;
+
     /* behavior flags */
     unsigned int no_dir:1; /* if -t != dir => no dir to be displayed */
     unsigned int dir_only:1; /* if -t dir => only display dir */

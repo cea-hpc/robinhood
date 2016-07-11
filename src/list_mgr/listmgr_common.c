@@ -998,6 +998,10 @@ char          *compar2str( filter_comparator_t compar )
         return " NOT LIKE BINARY ";
     case RLIKE:
         return " RLIKE BINARY ";
+    case ILIKE:
+        return " LIKE ";
+    case IUNLIKE:
+        return " NOT LIKE ";
 #else
     case LIKE:
         return " LIKE ";
@@ -1012,10 +1016,10 @@ char          *compar2str( filter_comparator_t compar )
         return " IS NULL";
     case NOTNULL:
         return " IS NOT NULL";
-    default:
-        DisplayLog( LVL_CRIT, LISTMGR_TAG, "Default sign for filter: should never happen !!!" );
-        return "=";
     }
+
+    DisplayLog(LVL_CRIT, LISTMGR_TAG, "Default sign for filter: should never happen !!!");
+    return "=";
 }
 
 /**
@@ -1263,6 +1267,7 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
         for (i = 0; i < p_filter->filter_simple.filter_count; i++)
         {
             unsigned int   index = p_filter->filter_simple.filter_index[i];
+            bool case_sensitive = true;
             bool match =  match_table(table, index)
                          || ((table == T_STRIPE_ITEMS) && (index < ATTR_COUNT)
                               && (field_infos[index].db_type == DB_STRIPE_ITEMS))
@@ -1309,10 +1314,23 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
                 else if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
                     /* (x <cmp> <val> OR x IS NULL) */
                     g_string_append(str, "(");
+
+                /* If the field is a VARBINARY and the matching must be insensitive,
+                 * convert it to varchar */
+                if ((p_filter->filter_simple.filter_compar[i] == ILIKE
+                     || p_filter->filter_simple.filter_compar[i] == IUNLIKE)
+                    && field_infos[index].db_type == DB_TEXT)
+                {
+                    case_sensitive = false;
+                    g_string_append(str, "CONVERT(");
+                }
             }
 
             /* append field name or function call */
             attr2filter_field(str, table, index, prefix_table);
+
+            if (!case_sensitive)
+                g_string_append(str, " USING latin1)");
 
             if (match_table(table, index) || (table == T_NONE && !is_stripe_field(index)))
             {

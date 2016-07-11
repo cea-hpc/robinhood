@@ -641,14 +641,15 @@ static int build_bool_expr(type_bool_expr *p_in_bool_expr,
 
 /** Create a boolean condition */
 int CreateBoolCond(bool_node_t * p_out_node, compare_direction_t compar,
-                   compare_criteria_t  crit, compare_value_t val)
+                   compare_criteria_t  crit, compare_value_t val,
+                   enum compare_flags flags)
 {
     p_out_node->node_type = NODE_CONDITION;
     p_out_node->content_u.condition = (compare_triplet_t*)malloc(sizeof(compare_triplet_t));
     if (!p_out_node->content_u.condition)
         return -ENOMEM;
     memset(p_out_node->content_u.condition, 0, sizeof(compare_triplet_t));
-    p_out_node->content_u.condition->flags = 0;
+    p_out_node->content_u.condition->flags = flags;
     p_out_node->content_u.condition->crit = crit;
     p_out_node->content_u.condition->op = compar;
     p_out_node->content_u.condition->val = val;
@@ -657,7 +658,8 @@ int CreateBoolCond(bool_node_t * p_out_node, compare_direction_t compar,
 
 /** Append a boolean condition with bool op = AND */
 int AppendBoolCond(bool_node_t * p_in_out_node, compare_direction_t compar,
-                   compare_criteria_t  crit, compare_value_t val)
+                   compare_criteria_t  crit, compare_value_t val,
+                   enum compare_flags flags)
 {
     bool_node_t copy_prev = *p_in_out_node;
     int rc = 0;
@@ -684,7 +686,7 @@ int AppendBoolCond(bool_node_t * p_in_out_node, compare_direction_t compar,
 
     /* expr2 is a triplet */
     rc = CreateBoolCond(p_in_out_node->content_u.bool_expr.expr2, compar,
-                        crit, val);
+                        crit, val, flags);
     if (rc)
         goto free_expr2;
 
@@ -992,9 +994,10 @@ const char    *op2str( compare_direction_t comp )
         return " =~ ";
     case COMP_UNLIKE:
         return " !~ ";
-    default:
+    case COMP_NONE:
         return "?";
     }
+    return "?";
 }                               /* op2str */
 
 static int print_condition( const compare_triplet_t * p_triplet, char *out_str, size_t str_size )

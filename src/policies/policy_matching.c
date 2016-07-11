@@ -66,24 +66,37 @@ static char   *ExtractParentDir(const char *file_path, char *out_buff)
     return out_buff;
 }
 
+/* flags for calling TestRegexp and TestPathRegexp */
+enum regexp_flags {
+    REGEXP_IS_CHILD     = (1 << 0),
+    REGEXP_ANY_LEVEL    = (1 << 1),
+    REGEXP_INSENSITIVE  = (1 << 2),
+};
 
-static int TestRegexp(const char *regexp, const char *to_be_tested)
+static int TestRegexp(const char *regexp, const char *to_be_tested,
+                      enum regexp_flags flags)
 {
-    return !fnmatch(regexp, to_be_tested, 0);
+    int match_flag = 0;
+
+    if (flags & REGEXP_INSENSITIVE)
+        match_flag = FNM_CASEFOLD;
+
+    return !fnmatch(regexp, to_be_tested, match_flag);
 }
 
-/* flags for calling TestPathRegexp */
-#define PATHREGEXP_IS_CHILD    0x00000001
-#define PATHREGEXP_ANY_LEVEL   0x00000002
-
 static bool TestPathRegexp(const char *regexp, const char *to_be_tested,
-                           int flags)
+                           enum regexp_flags flags)
 {
-    char full_path[RBH_PATH_MAX];
-    const char * full_regexp = regexp;
+    char        full_path[RBH_PATH_MAX];
+    const char *full_regexp = regexp;
+    bool        any_level = (flags & REGEXP_ANY_LEVEL);
+    int         match_flag = 0;
 
-    bool any_level = (flags & PATHREGEXP_ANY_LEVEL);
-    bool is_child =  (flags & PATHREGEXP_IS_CHILD);
+    if (flags & REGEXP_IS_CHILD)
+        match_flag |= FNM_LEADING_DIR;
+
+    if (flags & REGEXP_INSENSITIVE)
+        match_flag |= FNM_CASEFOLD;
 
     /* is the regexp relative ?
      * (don't add the root path if expression starts with '**').
@@ -96,23 +109,19 @@ static bool TestPathRegexp(const char *regexp, const char *to_be_tested,
     }
 
     if (any_level)
-    {
-        return !fnmatch(full_regexp, to_be_tested,
-                        (is_child?FNM_LEADING_DIR:0));
-    }
+        return !fnmatch(full_regexp, to_be_tested, match_flag);
 
-    if (!fnmatch(full_regexp, to_be_tested,
-                   FNM_PATHNAME | (is_child ? FNM_LEADING_DIR : 0)))
+    if (!fnmatch(full_regexp, to_be_tested, match_flag))
     {
 #ifdef _DEBUG_POLICIES
-        printf("MATCH regexp='%s', path='%s', tree = %d\n", full_regexp,
-               to_be_tested, is_child);
+        printf("MATCH regexp='%s', path='%s', flags=%#x\n", full_regexp,
+               to_be_tested, match_flag);
 #endif
         return true;
     }
 #ifdef _DEBUG_POLICIES
-    printf("NO MATCH regexp='%s', path='%s', tree = %d\n", full_regexp,
-           to_be_tested, is_child);
+    printf("NO MATCH regexp='%s', path='%s', tree=%#x\n", full_regexp,
+           to_be_tested, match_flag);
 #endif
 
     return false;
@@ -188,7 +197,8 @@ static inline int negate_match(int rc)
                                            }                                            \
                                      } while (0)
 
-static filter_comparator_t Policy2FilterComparator(compare_direction_t comp)
+static filter_comparator_t Policy2FilterComparator(compare_direction_t comp,
+                                                   enum compare_flags flags)
 {
     switch(comp)
     {
@@ -198,8 +208,10 @@ static filter_comparator_t Policy2FilterComparator(compare_direction_t comp)
         case COMP_LSTHAN_EQ: return LESSTHAN;
         case COMP_EQUAL: return EQUAL;
         case COMP_DIFF: return NOTEQUAL;
-        case COMP_LIKE: return LIKE;
-        case COMP_UNLIKE: return UNLIKE;
+        case COMP_LIKE:
+            return (flags & CMP_FLG_INSENSITIVE) ? ILIKE : LIKE;
+        case COMP_UNLIKE:
+            return (flags & CMP_FLG_INSENSITIVE) ? IUNLIKE : UNLIKE;
 
         default:
             /* Error */
@@ -279,7 +291,7 @@ static int compare_generic(const sm_info_def_t *def,
                 rc = EMPTY_STRING(p_triplet->val.str);
             else
                 /* compare crit_value->str and (char *)val */
-                rc = TestRegexp(p_triplet->val.str, (char *)val);
+                rc = TestRegexp(p_triplet->val.str, (char *)val, 0);
 
             if (p_triplet->op == COMP_EQUAL || p_triplet->op == COMP_LIKE)
                 return BOOL2POLICY(rc);
@@ -549,9 +561,9 @@ int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
        *p_attr_index = ATTR_INDEX_fullpath;
 
         if ((p_comp->op == COMP_LIKE) || (p_comp->op == COMP_EQUAL))
-            *p_compar = LIKE;
+            *p_compar = (p_comp->flags & CMP_FLG_INSENSITIVE) ? ILIKE : LIKE;
         else if ((p_comp->op == COMP_UNLIKE) || (p_comp->op == COMP_DIFF))
-            *p_compar = UNLIKE;
+            *p_compar = (p_comp->flags & CMP_FLG_INSENSITIVE) ? IUNLIKE : UNLIKE;
 
         len = strlen(p_comp->val.str);
 
@@ -583,9 +595,8 @@ int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
         break;
 
     case CRITERIA_PATH: /* fullpath 'path' */
-
         *p_attr_index = ATTR_INDEX_fullpath;
-        *p_compar = Policy2FilterComparator(p_comp->op);
+        *p_compar = Policy2FilterComparator(p_comp->op, p_comp->flags);
 
         if (!IS_ABSOLUTE_PATH(p_comp->val.str))
         {
@@ -602,23 +613,20 @@ int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
         break;
 
     case CRITERIA_FILENAME: /* name like 'filename' */
-
         *p_attr_index = ATTR_INDEX_name;
-        *p_compar = Policy2FilterComparator(p_comp->op);
+        *p_compar = Policy2FilterComparator(p_comp->op, p_comp->flags);
         p_value->value.val_str = p_comp->val.str;
-
         break;
 
     case CRITERIA_TYPE: /* type = 'type' */
-
         *p_attr_index = ATTR_INDEX_type;
-        *p_compar = Policy2FilterComparator(p_comp->op);
+        *p_compar = Policy2FilterComparator(p_comp->op, p_comp->flags);
         p_value->value.val_str = type2db(p_comp->val.type);
         break;
 
     case CRITERIA_OWNER: /* owner like 'owner' */
         *p_attr_index = ATTR_INDEX_uid;
-        *p_compar = Policy2FilterComparator(p_comp->op);
+        *p_compar = Policy2FilterComparator(p_comp->op, p_comp->flags);
         if (global_config.uid_gid_as_numbers)
             p_value->value.val_int = p_comp->val.integer;
         else
@@ -627,7 +635,7 @@ int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
 
     case CRITERIA_GROUP:
         *p_attr_index = ATTR_INDEX_gid;
-        *p_compar = Policy2FilterComparator(p_comp->op);
+        *p_compar = Policy2FilterComparator(p_comp->op, p_comp->flags);
         if (global_config.uid_gid_as_numbers)
             p_value->value.val_int = p_comp->val.integer;
         else
@@ -636,19 +644,19 @@ int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
 
     case CRITERIA_SIZE:
         *p_attr_index = ATTR_INDEX_size;
-        *p_compar = Policy2FilterComparator(p_comp->op);
+        *p_compar = Policy2FilterComparator(p_comp->op, p_comp->flags);
         p_value->value.val_biguint = p_comp->val.size;
         break;
 
     case CRITERIA_DEPTH:
         *p_attr_index = ATTR_INDEX_depth;
-        *p_compar = Policy2FilterComparator(p_comp->op);
+        *p_compar = Policy2FilterComparator(p_comp->op, p_comp->flags);
         p_value->value.val_uint = p_comp->val.integer;
         break;
 
     case CRITERIA_DIRCOUNT:
         *p_attr_index = ATTR_INDEX_dircount;
-        *p_compar = Policy2FilterComparator(p_comp->op);
+        *p_compar = Policy2FilterComparator(p_comp->op, p_comp->flags);
         p_value->value.val_uint = p_comp->val.integer;
         break;
 
@@ -657,25 +665,25 @@ int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
 
     /*   last_access > 2h <=> access_time < time(NULL) - 2h */
 
-        *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op));
+        *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op), p_comp->flags);
         p_value->value.val_uint = time(NULL) - time_modify(p_comp->val.duration, time_mod);
         break;
 
     case CRITERIA_LAST_MOD:
         *p_attr_index = ATTR_INDEX_last_mod;
-        *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op));
+        *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op), p_comp->flags);
         p_value->value.val_uint = time(NULL) - time_modify(p_comp->val.duration, time_mod);
         break;
 
     case CRITERIA_CREATION:
         *p_attr_index = ATTR_INDEX_creation_time;
-        *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op));
+        *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op), p_comp->flags);
         p_value->value.val_uint = time(NULL) - time_modify(p_comp->val.duration, time_mod);
         break;
 
     case CRITERIA_LAST_MDCHANGE:
         *p_attr_index = ATTR_INDEX_last_mdchange;
-        *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op));
+        *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op), p_comp->flags);
         p_value->value.val_uint = time(NULL) - time_modify(p_comp->val.duration, time_mod);
         break;
 
@@ -688,20 +696,20 @@ int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
 
         /* XXX should only be used in a policy about 'removed' entries */
         *p_attr_index = ATTR_INDEX_rm_time;
-        *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op));
+        *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op), p_comp->flags);
         p_value->value.val_uint = time(NULL) - time_modify(p_comp->val.duration, time_mod);
         break;
 
 #ifdef _LUSTRE
     case CRITERIA_POOL:
         *p_attr_index = ATTR_INDEX_stripe_info;
-        *p_compar = Policy2FilterComparator(p_comp->op);
+        *p_compar = Policy2FilterComparator(p_comp->op, p_comp->flags);
         p_value->value.val_str = p_comp->val.str;
         break;
 
     case CRITERIA_OST:
         *p_attr_index = ATTR_INDEX_stripe_items;
-        *p_compar = Policy2FilterComparator(p_comp->op);
+        *p_compar = Policy2FilterComparator(p_comp->op, p_comp->flags);
         p_value->value.val_uint = p_comp->val.integer;
         break;
 #endif
@@ -711,7 +719,7 @@ int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
             RBH_BUG("status filter with no status manager in the context");
 
         *p_attr_index = smi_status_index(smi);
-        *p_compar = Policy2FilterComparator(p_comp->op);
+        *p_compar = Policy2FilterComparator(p_comp->op, p_comp->flags);
         p_value->value.val_str = p_comp->val.str;
         break;
 
@@ -738,9 +746,9 @@ int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
                 return -1;
 
             if (oppose)
-                *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op));
+                *p_compar = Policy2FilterComparator(oppose_compare(p_comp->op), p_comp->flags);
             else
-                *p_compar = Policy2FilterComparator(p_comp->op);
+                *p_compar = Policy2FilterComparator(p_comp->op, p_comp->flags);
 
         }
         break;
@@ -752,6 +760,19 @@ int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
     }
 
     return 0;
+}
+
+static enum regexp_flags cmpflg2regexpflg(enum compare_flags flags)
+{
+    enum regexp_flags out = 0;
+
+    if (flags & CMP_FLG_ANY_LEVEL)
+        out |= REGEXP_ANY_LEVEL;
+
+    if (flags & CMP_FLG_INSENSITIVE)
+        out |= REGEXP_INSENSITIVE;
+
+    return out;
 }
 
 
@@ -775,14 +796,12 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
         CHECK_ATTR(p_entry_attr, fullpath, no_warning);
 
         rep = ExtractParentDir(ATTR(p_entry_attr, fullpath), tmpbuff);
-        rc = TestPathRegexp(p_triplet->val.str, rep, PATHREGEXP_IS_CHILD |
-                              ((p_triplet->flags & CMP_FLG_ANY_LEVEL)?
-                                    PATHREGEXP_ANY_LEVEL:0)) ;
+        rc = TestPathRegexp(p_triplet->val.str, rep, REGEXP_IS_CHILD |
+                            cmpflg2regexpflg(p_triplet->flags));
         if (!rc) /* try matching root */
         {
             rc = TestPathRegexp(p_triplet->val.str, ATTR(p_entry_attr, fullpath),
-                              ((p_triplet->flags & CMP_FLG_ANY_LEVEL)?
-                                    PATHREGEXP_ANY_LEVEL:0)) ;
+                                cmpflg2regexpflg(p_triplet->flags));
         }
 
 #ifdef _DEBUG_POLICIES
@@ -801,8 +820,7 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
         CHECK_ATTR(p_entry_attr, fullpath, no_warning);
 
         rc = TestPathRegexp(p_triplet->val.str, ATTR(p_entry_attr, fullpath),
-                             ((p_triplet->flags & CMP_FLG_ANY_LEVEL)?
-                                    PATHREGEXP_ANY_LEVEL:0)) ;
+                            cmpflg2regexpflg(p_triplet->flags));
 
         if (p_triplet->op == COMP_EQUAL || p_triplet->op == COMP_LIKE)
             return BOOL2POLICY(rc);
@@ -814,7 +832,8 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
         /* filename is required */
         CHECK_ATTR(p_entry_attr, name, no_warning);
 
-        rc = TestRegexp(p_triplet->val.str, ATTR(p_entry_attr, name));
+        rc = TestRegexp(p_triplet->val.str, ATTR(p_entry_attr, name),
+                        cmpflg2regexpflg(p_triplet->flags));
 
 #ifdef _DEBUG_POLICIES
         if (rc)
@@ -853,7 +872,8 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
         }
         else
         {
-            rc = TestRegexp(p_triplet->val.str, ATTR(p_entry_attr, uid).txt);
+            rc = TestRegexp(p_triplet->val.str, ATTR(p_entry_attr, uid).txt,
+                            cmpflg2regexpflg(p_triplet->flags));
             if (p_triplet->op == COMP_EQUAL || p_triplet->op == COMP_LIKE)
                 return BOOL2POLICY(rc);
             else
@@ -871,7 +891,8 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
         }
         else
         {
-            rc = TestRegexp(p_triplet->val.str, ATTR(p_entry_attr, gid).txt);
+            rc = TestRegexp(p_triplet->val.str, ATTR(p_entry_attr, gid).txt,
+                            cmpflg2regexpflg(p_triplet->flags));
             if (p_triplet->op == COMP_EQUAL || p_triplet->op == COMP_LIKE)
                 return BOOL2POLICY(rc);
             else
@@ -967,7 +988,9 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
         /* pool name is required */
         CHECK_ATTR(p_entry_attr, stripe_info, no_warning);
 
-        rc = TestRegexp(p_triplet->val.str, ATTR(p_entry_attr, stripe_info).pool_name);
+        rc = TestRegexp(p_triplet->val.str, ATTR(p_entry_attr, stripe_info).pool_name,
+                        cmpflg2regexpflg(p_triplet->flags));
+
 
 #ifdef _DEBUG_POLICIES
         if (rc)
@@ -1122,7 +1145,8 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
 
         /* compare attribute value */
 
-        rc = TestRegexp(p_triplet->val.str, value);
+        rc = TestRegexp(p_triplet->val.str, value,
+                        cmpflg2regexpflg(p_triplet->flags));
 
         if (p_triplet->op == COMP_EQUAL || p_triplet->op == COMP_LIKE)
             return BOOL2POLICY(rc);

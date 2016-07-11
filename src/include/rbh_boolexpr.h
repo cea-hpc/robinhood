@@ -37,7 +37,7 @@ typedef enum {
     COMP_EQUAL,                 /**<     == */
     COMP_DIFF,                  /**<     != */
     COMP_LIKE,                  /**<     regexp matching */
-    COMP_UNLIKE                 /**<     regexp not matching */
+    COMP_UNLIKE,                /**<     regexp not matching */
 } compare_direction_t;
 
 typedef enum {
@@ -152,21 +152,23 @@ typedef union
     obj_type_t         type;              /* for conditions based on object type */
 } compare_value_t;
 
-/* indicates that the compare triplet is for matching any level
- * of directories.
- */
-#define CMP_FLG_ANY_LEVEL 0x00000001
+
+enum compare_flags {
+    CMP_FLG_ANY_LEVEL   = (1<<0), /**< Indicates that the compare triplet is
+                                     for matching any level of directories. */
+    CMP_FLG_INSENSITIVE = (1<<1), /**< case insensitive string matching */
+};
 
 /* whitelist rules are defined by a tree of comparators */
 
 /** <attribute> <comparator> <value> triplet */
 typedef struct compare_triplet_t
 {
-    int flags;
+    enum compare_flags  flags;
     compare_criteria_t  crit;
     char                attr_name[RBH_NAME_MAX]; /* for xattrs, or status manager specific attr */
     compare_direction_t op;
-    compare_value_t val;
+    compare_value_t     val;
 } compare_triplet_t;
 
 /** Type of boolean expression: unary, binary or criteria */
@@ -204,11 +206,13 @@ const char    *op2str(compare_direction_t comp);
 
 /** Create a boolean condition */
 int CreateBoolCond(bool_node_t * p_out_node, compare_direction_t compar,
-                   compare_criteria_t  crit, compare_value_t val);
+                   compare_criteria_t  crit, compare_value_t val,
+                   enum compare_flags flags);
 
 /** Append a boolean condition with bool op = AND */
 int AppendBoolCond(bool_node_t * p_in_out_node, compare_direction_t compar,
-                   compare_criteria_t  crit, compare_value_t val);
+                   compare_criteria_t  crit, compare_value_t val,
+                   enum compare_flags flags);
 
 /** Return a constant boolean expression (true or false) */
 int ConstantBoolExpr(bool constant, bool_node_t *p_bool_node);

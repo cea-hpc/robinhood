@@ -248,9 +248,9 @@ static int mkfilters( void )
         }
 
         if (!is_expr)
-            CreateBoolCond(&match_expr, comp, CRITERIA_OWNER, val);
+            CreateBoolCond(&match_expr, comp, CRITERIA_OWNER, val, 0);
         else
-            AppendBoolCond(&match_expr, comp, CRITERIA_OWNER, val);
+            AppendBoolCond(&match_expr, comp, CRITERIA_OWNER, val, 0);
 
         is_expr = 1;
         query_mask.std |= ATTR_MASK_uid;
@@ -273,9 +273,9 @@ static int mkfilters( void )
         }
 
         if (!is_expr)
-            CreateBoolCond(&match_expr, comp, CRITERIA_GROUP, val);
+            CreateBoolCond(&match_expr, comp, CRITERIA_GROUP, val, 0);
         else
-            AppendBoolCond(&match_expr, comp, CRITERIA_GROUP, val);
+            AppendBoolCond(&match_expr, comp, CRITERIA_GROUP, val, 0);
 
         is_expr = 1;
         query_mask.std |= ATTR_MASK_gid;
@@ -286,9 +286,9 @@ static int mkfilters( void )
         compare_value_t val;
         val.type = db2type(prog_options.type);
         if (!is_expr)
-            CreateBoolCond(&match_expr, COMP_EQUAL, CRITERIA_TYPE, val);
+            CreateBoolCond(&match_expr, COMP_EQUAL, CRITERIA_TYPE, val, 0);
         else
-            AppendBoolCond(&match_expr, COMP_EQUAL, CRITERIA_TYPE, val);
+            AppendBoolCond(&match_expr, COMP_EQUAL, CRITERIA_TYPE, val, 0);
         is_expr = 1;
         query_mask.std |= ATTR_MASK_type;
     }
@@ -299,9 +299,9 @@ static int mkfilters( void )
 
         strcpy(val.str, prog_options.status_value);
         if (!is_expr)
-            CreateBoolCond(&match_expr, COMP_EQUAL, CRITERIA_STATUS, val);
+            CreateBoolCond(&match_expr, COMP_EQUAL, CRITERIA_STATUS, val, 0);
         else
-            AppendBoolCond(&match_expr, COMP_EQUAL, CRITERIA_STATUS, val);
+            AppendBoolCond(&match_expr, COMP_EQUAL, CRITERIA_STATUS, val, 0);
 
         is_expr = 1;
         query_mask.status |= SMI_MASK(prog_options.smi->smi_index);
