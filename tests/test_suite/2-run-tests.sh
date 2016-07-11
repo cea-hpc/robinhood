@@ -8494,11 +8494,28 @@ function test_find
     check_find "" "-f $cfg -name dir.*" 5 # 5
     check_find "" "-f $cfg -name dir.* -b" 5 # 5
     check_find $RH_ROOT "-f $cfg -name dir.*" 5 # 5
+    check_find $RH_ROOT "-f $cfg -not -name dir.*" 7 # all except 5
     check_find $RH_ROOT/dir.2 "-f $cfg -name dir.*" 4 # 4 including dir.2
     check_find $RH_ROOT/dir.2/dir.2 "-f $cfg -name dir.*" 2 # 2 including dir.2/dir.2
     check_find $RH_ROOT/dir.1 "-f $cfg -name dir.*" 1
     check_find $RH_ROOT/dir.2/dir.1 "-f $cfg -name dir.*" 1
     check_find $RH_ROOT/dir.2/dir.2/dir.1 "-f $cfg -name dir.*" 1
+
+    echo "testing name filter (case insensitive)..."
+    check_find "" "-f $cfg -iname Dir.*" 5 # match all "dir.*"
+    check_find "" "-f $cfg -b -iname Dir.*" 5
+    check_find "" "-f $cfg -iname dir.*" 5 # match all "dir.*"
+    check_find "" "-f $cfg -b -iname dir.*" 5
+    check_find $RH_ROOT "-f $cfg -name Dir.*" 0 # no match expected
+    check_find $RH_ROOT "-f $cfg -b -name Dir.*" 0
+    check_find $RH_ROOT "-f $cfg -iname Dir.*" 5 # match all "dir.*"
+    check_find $RH_ROOT "-f $cfg -b -iname Dir.*" 5
+    check_find $RH_ROOT "-f $cfg -iname dir.*" 5 # match all "dir.*"
+    check_find $RH_ROOT "-f $cfg -b -iname dir.*" 5
+    check_find $RH_ROOT "-f $cfg -not -iname Dir.*" 7 # all (12) except 5
+    check_find $RH_ROOT "-f $cfg -b -not -iname Dir.*" 7
+    check_find $RH_ROOT "-f $cfg -not -iname dir.*" 7 # all (12) except 5
+    check_find $RH_ROOT "-f $cfg -b -not -iname dir.*" 7
 
     echo "testing size filter..."
     check_find "" "-f $cfg -type f -size +2k" 2

@@ -473,6 +473,8 @@ typedef enum
     LIKE,
     UNLIKE,
     RLIKE,
+    ILIKE,   /* case insensitive */
+    IUNLIKE, /* case insensitive */
     IN,
     NOTIN,
     ISNULL,

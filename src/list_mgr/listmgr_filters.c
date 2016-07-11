@@ -92,7 +92,8 @@ static int lmgr_simple_filter_dup_buffers(lmgr_filter_t * p_filter, unsigned int
 
     /* @TODO support lists of strings (with both FILTER_FLAG_ALLOC_STR and FILTER_FLAG_ALLOC_LIST */
 
-    if ((comparator == LIKE) || (comparator == UNLIKE) || (comparator == RLIKE))
+    if ((comparator == LIKE) || (comparator == UNLIKE) || (comparator == RLIKE)
+        || (comparator == ILIKE) || (comparator == IUNLIKE))
     {
         int rc;
         char * newstr = MemAlloc( strlen(p_value->value.val_str)+1 );
@@ -373,10 +374,10 @@ static bool allow_null(unsigned int attr_index, const filter_comparator_t *comp,
     if (field_type(attr_index) == DB_TEXT ||
         field_type(attr_index) == DB_ENUM_FTYPE)
     {
-        if (*comp == EQUAL || *comp == LIKE)
+        if (*comp == EQUAL || *comp == LIKE || *comp == ILIKE)
             /* allow NULL if matching against empty string */
             return (val->value.val_str == NULL || EMPTY_STRING(val->value.val_str));
-        else if (*comp == NOTEQUAL || *comp == UNLIKE)
+        else if (*comp == NOTEQUAL || *comp == UNLIKE || *comp == IUNLIKE)
             /* allow NULL if matching != non-empty string */
             return !(val->value.val_str == NULL || EMPTY_STRING(val->value.val_str));
         else
@@ -582,11 +583,9 @@ int convert_boolexpr_to_simple_filter(bool_node_t *boolexpr, lmgr_filter_t *filt
 /** Set a complex filter structure */
 int lmgr_set_filter_expression( lmgr_filter_t * p_filter, struct bool_node_t *boolexpr )
 {
-
     p_filter->filter_type = FILTER_BOOLEXPR;
     p_filter->filter_u.boolean_expr = boolexpr;
     return 0;
-
 }
 
 /** Check that all fields in filter are in the given mask of supported attributes

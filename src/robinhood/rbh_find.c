@@ -43,6 +43,7 @@
 #define PRINTF_OPT 261
 #define LSCLASS_OPT 262
 #define ESCAPED_OPT 263
+#define INAME_OPT   264
 
 static struct option option_tab[] =
 {
@@ -53,6 +54,7 @@ static struct option option_tab[] =
     {"type", required_argument, NULL, 't'},
     {"size", required_argument, NULL, 's'},
     {"name", required_argument, NULL, 'n'},
+    {"iname", required_argument, NULL, INAME_OPT},
     {"mtime", required_argument, NULL, 'M'},
     {"crtime", required_argument, NULL, 'c'},
     {"mmin", required_argument, NULL, 'm'},
@@ -119,7 +121,7 @@ struct find_opt prog_options = {
     .match_type = 0, .match_size = 0, .match_name = 0,
     .match_crtime = 0, .match_mtime = 0, .match_atime = 0, .match_ctime = 0,
     .match_status = 0, .statusneg = 0,
-    .userneg = 0 , .groupneg = 0, .nameneg = 0,
+    .userneg = 0 , .groupneg = 0, .nameneg = 0, . iname = 0,
     .no_dir = 0, .dir_only = 0, .exec = 0
 };
 
@@ -153,8 +155,8 @@ GArray *printf_chunks;
 /* build filters depending on program options */
 static int mkfilters(bool exclude_dirs)
 {
-    filter_value_t fv;
-    int compflag;
+    filter_value_t      fv;
+    compare_direction_t comp;
 
     /* Create boolean expression for matching.
      * All expressions are then converted to a DB filter.
@@ -168,22 +170,22 @@ static int mkfilters(bool exclude_dirs)
         {
             val.integer = atoi(prog_options.user);
             if (prog_options.userneg)
-                compflag = COMP_DIFF;
+                comp = COMP_DIFF;
             else
-                compflag = COMP_EQUAL;
+                comp = COMP_EQUAL;
         }
         else
         {
             strcpy(val.str, prog_options.user);
             if (prog_options.userneg)
-                compflag = COMP_UNLIKE;
+                comp = COMP_UNLIKE;
             else
-                compflag = COMP_LIKE;
+                comp = COMP_LIKE;
         }
         if (!is_expr)
-            CreateBoolCond(&match_expr, compflag, CRITERIA_OWNER, val);
+            CreateBoolCond(&match_expr, comp, CRITERIA_OWNER, val, 0);
         else
-            AppendBoolCond(&match_expr, compflag, CRITERIA_OWNER, val);
+            AppendBoolCond(&match_expr, comp, CRITERIA_OWNER, val, 0);
         is_expr = 1;
         query_mask.std |= ATTR_MASK_uid;
     }
@@ -196,23 +198,23 @@ static int mkfilters(bool exclude_dirs)
         {
             val.integer = atoi(prog_options.group);
             if (prog_options.groupneg)
-                compflag = COMP_DIFF;
+                comp = COMP_DIFF;
             else
-                compflag = COMP_EQUAL;
+                comp = COMP_EQUAL;
         }
         else
         {
             strcpy(val.str, prog_options.group);
             if (prog_options.groupneg)
-                compflag = COMP_UNLIKE;
+                comp = COMP_UNLIKE;
             else
-                compflag = COMP_LIKE;
+                comp = COMP_LIKE;
         }
 
         if (!is_expr)
-            CreateBoolCond(&match_expr, compflag, CRITERIA_GROUP, val);
+            CreateBoolCond(&match_expr, comp, CRITERIA_GROUP, val, 0);
         else
-            AppendBoolCond(&match_expr, compflag, CRITERIA_GROUP, val);
+            AppendBoolCond(&match_expr, comp, CRITERIA_GROUP, val, 0);
         is_expr = 1;
         query_mask.std |= ATTR_MASK_gid;
     }
@@ -220,15 +222,21 @@ static int mkfilters(bool exclude_dirs)
     if (prog_options.match_name)
     {
         compare_value_t val;
+        enum compare_flags flg = 0;
+
+        if (prog_options.iname)
+            flg = CMP_FLG_INSENSITIVE;
+
         strcpy(val.str, prog_options.name);
         if (prog_options.nameneg)
-            compflag = COMP_UNLIKE;
+            comp = COMP_UNLIKE;
         else
-            compflag = COMP_LIKE;
+            comp = COMP_LIKE;
+
         if (!is_expr)
-            CreateBoolCond(&match_expr, compflag, CRITERIA_FILENAME, val);
+            CreateBoolCond(&match_expr, comp, CRITERIA_FILENAME, val, flg);
         else
-            AppendBoolCond(&match_expr, compflag, CRITERIA_FILENAME, val);
+            AppendBoolCond(&match_expr, comp, CRITERIA_FILENAME, val, flg);
         is_expr = 1;
         query_mask.std |= ATTR_MASK_name;
     }
@@ -238,9 +246,9 @@ static int mkfilters(bool exclude_dirs)
         compare_value_t val;
         val.size = prog_options.sz_val;
         if (!is_expr)
-            CreateBoolCond(&match_expr, prog_options.sz_compar, CRITERIA_SIZE, val);
+            CreateBoolCond(&match_expr, prog_options.sz_compar, CRITERIA_SIZE, val, 0);
         else
-            AppendBoolCond(&match_expr, prog_options.sz_compar, CRITERIA_SIZE, val);
+            AppendBoolCond(&match_expr, prog_options.sz_compar, CRITERIA_SIZE, val, 0);
         is_expr = 1;
         query_mask.std |= ATTR_MASK_size;
     }
@@ -250,9 +258,9 @@ static int mkfilters(bool exclude_dirs)
         compare_value_t val;
         val.duration = prog_options.crt_val;
         if (!is_expr)
-            CreateBoolCond(&match_expr, prog_options.crt_compar, CRITERIA_CREATION, val);
+            CreateBoolCond(&match_expr, prog_options.crt_compar, CRITERIA_CREATION, val, 0);
         else
-            AppendBoolCond(&match_expr, prog_options.crt_compar, CRITERIA_CREATION, val);
+            AppendBoolCond(&match_expr, prog_options.crt_compar, CRITERIA_CREATION, val, 0);
         is_expr = 1;
         query_mask.std |= ATTR_MASK_creation_time;
     }
@@ -262,9 +270,9 @@ static int mkfilters(bool exclude_dirs)
         compare_value_t val;
         val.duration = prog_options.mod_val;
         if (!is_expr)
-            CreateBoolCond(&match_expr, prog_options.mod_compar, CRITERIA_LAST_MOD, val);
+            CreateBoolCond(&match_expr, prog_options.mod_compar, CRITERIA_LAST_MOD, val, 0);
         else
-            AppendBoolCond(&match_expr, prog_options.mod_compar, CRITERIA_LAST_MOD, val);
+            AppendBoolCond(&match_expr, prog_options.mod_compar, CRITERIA_LAST_MOD, val, 0);
         is_expr = 1;
         query_mask.std |= ATTR_MASK_last_mod;
     }
@@ -274,9 +282,9 @@ static int mkfilters(bool exclude_dirs)
         compare_value_t val;
         val.duration = prog_options.chg_val;
         if (!is_expr)
-            CreateBoolCond(&match_expr, prog_options.chg_compar, CRITERIA_LAST_MDCHANGE, val);
+            CreateBoolCond(&match_expr, prog_options.chg_compar, CRITERIA_LAST_MDCHANGE, val, 0);
         else
-            AppendBoolCond(&match_expr, prog_options.chg_compar, CRITERIA_LAST_MDCHANGE, val);
+            AppendBoolCond(&match_expr, prog_options.chg_compar, CRITERIA_LAST_MDCHANGE, val, 0);
         is_expr = 1;
         query_mask.std |= ATTR_MASK_last_mdchange;
     }
@@ -286,9 +294,9 @@ static int mkfilters(bool exclude_dirs)
         compare_value_t val;
         val.duration = prog_options.acc_val;
         if (!is_expr)
-            CreateBoolCond(&match_expr, prog_options.acc_compar, CRITERIA_LAST_ACCESS, val);
+            CreateBoolCond(&match_expr, prog_options.acc_compar, CRITERIA_LAST_ACCESS, val, 0);
         else
-            AppendBoolCond(&match_expr, prog_options.acc_compar, CRITERIA_LAST_ACCESS, val);
+            AppendBoolCond(&match_expr, prog_options.acc_compar, CRITERIA_LAST_ACCESS, val, 0);
         is_expr = 1;
         query_mask.std |= ATTR_MASK_last_access;
     }
@@ -299,9 +307,9 @@ static int mkfilters(bool exclude_dirs)
         compare_value_t val;
         val.integer = prog_options.ost_idx;
         if (!is_expr)
-            CreateBoolCond(&match_expr, COMP_EQUAL, CRITERIA_OST, val);
+            CreateBoolCond(&match_expr, COMP_EQUAL, CRITERIA_OST, val, 0);
         else
-            AppendBoolCond(&match_expr, COMP_EQUAL, CRITERIA_OST, val);
+            AppendBoolCond(&match_expr, COMP_EQUAL, CRITERIA_OST, val, 0);
         is_expr = 1;
         query_mask.std |= ATTR_MASK_stripe_items;
     }
@@ -309,11 +317,12 @@ static int mkfilters(bool exclude_dirs)
     if (prog_options.match_pool)
     {
         compare_value_t val;
+
         strcpy(val.str, prog_options.pool);
         if (!is_expr)
-            CreateBoolCond(&match_expr, COMP_LIKE, CRITERIA_POOL, val);
+            CreateBoolCond(&match_expr, COMP_LIKE, CRITERIA_POOL, val, 0);
         else
-            AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_POOL, val);
+            AppendBoolCond(&match_expr, COMP_LIKE, CRITERIA_POOL, val, 0);
         is_expr = 1;
         query_mask.std |= ATTR_MASK_stripe_info;
     }
@@ -326,14 +335,14 @@ static int mkfilters(bool exclude_dirs)
         strcpy(val.str, prog_options.filter_status_value);
 
         if (prog_options.statusneg)
-            compflag = COMP_DIFF;
+            comp = COMP_DIFF;
         else
-            compflag = COMP_EQUAL;
+            comp = COMP_EQUAL;
 
         if (!is_expr)
-            CreateBoolCond(&match_expr, compflag, CRITERIA_STATUS, val);
+            CreateBoolCond(&match_expr, comp, CRITERIA_STATUS, val, 0);
         else
-            AppendBoolCond(&match_expr, compflag, CRITERIA_STATUS, val);
+            AppendBoolCond(&match_expr, comp, CRITERIA_STATUS, val, 0);
 
         is_expr = 1;
         query_mask.status |= SMI_MASK(prog_options.filter_smi->smi_index);
@@ -1308,6 +1317,14 @@ int main(int argc, char **argv)
             toggle_option(match_name, "name");
             prog_options.name = optarg;
             prog_options.nameneg = neg;
+            neg = false;
+            break;
+
+        case INAME_OPT:
+            toggle_option(match_name, "name");
+            prog_options.name = optarg;
+            prog_options.nameneg = neg;
+            prog_options.iname = 1;
             neg = false;
             break;
 
