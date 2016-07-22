@@ -1,1 +1,1 @@
-../web_gui/README.install
+../web_gui/gui_v3/README.txt
