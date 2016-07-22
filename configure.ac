@@ -22,6 +22,42 @@ AC_PREFIX_DEFAULT([/usr])
 
 AC_GNU_SOURCE
 
+AC_CONFIG_FILES([Makefile
+         src/Makefile
+         src/include/Makefile
+         src/common/Makefile
+         src/cfg_parsing/Makefile
+         src/list_mgr/Makefile
+         src/entry_processor/Makefile
+         src/fs_scan/Makefile
+         src/chglog_reader/Makefile
+         src/modules/Makefile
+         src/policies/Makefile
+         src/robinhood/Makefile
+         src/tools/Makefile
+         src/tests/Makefile
+         scripts/Makefile
+         scripts/robinhood.init
+         scripts/robinhood.init.sles
+         scripts/sysconfig_robinhood
+         scripts/ld.so.robinhood.conf
+         scripts/rbh_cksum.sh
+         tests/Makefile
+         tests/test_suite/Makefile
+         web_gui/Makefile
+         man/Makefile
+         robinhood.spec
+         doc/doxygen/doxygen.cfg])
+
+AC_ARG_ENABLE([dist],
+              AC_HELP_STRING([--enable-dist], [Only configure enough for make dist]),
+              [],
+              [enable_dist="no"])
+AS_IF([test "x$enable_dist" != xno], [
+AC_OUTPUT
+exit
+])
+
 # required for automake 1.12 (since fedora 18)
 m4_ifdef([AM_PROG_AR], [AM_PROG_AR])
 
@@ -425,33 +461,6 @@ AC_SUBST(SBINDIR)
 AS_AC_EXPAND(LIBDIR, $libdir)
 AC_SUBST(LIBDIR)
 
-
-AC_CONFIG_FILES([Makefile
-         src/Makefile
-         src/include/Makefile
-         src/common/Makefile
-         src/cfg_parsing/Makefile
-         src/list_mgr/Makefile
-         src/entry_processor/Makefile
-         src/fs_scan/Makefile
-         src/chglog_reader/Makefile
-         src/modules/Makefile
-         src/policies/Makefile
-         src/robinhood/Makefile
-         src/tools/Makefile
-         src/tests/Makefile
-         scripts/Makefile
-         scripts/robinhood.init
-         scripts/robinhood.init.sles
-         scripts/sysconfig_robinhood
-         scripts/ld.so.robinhood.conf
-         scripts/rbh_cksum.sh
-         tests/Makefile
-         tests/test_suite/Makefile
-         web_gui/Makefile
-         man/Makefile
-         robinhood.spec
-         doc/doxygen/doxygen.cfg])
 AC_OUTPUT
 
 AC_MSG_NOTICE([Summary:])
