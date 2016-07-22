@@ -15,7 +15,7 @@
 %endif
 
 # target install dir for web gui
-%define installdir_www  /var/www/html
+%define installdir_www  /var/www
 
 ###### end of macro definitions #####
 
@@ -117,7 +117,7 @@ This RPM provides an admin/config helper for Robinhood PolicyEngine (command rbh
 Summary: Web interface to vizualize filesystems stats
 Group: Applications/System
 Release: @RELEASE@.noarch
-Requires: php, php-mysql, php-xml, php-gd, php-pdo
+Requires: php, php-pdo
 
 %description webgui
 Web interface to vizualize filesystems stats.
@@ -158,6 +158,8 @@ Annex tools for robinhood.
 %prep
 %setup -q -n @PACKAGE@-%{version}
 
+
+
 %build
 ./configure @ac_configure_args@ %{?configure_flags:configure_flags} \
         --mandir=%{_mandir} \
@@ -188,8 +190,10 @@ install -m 644 scripts/ld.so.robinhood.conf $RPM_BUILD_ROOT/%{_sysconfdir}/ld.so
 
 %if %{with common_rpms}
 mkdir -p $RPM_BUILD_ROOT/%{installdir_www}/robinhood
-cp -r web_gui/acct/* $RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
-cp    web_gui/acct/.htaccess $RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
+cp -r web_gui/gui_v3/* $RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
+cp    web_gui/gui_v3/api/.htaccess $RPM_BUILD_ROOT/%{installdir_www}/robinhood/api/.
+mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/httpd/conf.d/
+cp    web_gui/robinhood.conf $RPM_BUILD_ROOT/%{_sysconfdir}/httpd/conf.d/.
 %endif
 
 rm -f $RPM_BUILD_ROOT/%{_libdir}/robinhood/librbh_mod_*.a

@@ -1,4 +1,4 @@
-EXTRA_DIST=acct README.install
+EXTRA_DIST=gui_v3 gui_v3/README.txt robinhood.conf
 
 distname=robinhood-webgui-$(VERSION)
 
@@ -10,4 +10,4 @@ dist-webgui: dist-dir
 
 dist-dir:
 	rm -rf $(distname)
-	cp -r acct $(distname)
+	cp -r gui_v3 $(distname)
