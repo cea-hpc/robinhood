@@ -1,4 +1,4 @@
-EXTRA_DIST=acct README.install
+EXTRA_DIST=newgui README.install
 
 distname=robinhood-webgui-$(VERSION)
 
@@ -10,4 +10,4 @@ dist-webgui: dist-dir
 
 dist-dir:
 	rm -rf $(distname)
-	cp -r acct $(distname)
+	cp -r newgui $(distname)
