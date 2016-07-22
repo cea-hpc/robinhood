@@ -425,8 +425,6 @@ AC_SUBST(SBINDIR)
 AS_AC_EXPAND(LIBDIR, $libdir)
 AC_SUBST(LIBDIR)
 
-# for exporting to spec file
-AC_SUBST(ac_configure_args)
 
 AC_CONFIG_FILES([Makefile
          src/Makefile
