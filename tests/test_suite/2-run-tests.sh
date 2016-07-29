@@ -4581,8 +4581,16 @@ function fileclass_test
 	(( $nb_pol3 == 8 )) || error "********** TEST FAILED: wrong count of matching files for fileclass 'odd_or_A': $nb_pol3"
 	(( $nb_pol4 == 2 )) || error "********** TEST FAILED: wrong count of matching files for fileclass 'unmatched': $nb_pol4"
 
-	(( $nb_pol1 == 2 )) && (( $nb_pol2 == 4 )) && (( $nb_pol3 == 8 )) \
-		&& (( $nb_pol4 == 2 )) && echo "OK: test successful"
+    # test rbh-find -class option
+    cfg=$RBH_CFG_DIR/$config_file
+    check_find "" "-f $cfg -class even_and_B -lsclass" 2
+    check_find "" "-f $cfg -b -class even_and_B -lsclass" 2
+    check_find $RH_ROOT "-f $cfg -class even_and_B -lsclass" 2
+    check_find $RH_ROOT "-f $cfg -b -class even_and_B -lsclass" 2
+    check_find $RH_ROOT "-f $cfg -class even* -lsclass" 6
+    check_find $RH_ROOT "-f $cfg -b -class even* -lsclass" 6
+    check_find $RH_ROOT "-f $cfg -not -class even* -lsclass" 14
+    check_find $RH_ROOT "-f $cfg -b -not -class even* -lsclass" 14
 }
 
 function test_info_collect

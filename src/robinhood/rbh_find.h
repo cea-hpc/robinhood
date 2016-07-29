@@ -27,6 +27,7 @@ struct find_opt
     compare_direction_t sz_compar;
     uint64_t            sz_val;
     const char  *name;
+    const char  *class;
     unsigned int ost_idx;
     const char  *pool;
     /* status manager for -lsstatus */
@@ -77,6 +78,7 @@ struct find_opt
     unsigned int match_type:1;
     unsigned int match_size:1;
     unsigned int match_name:1;
+    unsigned int match_class:1;
     unsigned int match_crtime:1;
     unsigned int match_mtime:1;
     unsigned int match_atime:1;
@@ -92,6 +94,7 @@ struct find_opt
     unsigned int userneg:1;
     unsigned int groupneg:1;
     unsigned int nameneg:1;
+    unsigned int classneg:1;
 
     /* case insensitive name */
     unsigned int iname:1;

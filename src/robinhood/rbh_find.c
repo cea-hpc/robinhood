@@ -62,6 +62,7 @@ static struct option option_tab[] =
     {"atime", required_argument, NULL, 'A'},
     {"amin", required_argument, NULL, 'a'},
     {"ctime", required_argument, NULL, 'C'},
+    {"class", required_argument, NULL, 'F'},
     {"status", required_argument, NULL, 'S'},
 #ifdef _LUSTRE
     {"ost", required_argument, NULL, 'o'},
@@ -108,21 +109,8 @@ static lmgr_t  lmgr;
 
 /* program options */
 struct find_opt prog_options = {
-    .user = NULL, .group = NULL, .type = NULL, .name = NULL,
-    .lsstatus_name = NULL, .smi = NULL,
-#ifdef _LUSTRE
-    .match_ost = 0, .match_pool = 0, .pool = NULL,
-#endif
-    .filter_smi = NULL, .filter_status_name = NULL, .filter_status_value = NULL,
     .bulk = bulk_unspec,
-    .ls = 0, .lsost = 0, .lsclass = 0, .lsstatus = 0, .print = 1, .printf = 0,
-    .escaped = 0,
-    .match_user = 0, .match_group = 0,
-    .match_type = 0, .match_size = 0, .match_name = 0,
-    .match_crtime = 0, .match_mtime = 0, .match_atime = 0, .match_ctime = 0,
-    .match_status = 0, .statusneg = 0,
-    .userneg = 0 , .groupneg = 0, .nameneg = 0, . iname = 0,
-    .no_dir = 0, .dir_only = 0, .exec = 0
+    .print = 1,
 };
 
 static const attr_mask_t LS_DISPLAY_MASK = {.std = ATTR_MASK_type
@@ -300,6 +288,25 @@ static int mkfilters(bool exclude_dirs)
         is_expr = 1;
         query_mask.std |= ATTR_MASK_last_access;
     }
+
+    if (prog_options.match_class)
+    {
+        compare_value_t val;
+
+        strcpy(val.str, prog_options.class);
+        if (prog_options.classneg)
+            comp = COMP_UNLIKE;
+        else
+            comp = COMP_LIKE;
+
+        if (!is_expr)
+            CreateBoolCond(&match_expr, comp, CRITERIA_FILECLASS, val, 0);
+        else
+            AppendBoolCond(&match_expr, comp, CRITERIA_FILECLASS, val, 0);
+        is_expr = 1;
+        query_mask.std |= ATTR_MASK_fileclass;
+    }
+
 #ifdef _LUSTRE
     if (prog_options.match_ost)
     {
@@ -1325,6 +1332,13 @@ int main(int argc, char **argv)
             prog_options.name = optarg;
             prog_options.nameneg = neg;
             prog_options.iname = 1;
+            neg = false;
+            break;
+
+        case 'F':
+            toggle_option(match_class, "class");
+            prog_options.class = optarg;
+            prog_options.classneg = neg;
             neg = false;
             break;
 

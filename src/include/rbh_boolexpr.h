@@ -59,6 +59,7 @@ typedef enum {
     CRITERIA_POOL,
     CRITERIA_OST,
 #endif
+    CRITERIA_FILECLASS,
     CRITERIA_STATUS,
     /* /!\ str2criteria relies on the fact that CRITERIA_XATTR is the first
      * non-standard criteria */
