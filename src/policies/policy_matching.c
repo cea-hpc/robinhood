@@ -73,8 +73,9 @@ enum regexp_flags {
     REGEXP_INSENSITIVE  = (1 << 2),
 };
 
-static int TestRegexp(const char *regexp, const char *to_be_tested,
-                      enum regexp_flags flags)
+/** return true if 'to_be_tested' matches the given regexp */
+static bool TestRegexp(const char *regexp, const char *to_be_tested,
+                       enum regexp_flags flags)
 {
     int match_flag = 0;
 
@@ -700,6 +701,12 @@ int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
         p_value->value.val_uint = time(NULL) - time_modify(p_comp->val.duration, time_mod);
         break;
 
+    case CRITERIA_FILECLASS:
+        *p_attr_index = ATTR_INDEX_fileclass;
+        *p_compar = Policy2FilterComparator(p_comp->op, p_comp->flags);
+        p_value->value.val_str = p_comp->val.str;
+        break;
+
 #ifdef _LUSTRE
     case CRITERIA_POOL:
         *p_attr_index = ATTR_INDEX_stripe_info;
@@ -773,6 +780,39 @@ static enum regexp_flags cmpflg2regexpflg(enum compare_flags flags)
         out |= REGEXP_INSENSITIVE;
 
     return out;
+}
+
+/** convert a single character to a null terminated string.
+ * e.g. 'a' to "a"
+ */
+#define CHAR2STR(_c)    ((char[]){ (_c), '\0' })
+
+/** Search for a fileclass regexp in a fileclass list */
+static policy_match_t match_fileclass_list(const char *regexp,
+                                           const char *class_list)
+{
+    char *list;
+    char *curr;
+    char *first;
+    char *last = NULL;
+
+    list = strdup(class_list);
+    if (!list)
+        return POLICY_ERR;
+
+    first = list;
+    while ((curr = strtok_r(first, CHAR2STR(LIST_SEP_CHAR), &last)) != NULL) {
+        /* first arg must be NULL for next call (according to man 3 strtok) */
+        first = NULL;
+
+        if (TestRegexp(regexp, curr, 0)) {
+            free(list);
+            return POLICY_MATCH;
+        }
+    }
+
+    free(list);
+    return POLICY_NO_MATCH;
 }
 
 
@@ -934,7 +974,6 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
 
     case CRITERIA_LAST_MOD:
         /* last_mod required */
-
         CHECK_ATTR(p_entry_attr, last_mod, no_warning);
 
         rc = int_compare(time(NULL) - ATTR(p_entry_attr, last_mod), p_triplet->op,
@@ -976,6 +1015,23 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
         return BOOL2POLICY(rc);
 
         break;
+
+    case CRITERIA_FILECLASS:
+        /* compare with empty fileclass list? */
+        if (!ATTR_MASK_TEST(p_entry_attr, fileclass))
+            rc = match_fileclass_list(p_triplet->val.str, "");
+        else
+            /* match fileclass pattern against fileclass attr */
+            rc = match_fileclass_list(p_triplet->val.str,
+                                      ATTR(p_entry_attr, fileclass));
+
+        if (rc == POLICY_ERR)
+            return rc;
+        if (p_triplet->op == COMP_EQUAL || p_triplet->op == COMP_LIKE)
+            return rc;
+        else
+            return negate_match(rc);
+
 
 #ifdef _LUSTRE
     case CRITERIA_POOL:

@@ -171,6 +171,8 @@ static struct criteria_descr_t {
     [CRITERIA_POOL] = {"ost_pool", ATTR_MASK_stripe_info, PT_STRING, 0},
     [CRITERIA_OST] =  {"ost_index", ATTR_MASK_stripe_items, PT_INT, PFLG_POSITIVE},
 #endif
+    [CRITERIA_FILECLASS] = {"fileclass", ATTR_MASK_fileclass, PT_STRING,
+                            PFLG_NO_SLASH},
     /* status mask is context dependent */
     [CRITERIA_STATUS] = {"status", 0, PT_STRING, PFLG_STATUS | PFLG_NO_WILDCARDS},
     /* /!\ str2criteria relies on the fact that CRITERIA_XATTR is after
@@ -1010,6 +1012,7 @@ static int print_condition( const compare_triplet_t * p_triplet, char *out_str, 
     case CRITERIA_TREE:
     case CRITERIA_PATH:
     case CRITERIA_FILENAME:
+    case CRITERIA_FILECLASS:
 #ifdef _LUSTRE
     case CRITERIA_POOL:
 #endif
@@ -1294,6 +1297,7 @@ bool update_boolexpr(bool_node_t *tgt, const bool_node_t *src)
         case CRITERIA_TREE:
         case CRITERIA_PATH:
         case CRITERIA_FILENAME:
+        case CRITERIA_FILECLASS:
 #ifdef _LUSTRE
         case CRITERIA_POOL:
 #endif
