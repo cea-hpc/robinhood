@@ -55,7 +55,20 @@ AC_ARG_ENABLE([dist],
               AC_HELP_STRING([--enable-dist], [Only configure enough for make dist]),
               [],
               [enable_dist="no"])
-AS_IF([test "x$enable_dist" != xno], [
+
+AM_PROG_LEX
+AC_PATH_PROG(LEX_INST, $LEX)
+if test -z "$LEX_INST" -a "x$enable_dist" = xyes; then
+  AC_MSG_ERROR([lex/flex not found])
+fi
+
+AC_PROG_YACC
+AC_PATH_PROG(YACC_INST, $YACC)
+if test -z "$YACC_INST" -a "x$enable_dist" = xyes; then
+  AC_MSG_ERROR([yacc/bison not found])
+fi
+
+AS_IF([test "x$enable_dist" = xyes], [
 AC_OUTPUT
 exit
 ])
@@ -70,8 +83,6 @@ AC_PROG_CC
 m4_ifdef([AM_PROG_CC_C_O], [AM_PROG_CC_C_O])
 
 AC_C_INLINE
-AM_PROG_LEX
-AC_PROG_YACC
 
 # define everything necessary for accessing large files (64bits offset)
 AC_SYS_LARGEFILE
