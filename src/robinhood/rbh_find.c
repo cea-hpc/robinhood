@@ -1191,6 +1191,11 @@ static int list_contents(char ** id_list, int id_count)
                 ATTR_MASK_SET(&root_attrs, fullpath);
                 strcpy(ATTR(&root_attrs, fullpath), id_list[i]);
 
+                /* guess root name */
+                ATTR_MASK_SET(&root_attrs, name);
+                rh_strncpy(ATTR(&root_attrs, name), rh_basename(id_list[i]),
+                           sizeof(ATTR(&root_attrs, name)));
+
                 if (lstat(ATTR(&root_attrs, fullpath), &st) == 0)
                 {
                     stat2rbh_attrs(&st, &root_attrs, true);
@@ -1211,6 +1216,10 @@ static int list_contents(char ** id_list, int id_count)
                     ListMgr_GenerateFields(&root_attrs,
                                          attr_mask_or(&disp_mask, &query_mask));
                 }
+
+                /* root has no name... */
+                ATTR_MASK_SET(&root_attrs, name);
+                ATTR(&root_attrs, name)[0] = '\0';
             }
 
             dircb(&ids[i], &root_attrs, 1, NULL);
