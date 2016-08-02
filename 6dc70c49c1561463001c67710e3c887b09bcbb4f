@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_63a66ac2",
+        "filename": "src/policies/policy_matching.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 792,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-08-02T11:46:06Z",
+      "side": 1,
+      "message": "Maybe this is not clear. I will update the function description. This takes a single regexp, and a single string (the string contains the list of the fileclasses that an entry matches). This case is tested in the test suite in the case the entry matches several fileclasses.",
+      "parentUuid": "baa041b7_65b559eb",
+      "revId": "6dc70c49c1561463001c67710e3c887b09bcbb4f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_e5fcc9b6",
         "filename": "src/policies/policy_matching.c",
         "patchSetId": 1
@@ -30,6 +48,24 @@
       "writtenOn": "2016-07-29T17:16:07Z",
       "side": 1,
       "message": "Or you could do:\n\n   const char delim[] \u003d { LIST_SEP_CHAR, \u0027\\0\u0027 };\n\n   strtok(..., delim, ...);",
+      "revId": "6dc70c49c1561463001c67710e3c887b09bcbb4f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_83bccedc",
+        "filename": "src/policies/policy_matching.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 804,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-08-02T11:46:06Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "baa041b7_e5fcc9b6",
       "revId": "6dc70c49c1561463001c67710e3c887b09bcbb4f",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
