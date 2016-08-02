@@ -4054,6 +4054,12 @@ function test_ost_trigger
     export ost_high_vol="${mb_h_threshold}MB"
     export ost_low_vol="${mb_l_threshold}MB"
 
+    if [ -n "$POSIX_MODE" ]; then
+        echo "No OST support for POSIX mode"
+        set_skipped
+        return 1
+    fi
+
 	clean_logs
 
     # reset df values
