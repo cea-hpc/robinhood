@@ -357,7 +357,6 @@ rm -rf $RPM_BUILD_ROOT
 %dir %{_sysconfdir}/robinhood.d/includes
 %dir %{_sysconfdir}/robinhood.d/templates
 
-%dir %{_sysconfdir}/ld.so.conf.d
 %{_sysconfdir}/ld.so.conf.d/robinhood.conf
 
 %if %{with lhsm}
