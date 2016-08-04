@@ -554,9 +554,6 @@ static const struct {
 #ifdef _HAVE_CL_IOCTL /* replaced by CL_LAYOUT in Lustre 2.5 */
     [CL_IOCTL] = { .ignore = IGNORE_ALWAYS },
 #endif
-#ifndef HAVE_SHOOK
-    [CL_XATTR] = { .ignore = IGNORE_ALWAYS },
-#endif
 
     /* Similar operation (data changes). For instance, if the current
      * operation is a CLOSE, drop it if we find a previous
