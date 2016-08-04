@@ -166,7 +166,13 @@ int listmgr_remove_no_tx(lmgr_t *p_mgr, const entry_id_t *p_id,
             return rc;
     }
     else if (!p_attr_set || !ATTR_MASK_TEST(p_attr_set, parent_id) || !ATTR_MASK_TEST(p_attr_set, name))
-        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "WARNING: missing attribute to delete entry from "DNAMES_TABLE);
+    {
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "WARNING: missing attribute(s) to "
+                    "delete entry from "DNAMES_TABLE":%s%s%s",
+                    !p_attr_set ? " attrs=NULL" : "",
+                    p_attr_set && !ATTR_MASK_TEST(p_attr_set, parent_id) ? " parent" : "",
+                    p_attr_set && !ATTR_MASK_TEST(p_attr_set, name) ? " name" : "");
+    }
 
 out:
     g_string_free(req, TRUE);

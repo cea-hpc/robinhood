@@ -2,7 +2,7 @@
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
 /*
- * Copyright (C) 2009, 2010 CEA/DAM
+ * Copyright (C) 2009-2016 CEA/DAM
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the CeCILL License.
@@ -1004,7 +1004,7 @@ static attr_mask_t db_attr_mask(policy_info_t *policy,
 /* TODO depends on the prototype of the action to be taken + fileset mask + condition mask... */
 
     /* needed for ListMgr_Remove() operations */
-#ifdef HAVE_FID
+#ifdef _HAVE_FID
     mask.std |= ATTR_MASK_name | ATTR_MASK_parent_id;
 #endif
     /* needed for posix operations, and for display */
@@ -1015,7 +1015,7 @@ static attr_mask_t db_attr_mask(policy_info_t *policy,
         updt_params.md.when != UPDT_ALWAYS )
         mask.std |= ATTR_MASK_md_update;
 
-#ifdef HAVE_FID
+#ifdef _HAVE_FID
     if (updt_params.path.when != UPDT_NEVER &&
         updt_params.path.when != UPDT_ALWAYS)
         mask.std |= ATTR_MASK_path_update;
