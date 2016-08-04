@@ -1283,9 +1283,9 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
             }
             else if (is_gen_field(index))
             {
-                DisplayLog(LVL_CRIT, LISTMGR_TAG, "Cannot use filter on generated field '%s'",
+                DisplayLog(LVL_DEBUG, LISTMGR_TAG, "Ignoring filter on generated field '%s'",
                            field_name(index));
-                return -DB_INVALID_ARG;
+                continue;
             }
 
             if (match || (table == T_NONE))
