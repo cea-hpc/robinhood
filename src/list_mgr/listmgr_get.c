@@ -221,6 +221,7 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
     int             main_count  = 0,
                     annex_count = 0,
                     name_count  = 0;
+    attr_mask_t     gen = gen_fields(p_info->attr_mask);
 
     if (p_info == NULL)
         return 0;
@@ -235,6 +236,7 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
 
     /* don't get fields that are not in main, names, annex, stripe...
      * This allows the caller to set all bits 'on' to get everything.
+     * Note: this also clear generated fields. They will be restored after.
      */
     supported_bits_only(&p_info->attr_mask);
 
@@ -411,7 +413,9 @@ next_table:
         }
     }
 
-    /* compute generated fields if asked */
+    /* restore generated fields in attr mask */
+    p_info->attr_mask = attr_mask_or(&p_info->attr_mask, &gen);
+    /* generate them */
     generate_fields(p_info);
 
     /* update operation stats */

@@ -1046,9 +1046,6 @@ static attr_mask_t db_attr_mask(policy_info_t *policy,
     /* needed attributes to check policy rules */
     mask = attr_mask_or(&mask, &policy->descr->rules.run_attr_mask);
 
-    /* needed attributes to build action params */
-    mask = attr_mask_or(&mask, &policy->descr->rules.run_attr_mask);
-
     /* if the policy manages deleted entries, get all
      * SOFTRM attributes for the current status manager */
     if (policy->descr->manage_deleted && (policy->descr->status_mgr != NULL))
