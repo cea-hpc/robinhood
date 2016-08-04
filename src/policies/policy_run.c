@@ -767,7 +767,7 @@ static bool check_queue_limit(policy_info_t *pol, const counters_t *pushed,
         /* check the potential limit of successful + pending */
         ctr_pot = ctr_pending;
         counters_add(&ctr_pot, &ctr_ok);
-        DisplayLog(LVL_FULL, tag(pol), "OK requests + pending = %llu",
+        DisplayLog(LVL_FULL, tag(pol), "requests: OK + pending = %llu",
                    ctr_pot.count);
 
         if (check_limit(pol, &ctr_pot, errors, target_ctr))
@@ -1658,6 +1658,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
         return rc;
 
     /* filter entries in the policy scope */
+    DisplayLog(LVL_FULL, tag(p_pol_info), "Converting scope to DB filter...");
     if (convert_boolexpr_to_simple_filter(&p_pol_info->descr->scope, &filter,
                                           p_pol_info->descr->status_mgr,
                                           p_pol_info->time_modifier,
@@ -2041,6 +2042,78 @@ static action_status_t check_entry_times(policy_info_t *pol, lmgr_t *lmgr,
     return AS_OK;
 }
 
+/** Display action success to log and report. */
+static void log_action_success(const policy_info_t  *pol,
+                               const attr_set_t     *attrs,
+                               const rule_item_t    *rule,
+                               const fileset_item_t *fileset,
+                               int sort_time)
+{
+    GString    *str = NULL;
+    char        strsize[256];
+    char        strstorage[24576] = "";
+    bool        is_stor = false;
+
+    /* display needed? */
+    if (log_config.debug_level < LVL_DEBUG
+        && !pol->config->report_actions)
+        return;
+
+    str = g_string_new(NULL);
+    g_string_printf(str, "%s success for '%s', matching rule '%s'",
+                    tag(pol), ATTR(attrs, fullpath),
+                    rule->rule_id);
+
+    if (fileset)
+        g_string_append_printf(str, " (fileset=%s)", fileset->fileset_id);
+
+    if (pol->config->lru_sort_attr != LRU_ATTR_NONE)
+    {
+        if (sort_time > 0)
+        {
+            char strtime[256];
+
+            FormatDurationFloat(strtime, sizeof(strtime),
+                                time(NULL) - sort_time);
+            g_string_append_printf(str, ", %s %s ago", sort_attr_name(pol),
+                                   strtime);
+        }
+        else
+            g_string_append_printf(str, ", %s <none>", sort_attr_name(pol));
+    }
+
+    FormatFileSize(strsize, sizeof(strsize), ATTR(attrs, size));
+
+#ifdef _LUSTRE
+    if (ATTR_MASK_TEST(attrs, stripe_items))
+    {
+        FormatStripeList(strstorage, sizeof(strstorage),
+                         &ATTR(attrs, stripe_items), 0);
+        is_stor = true;
+    }
+    else
+        strcpy(strstorage, "<none>");
+#endif
+
+    DisplayLog(LVL_DEBUG, tag(pol), "%s, size=%s%s%s", str->str, strsize,
+               (is_stor ? " stored on " : ""), (is_stor ? strstorage : ""));
+
+    if (pol->config->report_actions)
+    {
+        g_string_append_printf(str, " | size=%"PRI_SZ, ATTR(attrs, size));
+
+        if (pol->config->lru_sort_attr != LRU_ATTR_NONE)
+            g_string_append_printf(str, ", %s=%u", sort_attr_name(pol),
+                                   sort_time);
+
+        if (is_stor)
+            g_string_append_printf(str, ", stripes=%s", strstorage);
+
+        DisplayReport("%s", str->str);
+    }
+    g_string_free(str, TRUE);
+}
+
 
 /**
  * Manage an entry by path or by fid, depending on FS
@@ -2118,7 +2191,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
             /* OK */
             break;
         case POLICY_NO_MATCH:
-            DisplayLog(LVL_DEBUG, tag(pol), "Entry %s no longer matches the scope of policy '%s'.",
+            DisplayLog(LVL_DEBUG, tag(pol), "Entry %s doesn't match scope of policy '%s'.",
                        ATTR(&new_attr_set, fullpath), tag(pol));
             if (!pol->descr->manage_deleted)
                 update_entry(lmgr, &p_item->entry_id, &new_attr_set);
@@ -2303,53 +2376,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     }
     else
     {
-        char           strtime[256];
-        char           strsize[256];
-        char           strfileset[FILESET_ID_LEN+128] = "";
-        char           strstorage[24576]="";
-        bool           is_stor = false;
-
-        /* Action was successful */
-        /* display attribute values just before the action,
-         * as we used them to match the policy.
-         */
-        /* report messages */
-        if (time_save > 0)
-            FormatDurationFloat(strtime, 256, time( NULL ) - time_save);
-        else
-            strcpy(strtime, "<none>");
-        FormatFileSize(strsize, 256, ATTR(&attr_sav, size));
-
-#ifdef _LUSTRE
-        if (ATTR_MASK_TEST(&p_item->entry_attr, stripe_items))
-        {
-            FormatStripeList(strstorage, sizeof(strstorage),
-                &ATTR(&p_item->entry_attr, stripe_items), 0);
-            is_stor = true;
-        }
-        else
-            strcpy(strstorage, "<none>");
-#endif
-        if (p_fileset)
-            sprintf(strfileset, " (fileset=%s)", p_fileset->fileset_id);
-        else
-            strcpy(strfileset,"");
-
-        DisplayLog(LVL_DEBUG, tag(pol),
-                   "%s success for '%s', matching rule '%s'%s, %s %s%s, size=%s%s%s",
-                   tag(pol), ATTR(&p_item->entry_attr, fullpath),
-                   rule->rule_id, strfileset, sort_attr_name(pol),
-                   strtime, ((time_save > 0) ? " ago" : ""),  strsize,
-                   (is_stor ? " stored on " : ""), (is_stor ? strstorage : ""));
-
-        if (pol->config->report_actions)
-            DisplayReport("%s success for '%s', matching rule '%s'%s, %s %s%s | size=%"
-                          PRI_SZ ", %s=%u%s%s",
-                          tag(pol), ATTR(&p_item->entry_attr, fullpath),
-                          rule->rule_id, strfileset, sort_attr_name(pol),
-                          strtime, ((time_save > 0) ? " ago" : ""), ATTR(&attr_sav, size),
-                          sort_attr_name(pol), time_save, (is_stor ? ", stripes=" : ""),
-                          (is_stor ? strstorage : ""));
+        log_action_success(pol, &attr_sav, rule, p_fileset, time_save);
 
         if (pol->descr->manage_deleted &&
             (after_action == PA_RM_ONE || after_action == PA_RM_ALL))
