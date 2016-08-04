@@ -8121,7 +8121,7 @@ function test_rbh_find_printf
     [[ $STR == "FILE $srcfile 1024 file f [n/a] $root_str 1 and stop" ]] || error "unexpected rbh-find result (300): $STR"
 
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%s\t%d\t%y")
-    [[ $STR == "1024	0	f" ]] || error "unexpected rbh-find result (301): $STR"
+    [[ $STR == "1024	1	f" ]] || error "unexpected rbh-find result (301): $STR"
 
     # Test module attributes
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{}" 2>&1)
