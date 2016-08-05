@@ -14,8 +14,10 @@ Main changes in robinhood 3.0:
     - No more distinct and incompatible robinhood "flavors" (tmpfs, lhsm, backup...)
     - All policies can be implemented in a single robinhood instance.
 * Get a better overlook of your filesystem contents than ever!
-    - Tag your filesystem entries based on arbitrary criteria using the new fileclass implementation.
-    - Flexible reporting with "rbh-find --printf"
+    - New web interface
+    - REST interface to query filesystem stats
+    - Tag your filesystem entries based on arbitrary criteria using the new fileclass implementation
+    - Flexible reporting with "rbh-find -printf"
 * RedHat 7 integration:
     - systemd support.
     - Per filesystem service: robinhood@<fsname>
