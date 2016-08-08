@@ -85,6 +85,7 @@ cscope.*
 /src/tools/read_lovea
 /src/tools/set_lovea
 /src/tools/ost_fids_remap
+/src/tools/lhsmtool_cmd
 /src/robinhood/rbh-du
 /src/robinhood/rbh-find
 /src/robinhood/rbh-report
@@ -93,6 +94,7 @@ cscope.*
 /src/robinhood/robinhood
 /tests/lustre_fs/*.log
 /tests/posix_fs/*.log
+/tests/test_suite/create-random
 /TODO
 /src/include/db_schema.h
 /scripts/make_mans.sh
