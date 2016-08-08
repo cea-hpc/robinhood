@@ -109,8 +109,8 @@ static bool TestPathRegexp(const char *regexp, const char *to_be_tested,
         full_regexp = full_path;
     }
 
-    if (any_level)
-        return !fnmatch(full_regexp, to_be_tested, match_flag);
+    if (!any_level)
+        match_flag |= FNM_PATHNAME;
 
     if (!fnmatch(full_regexp, to_be_tested, match_flag))
     {
