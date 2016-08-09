@@ -910,23 +910,21 @@ int lustre_mds_stat_by_fid( const entry_id_t * p_id, struct stat *inode )
 }
 #endif
 
-char *FormatStripeList(char *buff, size_t sz, const stripe_items_t *p_stripe_items, bool brief)
+char *format_stripe_list(GString *str, const stripe_items_t *p_stripe_items,
+                         bool brief)
 {
-    unsigned int   i;
-    size_t         written = 0;
-    const char * format;
+    const char   *format;
+    unsigned int  i;
 
-    if ( !p_stripe_items || ( p_stripe_items->count == 0 ) )
+    if (!p_stripe_items || (p_stripe_items->count == 0))
     {
-        rh_strncpy(buff, "(none)", sz);
-        return buff;
+        g_string_append(str, "(none)");
+        return str->str;
     }
 
-    buff[0] = '\0';
-
-    for ( i = 0; i < p_stripe_items->count; i++ )
+    for (i = 0; i < p_stripe_items->count; i++)
     {
-        if ( i != p_stripe_items->count - 1 ) {
+        if (i != p_stripe_items->count - 1) {
             if (brief)
                 format = "ost#%u:%u, ";
             else
@@ -937,15 +935,11 @@ char *FormatStripeList(char *buff, size_t sz, const stripe_items_t *p_stripe_ite
             else
                 format = "ost#%u: %u";
         }
-        written +=
-            snprintf( ( char * ) ( buff + written ), sz - written, format,
-                      p_stripe_items->stripe[i].ost_idx,
-                      p_stripe_items->stripe[i].obj_id );
+        g_string_append_printf(str, format, p_stripe_items->stripe[i].ost_idx,
+                               p_stripe_items->stripe[i].obj_id);
     }
 
-    buff[sz-1] = '\0';
-
-    return buff;
+    return str->str;
 }
 
 #ifndef _MDT_SPECIFIC_LOVEA

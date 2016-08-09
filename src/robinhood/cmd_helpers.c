@@ -688,8 +688,15 @@ const char *attr2str(attr_set_t *attrs, const entry_id_t *id,
             return out;
 
         case ATTR_INDEX_stripe_items:
-            FormatStripeList(out, out_sz, &ATTR(attrs, stripe_items), csv);
+        {
+            GString *osts = g_string_new("");
+
+            format_stripe_list(osts, &ATTR(attrs, stripe_items), csv);
+            rh_strncpy(out, osts->str, out_sz);
+            g_string_free(osts, TRUE);
+
             return out;
+        }
 #endif
     }
     return "?";
@@ -710,7 +717,12 @@ static const char *print_res_status(const db_value_t *val, bool csv,
 static const char *print_res_sm_info(const db_value_t *val, bool csv,
                                      char *out, size_t out_sz)
 {
-    ListMgr_PrintAttr(out, out_sz, val->type, &val->value_u, "");
+    GString *gs = g_string_new("");
+
+    ListMgr_PrintAttr(gs, val->type, &val->value_u, "");
+    rh_strncpy(out, gs->str, out_sz);
+    g_string_free(gs, TRUE);
+
     return out;
 }
 

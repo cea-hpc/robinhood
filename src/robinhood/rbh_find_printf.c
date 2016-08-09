@@ -719,12 +719,11 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
                 if (ATTR_MASK_TEST(attrs, stripe_items) &&
                     (ATTR(attrs, stripe_items).count > 0))
                 {
-                    char ostbuf[24576] = "";
+                    GString *osts = g_string_new("");
 
-                    /* Note: it would be nice to have FormatStripeList
-                     * work on GString. */
-                    FormatStripeList(ostbuf, sizeof(ostbuf), &ATTR(attrs, stripe_items), true);
-                    printf(format, ostbuf);
+                    format_stripe_list(osts, &ATTR(attrs, stripe_items), true);
+                    printf(format, osts->str);
+                    g_string_free(osts, TRUE);
                 }
                 break;
 

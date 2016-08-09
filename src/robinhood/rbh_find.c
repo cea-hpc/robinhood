@@ -791,9 +791,9 @@ static int set_time_filter(char * str, unsigned int multiplier,
 
 static void print_entry(const wagon_t *id, const attr_set_t * attrs)
 {
-    char ostbuf[24576] = "";
     char classbuf[1024] = "";
     char statusbuf[1024] = "";
+    GString *osts = NULL;
 
     /* HERE: post-filter attributes that are not part of the DB request */
 
@@ -802,9 +802,9 @@ static void print_entry(const wagon_t *id, const attr_set_t * attrs)
     if (prog_options.lsost && ATTR_MASK_TEST(attrs, stripe_items)
         && (ATTR(attrs, stripe_items).count > 0))
     {
-        /* leave 2 spaces as first char */
-        ostbuf[0] = ostbuf[1] = ' ';
-        FormatStripeList(ostbuf+2, sizeof(ostbuf)-2, &ATTR(attrs, stripe_items), true);
+        /* separate from the beginning of the line by 2 spaces */
+        osts = g_string_new("  ");
+        format_stripe_list(osts, &ATTR(attrs, stripe_items), true);
     }
 #endif
 
@@ -909,7 +909,8 @@ static void print_entry(const wagon_t *id, const attr_set_t * attrs)
             strftime(date_str, 128, "%Y/%m/%d %T", localtime_r(&tt, &stm));
         }
 
-        if (ATTR_MASK_TEST(attrs, type) && !strcmp(ATTR(attrs, type), STR_TYPE_LINK)
+        if (ATTR_MASK_TEST(attrs, type)
+            && !strcmp(ATTR(attrs, type), STR_TYPE_LINK)
             && ATTR_MASK_TEST(attrs, link))
             /* display: id, type, mode, nlink, (status,) owner, group, size, mtime, path -> link */
             printf(DFID" %-4s %s %3u  %-10s %-10s %15"PRIu64" %20s %s%s%s -> %s\n",
@@ -921,7 +922,8 @@ static void print_entry(const wagon_t *id, const attr_set_t * attrs)
             printf(DFID" %-4s %s %3u  %-10s %-10s %15"PRIu64" %20s %s%s%s%s\n",
                    PFID(&id->id), type, mode_str, ATTR(attrs, nlink),
                    uid, gid,
-                   ATTR(attrs, size), date_str, statusbuf, classbuf, id->fullname, ostbuf);
+                   ATTR(attrs, size), date_str, statusbuf,
+                   classbuf, id->fullname, osts ? osts->str : "");
     }
     else if (prog_options.lsost || prog_options.lsclass || prog_options.lsstatus) /* lsost or lsclass without -ls */
     {
@@ -935,7 +937,8 @@ static void print_entry(const wagon_t *id, const attr_set_t * attrs)
 
         /* display: id, type, size, path */
         printf(DFID" %-4s %15"PRIu64" %s%s%s%s\n",
-               PFID(&id->id), type, ATTR(attrs, size), statusbuf, classbuf, id->fullname, ostbuf);
+               PFID(&id->id), type, ATTR(attrs, size), statusbuf, classbuf,
+                    id->fullname, osts ? osts->str : "");
 
     }
     else if (prog_options.print)
@@ -970,6 +973,8 @@ static void print_entry(const wagon_t *id, const attr_set_t * attrs)
             g_strfreev(cmd);
         }
     }
+    if (osts)
+        g_string_free(osts, TRUE);
 }
 
 /* directory callback */
