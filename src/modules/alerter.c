@@ -132,7 +132,7 @@ static int alerter_alert(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
 {
     char *str_id = NULL;
     bool  str_is_alloc = false;
-    char  str_values[2*RBH_PATH_MAX];
+    GString *gs = g_string_new(NULL);
 
     /* build alert string */
     if (ATTR_MASK_TEST(p_attrs, fullpath))
@@ -154,13 +154,13 @@ static int alerter_alert(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
 
     /** TODO build specific parameter that represents attr mask for the rule (alert mask) */
 
-    PrintAttrs(str_values, sizeof(str_values), p_attrs,
-               null_mask, 0);
+    print_attrs(gs, p_attrs, null_mask, 0);
 
     /* title: alert rule name */
     RaiseEntryAlert(rbh_param_get(params, "title"), "entry matches alert rule",
-                    str_id, str_values);
+                    str_id, gs->str);
 
+    g_string_free(gs, TRUE);
     if (str_is_alloc)
         free(str_id);
 

@@ -25,6 +25,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <glib.h>
 
 /* database specific types */
 #include "db_types.h"
@@ -1219,16 +1220,21 @@ void           ListMgr_MergeAttrSets(attr_set_t *p_target_attrset,
 attr_mask_t ListMgr_WhatDiff(const attr_set_t *p_tgt, const attr_set_t *p_src);
 
 /** print attribute value to display to the user
+ * @param[in,out] str  Allocated GString to be appended.
  * @param quote string to quote string types (eg. "'").
- * @return the same value as snprintf.
+ * @return 0 on success, a negative value on error.
  */
-int ListMgr_PrintAttr(char *str, int size, db_type_e type,
-                      const db_type_u *value_ptr, const char *quote);
+int ListMgr_PrintAttr(GString *str, db_type_e type, const db_type_u *value_ptr,
+                      const char *quote);
 
-/** same as ListMgr_PrintAttr, excpet that the value is passed by pointer
- * instead of db_type_u */
-int ListMgr_PrintAttrPtr(char *str, int size, db_type_e type,
-                         void *value_ptr, const char *quote);
+/**
+ * Same as ListMgr_PrintAttr, except that the value is passed by pointer
+ * instead of db_type_u.
+ * @param[in,out] str  Allocated GString to be appended.
+ * @return 0 on success, a negative value on error.
+ */
+int ListMgr_PrintAttrPtr(GString *str, db_type_e type, void *value_ptr,
+                         const char *quote);
 
 /**
  * Generate fields automatically from already existing fields,
