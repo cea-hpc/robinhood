@@ -1,0 +1,129 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_84239f04",
+        "filename": "src/common/lustre_tools.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 913,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-08-09T15:34:36Z",
+      "side": 1,
+      "message": "Could return void as the result is never used.\n\nappend_stripe_list might be a better name for that function.",
+      "revId": "3937921639ac3a4168efc15a1918e80435be211c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_c483e7c9",
+        "filename": "src/common/rbh_misc.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1516,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-08-09T15:34:36Z",
+      "side": 1,
+      "message": "If you have an idea of how long the string might be, you could use g_string_size_new instead, to avoid too many reallocations.",
+      "revId": "3937921639ac3a4168efc15a1918e80435be211c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_a4dd83e1",
+        "filename": "src/entry_processor/diff_pipeline.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 649,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-08-09T15:34:36Z",
+      "side": 1,
+      "message": "These could be changed to:\n\ng_string_printf(attrchg, \"-\"DFID, PFID(...));\nprint_attrs(...)\nputs(attrchr-\u003estr)",
+      "revId": "3937921639ac3a4168efc15a1918e80435be211c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_04f30f74",
+        "filename": "src/include/rbh_misc.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 321,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-08-09T15:34:36Z",
+      "side": 1,
+      "message": "Append a list of stripes to a GString.",
+      "revId": "3937921639ac3a4168efc15a1918e80435be211c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_e4e5cba3",
+        "filename": "src/include/rbh_misc.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 324,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-08-09T15:34:36Z",
+      "side": 1,
+      "message": "Does it?",
+      "revId": "3937921639ac3a4168efc15a1918e80435be211c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_a4046349",
+        "filename": "src/include/rbh_misc.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 391,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-08-09T15:34:36Z",
+      "side": 1,
+      "message": "override",
+      "range": {
+        "startLine": 391,
+        "startChar": 42,
+        "endLine": 391,
+        "endChar": 49
+      },
+      "revId": "3937921639ac3a4168efc15a1918e80435be211c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_641e5bbc",
+        "filename": "src/policies/policy_run.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 2091,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-08-09T15:34:36Z",
+      "side": 1,
+      "message": "0 -\u003e false",
+      "revId": "3937921639ac3a4168efc15a1918e80435be211c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
