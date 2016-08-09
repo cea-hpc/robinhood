@@ -431,7 +431,6 @@ static int build_cmd(const char *name, int begin_idx, int end_idx, void *udata)
     const char                 *val = NULL;
     char                       *quoted_arg = NULL;
     bool                        free_val = false;
-    char                        buff[1024];
     int                         rc;
 
     if (unlikely(args == NULL))
@@ -483,8 +482,12 @@ static int build_cmd(const char *name, int begin_idx, int end_idx, void *udata)
         rc = sm_attr_get(args->smi, args->attrs, name, &pval, &def, &idx);
         if (rc == 0)
         {
-            ListMgr_PrintAttrPtr(buff, sizeof(buff), def->db_type, pval, "");
-            val = buff;
+            GString *gs = g_string_new("");
+
+            ListMgr_PrintAttrPtr(gs, def->db_type, pval, "");
+            val = gs->str;
+            free_val = true;
+            g_string_free(gs, FALSE);
         }
         else if (rc == -ENODATA)
         {

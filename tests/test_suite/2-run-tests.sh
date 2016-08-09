@@ -6375,6 +6375,7 @@ function test_layout
     fsdiff=$($RH -f $RBH_CFG_DIR/$config_file --readlog --diff=stripe --once -l DEBUG -L rh_scan.log)
     (( $? == 0 )) || error "reading changelog (diff)"
 
+    [ "$DEBUG" = "1" ] && echo "$fsdiff"
     echo $fsdiff | egrep "\-.*,stripe_count=2,.* \+.*,stripe_count=1,.*" > /dev/null || error "missed layout change"
 
     rm -f $DSTFILE

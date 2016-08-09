@@ -27,6 +27,7 @@
 #include <dirent.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <glib.h>
 
 /* displaying FID */
 #ifndef _HAVE_FID
@@ -68,7 +69,7 @@
                             || strchr(s,']') || strchr(s,'{') || strchr(s,'}') )
 #define STAR_SLASH_BEGIN( s ) (((s)[0]=='*') && ((s)[1]=='/'))
 
-#define GSTRING_SAFE(_g) (((_g)->str == NULL)?"":(_g)->str)
+#define GSTRING_SAFE(_g) (((_g) == NULL || ((_g)->str == NULL))?"":(_g)->str)
 #define GSTRING_EMPTY(_g) (EMPTY_STRING(GSTRING_SAFE(_g)))
 
 
@@ -316,9 +317,12 @@ char          *FormatDuration( char *buff, size_t str_sz, time_t duration );
 char          *FormatDurationFloat( char *buff, size_t str_sz, time_t duration );
 
 #ifdef _LUSTRE
-char          *FormatStripeList(char *buff, size_t sz, const stripe_items_t *p_stripe_items,
-                                bool brief);
-
+/**
+ * Append a list of stripes to a GString.
+ * @param[in,out] str  Allocated GString.
+ */
+void append_stripe_list(GString *str, const stripe_items_t *p_stripe_items,
+                        bool brief);
 #endif
 
 /*
@@ -380,12 +384,13 @@ time_t str2date( const char *str );
 const char *mode_string(mode_t mode, char *buf);
 
 /**
- *  Print attributes to a string
- *  \param overide_mask if != 0, overide attrmask with this one
- *  \param brief brief notation for diff
+ *  Print attributes to a GString.
+ *  @param[in,out] str           Allocated GString (contents is overwritten).
+ *  @param         overide_mask  If != 0, override attrmask with this one.
+ *  @param         brief         Brief notation for diff output.
  */
-int            PrintAttrs(char *out_str, size_t strsize, const attr_set_t *p_attr_set,
-                          attr_mask_t overide_mask, bool brief);
+void print_attrs(GString *str, const attr_set_t *p_attr_set,
+                 attr_mask_t overide_mask, bool brief);
 
 /**
  *  Apply attribute changes

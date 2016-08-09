@@ -1604,29 +1604,32 @@ int EntryProc_pre_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
         /* something changed in diffmask */
         else if (!attr_mask_is_null(attr_mask_and(&loc_diff_mask, &diff_mask)))
         {
-            char attrchg[RBH_PATH_MAX] = "";
+            GString *attrchg = g_string_new("");
 
             /* attr from DB */
-            if (attr_mask_is_null(display_mask))
-                attrchg[0] = '\0';
-            else
-                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs, display_mask, 1);
+            if (!attr_mask_is_null(display_mask))
+                print_attrs(attrchg, &p_op->db_attrs, display_mask, 1);
 
-            printf("-"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
+            printf("-"DFID" %s\n", PFID(&p_op->entry_id), attrchg->str);
 
             /* attr from FS */
-            PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->fs_attrs, display_mask, 1);
-            printf("+"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
+            print_attrs(attrchg, &p_op->fs_attrs, display_mask, 1);
+            printf("+"DFID" %s\n", PFID(&p_op->entry_id), attrchg->str);
+
+            g_string_free(attrchg, TRUE);
         }
     }
     else if (!attr_mask_is_null(diff_mask))
     {
         if (p_op->db_op_type == OP_TYPE_INSERT)
         {
-            char attrnew[RBH_PATH_MAX];
-            PrintAttrs(attrnew, RBH_PATH_MAX, &p_op->fs_attrs,
+            GString *attrnew = g_string_new(NULL);
+
+            print_attrs(attrnew, &p_op->fs_attrs,
                 attr_mask_and(&p_op->fs_attrs.attr_mask, &diff_mask), 1);
-            printf("++"DFID" %s\n", PFID(&p_op->entry_id), attrnew);
+
+            printf("++"DFID" %s\n", PFID(&p_op->entry_id), attrnew->str);
+            g_string_free(attrnew, TRUE);
         }
         else if ((p_op->db_op_type == OP_TYPE_REMOVE_LAST)
                 || (p_op->db_op_type == OP_TYPE_REMOVE_ONE)
@@ -1702,18 +1705,20 @@ int EntryProc_db_apply(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
 
     case OP_TYPE_SOFT_REMOVE:
 
-        if (log_config.debug_level >= LVL_DEBUG) {
-            char buff[2*RBH_PATH_MAX];
+        if (log_config.debug_level >= LVL_DEBUG)
+        {
             attr_mask_t tmp = null_mask;
             attr_mask_t tmp2 = null_mask;
+            GString *gs = g_string_new(NULL);
 
             tmp.std = ATTR_MASK_fullpath | ATTR_MASK_parent_id | ATTR_MASK_name;
             tmp2 = sm_softrm_mask();
             tmp = attr_mask_or(&tmp, &tmp2);
 
-            PrintAttrs(buff, 2*RBH_PATH_MAX, &p_op->fs_attrs, tmp, true);
+            print_attrs(gs, &p_op->fs_attrs, tmp, true);
             DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "SoftRemove("DFID",%s)",
-                        PFID(&p_op->entry_id), buff);
+                       PFID(&p_op->entry_id), gs->str);
+            g_string_free(gs, TRUE);
         }
 
         /* FIXME get remove time from changelog */

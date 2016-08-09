@@ -639,30 +639,30 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         else if (!attr_mask_is_null(attr_mask_and(&loc_diff_mask, &diff_mask))
                  && !attr_mask_is_null(display_mask))
         {
-            char attrchg[RBH_PATH_MAX] = "";
+            GString *attrchg = g_string_new(NULL);
 
             /* revert change: reverse display */
             if (diff_arg->apply == APPLY_FS)
             {
                 /* attr from FS */
-                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->fs_attrs, display_mask, 1);
-                printf("-"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
+                print_attrs(attrchg, &p_op->fs_attrs, display_mask, 1);
+                printf("-"DFID" %s\n", PFID(&p_op->entry_id), attrchg->str);
 
                 /* attr from DB */
-                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs,
-                           display_mask, 1);
-                printf("+"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
+                print_attrs(attrchg, &p_op->db_attrs, display_mask, 1);
+                printf("+"DFID" %s\n", PFID(&p_op->entry_id), attrchg->str);
             }
             else
             {
                 /* attr from DB */
-                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->db_attrs, display_mask, 1);
-                printf("-"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
+                print_attrs(attrchg, &p_op->db_attrs, display_mask, 1);
+                printf("-"DFID" %s\n", PFID(&p_op->entry_id), attrchg->str);
 
                 /* attr from FS */
-                PrintAttrs(attrchg, RBH_PATH_MAX, &p_op->fs_attrs, display_mask, 1);
-                printf("+"DFID" %s\n", PFID(&p_op->entry_id), attrchg);
+                print_attrs(attrchg, &p_op->fs_attrs, display_mask, 1);
+                printf("+"DFID" %s\n", PFID(&p_op->entry_id), attrchg->str);
             }
+            g_string_free(attrchg, TRUE);
         }
     }
     else if (!attr_mask_is_null(diff_mask))
@@ -679,12 +679,13 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             }
             else
             {
-                char attrnew[RBH_PATH_MAX];
+                GString *attrnew = g_string_new(NULL);
 
-                PrintAttrs(attrnew, RBH_PATH_MAX, &p_op->fs_attrs,
-                    p_op->fs_attrs.attr_mask, 1);
+                print_attrs(attrnew, &p_op->fs_attrs, p_op->fs_attrs.attr_mask,
+                            1);
+                printf("++"DFID" %s\n", PFID(&p_op->entry_id), attrnew->str);
 
-                printf("++"DFID" %s\n", PFID(&p_op->entry_id), attrnew);
+                g_string_free(attrnew, TRUE);
             }
         }
         else if ((p_op->db_op_type == OP_TYPE_REMOVE_LAST) ||
@@ -695,12 +696,14 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
             if (diff_arg->apply == APPLY_FS)
             {
-                /* revert change: reverse display */
-                char attrnew[RBH_PATH_MAX];
-                PrintAttrs(attrnew, RBH_PATH_MAX, &p_op->db_attrs,
-                    p_op->db_attrs.attr_mask, 1);
+                GString *attrnew = g_string_new(NULL);
 
-                printf("++"DFID" %s\n", PFID(&p_op->entry_id), attrnew);
+                /* revert change: reverse display */
+                print_attrs(attrnew, &p_op->db_attrs, p_op->db_attrs.attr_mask,
+                            1);
+                printf("++"DFID" %s\n", PFID(&p_op->entry_id), attrnew->str);
+
+                g_string_free(attrnew, TRUE);
             }
             else
             {
@@ -725,7 +728,7 @@ int EntryProc_report_diff( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
 
 /* forward declaration to check batchable operations for db_apply stage */
 static bool dbop_is_batchable(struct entry_proc_op_t *first, struct
-entry_proc_op_t *next, attr_mask_t *full_attr_mask)
+                              entry_proc_op_t *next, attr_mask_t *full_attr_mask)
 {
     /* batch nothing if not applying to DB */
     if ((diff_arg->apply != APPLY_DB) || (pipeline_flags & RUNFLG_DRY_RUN))
@@ -802,18 +805,21 @@ int EntryProc_apply( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
             break;
 
         case OP_TYPE_SOFT_REMOVE:
-            if (log_config.debug_level >= LVL_DEBUG) {
-                char buff[2*RBH_PATH_MAX];
+            if (log_config.debug_level >= LVL_DEBUG)
+            {
                 attr_mask_t tmp = null_mask;
                 attr_mask_t tmp2 = null_mask;
+                GString *gs = g_string_new(NULL);
 
                 tmp.std = ATTR_MASK_fullpath | ATTR_MASK_parent_id | ATTR_MASK_name;
                 tmp2 = sm_softrm_mask();
                 tmp = attr_mask_or(&tmp, &tmp2);
 
-                PrintAttrs(buff, 2*RBH_PATH_MAX, &p_op->fs_attrs, tmp, true);
+                print_attrs(gs, &p_op->fs_attrs, tmp, true);
                 DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "SoftRemove("DFID",%s)",
-                            PFID(&p_op->entry_id), buff);
+                            PFID(&p_op->entry_id), gs->str);
+
+                g_string_free(gs, TRUE);
             }
 
             ATTR_MASK_SET(&p_op->fs_attrs, rm_time);
@@ -1279,12 +1285,14 @@ static int EntryProc_report_rm(struct entry_proc_op_t *p_op, lmgr_t * lmgr)
                 {
                     if (diff_arg->apply == APPLY_FS)
                     {
+                        GString *attrnew = g_string_new(NULL);
+
                         /* FS apply: reverse display */
-                        char attrnew[RBH_PATH_MAX];
+                        print_attrs(attrnew, &attrs, null_mask, 1);
+                        printf("++"DFID" %s\n", PFID(&id), attrnew->str);
 
-                        PrintAttrs(attrnew, RBH_PATH_MAX, &attrs, null_mask, 1);
+                        g_string_free(attrnew, TRUE);
 
-                        printf("++"DFID" %s\n", PFID(&id), attrnew);
                         /* create or recover it (even without HSM mode) */
 #ifdef _HSM_LITE
                         if (diff_arg->recov_from_backend)
