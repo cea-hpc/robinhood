@@ -2047,9 +2047,8 @@ static void log_action_success(const policy_info_t  *pol,
                                int sort_time)
 {
     GString    *str = NULL;
+    GString    *str_stripe = NULL;
     char        strsize[256];
-    char        strstorage[24576] = "";
-    bool        is_stor = false;
 
     /* display needed? */
     if (log_config.debug_level < LVL_DEBUG
@@ -2082,18 +2081,23 @@ static void log_action_success(const policy_info_t  *pol,
     FormatFileSize(strsize, sizeof(strsize), ATTR(attrs, size));
 
 #ifdef _LUSTRE
-    if (ATTR_MASK_TEST(attrs, stripe_items))
+    /* Only needed if trace level is DEBUG or if report_action
+     * is enabled */
+    if (log_config.debug_level >= LVL_DEBUG || pol->config->report_actions)
     {
-        FormatStripeList(strstorage, sizeof(strstorage),
-                         &ATTR(attrs, stripe_items), 0);
-        is_stor = true;
+        if (ATTR_MASK_TEST(attrs, stripe_items))
+        {
+            str_stripe = g_string_new("");
+            append_stripe_list(str_stripe, &ATTR(attrs, stripe_items), false);
+        }
+        else
+            str_stripe = g_string_new("<none>");
     }
-    else
-        strcpy(strstorage, "<none>");
 #endif
 
     DisplayLog(LVL_DEBUG, tag(pol), "%s, size=%s%s%s", str->str, strsize,
-               (is_stor ? " stored on " : ""), (is_stor ? strstorage : ""));
+               str_stripe ? " stored on " : "",
+               str_stripe ? str_stripe->str : "");
 
     if (pol->config->report_actions)
     {
@@ -2103,11 +2107,14 @@ static void log_action_success(const policy_info_t  *pol,
             g_string_append_printf(str, ", %s=%u", sort_attr_name(pol),
                                    sort_time);
 
-        if (is_stor)
-            g_string_append_printf(str, ", stripes=%s", strstorage);
+        if (str_stripe)
+            g_string_append_printf(str, ", stripes=%s", str_stripe->str);
 
         DisplayReport("%s", str->str);
     }
+    if (str_stripe != NULL)
+        g_string_free(str_stripe, TRUE);
+
     g_string_free(str, TRUE);
 }
 

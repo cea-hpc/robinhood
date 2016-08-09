@@ -93,69 +93,75 @@ void printdbtype(lmgr_t *p_mgr, GString *str, db_type_e type, const db_type_u *v
 
 /** print attribute value to display to the user
  * @param quote string to quote string types (eg. "'") */
-int ListMgr_PrintAttr(char *str, int size, db_type_e type,
-                      const db_type_u *value_ptr, const char *quote)
+int ListMgr_PrintAttr(GString *str, db_type_e type, const db_type_u *value_ptr,
+                      const char *quote)
 {
     switch (type)
     {
         case DB_ID:
-            return snprintf(str, size, DFID, PFID(&value_ptr->val_id));
+            g_string_append_printf(str, DFID, PFID(&value_ptr->val_id));
+            return 0;
 
         case DB_TEXT:
-            return snprintf(str, size, "%s%s%s", quote, value_ptr->val_str, quote);
+            g_string_append_printf(str, "%s%s%s", quote, value_ptr->val_str, quote);
+            return 0;
 
         case DB_UIDGID:
             if (global_config.uid_gid_as_numbers)
-                return snprintf(str, size, "%d", value_ptr->val_int);
+                g_string_append_printf(str, "%d", value_ptr->val_int);
             else
-                return snprintf(str, size, "%s%s%s", quote, value_ptr->val_str, quote);
+                g_string_append_printf(str, "%s%s%s", quote, value_ptr->val_str, quote);
+            return 0;
 
         case DB_INT:
-            return snprintf(str, size, "%d", value_ptr->val_int);
+            g_string_append_printf(str, "%d", value_ptr->val_int);
+            return 0;
 
         case DB_UINT:
-            return snprintf(str, size, "%u", value_ptr->val_uint);
+            g_string_append_printf(str, "%u", value_ptr->val_uint);
+            return 0;
 
         case DB_SHORT:
-            return snprintf(str, size, "%hd", value_ptr->val_short);
-            break;
+            g_string_append_printf(str, "%hd", value_ptr->val_short);
+            return 0;
 
         case DB_USHORT:
-            return snprintf(str, size, "%hu", value_ptr->val_ushort);
+            g_string_append_printf(str, "%hu", value_ptr->val_ushort);
+            return 0;
 
         case DB_BIGINT:
-            return snprintf(str, size, "%lld", value_ptr->val_bigint);
-            break;
+            g_string_append_printf(str, "%lld", value_ptr->val_bigint);
+            return 0;
 
         case DB_BIGUINT:
-            return snprintf(str, size, "%llu", value_ptr->val_biguint);
+            g_string_append_printf(str, "%llu", value_ptr->val_biguint);
+            return 0;
 
         case DB_BOOL:
-            if (value_ptr->val_bool)
-                strncpy(str, "1", size);
-            else
-                strncpy(str, "0", size);
-            return 1;
+            g_string_append_c(str, value_ptr->val_bool ? '1' : '0');
+            return 0;
 
         case DB_ENUM_FTYPE:
-            return snprintf(str, size, "%s%s%s", quote, value_ptr->val_str, quote);
-            break;
+            g_string_append_printf(str, "%s%s%s", quote, value_ptr->val_str,
+                                   quote);
+            return 0;
 
         case DB_STRIPE_INFO:
         case DB_STRIPE_ITEMS:
             RBH_BUG("Unsupported DB type");
     }
-    DisplayLog(LVL_CRIT, LISTMGR_TAG, "Error: unhandled type %d in %s", type, __func__);
-    return 0;
+    DisplayLog(LVL_CRIT, LISTMGR_TAG, "Error: unhandled type %d in %s",
+               type, __func__);
+    return -EINVAL;
 }
 
-int ListMgr_PrintAttrPtr(char *str, int size, db_type_e type,
-                         void *value_ptr, const char *quote)
+int ListMgr_PrintAttrPtr(GString *str, db_type_e type, void *value_ptr,
+                         const char *quote)
 {
     db_type_u u;
 
     assign_union(&u, type, value_ptr);
-    return ListMgr_PrintAttr(str, size, type, &u, quote);
+    return ListMgr_PrintAttr(str, type, &u, quote);
 }
 
 /* return the number of parsed items (1) on success */
