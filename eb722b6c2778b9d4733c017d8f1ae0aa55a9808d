@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_8e098033",
+        "filename": "src/policies/policy_run.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 2090,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-08-09T09:11:12Z",
+      "side": 1,
+      "message": "Done. At the end the resulting patch is quite big. I push it as a next change.",
+      "parentUuid": "baa041b7_be5b5553",
+      "revId": "eb722b6c2778b9d4733c017d8f1ae0aa55a9808d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_1e424168",
         "filename": "src/policies/policy_run.c",
         "patchSetId": 2
@@ -30,6 +48,24 @@
       "writtenOn": "2016-08-08T15:06:10Z",
       "side": 1,
       "message": "strstorage is only really used here. If the above condition is not true, then do we need to get it, as it\u0027s an expensive operation?",
+      "revId": "eb722b6c2778b9d4733c017d8f1ae0aa55a9808d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_21016505",
+        "filename": "src/policies/policy_run.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 2101,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-08-09T09:11:12Z",
+      "side": 1,
+      "message": "I did it in the later patch about GString.",
+      "parentUuid": "baa041b7_1e424168",
       "revId": "eb722b6c2778b9d4733c017d8f1ae0aa55a9808d",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
