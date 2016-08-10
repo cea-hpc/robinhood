@@ -588,9 +588,9 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
 
         case 'M':
         {
-            char mode_str[9];
+            char mode_str[10]; /* mask + final '\0' */
 
-            mode_str[8] = 0;
+            mode_str[9] = 0;
             mode_string(ATTR(attrs, mode), mode_str);
 
             printf(format, mode_str);
