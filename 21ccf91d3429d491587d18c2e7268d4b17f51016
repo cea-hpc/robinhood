@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_90ff5533",
+        "filename": "src/common/lustre_tools.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 937,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-08-10T15:41:18Z",
+      "side": 1,
+      "message": "But is that more readable?\n\nformat could be initialized once outside the for loop. It only needs to be changed for the last element.",
+      "parentUuid": "baa041b7_1517b7a3",
+      "revId": "21ccf91d3429d491587d18c2e7268d4b17f51016",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_10f34574",
         "filename": "src/include/list_mgr.h",
         "patchSetId": 2
