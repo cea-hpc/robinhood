@@ -16,6 +16,40 @@
       "revId": "21ccf91d3429d491587d18c2e7268d4b17f51016",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_10f34574",
+        "filename": "src/include/list_mgr.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 1233,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-08-10T15:39:19Z",
+      "side": 1,
+      "message": "I think that should be \" ... appended to.\"",
+      "revId": "21ccf91d3429d491587d18c2e7268d4b17f51016",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_f057c157",
+        "filename": "src/include/list_mgr.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 1234,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-08-10T15:39:19Z",
+      "side": 1,
+      "message": "Maybe, but it\u0027s never used. Same with ListMgr_PrintAttr AFAICS.",
+      "revId": "21ccf91d3429d491587d18c2e7268d4b17f51016",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
