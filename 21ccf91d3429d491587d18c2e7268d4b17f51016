@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_1517b7a3",
+        "filename": "src/common/lustre_tools.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 937,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-08-10T11:07:39Z",
+      "side": 1,
+      "message": "What about:\n\ng_string_append_printf(str, \"ost#%u:%s%u%s\", ost_idx, brief ? \"\", \" \", obj_id, idx_is_last(i, p_stripe_items) ? \"\" : \", \");",
+      "revId": "21ccf91d3429d491587d18c2e7268d4b17f51016",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
