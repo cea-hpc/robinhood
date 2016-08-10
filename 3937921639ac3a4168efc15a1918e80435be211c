@@ -36,6 +36,23 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_f56b33b7",
+        "filename": "src/common/rbh_misc.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1730,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-08-10T08:14:13Z",
+      "side": 1,
+      "message": "(defect) format is not used. The resulting display is not as expected and is different from previous output.",
+      "revId": "3937921639ac3a4168efc15a1918e80435be211c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_a4dd83e1",
         "filename": "src/entry_processor/diff_pipeline.c",
         "patchSetId": 1
