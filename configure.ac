@@ -22,6 +22,55 @@ AC_PREFIX_DEFAULT([/usr])
 
 AC_GNU_SOURCE
 
+AC_CONFIG_FILES([Makefile
+         src/Makefile
+         src/include/Makefile
+         src/common/Makefile
+         src/cfg_parsing/Makefile
+         src/list_mgr/Makefile
+         src/entry_processor/Makefile
+         src/fs_scan/Makefile
+         src/chglog_reader/Makefile
+         src/modules/Makefile
+         src/policies/Makefile
+         src/robinhood/Makefile
+         src/tools/Makefile
+         src/tests/Makefile
+         scripts/Makefile
+         scripts/robinhood.init
+         scripts/robinhood.init.sles
+         scripts/sysconfig_robinhood
+         scripts/ld.so.robinhood.conf
+         scripts/rbh_cksum.sh
+         tests/Makefile
+         tests/test_suite/Makefile
+         web_gui/Makefile
+         man/Makefile
+         robinhood.spec
+         doc/doxygen/doxygen.cfg])
+
+AC_ARG_ENABLE([dist],
+              AC_HELP_STRING([--enable-dist], [Only configure enough for make dist]),
+              [],
+              [enable_dist="no"])
+
+AM_PROG_LEX
+AC_PATH_PROG(LEX_INST, $LEX)
+if test -z "$LEX_INST" -a "x$enable_dist" = xyes; then
+  AC_MSG_ERROR([lex/flex not found])
+fi
+
+AC_PROG_YACC
+AC_PATH_PROG(YACC_INST, $YACC)
+if test -z "$YACC_INST" -a "x$enable_dist" = xyes; then
+  AC_MSG_ERROR([yacc/bison not found])
+fi
+
+AS_IF([test "x$enable_dist" = xyes], [
+AC_OUTPUT
+exit
+])
+
 # required for automake 1.12 (since fedora 18)
 m4_ifdef([AM_PROG_AR], [AM_PROG_AR])
 
@@ -32,8 +81,6 @@ AC_PROG_CC
 m4_ifdef([AM_PROG_CC_C_O], [AM_PROG_CC_C_O])
 
 AC_C_INLINE
-AM_PROG_LEX
-AC_PROG_YACC
 
 # define everything necessary for accessing large files (64bits offset)
 AC_SYS_LARGEFILE
@@ -425,35 +472,6 @@ AC_SUBST(SBINDIR)
 AS_AC_EXPAND(LIBDIR, $libdir)
 AC_SUBST(LIBDIR)
 
-# for exporting to spec file
-AC_SUBST(ac_configure_args)
-
-AC_CONFIG_FILES([Makefile
-         src/Makefile
-         src/include/Makefile
-         src/common/Makefile
-         src/cfg_parsing/Makefile
-         src/list_mgr/Makefile
-         src/entry_processor/Makefile
-         src/fs_scan/Makefile
-         src/chglog_reader/Makefile
-         src/modules/Makefile
-         src/policies/Makefile
-         src/robinhood/Makefile
-         src/tools/Makefile
-         src/tests/Makefile
-         scripts/Makefile
-         scripts/robinhood.init
-         scripts/robinhood.init.sles
-         scripts/sysconfig_robinhood
-         scripts/ld.so.robinhood.conf
-         scripts/rbh_cksum.sh
-         tests/Makefile
-         tests/test_suite/Makefile
-         web_gui/Makefile
-         man/Makefile
-         robinhood.spec
-         doc/doxygen/doxygen.cfg])
 AC_OUTPUT
 
 AC_MSG_NOTICE([Summary:])
