@@ -2083,15 +2083,11 @@ static void log_action_success(const policy_info_t  *pol,
 #ifdef _LUSTRE
     /* Only needed if trace level is DEBUG or if report_action
      * is enabled */
-    if (log_config.debug_level >= LVL_DEBUG || pol->config->report_actions)
+    if ((log_config.debug_level >= LVL_DEBUG || pol->config->report_actions)
+        && ATTR_MASK_TEST(attrs, stripe_items))
     {
-        if (ATTR_MASK_TEST(attrs, stripe_items))
-        {
-            str_stripe = g_string_new("");
-            append_stripe_list(str_stripe, &ATTR(attrs, stripe_items), false);
-        }
-        else
-            str_stripe = g_string_new("<none>");
+        str_stripe = g_string_new("");
+        append_stripe_list(str_stripe, &ATTR(attrs, stripe_items), false);
     }
 #endif
 
