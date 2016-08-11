@@ -1908,9 +1908,6 @@ static int read_policy(config_file_t config, const policies_t *p_policies, char 
 #define curr_ign_fc     rules->ignore_count
 #define curr_rule       rules->rule_count
 
-    /* initialize output */
-    memset(rules, 0, sizeof(*rules));
-
     /* check if the new name exists first */
     snprintf(section_name, sizeof(section_name)-1, "%s_%s",
              policy_descr->name, POLICIES_BLOCK);
