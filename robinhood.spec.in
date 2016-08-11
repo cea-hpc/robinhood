@@ -387,6 +387,9 @@ rm -rf $RPM_BUILD_ROOT
 
 %changelog
 
+* Thu Aug 11 2016 Thomas Leibovici <thomas.leibovici@cea.fr> 3.0-0.rc2
+- Robinhood v3 rc2
+
 * Thu Jul 07 2016 Thomas Leibovici <thomas.leibovici@cea.fr> 3.0-0.rc1
 - Robinhood v3 rc1
 
