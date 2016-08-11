@@ -19,8 +19,8 @@ function stats_end
 
 	for param in `grep -v '=' /tmp/rpc.end | awk '{print $1}'`; do
 
-		v_init=`egrep "$param " /tmp/rpc.init | awk '{print $2}'`
-		v_end=`egrep "$param " /tmp/rpc.end | awk '{print $2}'`
+		v_init=`egrep "$param " /tmp/rpc.init | awk '{print $2}' | tail -n 1`
+		v_end=`egrep "$param " /tmp/rpc.end | awk '{print $2}' | tail -n 1`
 
 		if [[ $v_init = *.* ]]; then
 		 	echo "    $param:" `echo $v_end-$v_init | bc -l`
