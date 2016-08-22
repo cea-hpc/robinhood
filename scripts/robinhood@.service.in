@@ -1,0 +1,9 @@
+[Unit]
+Description=Robinhood server for %I
+
+[Service]
+Type=simple
+EnvironmentFile=-@CONFDIR@/sysconfig/robinhood
+EnvironmentFile=-@CONFDIR@/sysconfig/robinhood.%I
+ExecStart=@SBINDIR@/robinhood $RBH_OPT -f @CONFDIR@/robinhood.d/%I.conf
+ExecReload=/bin/kill -HUP $MAINPID

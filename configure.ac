@@ -445,6 +445,8 @@ AC_CONFIG_FILES([Makefile
          scripts/Makefile
          scripts/robinhood.init
          scripts/robinhood.init.sles
+         scripts/robinhood.service
+         scripts/robinhood@.service
          scripts/sysconfig_robinhood
          scripts/ld.so.robinhood.conf
          scripts/rbh_cksum.sh
