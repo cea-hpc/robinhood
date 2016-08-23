@@ -110,7 +110,7 @@ static int run_batch_insert(lmgr_t *p_mgr,
     g_string_append_printf(req, "%s(id", table2name(table));
 
     /* do nothing if no field is to be set */
-    if ((attrmask2fieldlist(req, full_mask, table, true, false, "", "") <= 0)
+    if ((attrmask2fieldlist(req, full_mask, table, "", "", AOF_LEADING_SEP) <= 0)
         && (extra_field_name == NULL))
         goto free_str;
 
@@ -127,7 +127,7 @@ static int run_batch_insert(lmgr_t *p_mgr,
             continue;
 
         g_string_append_printf(req, "%s("DPK, first ? "" : ",", pklist[i]);
-        attrset2valuelist(p_mgr, req, p_attrs[i], table, true);
+        attrset2valuelist(p_mgr, req, p_attrs[i], table, AOF_LEADING_SEP);
 
         if (extra_field_value != NULL)
             g_string_append_printf(req,",%s)", extra_field_value);
@@ -149,7 +149,7 @@ static int run_batch_insert(lmgr_t *p_mgr,
 
         /* append x=VALUES(x) for all values */
         fake_attrs.attr_mask = full_mask;
-        attrset2updatelist(p_mgr, req, &fake_attrs, table, false, true);
+        attrset2updatelist(p_mgr, req, &fake_attrs, table, AOF_GENERIC_VAL);
     }
 
     rc = db_exec_sql(&p_mgr->conn, req->str, NULL);

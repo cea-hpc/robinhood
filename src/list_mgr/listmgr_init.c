@@ -342,6 +342,11 @@ static int check_type(const char *db_type, const char *expected)
 
 static int convert_field_type(db_conn_t *pconn, const char *table,
                               const char *field, const char *type)
+/* XXX may be unused if no field type is to be checked... */
+__attribute__((unused));
+
+static int convert_field_type(db_conn_t *pconn, const char *table,
+                              const char *field, const char *type)
 {
     char query[1024];
     char t1[128];
@@ -666,6 +671,11 @@ static inline void swap_db_fields(char **field_tab, int i1, int i2)
     field_tab[i1] = field_tab[i2];
     field_tab[i2] = tmp;
 }
+
+static int check_field_name_type(const char *name, const char *type, int *curr_field_index,
+                                 const char *table, char **fieldtab, char **typetab)
+/* XXX may be unused if no field type is to be checked... */
+__attribute__((unused));
 
 /** @return -1 on error, 0 if OK, 1 if conversion is required */
 static int check_field_name_type(const char *name, const char *type, int *curr_field_index,
@@ -1612,15 +1622,16 @@ static int populate_acct_table(db_conn_t *pconn)
 
     /* INSERT <fields>... */
     request = g_string_new("INSERT INTO "ACCT_TABLE"(");
-    attrmask2fieldlist(request, acct_pk_attr_set , T_ACCT, false, false, "", "");
-    attrmask2fieldlist(request, acct_attr_set, T_ACCT, true, false, "", "");
+    attrmask2fieldlist(request, acct_pk_attr_set , T_ACCT, "", "", 0);
+    attrmask2fieldlist(request, acct_attr_set, T_ACCT, "", "", AOF_LEADING_SEP);
     g_string_append(request, ", "ACCT_FIELD_COUNT);
     append_size_range_fields(request, true, "");
 
     /* ...SELECT <fields>... */
     g_string_append(request, ") SELECT ");
-    attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, false, false, "", "");
-    attrmask2fieldlist(request, acct_attr_set, T_ACCT, true, false, "SUM(", ")");
+    attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, "", "", 0);
+    attrmask2fieldlist(request, acct_attr_set, T_ACCT, "SUM(", ")",
+                       AOF_LEADING_SEP);
     g_string_append(request, ",COUNT(id),SUM(size=0)");
     for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 1 to 8 */
         g_string_append_printf(request, ",SUM(IFNULL("ACCT_SZ_VAL("size")"=%u,0))", i-1);
@@ -1628,7 +1639,7 @@ static int populate_acct_table(db_conn_t *pconn)
 
     /* FROM ... GROUP BY ... */
     g_string_append_printf(request, " FROM %s  GROUP BY ", acct_info_table);
-    attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, false, false, "", "");
+    attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, "", "", 0);
 
     rc = db_exec_sql(pconn, request->str, NULL);
     g_string_free(request, TRUE);
@@ -2056,15 +2067,15 @@ static int create_trig_acct_insert(db_conn_t *pconn)
                            "SET val="ACCT_SZ_VAL("NEW.size")"; "
                            "INSERT INTO " ACCT_TABLE "(");
     /* INSERT(list of fields... */
-    attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, false, false, "", "");
-    attrmask2fieldlist(request, acct_attr_set, T_ACCT, true, false, "", "");
+    attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, "", "", 0);
+    attrmask2fieldlist(request, acct_attr_set, T_ACCT, "", "", AOF_LEADING_SEP);
     g_string_append(request, ", " ACCT_FIELD_COUNT);
     append_size_range_fields(request, true, "");
 
     /* ... ) VALUES (... */
     g_string_append(request, ") VALUES (");
-    attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, false, false, "NEW.", "");
-    attrmask2fieldlist(request, acct_attr_set, T_ACCT, true, false, "NEW.", "");
+    attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, "NEW.", "", 0);
+    attrmask2fieldlist(request, acct_attr_set, T_ACCT, "NEW.", "", AOF_LEADING_SEP);
     g_string_append(request, ",1");
     append_size_range_val(request, true, "NEW.", "val");
     g_string_append(request, ") ON DUPLICATE KEY UPDATE ");
@@ -2212,15 +2223,15 @@ static int create_trig_acct_update(db_conn_t *pconn)
     attrmask2fieldcomparison(request, acct_pk_attr_set, T_ACCT, "NEW.", "OLD.", "<>", "OR");
     g_string_append(request, "THEN \n\tINSERT INTO " ACCT_TABLE "(");
     /* generate fields as follows: owner, gid */
-    attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, false, false, "", "");
+    attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, "", "", 0);
     /* generate fields as follows: , size, blocks */
-    attrmask2fieldlist(request, acct_attr_set, T_ACCT, true, false, "", "");
+    attrmask2fieldlist(request, acct_attr_set, T_ACCT, "", "", AOF_LEADING_SEP);
     g_string_append(request, ", " ACCT_FIELD_COUNT);
     append_size_range_fields(request, true, "");
     g_string_append(request, ") VALUES (");
     /* generate fields as follows: NEW.uid, NEW.gid */
-    attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, false, false, "NEW.", "");
-    attrmask2fieldlist(request, acct_attr_set, T_ACCT, true, false, "NEW.", "");
+    attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, "NEW.", "", 0);
+    attrmask2fieldlist(request, acct_attr_set, T_ACCT, "NEW.", "", AOF_LEADING_SEP);
     g_string_append(request, ",1");
     append_size_range_val(request, true, "NEW.", "val_new");
 

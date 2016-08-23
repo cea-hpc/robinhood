@@ -462,10 +462,17 @@ void           generate_fields( attr_set_t * p_set );
 
 int parse_entry_id(lmgr_t *p_mgr, const char *str, PK_PARG_T p_pk, entry_id_t *p_id);
 
+typedef enum {
+    AOF_LEADING_SEP = (1 << 0), /* add a separator at the beginning of the output */
+    AOF_GENERIC_VAL = (1 << 1), /* use field name in values (e.g. for a
+                                   "on duplicate key ..." statement) */
+    AOF_PREFIX      = (1 << 2), /* prefix field name with table name */
+    AOF_SKIP_NAME   = (1 << 3), /* skip name record */
+} attrset_op_flag_e;
+
 int            attrmask2fieldlist(GString *str, attr_mask_t attr_mask,
-                                  table_enum table, bool leading_comma,
-                                  bool for_update, const char *prefix,
-                                  const char *suffix);
+                                  table_enum table, const char *prefix,
+                                  const char *suffix, attrset_op_flag_e flags);
 
 int            attrmask2fieldcomparison(GString *str, attr_mask_t attr_mask,
                                   table_enum table, const char *left_prefix,
@@ -478,18 +485,18 @@ int            attrmask2fieldoperation(GString *str, attr_mask_t attr_mask,
 
 int            attrset2valuelist(lmgr_t *p_mgr, GString *str,
                                  const attr_set_t *p_set, table_enum table,
-                                 bool leading_coma);
+                                 attrset_op_flag_e flags);
 int            attrset2updatelist(lmgr_t * p_mgr, GString *str,
                                   const attr_set_t * p_set, table_enum table,
-                                  bool leading_coma, bool generic_value);
+                                  attrset_op_flag_e flags);
 
 char          *compar2str(filter_comparator_t compar);
 
 int            filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
-                          table_enum table, bool leading_and, bool prefix_table);
+                          table_enum table, attrset_op_flag_e flags);
 
 int            func_filter(lmgr_t *p_mgr, GString *filter_str, const lmgr_filter_t *p_filter,
-                           table_enum table, bool leading_and, bool prefix_table);
+                           table_enum table, attrset_op_flag_e flags);
 
 struct field_count {
     unsigned int nb_main;
@@ -499,11 +506,12 @@ struct field_count {
     unsigned int nb_stripe_items;
 };
 int filter_where(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
-                 struct field_count *counts, bool ignore_name_filter,
-                 bool leading_and, GString *where);
+                 struct field_count *counts, GString *where,
+                 attrset_op_flag_e flags);
 void filter_from(lmgr_t *p_mgr, const struct field_count *counts,
-                 bool ignore_names_filter, GString *from, bool is_first_tab,
-                 table_enum *first_table, bool *select_distinct_id);
+                 GString *from, table_enum *first_table,
+                 bool *select_distinct_id,
+                 attrset_op_flag_e flags);
 
 /* return the number of filter tables */
 static inline unsigned int nb_field_tables(const struct field_count *counts)

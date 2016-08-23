@@ -511,18 +511,20 @@ struct lmgr_report_t *ListMgr_Report(lmgr_t *p_mgr,
 
             /* filter on acct fields only */
             filter_acct = filter2str(p_mgr, where, p_filter, T_ACCT,
-                                     !GSTRING_EMPTY(where), true);
+                                     (!GSTRING_EMPTY(where) ? AOF_LEADING_SEP : 0)
+                                     | AOF_PREFIX);
             if (filter_acct > 0)
                 use_acct_table = true;
         }
         else
         {
             /* process NAMES filters apart, as with must then join with DISTINCT(id) */
-            filter_where(p_mgr, p_filter, &fcnt, true, !GSTRING_EMPTY(where),
-                         where);
+            filter_where(p_mgr, p_filter, &fcnt, where,
+                         (!GSTRING_EMPTY(where) ? AOF_LEADING_SEP : 0)
+                         | AOF_SKIP_NAME);
 
             filter_name = g_string_new(NULL);
-            fcnt.nb_names = filter2str(p_mgr, filter_name, p_filter, T_DNAMES, false, false);
+            fcnt.nb_names = filter2str(p_mgr, filter_name, p_filter, T_DNAMES, 0);
         }
     }
 
@@ -540,7 +542,7 @@ struct lmgr_report_t *ListMgr_Report(lmgr_t *p_mgr,
     {
         bool distinct;
 
-        filter_from(p_mgr, &fcnt, true, req, false, &query_tab, &distinct);
+        filter_from(p_mgr, &fcnt, req, &query_tab, &distinct, AOF_SKIP_NAME);
 
         if (filter_name != NULL && !GSTRING_EMPTY(filter_name))
         {

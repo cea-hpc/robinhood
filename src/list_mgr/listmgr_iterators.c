@@ -248,7 +248,7 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
         /* XXX is sort dirattr the same as filter dirattr? */
 
         where = g_string_new(NULL);
-        filter_where(p_mgr, p_filter, &fcnt, false, false, where);
+        filter_where(p_mgr, p_filter, &fcnt, where, 0);
 
         nbft = nb_field_tables(&fcnt);
 
@@ -263,7 +263,7 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
         {
             /* build the FROM clause */
             from = g_string_new(NULL);
-            filter_from(p_mgr, &fcnt, false, from, false, &query_tab, &distinct);
+            filter_from(p_mgr, &fcnt, from, &query_tab, &distinct, 0);
 
             /* If there is a single table: use the filter as is.
              * Else, build the filter a more ordered way */
@@ -271,7 +271,7 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
             {
                 /* rebuild the contents of "where", a more ordered way */
                 g_string_assign(where, "");
-                if (unlikely(filter2str(p_mgr, where, p_filter, T_NONE, false, true) <= 0))
+                if (unlikely(filter2str(p_mgr, where, p_filter, T_NONE, AOF_PREFIX) <= 0))
                     RBH_BUG("Inconsistent case: more than 1 filter table, but no filter???");
             }
 

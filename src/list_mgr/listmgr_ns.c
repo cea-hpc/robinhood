@@ -20,7 +20,6 @@
 
 #include "list_mgr.h"
 #include "listmgr_common.h"
-//#include "listmgr_stripe.h"
 #include "listmgr_internal.h"
 #include "listmgr_stripe.h"
 #include "database.h"
@@ -113,17 +112,17 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
         /* retrieve source info for generated fields */
         add_source_fields_for_gen(&attr_mask.std);
 
-        field_cnt.nb_names = attrmask2fieldlist(req, attr_mask, T_DNAMES, true, false,
-                                                DNAMES_TABLE".", "");
+        field_cnt.nb_names = attrmask2fieldlist(req, attr_mask, T_DNAMES,
+                                                DNAMES_TABLE".", "",
+                                                AOF_LEADING_SEP);
 
         field_cnt.nb_main = attrmask2fieldlist(req, attr_mask, T_MAIN,
-                                          /* leading comma */ true,
-                                          /* for update */ false,
-                                          /* prefix */ MAIN_TABLE".",
-                                          /* suffix */ "");
+                                               MAIN_TABLE".", "",
+                                               AOF_LEADING_SEP);
 
-        field_cnt.nb_annex = attrmask2fieldlist(req, attr_mask, T_ANNEX, true, false,
-                                                ANNEX_TABLE".", "");
+        field_cnt.nb_annex = attrmask2fieldlist(req, attr_mask, T_ANNEX,
+                                                ANNEX_TABLE".", "",
+                                                AOF_LEADING_SEP);
     }
     else
     {
@@ -148,7 +147,7 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
             rc = DB_NOT_SUPPORTED;
             goto free_str;
         }
-        else if (unlikely(func_filter(p_mgr, NULL, p_filter, T_MAIN, false, false)))
+        else if (unlikely(func_filter(p_mgr, NULL, p_filter, T_MAIN, 0)))
         {
             DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Function filter not supported in %s()", __func__);
             rc = DB_NOT_SUPPORTED;
@@ -158,7 +157,8 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
         /* There is always a filter on T_DNAMES, which is the parent condition.
          * Look for optional filters.
          */
-        filter_where(p_mgr, p_filter, &filter_cnt, true, true, where);
+        filter_where(p_mgr, p_filter, &filter_cnt, where,
+                     AOF_LEADING_SEP | AOF_SKIP_NAME);
         /** @FIXME process other filters on NAMES */
     }
 
@@ -170,8 +170,9 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
     filter_cnt.nb_main += field_cnt.nb_main;
     filter_cnt.nb_annex += field_cnt.nb_annex;
     filter_cnt.nb_names += field_cnt.nb_names;
-    /* query tab is DNAMES, ignore_names=true, is_first_tab=T_DNAMES */
-    filter_from(p_mgr, &filter_cnt, true, from, true, &query_tab, &distinct);
+    /* query tab is DNAMES, skip_name=true, is_first_tab=T_DNAMES */
+    filter_from(p_mgr, &filter_cnt, from, &query_tab, &distinct,
+                AOF_LEADING_SEP | AOF_SKIP_NAME);
 
     /* build the whole request */
     g_string_append_printf(req, " FROM %s WHERE %s", from->str, where->str);

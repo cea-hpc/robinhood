@@ -253,22 +253,26 @@ int ListMgr_RecovInit( lmgr_t * p_mgr, const lmgr_filter_t * p_filter, lmgr_reco
             return DB_NOT_SUPPORTED;
         }
 
-        if (filter2str(p_mgr, filter_curr, p_filter, T_MAIN, false, true) > 0)
+        if (filter2str(p_mgr, filter_curr, p_filter, T_MAIN, AOF_PREFIX) > 0)
             filter_curr += strlen(filter_curr);
 
-        if (filter2str(p_mgr, filter_curr, p_filter, T_ANNEX, has_filters, true) > 0))
+        if (filter2str(p_mgr, filter_curr, p_filter, T_ANNEX,
+                       (has_filters ? AOF_LEADING_SEP : 0) | AOF_PREFIX) > 0)
             filter_curr += strlen(filter_curr);
 
-        if (filter2str(p_mgr, filter_curr, p_filter, T_DNAMES, has_filters, true) > 0)
+        if (filter2str(p_mgr, filter_curr, p_filter, T_DNAMES,
+                       (has_filters ? AOF_LEADING_SEP : 0) | AOF_PREFIX) > 0)
         {
             filter_curr += strlen(filter_curr);
             distinct = 1;
         }
 
-        if (filter2str(p_mgr, filter_curr, p_filter, T_STRIPE_INFO, has_filters, true) > 0)
+        if (filter2str(p_mgr, filter_curr, p_filter, T_STRIPE_INFO,
+                       (has_filters ? AOF_LEADING_SEP : 0) | AOF_PREFIX) > 0)
             filter_curr += strlen(filter_curr);
 
-        if (filter2str(p_mgr, filter_curr, p_filter, T_STRIPE_ITEMS, has_filters, true) > 0)
+        if (filter2str(p_mgr, filter_curr, p_filter, T_STRIPE_ITEMS,
+                       (has_filters ? AOF_LEADING_SEP : 0) | AOF_PREFIX) > 0)
         {
             filter_curr += strlen(filter_curr);
             distinct = 1;

@@ -58,7 +58,7 @@ retry:
     {
         g_string_assign(req, "UPDATE "MAIN_TABLE" SET ");
 
-        rc = attrset2updatelist(p_mgr, req, p_update_set, T_MAIN, false, false);
+        rc = attrset2updatelist(p_mgr, req, p_update_set, T_MAIN, 0);
         if (rc < 0)
         {
             rc = -rc;
@@ -79,11 +79,14 @@ retry:
     if (ATTR_MASK_TEST(p_update_set, name) && ATTR_MASK_TEST(p_update_set, parent_id))
     {
         g_string_assign(req, "INSERT INTO " DNAMES_TABLE "(id");
-        attrmask2fieldlist(req, p_update_set->attr_mask, T_DNAMES, true, false, "", "");
+        attrmask2fieldlist(req, p_update_set->attr_mask, T_DNAMES, "", "",
+                           AOF_LEADING_SEP);
         g_string_append_printf(req, ",pkn) VALUES ("DPK, pk);
-        attrset2valuelist(p_mgr, req, p_update_set, T_DNAMES, true);
+        attrset2valuelist(p_mgr, req, p_update_set, T_DNAMES,
+                          AOF_LEADING_SEP);
         g_string_append(req, ","HNAME_DEF") ON DUPLICATE KEY UPDATE id=VALUES(id)");
-        attrset2updatelist(p_mgr, req, p_update_set, T_DNAMES, true, true);
+        attrset2updatelist(p_mgr, req, p_update_set, T_DNAMES,
+                           AOF_LEADING_SEP | AOF_GENERIC_VAL);
 
         rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
         if (lmgr_delayed_retry(p_mgr, rc))
@@ -103,7 +106,7 @@ retry:
     if (annex_fields(p_update_set->attr_mask))
     {
         g_string_assign(req, "UPDATE "ANNEX_TABLE" SET ");
-        rc = attrset2updatelist(p_mgr, req, p_update_set, T_ANNEX, false, false);
+        rc = attrset2updatelist(p_mgr, req, p_update_set, T_ANNEX, 0);
         if (rc < 0)
         {
             rc = -rc;

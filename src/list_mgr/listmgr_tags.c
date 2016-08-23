@@ -54,7 +54,7 @@ int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
     else
     {
         where = g_string_new(NULL);
-        filter_where(p_mgr, p_filter, &fcnt, false, false, where);
+        filter_where(p_mgr, p_filter, &fcnt, where, 0);
 
         if (nb_field_tables(&fcnt) == 0)
         {
@@ -65,7 +65,7 @@ int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
         {
             /* build the FROM clause */
             from = g_string_new(NULL);
-            filter_from(p_mgr, &fcnt, false, from, false, &query_tab, &distinct);
+            filter_from(p_mgr, &fcnt, from, &query_tab, &distinct, 0);
 
             if (distinct)
                 g_string_printf(req, "SELECT DISTINCT(%s.id) AS id",

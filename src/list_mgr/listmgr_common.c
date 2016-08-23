@@ -574,12 +574,12 @@ static bool _check_read_only_fields(const attr_mask_t *mask,
  * @return nbr of fields
  */
 int attrmask2fieldlist(GString *str, attr_mask_t attr_mask, table_enum table,
-                       bool leading_comma, bool for_update,
-                       const char *prefix, const char *suffix)
+                       const char *prefix, const char *suffix,
+                       attrset_op_flag_e flags)
 {
     int            i, cookie;
     unsigned int   nbfields = 0;
-    char          *for_update_str = "";
+    bool           leading_comma = flags & AOF_LEADING_SEP;
 
     /* optim: exit immediately if no field matches */
     if ((table == T_MAIN) && !main_fields(attr_mask))
@@ -588,11 +588,6 @@ int attrmask2fieldlist(GString *str, attr_mask_t attr_mask, table_enum table,
         return 0;
     if ((table == T_DNAMES) && !names_fields(attr_mask))
         return 0;
-    if (for_update && check_read_only_fields(&attr_mask))
-        return -DB_READ_ONLY_ATTR;
-
-    if (for_update)
-        for_update_str = "=?";
 
     if ((table == T_STRIPE_INFO) || (table == T_STRIPE_ITEMS))
         return -DB_NOT_SUPPORTED;
@@ -613,12 +608,13 @@ int attrmask2fieldlist(GString *str, attr_mask_t attr_mask, table_enum table,
                       && (i == ATTR_INDEX_fullpath)))
                 {
                     print_func_call(str, i, prefix);
-                    g_string_append_printf(str, "%s%s", for_update_str, suffix);
+                    if (suffix && suffix[0])
+                        g_string_append_printf(str, "%s", suffix);
                 }
                 else
                 {
-                    g_string_append_printf(str, "%s%s%s%s", prefix, field_name(i),
-                                           for_update_str, suffix);
+                    g_string_append_printf(str, "%s%s%s", prefix, field_name(i),
+                                           suffix);
                 }
                 nbfields++;
             }
@@ -749,10 +745,11 @@ static void print_attr_value(lmgr_t *p_mgr, GString *str, const attr_set_t *p_se
  * @return nbr of fields
  */
 int attrset2valuelist(lmgr_t *p_mgr, GString *str, const attr_set_t *p_set,
-                      table_enum table, bool leading_coma)
+                      table_enum table, attrset_op_flag_e flags)
 {
     int            i, cookie;
     unsigned int   nbfields = 0;
+    bool           leading_comma = flags & AOF_LEADING_SEP;
 
     if ((table == T_STRIPE_INFO) || (table == T_STRIPE_ITEMS))
         return -DB_NOT_SUPPORTED;
@@ -764,7 +761,7 @@ int attrset2valuelist(lmgr_t *p_mgr, GString *str, const attr_set_t *p_set,
         {
             if (match_table(table, i))
             {
-                if (leading_coma || (nbfields > 0))
+                if (leading_comma || (nbfields > 0))
                     g_string_append(str, ",");
 
                 print_attr_value(p_mgr, str, p_set, i);
@@ -780,10 +777,12 @@ int attrset2valuelist(lmgr_t *p_mgr, GString *str, const attr_set_t *p_set,
  * @return nbr of fields
  */
 int attrset2updatelist(lmgr_t *p_mgr, GString *str, const attr_set_t *p_set,
-                       table_enum table, bool leading_coma, bool generic_value)
+                       table_enum table, attrset_op_flag_e flags)
 {
     int            i, cookie;
     unsigned int   nbfields = 0;
+    bool           leading_comma = flags & AOF_LEADING_SEP;
+    bool           generic_value = flags & AOF_GENERIC_VAL;
 
     if ((table == T_STRIPE_INFO) || (table == T_STRIPE_ITEMS))
         return -DB_NOT_SUPPORTED;
@@ -796,7 +795,7 @@ int attrset2updatelist(lmgr_t *p_mgr, GString *str, const attr_set_t *p_set,
     {
         if (attr_mask_test_index(&p_set->attr_mask, i) && match_table(table, i))
         {
-            if (leading_coma || (nbfields > 0))
+            if (leading_comma || (nbfields > 0))
                 g_string_append(str, ",");
 
             g_string_append_printf(str, "%s=", field_name(i));
@@ -1099,12 +1098,14 @@ filter_dir_e dir_filter(lmgr_t *p_mgr, GString *filter_str, const lmgr_filter_t 
  * @return the number of filtered values
  */
 int func_filter(lmgr_t *p_mgr, GString *filter_str, const lmgr_filter_t *p_filter,
-                table_enum table, bool leading_and, bool prefix_table)
+                table_enum table, attrset_op_flag_e flags)
 {
     int i;
     char param1[128];
     char param2[128];
     unsigned int nb_fields = 0;
+    bool leading_and = flags & AOF_LEADING_SEP;
+    bool prefix_table = flags & AOF_PREFIX;
 
     if (p_filter->filter_type == FILTER_SIMPLE)
     {
@@ -1261,11 +1262,13 @@ static void attr2filter_field(GString *str, table_enum table,
 }
 
 int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
-               table_enum table, bool leading_and, bool prefix_table)
+               table_enum table, attrset_op_flag_e flags)
 {
     int            i;
     unsigned int   nbfields = 0;
     db_type_u      typeu;
+    bool leading_and = flags & AOF_LEADING_SEP;
+    bool prefix_table = flags & AOF_PREFIX;
 
     if (p_filter->filter_type == FILTER_SIMPLE)
     {
@@ -1484,15 +1487,15 @@ const char * dirattr2str(unsigned int attr_index)
  * @return the number of created filters.
  */
 int filter_where(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
-                 struct field_count *counts, bool ignore_name_filter,
-                 bool leading_and, GString *where)
+                 struct field_count *counts, GString *where,
+                 attrset_op_flag_e flags)
 {
     int nb; /* can be < 0 */
     unsigned int all = 0;
 
     /* on which table are the filters ?  */
     nb = filter2str(p_mgr, where, p_filter, T_MAIN,
-                    leading_and, true);
+                    (flags & AOF_LEADING_SEP) | AOF_PREFIX);
     if (nb > 0)
     {
         counts->nb_main += nb;
@@ -1500,17 +1503,19 @@ int filter_where(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
     }
 
     nb = filter2str(p_mgr, where, p_filter, T_ANNEX,
-                    (all > 0) || leading_and, true);
+                    (all > 0 ? AOF_LEADING_SEP : 0) |
+                    (flags & AOF_LEADING_SEP) | AOF_PREFIX);
     if (nb > 0)
     {
         counts->nb_annex += nb;
         all += nb;
     }
 
-    if (!ignore_name_filter)
+    if ((flags & AOF_SKIP_NAME) == 0)
     {
         nb = filter2str(p_mgr, where, p_filter, T_DNAMES,
-                        (all > 0) || leading_and, true);
+                        (all > 0 ? AOF_LEADING_SEP : 0) |
+                        (flags & AOF_LEADING_SEP) | AOF_PREFIX);
         if (nb > 0)
         {
             counts->nb_names += nb;
@@ -1521,7 +1526,8 @@ int filter_where(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
     /* stripes are only managed for Lustre filesystems */
 #ifdef _LUSTRE
     nb = filter2str(p_mgr, where, p_filter, T_STRIPE_INFO,
-                     (all > 0) || leading_and, true);
+                    (all > 0 ? AOF_LEADING_SEP : 0) |
+                    (flags & AOF_LEADING_SEP) | AOF_PREFIX);
     if (nb > 0)
     {
         counts->nb_stripe_info += nb;
@@ -1529,7 +1535,8 @@ int filter_where(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
     }
 
     nb = filter2str(p_mgr, where, p_filter, T_STRIPE_ITEMS,
-                    (all > 0) || leading_and, true);
+                    (all > 0 ? AOF_LEADING_SEP : 0) |
+                    (flags & AOF_LEADING_SEP) | AOF_PREFIX);
     if (nb > 0)
     {
         counts->nb_stripe_items += nb;
@@ -1564,22 +1571,24 @@ static inline void append_from_clause(table_enum tab, GString *from,
  * It must be called only if filter is non empty.
  * @param[in] counts filter counts filled-in by filter_where() function.
  * @param[in,out] from initialized empty GString.
- * @param[in] is_first_tab indicate if there is already a first table
  * @param[in, out] first_table the first table in the junction.
  * @param[out] select_distinct_id indicate if the request must select distinct ids.
+ * @param[in] flags or'ed AOF_LEADING_SEP if there is a previous table,
+ *                  AOF_SKIP_NAME to skip name field.
  */
 void filter_from(lmgr_t *p_mgr, const struct field_count *counts,
-                 bool ignore_names_filter, GString *from, bool is_first_tab,
-                 table_enum *first_table, bool *select_distinct_id)
+                 GString *from, table_enum *first_table,
+                 bool *select_distinct_id, attrset_op_flag_e flags)
 {
-    if (!is_first_tab)
+    /* no separator means no previous table */
+    if ((flags & AOF_LEADING_SEP) == 0)
         *first_table = T_NONE;
 
     if (counts->nb_main)
         append_from_clause(T_MAIN, from, first_table);
     if (counts->nb_annex)
         append_from_clause(T_ANNEX, from, first_table);
-    if (counts->nb_names && !ignore_names_filter)
+    if (counts->nb_names && !(flags & AOF_SKIP_NAME))
     {
         *select_distinct_id = true;
         append_from_clause(T_DNAMES, from, first_table);

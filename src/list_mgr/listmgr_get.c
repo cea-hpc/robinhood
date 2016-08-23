@@ -241,8 +241,7 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
     supported_bits_only(&p_info->attr_mask);
 
     /* get info from main table (if asked) */
-    main_count = attrmask2fieldlist(req, p_info->attr_mask, T_MAIN, false,
-                                    false, "", "");
+    main_count = attrmask2fieldlist(req, p_info->attr_mask, T_MAIN, "", "", 0);
     if (main_count < 0)
     {
         rc = -main_count;
@@ -255,8 +254,8 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
         g_string_append(from, MAIN_TABLE);
     }
 
-    annex_count = attrmask2fieldlist(req, p_info->attr_mask, T_ANNEX,
-                                     first_table != NULL, false, "", "");
+    annex_count = attrmask2fieldlist(req, p_info->attr_mask, T_ANNEX, "", "",
+                                     first_table != NULL ? AOF_LEADING_SEP : 0);
     if (annex_count < 0)
     {
         rc = -annex_count;
@@ -274,8 +273,8 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
         }
     }
 
-    name_count = attrmask2fieldlist(req, p_info->attr_mask, T_DNAMES,
-                                    first_table != NULL, false, "", "");
+    name_count = attrmask2fieldlist(req, p_info->attr_mask, T_DNAMES, "", "",
+                                    first_table != NULL ? AOF_LEADING_SEP : 0);
     if (name_count < 0)
     {
         rc = -name_count;
