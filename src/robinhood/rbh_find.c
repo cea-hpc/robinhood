@@ -113,16 +113,18 @@ struct find_opt prog_options = {
     .print = 1,
 };
 
-static const attr_mask_t LS_DISPLAY_MASK = {.std = ATTR_MASK_type
-                                       | ATTR_MASK_nlink
+static const attr_mask_t LS_DISPLAY_MASK = {.std = ATTR_MASK_nlink
                                        | ATTR_MASK_mode | ATTR_MASK_uid
                                        | ATTR_MASK_gid | ATTR_MASK_size
                                        | ATTR_MASK_last_mod | ATTR_MASK_link};
 
-static const attr_mask_t LSOST_DISPLAY_MASK = {.std = ATTR_MASK_type
-                                     | ATTR_MASK_size | ATTR_MASK_stripe_items};
-static const attr_mask_t LSCLASS_DISPLAY_MASK = {.std = ATTR_MASK_type
-                                     | ATTR_MASK_size | ATTR_MASK_fileclass};
+#ifdef _LUSTRE
+static const attr_mask_t LSOST_DISPLAY_MASK = {.std = ATTR_MASK_size
+                                       | ATTR_MASK_stripe_items};
+#endif
+static const attr_mask_t LSCLASS_DISPLAY_MASK = {.std = ATTR_MASK_size
+                                       | ATTR_MASK_fileclass};
+static const attr_mask_t LSSTATUS_DISPLAY_MASK = {.std = ATTR_MASK_size};
 
 attr_mask_t disp_mask = {.std = ATTR_MASK_type};
 static attr_mask_t query_mask = {0};
@@ -1392,6 +1394,7 @@ int main(int argc, char **argv)
             prog_options.lsstatus = 1;
             prog_options.print = 0;
             prog_options.lsstatus_name = optarg;
+            disp_mask = attr_mask_or(&disp_mask, &LSSTATUS_DISPLAY_MASK);
             if (neg) {
                 fprintf(stderr, "! (-not) unexpected before -lsstatus option\n");
                 exit(1);
