@@ -473,9 +473,10 @@ struct lmgr_report_t *ListMgr_Report(lmgr_t *p_mgr,
                 g_string_append(fields, "SUM(size=0)");
 
                 for (i = 1; i < SZ_PROFIL_COUNT-1; i++)
-                    g_string_append_printf(fields, ",SUM("ACCT_SZ_VAL("size")"=%u)", i-1);
+                    g_string_append_printf(fields,
+                            ",SUM("SZRANGE_FUNC"(size)=%u)", i-1);
 
-                g_string_append_printf(fields, ",SUM("ACCT_SZ_VAL("size")">=%u)", SZ_PROFIL_COUNT-1);
+                g_string_append_printf(fields, ",SUM("SZRANGE_FUNC"(size)>=%u)", SZ_PROFIL_COUNT-1);
 
                 for (i = 0; i< SZ_PROFIL_COUNT; i++)
                     p_report->result[i+report_descr_count].type = DB_BIGUINT;

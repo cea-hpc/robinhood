@@ -2443,6 +2443,134 @@ function test_acct_table
         fi
 }
 
+#test accounting with borderline cases (NULL fields, etc...)
+function test_acct_borderline
+{
+    config_file=$1
+    export ACCT_SWITCH=$2
+
+    :>rh.log
+
+    # create DB schema
+    $RH -f $RBH_CFG_DIR/$config_file --alter-db -L rh.log
+
+    # insert 2 records with NULL uid, gid, size...
+    mysql $RH_DB -e "INSERT INTO ENTRIES (id, type) VALUES ('id1','file')" || error "INSERT ERROR"
+    mysql $RH_DB -e "INSERT INTO ENTRIES (id, type) VALUES ('id2','file')" || error "INSERT ERROR"
+    $REPORT -f $RBH_CFG_DIR/$config_file -u '*' -S --csv -q --szprof > rh_report.log || error "report error"
+    [ "$DEBUG" = "1" ] && cat rh_report.log && echo "------"
+
+    line_values=($(grep "unknown,    unknown" rh_report.log | tr ',' ' '))
+    [[ "${line_values[3]}" == 2 ]] || error "expected count: 2"
+    [[ "${line_values[4]}" == 0 ]] || error "expected size: 0"
+    [[ "${line_values[7]}" == 2 ]] || error "expected count for size0: 2"
+    [[ "${line_values[8]}" == 0 ]] || error "expected count for size1-31: 0"
+
+    # change size of this record (to sz32)
+    mysql $RH_DB -e "UPDATE ENTRIES SET size=123 WHERE id='id1'" || error "UPDATE ERROR"
+    $REPORT -f $RBH_CFG_DIR/$config_file -u '*' -S --csv -q --szprof > rh_report.log || error "report error"
+    [ "$DEBUG" = "1" ] && cat rh_report.log && echo "------"
+
+    line_values=($(grep "unknown,    unknown" rh_report.log | tr ',' ' '))
+    [[ "${line_values[3]}" == 2 ]] || error "expected count: 2"
+    [[ "${line_values[4]}" == 123 ]] || error "expected size: 123"
+    [[ "${line_values[7]}" == 1 ]] || error "expected count for size0: 1"
+    [[ "${line_values[9]}" == 1 ]] || error "expected count for size32-1K: 1"
+
+    # change size of this record (to sz1M)
+    mysql $RH_DB -e "UPDATE ENTRIES SET size=2000000 WHERE id='id1'" || error "UPDATE ERROR"
+    $REPORT -f $RBH_CFG_DIR/$config_file -u '*' -S --csv -q --szprof > rh_report.log || error "report error"
+    [ "$DEBUG" = "1" ] && cat rh_report.log && echo "------"
+
+    line_values=($(grep "unknown,    unknown" rh_report.log | tr ',' ' '))
+    [[ "${line_values[3]}" == 2 ]] || error "expected count: 2"
+    [[ "${line_values[4]}" == 2000000 ]] || error "expected size: 2000000"
+    [[ "${line_values[7]}" == 1 ]] || error "expected count for size0: 1"
+    [[ "${line_values[9]}" == 0 ]] || error "expected count for size32-1K: 0"
+    [[ "${line_values[12]}" == 1 ]] || error "expected count for size1M-32M: 1"
+
+    # change record owner
+    mysql $RH_DB -e "UPDATE ENTRIES SET uid='foo' WHERE id='id1'" || error "UPDATE ERROR"
+    $REPORT -f $RBH_CFG_DIR/$config_file -u '*' -S --csv -q --szprof > rh_report.log || error "report error"
+    [ "$DEBUG" = "1" ] && cat rh_report.log && echo "------"
+
+    # only id2 remains with unknown uid/unknown gid
+    line_values=($(grep "unknown,    unknown" rh_report.log | tr ',' ' '))
+    [[ "${line_values[3]}" == 1 ]] || error "expected count: 1"
+    [[ "${line_values[4]}" == 0 ]] || error "expected size: 0"
+    [[ "${line_values[7]}" == 1 ]] || error "expected count for size0: 1"
+    [[ "${line_values[9]}" == 0 ]] || error "expected count for size32-1K: 0"
+    [[ "${line_values[12]}" == 0 ]] || error "expected count for size1M-32M: 0"
+
+    # only id1 is now foo/unknown gid
+    line_values=($(grep " foo,    unknown" rh_report.log | tr ',' ' '))
+    [[ "${line_values[3]}" == 1 ]] || error "expected count: 1"
+    [[ "${line_values[4]}" == 2000000 ]] || error "expected size: 2000000"
+    [[ "${line_values[7]}" == 0 ]] || error "expected count for size0: 0"
+    [[ "${line_values[9]}" == 0 ]] || error "expected count for size32-1K: 0"
+    [[ "${line_values[12]}" == 1 ]] || error "expected count for size1M-32M: 1"
+    
+    # change record group
+    mysql $RH_DB -e "UPDATE ENTRIES SET gid='bar' WHERE id='id1'" || error "UPDATE ERROR"
+    $REPORT -f $RBH_CFG_DIR/$config_file -u '*' -S --csv -q --szprof > rh_report.log || error "report error"
+    [ "$DEBUG" = "1" ] && cat rh_report.log && echo "------"
+
+    # only id1 is now foo/bar
+    line_values=($(grep " foo,        bar" rh_report.log | tr ',' ' '))
+    [[ "${line_values[3]}" == 1 ]] || error "expected count: 1"
+    [[ "${line_values[4]}" == 2000000 ]] || error "expected size: 2000000"
+    [[ "${line_values[7]}" == 0 ]] || error "expected count for size0: 0"
+    [[ "${line_values[9]}" == 0 ]] || error "expected count for size32-1K: 0"
+    [[ "${line_values[12]}" == 1 ]] || error "expected count for size1M-32M: 1"
+
+    # nothing remains as foo/unknown (no report line, or 0)
+    line_values=($(grep " foo,    unknown" rh_report.log | tr ',' ' '))
+    [ -z "$line_values" ] || [[ "${line_values[3]}" == 0 ]] || error "no entries expected for foo/unknown (${line_values[3]})"
+
+    # delete records
+    mysql $RH_DB -e "DELETE FROM ENTRIES WHERE id='id1'" || error "DELETE ERROR"
+    mysql $RH_DB -e "DELETE FROM ENTRIES WHERE id='id2'" || error "DELETE ERROR"
+    $REPORT -f $RBH_CFG_DIR/$config_file -u '*' -S --csv -q --szprof > rh_report.log || error "report error"
+    [ "$DEBUG" = "1" ] && cat rh_report.log && echo "------"
+
+    # nothing remains as foo/bar or unknown/unknown
+    line_values=($(grep " foo,        bar" rh_report.log | tr ',' ' '))
+    [ -z "$line_values" ] || [[ "${line_values[3]}" == 0 ]] || error "no entries expected for foo/bar (${line_values[3]})"
+    line_values=($(grep "unknown,    unknown" rh_report.log | tr ',' ' '))
+    [ -z "$line_values" ] || [[ "${line_values[3]}" == 0 ]] || error "no entries expected for unknown/unknown (${line_values[3]})"
+
+    # Add new records and check ACCT is correctly populated
+    mysql $RH_DB -e "INSERT INTO ENTRIES (id, type) VALUES ('id3','file')" || error "INSERT ERROR"
+    mysql $RH_DB -e "INSERT INTO ENTRIES (id, type) VALUES ('id4','file')" || error "INSERT ERROR"
+    mysql $RH_DB -e "INSERT INTO ENTRIES (id, type, size) VALUES ('id5','file', 123)" || error "INSERT ERROR"
+    mysql $RH_DB -e "INSERT INTO ENTRIES (id, type, uid, gid, size) VALUES ('id6','file','foo','bar', 456)" || error "INSERT ERROR"
+    mysql $RH_DB -e "INSERT INTO ENTRIES (id, type, uid, gid, size) VALUES ('id7','file','foo','bar', 123456)" || error "INSERT ERROR"
+    mysql $RH_DB -e "DROP TABLE ACCT_STAT" || error "DROP ERROR"
+
+    :>rh.log
+
+    $RH -f $RBH_CFG_DIR/$config_file --alter-db -L rh.log
+    # check if ACCT_STAT has been populated
+    grep "Populating accounting table" rh.log || error "ACCT_STAT should have been populated"
+
+    $REPORT -f $RBH_CFG_DIR/$config_file -u '*' -S --csv -q --szprof > rh_report.log || error "report error"
+    [ "$DEBUG" = "1" ] && cat rh_report.log && echo "------"
+
+    # check records 
+    line_values=($(grep "unknown,    unknown" rh_report.log | tr ',' ' '))
+    [[ "${line_values[3]}" == 3 ]] || error "expected count: 3"
+    [[ "${line_values[4]}" == 123 ]] || error "expected size: 123"
+    [[ "${line_values[7]}" == 2 ]] || error "expected count for size0: 2"
+    [[ "${line_values[9]}" == 1 ]] || error "expected count for size32-1K: 1"
+
+    line_values=($(grep " foo,        bar" rh_report.log | tr ',' ' '))
+    [[ "${line_values[3]}" == 2 ]] || error "expected count: 2"
+    [[ "${line_values[4]}" == 123912 ]] || error "expected size: 123912"
+    [[ "${line_values[7]}" == 0 ]] || error "expected count for size0: 0"
+    [[ "${line_values[9]}" == 1 ]] || error "expected count for size32-1K: 1"
+    [[ "${line_values[11]}" == 1 ]] || error "expected count for size32K-1M: 1"
+}
+
 #test dircount reports
 function test_dircount_report
 {
@@ -11432,6 +11560,7 @@ run_test 119 uid_gid_as_numbers uidgidnum.conf "Store UIDs and GIDs as numbers"
 run_test 120 posix_acmtime common.conf "Test for posix ctimes"
 run_test 121 db_schema_convert "" "Test DB schema conversion"
 run_test 122 random_names common.conf "Test random file names"
+run_test 123 test_acct_borderline acct.conf "yes" "Test borderline ACCT cases"
 
 #### policy matching tests  ####
 

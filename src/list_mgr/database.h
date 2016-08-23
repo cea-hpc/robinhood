@@ -30,6 +30,7 @@
 #define ACCT_FIELD_COUNT    "count"
 #define ACCT_DEFAULT_OWNER  "unknown"
 #define ACCT_DEFAULT_GROUP  "unknown"
+#define SZRANGE_FUNC        "sz_range"
 #define ONE_PATH_FUNC       "one_path"
 #define THIS_PATH_FUNC      "this_path"
 
@@ -52,10 +53,6 @@ char * sz_field[SZ_PROFIL_COUNT] =
     ACCT_SIZE_PREFIX"32G",
     ACCT_SIZE_PREFIX"1T"
 };
-
-#define ACCT_SZ_VAL(_s) "FLOOR(LOG2("_s")/5)"
-
-
 
 extern lmgr_config_t lmgr_config;
 

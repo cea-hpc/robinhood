@@ -168,6 +168,7 @@ static void append_field(GString *str, bool is_first, db_type_e type,
 
 static db_type_u default_uid = {.val_str = ACCT_DEFAULT_OWNER};
 static db_type_u default_gid = {.val_str = ACCT_DEFAULT_GROUP};
+static db_type_u default_zero = {0};
 
 static void init_default_field_values(void)
 {
@@ -218,6 +219,11 @@ static const db_type_u *default_field_value(int attr_index)
         case ATTR_INDEX_gid:
             return &default_gid;
         default:
+            /* accounting fields (except primary key) default to 0
+             * (must be able to sum) */
+            if (is_acct_field(attr_index))
+                return &default_zero;
+
             return NULL;
     }
     UNREACHED();
@@ -860,54 +866,74 @@ static int drop_extra_fields(db_conn_t *pconn, int curr_field_index,
 
 
 /**
- * @param op_subs replacement for 'FLOOR(LOG2(<prefix>.size)/5)' (eg. local variable)
+ * @param alias_val     Alias name for 'FLOOR(LOG2(<prefix>.size)/5)' (eg. local variable).
  */
 static void append_size_range_val(GString *request, bool leading_comma,
-                                  char *prefix, const char *op_subs)
+                                  char *prefix, const char *alias_val)
 {
     unsigned int i;
     char value[128];
 
-    if (op_subs && op_subs[0])
-        strncpy(value, op_subs, sizeof(value));
+    if (alias_val && alias_val[0])
+        rh_strncpy(value, alias_val, sizeof(value));
     else
-        snprintf(value, sizeof(value), ACCT_SZ_VAL("%ssize"), prefix);
+        snprintf(value, sizeof(value), SZRANGE_FUNC"(%ssize)", prefix);
 
-    g_string_append_printf(request, "%s %ssize=0", leading_comma?",":"", prefix);
+    g_string_append_printf(request, "%s%ssize=0", leading_comma?",":"", prefix);
+
     for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 2nd to before the last */
     {
-        g_string_append_printf(request, ", IFNULL(%s=%u,0)", value, i-1);
+        g_string_append_printf(request, ",%s=%u", value, i-1);
     }
     /* last */
-    g_string_append_printf(request, ", IFNULL(%s>=%u,0)", value, i-1);
+    g_string_append_printf(request, ",%s>=%u", value, i-1);
 }
 
 /**
- * @param op_subs replacement for 'FLOOR(LOG2(<prefix>.size)/5)' (eg. local variable)
+ * @param alias_val  Alias name for 'FLOOR(LOG2(<prefix>.size)/5)' (eg. local variable).
  */
 static void append_size_range_op(GString *request, bool leading_comma, char *prefix,
-                                 const char * op_subs, operation_type optype)
+                                 const char *alias_val, operation_type optype)
 {
     unsigned int i;
     char         value[128];
     const char  *op = (optype == ADD)?"+":"-";
 
-    if (op_subs && op_subs[0])
-        strncpy(value, op_subs, sizeof(value));
+    if (alias_val && alias_val[0])
+        rh_strncpy(value, alias_val, sizeof(value));
     else
-        snprintf(value, sizeof(value), ACCT_SZ_VAL("%ssize"), prefix);
+        snprintf(value, sizeof(value), SZRANGE_FUNC"(%ssize)", prefix);
 
-    g_string_append_printf(request, "%s %s=CAST(%s as SIGNED)%sCAST((%ssize=0) as SIGNED)",
-                           leading_comma?",":"", sz_field[0], sz_field[0], op, prefix);
-
-    for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 2nd to before the last */
+    /* only CAST for subtract */
+    if (optype == SUBTRACT)
     {
-        g_string_append_printf(request, ", %s=CAST(%s as SIGNED)%sCAST(IFNULL(%s=%u,0) as SIGNED)",
+        g_string_append_printf(request, "%s%s=CAST(%s as SIGNED)%sCAST((%ssize=0) as SIGNED)",
+                               leading_comma?",":"", sz_field[0], sz_field[0], op, prefix);
+
+        for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 2nd to before the last */
+        {
+            g_string_append_printf(request, ", %s=CAST(%s as SIGNED)%sCAST((%s=%u) as SIGNED)",
+                                   sz_field[i], sz_field[i], op, value, i-1);
+        }
+        /* last */
+        g_string_append_printf(request, ", %s=CAST(%s as SIGNED)%sCAST((%s>=%u) as SIGNED)",
                                sz_field[i], sz_field[i], op, value, i-1);
     }
-    /* last */
-    g_string_append_printf(request, ", %s=CAST(%s as SIGNED)%sCAST(IFNULL(%s>=%u,0) as SIGNED)",
-                           sz_field[i], sz_field[i], op, value, i-1);
+    else
+    {
+        /* keep the trigger code simple */
+        g_string_append_printf(request, "%s%s=%s%s(%ssize=0)",
+                               leading_comma?",":"", sz_field[0], sz_field[0], op, prefix);
+
+        for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 2nd to before the last */
+        {
+            g_string_append_printf(request, ", %s=%s%s(%s=%u)",
+                                   sz_field[i], sz_field[i], op, value, i-1);
+        }
+        /* last */
+        g_string_append_printf(request, ", %s=%s%s(%s>=%u)",
+                               sz_field[i], sz_field[i], op, value, i-1);
+    }
 }
 
 
@@ -1619,7 +1645,6 @@ static int populate_acct_table(db_conn_t *pconn)
     FlushLogs();
 
     /* Initial table population for already existing entries */
-
     /* INSERT <fields>... */
     request = g_string_new("INSERT INTO "ACCT_TABLE"(");
     attrmask2fieldlist(request, acct_pk_attr_set , T_ACCT, "", "", 0);
@@ -1634,8 +1659,8 @@ static int populate_acct_table(db_conn_t *pconn)
                        AOF_LEADING_SEP);
     g_string_append(request, ",COUNT(id),SUM(size=0)");
     for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 1 to 8 */
-        g_string_append_printf(request, ",SUM(IFNULL("ACCT_SZ_VAL("size")"=%u,0))", i-1);
-    g_string_append_printf(request, ",SUM(IFNULL("ACCT_SZ_VAL("size")">=%u,0))", i-1);
+        g_string_append_printf(request, ",SUM("SZRANGE_FUNC"(size)=%u)", i-1);
+    g_string_append_printf(request, ",SUM("SZRANGE_FUNC"(size)>=%u)", i-1);
 
     /* FROM ... GROUP BY ... */
     g_string_append_printf(request, " FROM %s  GROUP BY ", acct_info_table);
@@ -1688,7 +1713,7 @@ static int create_table_acct(db_conn_t *pconn)
     }
 
     /* count field */
-    g_string_append(request, ", " ACCT_FIELD_COUNT  " BIGINT UNSIGNED");
+    g_string_append(request, ", " ACCT_FIELD_COUNT  " BIGINT UNSIGNED DEFAULT 0");
 
     /* size range fields */
     for (i = 0; i < SZ_PROFIL_COUNT; i++)
@@ -1843,8 +1868,8 @@ free_str:
 #define VERSION_VAR_FUNC    "VersionFunctionSet"
 #define VERSION_VAR_TRIG    "VersionTriggerSet"
 
-#define FUNCTIONSET_VERSION    "1.3"
-#define TRIGGERSET_VERSION     "1.2"
+#define FUNCTIONSET_VERSION    "1.4"
+#define TRIGGERSET_VERSION     "1.3"
 
 static int check_functions_version(db_conn_t *conn)
 {
@@ -2063,8 +2088,8 @@ static int create_trig_acct_insert(db_conn_t *pconn)
     char     errbuf[1024];
 
     /* Trigger on insert */
-    request = g_string_new("DECLARE val BIGINT UNSIGNED; "
-                           "SET val="ACCT_SZ_VAL("NEW.size")"; "
+    request = g_string_new("DECLARE val INT;"
+                           "SET val="SZRANGE_FUNC"(NEW.size);"
                            "INSERT INTO " ACCT_TABLE "(");
     /* INSERT(list of fields... */
     attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, "", "", 0);
@@ -2075,7 +2100,8 @@ static int create_trig_acct_insert(db_conn_t *pconn)
     /* ... ) VALUES (... */
     g_string_append(request, ") VALUES (");
     attrmask2fieldlist(request, acct_pk_attr_set, T_ACCT, "NEW.", "", 0);
-    attrmask2fieldlist(request, acct_attr_set, T_ACCT, "NEW.", "", AOF_LEADING_SEP);
+    attrmask2fieldlist(request, acct_attr_set, T_ACCT, "NEW.", "",
+                       AOF_LEADING_SEP);
     g_string_append(request, ",1");
     append_size_range_val(request, true, "NEW.", "val");
     g_string_append(request, ") ON DUPLICATE KEY UPDATE ");
@@ -2119,8 +2145,8 @@ static int create_trig_acct_delete(db_conn_t *pconn)
     char     err_buf[1024];
 
     /* Trigger on delete */
-    request = g_string_new("DECLARE val BIGINT UNSIGNED; "
-                           "SET val="ACCT_SZ_VAL("OLD.size")";"
+    request = g_string_new("DECLARE val INT;"
+                           "SET val="SZRANGE_FUNC"(OLD.size);"
                            "UPDATE " ACCT_TABLE " SET ");
     /* update ACCT_TABLE SET ... */
     attrmask2fieldoperation(request, acct_attr_set, T_ACCT, "OLD.", SUBTRACT);
@@ -2172,12 +2198,12 @@ static int create_trig_acct_update(db_conn_t *pconn)
      * and add new information to the new raw.
      */
     /* Simple case: owner and group are still the same */
-    request = g_string_new("DECLARE val_old, val_new BIGINT UNSIGNED;"
-                           "SET val_old="ACCT_SZ_VAL("OLD.size")"; "
-                           "SET val_new="ACCT_SZ_VAL("NEW.size")";\n"
+    request = g_string_new("DECLARE val_old,val_new INT;"
+                           "SET val_old="SZRANGE_FUNC"(OLD.size);"
+                           "SET val_new="SZRANGE_FUNC"(NEW.size);"
                            "IF ");
     /* generate comparison like NEW.uid=OLD.uid AND NEW.gid=OLD.gid */
-    attrmask2fieldcomparison(request, acct_pk_attr_set, T_ACCT, "NEW.", "OLD.", "=", "AND");
+    attrmask2fieldcomparison(request,  acct_pk_attr_set, T_ACCT, "NEW.", "OLD.", "=", "AND");
     g_string_append(request, "THEN \n\t IF ");
     /********* if one of the attribute value has changed: update the acct table *********/
     /* generate comparison like NEW.size<>=OLD.size OR NEW.blocks<>OLD.blocks */
@@ -2190,11 +2216,11 @@ static int create_trig_acct_update(db_conn_t *pconn)
         if (is_acct_field(i))
         {
             if (!is_first_field)
-                g_string_append_printf(request, ", %s=%s+CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED) ",
+                g_string_append_printf(request, ",%s=%s+CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED)",
                                        field_name(i), field_name(i), field_name(i), field_name(i));
             else
             {
-                g_string_append_printf(request, " %s=%s+CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED) ",
+                g_string_append_printf(request, "%s=%s+CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED)",
                                        field_name(i), field_name(i), field_name(i), field_name(i));
                 is_first_field = false;
             }
@@ -2203,15 +2229,15 @@ static int create_trig_acct_update(db_conn_t *pconn)
 
     /* update size range values */
     g_string_append_printf(request, "%s%s=CAST(%s as SIGNED)-CAST(((OLD.size=0)+(NEW.size=0)) as SIGNED)",
-                           is_first_field?" ":", ", sz_field[0], sz_field[0]);
+                           is_first_field?"":",", sz_field[0], sz_field[0]);
     is_first_field = false;
     for (i = 1; i < SZ_PROFIL_COUNT-1; i++) /* 2nd to before the last */
     {
-        g_string_append_printf(request, ", %s=CAST(%s as SIGNED)-CAST(IFNULL(val_old=%u,0) as SIGNED)+CAST(IFNULL(val_new=%u,0) as SIGNED)",
+        g_string_append_printf(request, ",%s=CAST(%s as SIGNED)-CAST((val_old=%u) as SIGNED)+CAST((val_new=%u) as SIGNED)",
                                sz_field[i], sz_field[i], i-1, i-1);
     }
     /* last */
-    g_string_append_printf(request, ", %s=CAST(%s as SIGNED)-CAST(IFNULL(val_old>=%u,0) as SIGNED)+CAST(IFNULL(val_new>=%u,0) as SIGNED)",
+    g_string_append_printf(request, ",%s=CAST(%s as SIGNED)-CAST((val_old>=%u) as SIGNED)+CAST((val_new>=%u) as SIGNED)",
                            sz_field[i], sz_field[i], i-1, i-1);
     g_string_append(request, " WHERE ");
     /* generate comparison as follows: owner=NEW.uid AND gid=NEW.gid */
@@ -2278,6 +2304,44 @@ free_str:
     return rc;
 }
 
+static int check_func_szrange(db_conn_t *pconn)
+{
+    /* XXX /!\ do not modify the code of DB functions
+     * without changing FUNCTIONSET_VERSION!!!!
+     */
+    return db_check_component(pconn, DBOBJ_FUNCTION, SZRANGE_FUNC, NULL);
+}
+
+static int create_func_szrange(db_conn_t *pconn)
+{
+    int      rc;
+    char     err_buf[1024];
+    /* XXX /!\ do not modify the code of DB functions
+     * without changing FUNCTIONSET_VERSION!!!!
+     */
+    const char *request = "CREATE FUNCTION "SZRANGE_FUNC"(sz BIGINT UNSIGNED)"
+                          " RETURNS INT DETERMINISTIC"
+                          " BEGIN"
+                          "     RETURN IF(sz=0,-1,FLOOR(LOG2(sz)/5));"
+                          " END";
+
+
+    rc = db_drop_component(pconn, DBOBJ_FUNCTION, SZRANGE_FUNC);
+    if (rc != DB_SUCCESS && rc != DB_NOT_EXISTS)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to drop function '"SZRANGE_FUNC"': Error: %s",
+                   db_errmsg(pconn, err_buf, sizeof(err_buf)));
+        return rc;
+    }
+    rc = db_exec_sql(pconn, request, NULL);
+    if (rc)
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to create function '"SZRANGE_FUNC"': Error: %s",
+                   db_errmsg(pconn, err_buf, sizeof(err_buf)));
+
+    return rc;
+}
 
 static int check_func_onepath(db_conn_t *pconn)
 {
@@ -2407,6 +2471,10 @@ static const dbobj_descr_t  o_list[] = {
     {DBOBJ_TABLE, MAIN_TABLE,    check_table_main,    create_table_main},
     {DBOBJ_TABLE, DNAMES_TABLE,  check_table_dnames,  create_table_dnames},
     {DBOBJ_TABLE, ANNEX_TABLE,   check_table_annex,   create_table_annex},
+
+    /* this function is needed to populate acct table (and for triggers) */
+    {DBOBJ_FUNCTION, SZRANGE_FUNC,  check_func_szrange, create_func_szrange},
+
     {DBOBJ_TABLE, ACCT_TABLE,    check_table_acct,    create_table_acct},
 #ifdef _LUSTRE
     {DBOBJ_TABLE, STRIPE_INFO_TABLE,  check_table_stripe_info,
@@ -2424,9 +2492,10 @@ static const dbobj_descr_t  o_list[] = {
     {DBOBJ_TRIGGER, ACCT_TRIGGER_UPDATE, check_trig_acct_update,
                                          create_trig_acct_update},
 
-    /* functions */
+    /* other functions */
     {DBOBJ_FUNCTION, ONE_PATH_FUNC,  check_func_onepath,  create_func_onepath},
     {DBOBJ_FUNCTION, THIS_PATH_FUNC, check_func_thispath, create_func_thispath},
+
 
     {0, NULL, NULL, NULL} /* STOP item */
 };

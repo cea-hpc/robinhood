@@ -225,7 +225,7 @@ static int listmgr_softrm_all(lmgr_t *p_mgr, time_t rm_time)
     attr_mask_unset_index(&mask_tmp, ATTR_INDEX_fullpath);
 
     req = g_string_new("INSERT IGNORE INTO " SOFT_RM_TABLE "(id,fullpath");
-    attrmask2fieldlist(req, mask_tmp, T_SOFTRM, "","", AOF_LEADING_SEP);
+    attrmask2fieldlist(req, mask_tmp, T_SOFTRM, "", "", AOF_LEADING_SEP);
 
     annex_fields = g_string_new(NULL);
     attrmask2fieldlist(annex_fields, softrm_attr_set, T_ANNEX,
@@ -332,7 +332,7 @@ static int listmgr_softrm_single(lmgr_t *p_mgr, const entry_id_t *p_id,
         req = g_string_new("INSERT IGNORE INTO " SOFT_RM_TABLE "(id");
 
     tmp_mask = attr_mask_and(&softrm_attr_set, &p_old_attrs->attr_mask);
-    attrmask2fieldlist(req, tmp_mask, T_SOFTRM, "","", AOF_LEADING_SEP);
+    attrmask2fieldlist(req, tmp_mask, T_SOFTRM, "", "", AOF_LEADING_SEP);
     g_string_append(req, ") VALUES (");
 
     entry_id2pk(p_id, PTR_PK(pk));
@@ -593,7 +593,7 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
     {
         g_string_assign(req, "SELECT id");
         nb += attrmask2fieldlist(req, mask_no_rmtime, T_TMP_SOFTRM,
-                                 "","", AOF_LEADING_SEP);
+                                 "", "", AOF_LEADING_SEP);
         g_string_append_printf(req, " FROM %s", tmp_table_name);
     }
     else

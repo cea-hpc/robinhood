@@ -315,16 +315,10 @@ void init_attrset_masks(const lmgr_config_t *lmgr_config)
     softrm_attr_set = null_mask;
     readonly_attr_set = null_mask;
 
-    if (lmgr_config->acct)
-    {
-        acct_pk_attr_set.std |= ATTR_MASK_uid;
-        acct_pk_attr_set.std |= ATTR_MASK_gid;
-        acct_pk_attr_set.std |= ATTR_MASK_type;
-    }
-    /** @TODO RBHv3: implement status accounting.
-     * /!\ as a given status can be NULL, it can't be part of the PK.
-     * Then, is it possible to group by it?
-     */
+    /* Always set them, even if accounting is disabled. */
+    acct_pk_attr_set.std |= ATTR_MASK_uid;
+    acct_pk_attr_set.std |= ATTR_MASK_gid;
+    acct_pk_attr_set.std |= ATTR_MASK_type;
     acct_pk_attr_set.status |= all_status_mask();
 
     /* The following fields must be in SOFT_RM table:
@@ -652,9 +646,10 @@ int attrmask2fieldoperation(GString *str, attr_mask_t attr_mask,
         {
             if (match_table(table, i))
             {
-                g_string_append_printf(str, "%s%s=CAST(%s as SIGNED)%cCAST(%s%s as SIGNED) ",
-                                nbfields == 0 ? "" : ",", field_name(i), field_name(i),
-                                operator, prefix, field_name(i));
+                g_string_append_printf(str,
+                    "%s%s=CAST(%s as SIGNED)%cCAST(%s%s as SIGNED)",
+                    nbfields == 0 ? "" : ",", field_name(i), field_name(i),
+                    operator, prefix, field_name(i));
                 nbfields++;
             }
         }
@@ -1645,7 +1640,7 @@ void append_size_range_fields(GString *str, bool leading_comma,
     unsigned int i;
 
     for (i = 0; i < SZ_PROFIL_COUNT; i++)
-        g_string_append_printf(str, "%s %s%s", leading_comma || (i > 0)?",":"",
+        g_string_append_printf(str, "%s%s%s", leading_comma || (i > 0)?",":"",
                                prefix, sz_field[i]);
 }
 
