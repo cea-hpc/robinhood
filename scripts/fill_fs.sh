@@ -20,7 +20,7 @@ LEAVES=30 # nbr of files at lower level
 FILE_KB_MAX=4 # file size max +1
 
 # give a set of users here
-USERS="root foo charlie"
+USERS=`head -n 4 /etc/passwd | cut -d ':' -f 1 | xargs`
 NB_USERS=`echo $USERS | wc -w`
 
 TOTAL_FILES=0
@@ -68,7 +68,7 @@ function mksubtree
         uindex=$(( `random256` % $NB_USERS ))
         uindex=$(( $uindex + 1 ))
         owner=`echo $USERS | cut -d " " -f $uindex`
-        chown $owner:gpocre $DIR/file.$f
+        chown $owner:$owner $DIR/file.$f
 
 	    if (( $(($TOTAL_FILES % 1000)) == 0 )); then
 		[[ -n "$now" ]] && last=$now
