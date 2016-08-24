@@ -10753,7 +10753,7 @@ function find_allValuesinCSVreport
 	    typeValue=${tabTypes[$iData]}
 	    countValue=${tabValues[$iData]}
 
-	    find_valueInCSVreport $logFile $typeValue $countValue $colSearch
+	    find_valueInCSVreport $logFile "$typeValue" "$countValue" $colSearch
 	    res=$?
 	    if (( $res == 1 )); then
 		    #error "Test for $alertKey failed"
@@ -10789,7 +10789,7 @@ function find_valueInCSVreport
     #echo "colSearch=$colSearch"
     #echo '-------------------------------------'
     # find line contains expected value type
-    line=$(grep $typeValue $logFile)
+    line=$(grep "$typeValue" $logFile)
     #echo $line
     if (( ${#line} == 0 )); then
 	    [ "$DEBUG" = "1" ] && echo "=====> NOT found for $typeValue" >&2
@@ -10797,13 +10797,13 @@ function find_valueInCSVreport
     fi
 
     # get found value count for this value type
-    foundCount=$(grep $typeValue $logFile | cut -d ',' -f $colSearch | tr -d ' ')
+    foundCount=$(grep "$typeValue" $logFile | cut -d ',' -f $colSearch | tr -d ' ')
     #echo "foundCount=$foundCount**"
     if [[ "$foundCount" != "$countValue" ]]; then
 	    [ "$DEBUG" = "1" ] && echo "=====> NOT found for $typeValue : $countValue != $foundCount" >&2
 	    return 1
     else
-	    [ "$DEBUG" = "1" ] && echo "=====> found for $typeValue : $countValue " >&2
+	    [ "$DEBUG" = "1" ] && echo "=====> found for $typeValue (col $colSearch): $countValue " >&2
 	    return 0
     fi
 }
