@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_0db304eb",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 582,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-08-25T15:55:42Z",
+      "side": 1,
+      "message": "Not sure if that makes a difference, but this and other bools could be made const.",
+      "revId": "34949287f822226dcc16fb564fc191739aab57f9",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
