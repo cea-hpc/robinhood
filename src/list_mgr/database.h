@@ -126,16 +126,11 @@ int db_escape_string(db_conn_t *conn, char *str_out, size_t out_size, const char
 /* retrieve error message */
 char          *db_errmsg( db_conn_t * conn, char *errmsg, unsigned int buflen );
 
-/* check table fields */
-int            db_list_table_fields( db_conn_t * conn, const char *table,
-                                     char **outtab,
-                                     unsigned int outtabsize,
-                                     char *inbuffer, unsigned int inbuffersize );
-
-/** list table fields and their type */
-int db_list_table_types(db_conn_t * conn, const char *table,
-                        char **outtab, char **typetab,
-                        unsigned int outtabsize, char *inbuffer, unsigned int inbuffersize);
+/** list table fields, their type, and default value */
+int db_list_table_info(db_conn_t * conn, const char *table,
+                       char **field_tab, char **type_tab, char **default_tab,
+                       unsigned int outtabsize,
+                       char *inbuffer, unsigned int inbuffersize);
 
 /* id of the last inserted row */
 unsigned long long db_last_id( db_conn_t * conn );

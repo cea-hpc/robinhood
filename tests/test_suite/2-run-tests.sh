@@ -5497,8 +5497,9 @@ function db_schema_convert
     local cfg2=$RBH_CFG_DIR/test_checker.conf
     local cfg3=$RBH_CFG_DIR/test_checker_invert.conf
 
+    # import Robinhood 2.5 DB schema
     mysql $RH_DB < $schema25 || error "importing DB schema"
-    # set the right FS path
+    # set the right FS path to allow running robinhood commands
     mysql $RH_DB -e "UPDATE VARS SET value='$RH_ROOT' WHERE varname='FS_Path'"
 
     local nbent=100
@@ -5523,6 +5524,8 @@ function db_schema_convert
 
     # robinhood should have suggested to run '--alter-db'
     grep "Run 'robinhood --alter-db'" rh.log || error "robinhood should have reported DB schema changes"
+    # it should detect if default size is not zero
+    grep "default value of field 'ENTRIES.size' must be changed" rh.log || error "robinhood should detect change of default size"
 
     # no ALTER TABLE expected
     grep "ALTER TABLE" rh.log && error "no ALTER TABLE expected"
@@ -5534,6 +5537,7 @@ function db_schema_convert
 
     [ "$DEBUG" = "1" ] && cat rh.log
     grep "ALTER TABLE" rh.log || error "ALTER TABLE expected"
+    grep "ALTER COLUMN size SET DEFAULT 0" rh.log || error "change of default size expected"
 
     # after alter, no more DB change should be reported
     :> rh.log
@@ -5651,6 +5655,23 @@ function db_schema_convert
     grep "Run 'robinhood --alter-db'" rh.log && error "DB should be right"
     [ "$DEBUG" = "1" ] && cat rh.log
     config_file=$(basename $cfg1) check_fcount $nbent
+
+    # Test conversion from numeric to text uids.
+    # This is not supposed to be an upgrade path, but it is convenient
+    # to test type conversion routines.
+    if [[ $RBH_NUM_UIDGID = "yes" ]]; then
+        :> rh.log
+        echo "Numeric to text conversion (no alter)..."
+        RBH_NUM_UIDGID=no $RH -f $cfg1 --scan --once -l FULL -L rh.log
+        # robinhood should have suggested to run '--alter-db'
+        grep "Run 'robinhood --alter-db'" rh.log || error "robinhood should have reported DB schema changes"
+
+        :> rh.log
+        echo "Numeric to text conversion (alter)..."
+        RBH_NUM_UIDGID=no $RH -f $cfg1 --alter-db -l FULL -L rh.log
+        [ "$DEBUG" = "1" ] && cat rh.log
+        grep "ALTER TABLE" rh.log || error "ALTER TABLE expected"
+    fi
 }
 
 # Create files with random names, and use rbh-find on them
