@@ -410,7 +410,8 @@ static inline bool is_recov_field(unsigned int attr_index)
 }
 
 /** printing a value to a DB request */
-void printdbtype(lmgr_t *p_mgr, GString *str, db_type_e type, const db_type_u *value_ptr);
+void printdbtype(db_conn_t *pconn, GString *str, db_type_e type,
+                 const db_type_u *value_ptr);
 
 /** parse a value from DB */
 int  parsedbtype(char *instr, db_type_e type, db_type_u *value_out);

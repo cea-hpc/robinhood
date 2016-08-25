@@ -309,18 +309,16 @@ int db_next_record( db_conn_t * conn, result_handle_t * p_result,
 
 }
 
-
 /* retrieve number of records in result */
 int db_result_nb_records( db_conn_t * conn, result_handle_t * p_result )
 {
     return mysql_num_rows( *p_result );
 }
 
-
-
-int db_list_table_types(db_conn_t * conn, const char *table,
-                        char **outtab, char **typetab,
-                        unsigned int outtabsize, char *inbuffer, unsigned int inbuffersize)
+int db_list_table_info(db_conn_t * conn, const char *table,
+                       char **field_tab, char **type_tab, char **default_tab,
+                       unsigned int outtabsize,
+                       char *inbuffer, unsigned int inbuffersize)
 {
     char           request[4096];
     MYSQL_RES     *result;
@@ -328,48 +326,53 @@ int db_list_table_types(db_conn_t * conn, const char *table,
     int            i, rc, curr_output;
     char          *curr_ptr = inbuffer;
 
-    snprintf(request, sizeof(request), "SHOW COLUMNS FROM %s", table );
-    rc = db_exec_sql_quiet( conn, request, &result );
+    snprintf(request, sizeof(request), "SHOW COLUMNS FROM %s", table);
+    rc = db_exec_sql_quiet(conn, request, &result);
 
-    if ( rc )
+    if (rc)
         return rc;
 
-    if ( !result )
+    if (!result)
     {
-        DisplayLog( LVL_DEBUG, LISTMGR_TAG, "%s does not exist", table );
+        DisplayLog(LVL_DEBUG, LISTMGR_TAG, "%s does not exist", table);
         return DB_NOT_EXISTS;
     }
 
-    /* init ouput tab */
-    for ( i = 0; i < outtabsize; i++ )
-        outtab[i] = NULL;
+    /* init ouput tabs */
+    for (i = 0; i < outtabsize; i++) {
+        field_tab[i] = NULL;
+        if (type_tab)
+            type_tab[i] = NULL;
+        if (default_tab)
+            default_tab[i] = NULL;
+    }
 
     curr_output = 0;
-    while ( ( row = mysql_fetch_row( result ) ) )
+    while ((row = mysql_fetch_row(result)))
     {
-        strcpy( curr_ptr, row[0] );
-        outtab[curr_output] = curr_ptr;
-        curr_ptr += strlen( curr_ptr ) + 1;
+        strcpy(curr_ptr, row[0]);
+        field_tab[curr_output] = curr_ptr;
+        curr_ptr += strlen(curr_ptr) + 1;
 
-        if (typetab)
+        if (type_tab)
         {
-            strcpy( curr_ptr, row[1] );
-            typetab[curr_output] = curr_ptr;
-            curr_ptr += strlen( curr_ptr ) + 1;
+            strcpy(curr_ptr, row[1]);
+            type_tab[curr_output] = curr_ptr;
+            curr_ptr += strlen(curr_ptr) + 1;
         }
+
+        if (default_tab && row[4] != NULL)
+        {
+            strcpy(curr_ptr, row[4]);
+            default_tab[curr_output] = curr_ptr;
+            curr_ptr += strlen(curr_ptr) + 1;
+        }
+
         curr_output++;
     }
-    mysql_free_result( result );
+    mysql_free_result(result);
 
     return DB_SUCCESS;
-}
-
-int db_list_table_fields(db_conn_t * conn, const char *table,
-                         char **outtab, unsigned int outtabsize,
-                         char *inbuffer, unsigned int inbuffersize)
-{
-    return db_list_table_types(conn, table, outtab, NULL, outtabsize,
-                               inbuffer, inbuffersize);
 }
 
 unsigned long long db_last_id( db_conn_t * conn )

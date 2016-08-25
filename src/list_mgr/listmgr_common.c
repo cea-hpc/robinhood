@@ -26,7 +26,8 @@
 #include "xplatform_print.h"
 #include <stdio.h>
 
-void printdbtype(lmgr_t *p_mgr, GString *str, db_type_e type, const db_type_u *value_ptr )
+void printdbtype(db_conn_t *pconn, GString *str, db_type_e type,
+                 const db_type_u *value_ptr)
 {
     switch (type)
     {
@@ -48,13 +49,25 @@ void printdbtype(lmgr_t *p_mgr, GString *str, db_type_e type, const db_type_u *v
 
         case DB_TEXT:
         {
-            /* escape special characters in value */
-            int   len = 2*strlen(value_ptr->val_str) + 1; /* as required by MySQL manual */
-            char *tmpstr = MemAlloc(len);
+            if (value_ptr->val_str == NULL)
+            {
+                g_string_append(str, "NULL");
+            }
+            else if (!pconn)
+            {
+                /* don't escape if no DB connection is given */
+                g_string_append_printf(str, "'%s'", value_ptr->val_str);
+            }
+            else
+            {
+                /* escape special characters in value */
+                int   len = 2*strlen(value_ptr->val_str) + 1; /* as required by MySQL manual */
+                char *tmpstr = MemAlloc(len);
 
-            db_escape_string(&p_mgr->conn, tmpstr, len, value_ptr->val_str);
-            g_string_append_printf(str, "'%s'", tmpstr);
-            MemFree(tmpstr);
+                db_escape_string(pconn, tmpstr, len, value_ptr->val_str);
+                g_string_append_printf(str, "'%s'", tmpstr);
+                MemFree(tmpstr);
+            }
             break;
         }
         case DB_INT:
@@ -730,7 +743,7 @@ static void print_attr_value(lmgr_t *p_mgr, GString *str, const attr_set_t *p_se
     else
         RBH_BUG("Attribute index is not in a valid range");
 
-    printdbtype(p_mgr, str, t, &typeu);
+    printdbtype(&p_mgr->conn, str, t, &typeu);
 }
 
 
@@ -1075,7 +1088,7 @@ filter_dir_e dir_filter(lmgr_t *p_mgr, GString *filter_str, const lmgr_filter_t 
 
                     /* value: (list only apply to OSTs XXX for now) */
                     db_type_u typeu = p_filter->filter_simple.filter_value[i].value;
-                    printdbtype(p_mgr, filter_str, field_infos[index].db_type, &typeu);
+                    printdbtype(&p_mgr->conn, filter_str, field_infos[index].db_type, &typeu);
                 }
 
                 if (dir_attr_index != NULL)
@@ -1167,7 +1180,7 @@ int func_filter(lmgr_t *p_mgr, GString *filter_str, const lmgr_filter_t *p_filte
 
                         g_string_append_printf(filter_str, THIS_PATH_FUNC"(%s,%s)%s",
                             param1, param2, compar2str(p_filter->filter_simple.filter_compar[i]));
-                        printdbtype(p_mgr, filter_str, field_infos[index].db_type, &typeu);
+                        printdbtype(&p_mgr->conn, filter_str, field_infos[index].db_type, &typeu);
 
                         if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
                             g_string_append_printf(filter_str,
@@ -1185,7 +1198,7 @@ int func_filter(lmgr_t *p_mgr, GString *filter_str, const lmgr_filter_t *p_filte
 
                         g_string_append_printf(filter_str, ONE_PATH_FUNC"(%s)%s", param1,
                                 compar2str(p_filter->filter_simple.filter_compar[i]));
-                        printdbtype(p_mgr, filter_str, field_infos[index].db_type, &typeu);
+                        printdbtype(&p_mgr->conn, filter_str, field_infos[index].db_type, &typeu);
 
                         if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
                             g_string_append_printf(filter_str,
@@ -1366,7 +1379,7 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
                         else
                         {
                             typeu.val_str = relative;
-                            printdbtype(p_mgr, str, field_infos[index].db_type, &typeu);
+                            printdbtype(&p_mgr->conn, str, field_infos[index].db_type, &typeu);
                         }
                     }
                     else
@@ -1384,7 +1397,7 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
                             /* single value (list only apply to OSTs XXX for now) */
                             typeu = p_filter->filter_simple.filter_value[i].value;
 
-                        printdbtype(p_mgr, str, field_type(index), &typeu);
+                        printdbtype(&p_mgr->conn, str, field_type(index), &typeu);
                     }
                 }
                 nbfields++;

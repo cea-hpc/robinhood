@@ -34,24 +34,33 @@ static enum lmgr_init_flags init_flags;
 
 #define MAX_DB_FIELDS 64
 
-
-static void append_status_def(const sm_instance_t *smi, GString *str, bool is_first)
+/** append SQL type of a status field */
+static void append_status_sql_type(GString *str, const sm_instance_t *smi)
 {
     int i;
 
-    g_string_append_printf(str, "%s%s_status ENUM('', ", is_first?"":",", smi->instance_name);
+    g_string_append(str, "ENUM('', ");
     for (i = 0; i < smi->sm->status_count; i++)
     {
         g_string_append_printf(str, "%s'%s'", (i == 0)?"":",",
                                smi->sm->status_enum[i]);
     }
     /* end of "ENUM (" */
-    g_string_append(str, ") DEFAULT ''");
+    g_string_append_c(str, ')');
 }
 
-static void append_field(GString *str, bool is_first, db_type_e type,
-                         unsigned int size, const char *name,
-                         const db_type_u *default_value)
+/** append SQL request to create a status field */
+static void append_status_def(const sm_instance_t *smi, GString *str, bool is_first)
+{
+    g_string_append_printf(str, "%s%s_status ", is_first?"":",",
+                           smi->instance_name);
+    append_status_sql_type(str, smi);
+
+    /* default status is always '' */
+    g_string_append(str, " DEFAULT ''");
+}
+
+static void append_sql_type(GString *str, db_type_e type, unsigned int size)
 {
     switch (type)
     {
@@ -60,114 +69,74 @@ static void append_field(GString *str, bool is_first, db_type_e type,
         break;
     case DB_TEXT:
         {
-            char strtype[128];
-
             /* VARBINARY length is limited. For larger strings, use TEXT. */
             if (size <= MAX_VARBINARY)
-                snprintf(strtype, sizeof(strtype),"VARBINARY(%u)", size);
+                g_string_append_printf(str, "VARBINARY(%u)", size);
             else
-                rh_strncpy(strtype, "TEXT", sizeof(strtype));
-
-            if (default_value && default_value->val_str != NULL)
-                g_string_append_printf(str, "%s %s %s DEFAULT '%s'",is_first ? "" : ",",
-                    name, strtype, default_value->val_str);
-            else
-                g_string_append_printf(str, "%s %s %s",is_first ? "" : ",",
-                    name, strtype);
+                g_string_append(str, "TEXT");
         }
         break;
     case DB_INT:
-        if (default_value)
-            g_string_append_printf(str, "%s %s INT DEFAULT %d", is_first ? "" : ",", name,
-                default_value->val_int);
-        else
-            g_string_append_printf(str, "%s %s INT", is_first ? "" : ",", name);
+        g_string_append(str, "INT");
         break;
     case DB_UINT:
-        if (default_value)
-            g_string_append_printf(str, "%s %s INT UNSIGNED DEFAULT %u", is_first ? "" : ",", name,
-                default_value->val_uint);
-        else
-            g_string_append_printf(str, "%s %s INT UNSIGNED", is_first ? "" : ",", name);
+        g_string_append(str, "INT UNSIGNED");
         break;
     case DB_SHORT:
-        if (default_value)
-            g_string_append_printf(str, "%s %s SMALLINT DEFAULT %hd", is_first ? "" : ",", name,
-                default_value->val_short);
-        else
-            g_string_append_printf(str, "%s %s SMALLINT", is_first ? "" : ",", name);
+        g_string_append(str, "SMALLINT");
         break;
     case DB_USHORT:
-        if (default_value)
-            g_string_append_printf(str, "%s %s SMALLINT UNSIGNED DEFAULT %hu", is_first ? "" : ",", name,
-                default_value->val_ushort);
-        else
-            g_string_append_printf(str, "%s %s SMALLINT UNSIGNED", is_first ? "" : ",", name);
+        g_string_append(str, "SMALLINT UNSIGNED");
         break;
     case DB_BIGINT:
-        if (default_value)
-            g_string_append_printf(str, "%s %s BIGINT DEFAULT %lld", is_first ? "" : ",", name,
-                default_value->val_bigint);
-        else
-            g_string_append_printf(str, "%s %s BIGINT", is_first ? "" : ",", name);
+        g_string_append(str, "BIGINT");
         break;
     case DB_BIGUINT:
-        if (default_value)
-            g_string_append_printf(str, "%s %s BIGINT UNSIGNED DEFAULT %llu", is_first ? "" : ",", name,
-                default_value->val_biguint);
-        else
-            g_string_append_printf(str, "%s %s BIGINT UNSIGNED", is_first ? "" : ",", name);
+        g_string_append(str, "BIGINT UNSIGNED");
         break;
     case DB_BOOL:
-        if (default_value)
-            g_string_append_printf(str, "%s %s BOOLEAN DEFAULT %d", is_first ? "" : ",", name,
-                default_value->val_bool);
-        else
-            g_string_append_printf(str, "%s %s BOOLEAN", is_first ? "" : ",", name);
+        g_string_append(str, "BOOLEAN");
         break;
     case DB_ID:
-        g_string_append_printf(str, "%s %s "PK_TYPE, is_first ? "" : ",", name);
+        g_string_append(str, PK_TYPE);
         break;
     case DB_ENUM_FTYPE:
-        g_string_append_printf(str, "%s %s ENUM('%s', '%s', '%s', '%s', '%s', '%s', '%s')",
-                        is_first ? "" : ",", name,
+        g_string_append_printf(str, "ENUM('%s', '%s', '%s', '%s', '%s', '%s', '%s')",
                         STR_TYPE_LINK, STR_TYPE_DIR, STR_TYPE_FILE, STR_TYPE_CHR,
                         STR_TYPE_BLK, STR_TYPE_FIFO, STR_TYPE_SOCK);
         break;
     case DB_UIDGID:
         {
             if (global_config.uid_gid_as_numbers)
-            {
-                if (default_value)
-                    g_string_append_printf(str, "%s %s INT DEFAULT %d", is_first ? "" : ",", name,
-                                           default_value->val_int);
-                else
-                    g_string_append_printf(str, "%s %s INT", is_first ? "" : ",", name);
-            }
+                g_string_append(str, "INT");
             else
-            {
-                char strtype[128];
-
-                /* VARBINARY length is limited. For larger strings, use TEXT. */
-                if (RBH_LOGIN_MAX-1 <= MAX_VARBINARY)
-                    snprintf(strtype, sizeof(strtype),"VARBINARY(%u)", RBH_LOGIN_MAX-1);
-                else
-                    rh_strncpy(strtype, "TEXT", sizeof(strtype));
-
-                if (default_value && default_value->val_str != NULL)
-                    g_string_append_printf(str, "%s %s %s DEFAULT '%s'",is_first ? "" : ",",
-                                           name, strtype, default_value->val_str);
-                else
-                    g_string_append_printf(str, "%s %s %s",is_first ? "" : ",",
-                                           name, strtype);
-            }
+                append_sql_type(str, DB_TEXT, RBH_LOGIN_MAX-1);
         }
         break;
     }
 }
 
+/** builds [,] <field_name> <field_type> [DEFAULT <default_val>] */
+static void append_field(db_conn_t *pconn, GString *str, bool is_first,
+                         db_type_e type, unsigned int size, const char *name,
+                         const db_type_u *default_value)
+{
+    if (!is_first)
+        g_string_append(str, ", ");
+
+    g_string_append_printf(str, "%s ", name);
+    append_sql_type(str, type, size);
+
+    if (default_value) {
+        g_string_append(str, " DEFAULT ");
+        printdbtype(pconn, str, type, default_value);
+    }
+}
+
 static db_type_u default_uid = {.val_str = ACCT_DEFAULT_OWNER};
 static db_type_u default_gid = {.val_str = ACCT_DEFAULT_GROUP};
+static db_type_u default_type = {.val_str = "file"};
+static db_type_u default_status = {.val_str = ""};
 static db_type_u default_zero = {0};
 
 static void init_default_field_values(void)
@@ -211,14 +180,32 @@ static void init_default_field_values(void)
 
 static const db_type_u *default_field_value(int attr_index)
 {
-
     switch (attr_index)
     {
+        case ATTR_INDEX_type:
+            return &default_type;
         case ATTR_INDEX_uid:
             return &default_uid;
         case ATTR_INDEX_gid:
             return &default_gid;
         default:
+            if (is_status_field(attr_index))
+            {
+                return &default_status;
+            }
+
+            if (is_sm_info_field(attr_index))
+            {
+                int idx = attr2sminfo_index(attr_index);
+
+                /* return NULL if db_type is TEXT and val_str is NULL */
+                if (sm_attr_info[idx].def->db_type == DB_TEXT &&
+                    sm_attr_info[idx].def->db_default.val_str == NULL)
+                    return NULL;
+
+                return &sm_attr_info[idx].def->db_default;
+            }
+
             /* accounting fields (except primary key) default to 0
              * (must be able to sum) */
             if (is_acct_field(attr_index))
@@ -229,7 +216,22 @@ static const db_type_u *default_field_value(int attr_index)
     UNREACHED();
 }
 
-static void append_field_def(int i, GString *str, bool is_first)
+static int field_size(int i)
+{
+    if (is_status_field(i))
+        return 0; /* always enum, no varchar size */
+
+    if (is_sm_info_field(i))
+    {
+        int idx = attr2sminfo_index(i);
+        return sm_attr_info[idx].def->db_type_size;
+    }
+
+    return field_infos[i].db_type_size;
+}
+
+static void append_field_def(db_conn_t *pconn, int i, GString *str,
+                             bool is_first)
 {
     unsigned int idx;
 
@@ -242,14 +244,14 @@ static void append_field_def(int i, GString *str, bool is_first)
     if (is_sm_info_field(i))
     {
         idx = attr2sminfo_index(i);
-        append_field(str, is_first, sm_attr_info[idx].def->db_type,
+        append_field(pconn, str, is_first, sm_attr_info[idx].def->db_type,
                      sm_attr_info[idx].def->db_type_size,
                      sm_attr_info[idx].db_attr_name,
                      &sm_attr_info[idx].def->db_default);
         return;
     }
 
-    append_field(str, is_first, field_infos[i].db_type,
+    append_field(pconn, str, is_first, field_infos[i].db_type,
                  field_infos[i].db_type_size,
                  field_infos[i].field_name,
                  default_field_value(i));
@@ -276,7 +278,7 @@ static int _check_field_name(const char *name, int *curr_field_index,
     /* check that this is the expected field */
     if (!strcmp(name, fieldtab[*curr_field_index]))
     {
-        DisplayLog(LVL_FULL, LISTMGR_TAG, "%s.%s OK", table, name);
+        DisplayLog(LVL_FULL, LISTMGR_TAG, "%s.%s field name OK", table, name);
         return 0;
     }
 
@@ -312,38 +314,43 @@ static void drop_chars(char *str, int start_off, int end_off)
     *c = '\0';
 }
 
-static int check_type(const char *db_type, const char *expected)
+static inline void drop_parenthesis_for(char *str, const char *pattern)
 {
-    /* convert "int(10)" to "int",
-     *         "smallint(5)" to "smallint",
-     *         "bigint(20)" to bigint" ...
-     */
-    char tmp[1024];
     char *w1, *w2;
 
-    rh_strncpy(tmp, db_type, sizeof(tmp));
-
-    /* convert to upper case */
-    upperstr(tmp);
-
     /* remove parenthesis */
-    if ((w1 = strstr(tmp, "INT(")) != NULL)
+    if ((w1 = strcasestr(str, pattern)) != NULL)
     {
         /* move w1 to '(' */
         w1 += 3;
         w2 = strchr(w1, ')');
         if (w2 != NULL)
-            drop_chars(tmp, (w1 - tmp), (w2 - tmp));
+            drop_chars(str, (w1 - str), (w2 - str));
     }
+}
 
-    if (strcmp(tmp, expected))
-    {
-        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "DB type '%s' doesn't match the expected type '%s'",
-                   tmp, expected);
-        return 1;
-    }
+static int type_cmp(const char *db_type, const char *expected)
+{
+    char tmp[1024];
+    char expect_trunc[1024];
 
-    return 0;
+    /* turn "int(10)" to "INT",
+     *      "smallint(5)" to "SMALLINT",
+     *      "bigint(20)" to "BIGINT" ...
+     */
+    rh_strncpy(tmp, db_type, sizeof(tmp));
+    rh_strncpy(expect_trunc, expected, sizeof(expect_trunc));
+
+    drop_parenthesis_for(tmp, "INT(");
+    drop_parenthesis_for(tmp, "ENUM(");
+    drop_parenthesis_for(expect_trunc, "INT(");
+    drop_parenthesis_for(expect_trunc, "ENUM(");
+
+    /* TINYINT may stand for BOOLEAN */
+    if (!strcasecmp(tmp, "TINYINT") && !strcmp(expect_trunc, "BOOLEAN"))
+        return 0;
+
+    return strcasecmp(tmp, expect_trunc);
 }
 
 static int convert_field_type(db_conn_t *pconn, const char *table,
@@ -394,6 +401,195 @@ static int convert_field_type(db_conn_t *pconn, const char *table,
     return 0;
 }
 
+static int check_field_default(int attr_index, const char* val)
+{
+    GString *str;
+    int rc = 0;
+
+    /* get the expected default for this field */
+    const db_type_u *val_expect = default_field_value(attr_index);
+
+    /* NULL only matches NULL... */
+    if (val == NULL)
+    {
+        if (val_expect == NULL)
+            return 0;
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Default value for field '%s' "
+                   "should not be NULL", field_name(attr_index));
+        return DB_NEED_ALTER;
+    }
+    if (val_expect == NULL)
+    {
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "NULL default value expected for '%s' (current is %s)",
+                   field_name(attr_index), val);
+        return DB_NEED_ALTER;
+    }
+
+    /* print the values and compare them */
+    str = g_string_new(NULL);
+
+    /* string value reported by DB is not escaped:
+     * don't provide a connection (won't escape string). */
+    printdbtype(NULL, str, field_type(attr_index), val_expect);
+
+    /* string value reported by DB is not quoted:
+     * drop quotes.
+     */
+    if (str->str[0] == '\'')
+    {
+        g_string_erase(str, 0, 1);
+        g_string_truncate(str, str->len - 1);
+    }
+
+    if (strcmp(str->str, val)) {
+        rc = DB_NEED_ALTER;
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Default value for field '%s' (%s) "
+                   "doesn't match expected value %s", field_name(attr_index),
+                    val, str->str);
+    }
+    else
+        DisplayLog(LVL_FULL, LISTMGR_TAG, "%s field default OK",
+                   field_name(attr_index));
+    g_string_free(str, TRUE);
+    return rc;
+}
+
+static int check_field_type(int attr_index, const char* val)
+{
+    GString *str;
+    int rc = 0;
+
+    assert(val != NULL);
+
+    /* get the type string and compare it */
+    str = g_string_new(NULL);
+
+    if (is_status(attr_index))
+    {
+        /* status are particular ENUMs */
+        int idx = attr2status_index(attr_index);
+
+        append_status_sql_type(str, get_sm_instance(idx));
+    }
+    else
+        append_sql_type(str, field_type(attr_index), field_size(attr_index));
+
+    if (type_cmp(val, str->str))
+    {
+        rc = DB_NEED_ALTER;
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Type for field '%s' (%s) "
+                   "doesn't match expected type %s", field_name(attr_index),
+                   val, str->str);
+    }
+    else
+        DisplayLog(LVL_FULL, LISTMGR_TAG, "%s field type OK",
+                   field_name(attr_index));
+
+    g_string_free(str, TRUE);
+    return rc;
+}
+
+/** change field type and set its default */
+static int change_field_type(db_conn_t *pconn, table_enum table, int attr_index)
+{
+    GString *query = g_string_new(NULL);
+    const db_type_u *default_val;
+    int rc = 0;
+
+    g_string_printf(query, "ALTER TABLE %s MODIFY COLUMN %s ",
+                    table2name(table), field_name(attr_index));
+
+    if (is_status(attr_index))
+    {
+        /* status are particular ENUMs */
+        int idx = attr2status_index(attr_index);
+
+        append_status_sql_type(query, get_sm_instance(idx));
+    }
+    else
+        append_sql_type(query, field_type(attr_index), field_size(attr_index));
+
+    default_val = default_field_value(attr_index);
+    if (default_val) {
+        g_string_append(query, " DEFAULT ");
+        printdbtype(pconn, query, field_type(attr_index), default_val);
+    }
+
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Converting type of %s.%s: %s",
+               table2name(table), field_name(attr_index), query->str);
+    rc = db_exec_sql(pconn, query->str, NULL);
+    g_string_free(query, TRUE);
+    if (rc)
+    {
+        char buff[1024];
+
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to run database conversion: Error: %s",
+                   db_errmsg(pconn, buff, sizeof(buff)));
+        return rc;
+    }
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "%s.%s successfully converted",
+               table2name(table), field_name(attr_index));
+    return 0;
+}
+
+/** change the default value for a given field */
+static int change_field_default(db_conn_t *pconn, table_enum table,
+                                int attr_index, bool update_null)
+{
+    GString         *query = g_string_new(NULL);
+    const db_type_u *defval;
+    int              rc = 0;
+
+    g_string_printf(query, "ALTER TABLE %s ALTER COLUMN %s SET DEFAULT ",
+                    table2name(table), field_name(attr_index));
+
+    /* get & print default value */
+    defval = default_field_value(attr_index);
+    if (defval)
+        printdbtype(pconn, query, field_type(attr_index), defval);
+    else
+        g_string_append(query, "NULL");
+
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "sql> %s", query->str);
+    rc = db_exec_sql(pconn, query->str, NULL);
+    if (rc)
+    {
+        char buff[1024];
+
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to alter field '%s': Error: %s",
+                    field_name(attr_index), db_errmsg(pconn, buff, sizeof(buff)));
+        goto out_free;
+    }
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "%s.%s default successfully changed",
+               table2name(table), field_name(attr_index));
+
+    if (defval == NULL || !update_null)
+        goto out_free;
+
+    /* If the new value is not NULL, update previous records
+     * having NULL in this field */
+    g_string_printf(query, "UPDATE %s SET %s=",
+                    table2name(table), field_name(attr_index));
+    printdbtype(pconn, query, field_type(attr_index), defval);
+    g_string_append_printf(query, " WHERE %s is NULL", field_name(attr_index));
+
+    DisplayLog(LVL_VERB, LISTMGR_TAG, "sql> %s", query->str);
+    if (rc)
+    {
+        char buff[1024];
+
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "Failed to update field '%s': Error: %s",
+                    field_name(attr_index), db_errmsg(pconn, buff, sizeof(buff)));
+    }
+
+out_free:
+    g_string_free(query, TRUE);
+    return rc;
+}
+
 /** Rename field 'old_name' to 'new_name' */
 static int change_field_name(db_conn_t *pconn, const char *table, const char *old_name,
                               const char *new_name, int field_index)
@@ -403,7 +599,7 @@ static int change_field_name(db_conn_t *pconn, const char *table, const char *ol
     int rc;
 
     g_string_printf(query, "ALTER TABLE %s CHANGE %s", table, old_name);
-    append_field_def(field_index, query, true);
+    append_field_def(pconn, field_index, query, true);
 
     DisplayLog(LVL_VERB, LISTMGR_TAG, "sql> %s", query->str);
 
@@ -433,7 +629,7 @@ static int change_id_field(db_conn_t *pconn, const char *table, const char *old_
     int rc;
 
     g_string_printf(query, "ALTER TABLE %s CHANGE %s", table, old_name);
-    append_field(query, true, DB_ID, 0, new_name, NULL);
+    append_field(pconn, query, true, DB_ID, 0, new_name, NULL);
 
     DisplayLog(LVL_VERB, LISTMGR_TAG, "sql> %s", query->str);
 
@@ -478,7 +674,7 @@ static int insert_field(db_conn_t *pconn, const char *table, int def_index,
 
     query = g_string_new(NULL);
     g_string_printf(query, "ALTER TABLE %s ADD ", table);
-    append_field_def(def_index, query, true);
+    append_field_def(pconn, def_index, query, true);
     if (prev_field != NULL)
         g_string_append_printf(query," AFTER %s", prev_field);
 
@@ -678,11 +874,8 @@ static inline void swap_db_fields(char **field_tab, int i1, int i2)
     field_tab[i2] = tmp;
 }
 
-static int check_field_name_type(const char *name, const char *type, int *curr_field_index,
-                                 const char *table, char **fieldtab, char **typetab)
-/* XXX may be unused if no field type is to be checked... */
-__attribute__((unused));
-
+/* the following function is only used for checking stripe 'validator' */
+#ifdef _LUSTRE
 /** @return -1 on error, 0 if OK, 1 if conversion is required */
 static int check_field_name_type(const char *name, const char *type, int *curr_field_index,
                                  const char *table, char **fieldtab, char **typetab)
@@ -690,16 +883,29 @@ static int check_field_name_type(const char *name, const char *type, int *curr_f
     if (_check_field_name(name, curr_field_index, table, fieldtab) != 0)
         return -1;
 
-    if (check_type(typetab[*curr_field_index], type))
+    if (type_cmp(typetab[*curr_field_index], type))
         return 1;
 
     (*curr_field_index)++;
     return 0;
 }
+#endif
 
-static inline int check_field(int i, int *curr_field_index, const char *table, char **fieldtab)
+static int check_field(int i, int *curr_field_index, const char *table, char **fieldtab,
+                       char **typetab, char **defaulttab)
 {
-    return check_field_name(field_name(i), curr_field_index, table, fieldtab);
+    if (_check_field_name(field_name(i), curr_field_index, table, fieldtab) != 0)
+        return -1;
+
+    if (typetab != NULL && check_field_type(i, typetab[*curr_field_index]) != 0)
+        return -1;
+
+    if (defaulttab != NULL &&
+        check_field_default(i, defaulttab[*curr_field_index]) != 0)
+        return -1;
+
+    (*curr_field_index)++;
+    return 0;
 }
 
 /* Return false if there is no extra field, else return true */
@@ -718,21 +924,75 @@ static inline int has_extra_field(int curr_field_index, const char *table,
         return false;
 }
 
+/** Check and fix field definition (type and default value) */
+static int check_and_fix_def(db_conn_t *pconn, table_enum table, int def_index,
+                             const char *db_type, const char *db_default)
+{
+    bool default_was_set = false;
+    int rc;
+
+    if (db_type != NULL && check_field_type(def_index, db_type) != 0)
+    {
+        if (!alter_db)
+        {
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "DB schema change detected: type of field '%s.%s' must be changed "
+                       " => Run 'robinhood --alter-db' to confirm this change.",
+                       table2name(table), field_name(def_index));
+            return DB_NEED_ALTER;
+        }
+
+        rc = change_field_type(pconn, table, def_index);
+        if (rc)
+            return rc;
+        /* change_field_type also set the default */
+        default_was_set = true;
+    }
+
+    if (!default_was_set && check_field_default(def_index, db_default) != 0)
+    {
+        if (!alter_db)
+        {
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "DB schema change detected: default value of field '%s.%s' must be changed "
+                       " => Run 'robinhood --alter-db' to confirm this change.",
+                       table2name(table), field_name(def_index));
+            return DB_NEED_ALTER;
+        }
+
+        rc = change_field_default(pconn, table, def_index,
+                                  db_default == NULL);
+        if (rc)
+            return rc;
+    }
+    return 0;
+}
+
+
 /** Check current field and fix the DB schema if 'alter_db' is specified */
 static int check_and_fix_field(db_conn_t *pconn,
                                int def_index, int *db_index,
                                table_enum table, char **fieldtab,
+                               char **typetab, char **defaulttab,
                                const struct name_compat *compat_table,
                                const char **last_field, bool allow_func_attr)
 {
     int rc, shift;
 
 recheck:
-    if (check_field(def_index, db_index, table2name(table), fieldtab) == 0)
+    if (check_field_name(field_name(def_index), db_index,
+                         table2name(table), fieldtab) == 0)
     {
-        /* check_field should have increased db_index */
+        /* check_field_name should have increased db_index */
         assert(*db_index > 0);
+
+        /* field is at the right place, now check its type and default */
+        rc = check_and_fix_def(pconn, table, def_index,
+                               typetab != NULL ? typetab[*db_index - 1] : NULL,
+                               defaulttab != NULL ? defaulttab[*db_index - 1] : NULL);
+        if (rc)
+            return rc;
+
         *last_field = fieldtab[*db_index-1];
+
         /* OK */
         return 0;
     }
@@ -991,8 +1251,8 @@ static int check_table_vars(db_conn_t *pconn)
     char    strbuf[4096];
     char   *fieldtab[MAX_DB_FIELDS];
 
-    int rc = db_list_table_fields(pconn, VAR_TABLE, fieldtab, MAX_DB_FIELDS,
-                                  strbuf, sizeof(strbuf));
+    int rc = db_list_table_info(pconn, VAR_TABLE, fieldtab, NULL, NULL,
+                                MAX_DB_FIELDS, strbuf, sizeof(strbuf));
     if (rc == DB_SUCCESS)
     {
         int curr_index = 0;
@@ -1097,10 +1357,13 @@ static int check_table_main(db_conn_t *pconn)
 {
     char strbuf[4096];
     char *fieldtab[MAX_DB_FIELDS];
+    char *typetab[MAX_DB_FIELDS];
+    char *defaulttab[MAX_DB_FIELDS];
     bool need_alter = false;
 
-    int rc = db_list_table_fields(pconn, MAIN_TABLE, fieldtab, MAX_DB_FIELDS,
-                                  strbuf, sizeof(strbuf));
+    int rc = db_list_table_info(pconn, MAIN_TABLE, fieldtab, typetab,
+                                defaulttab, MAX_DB_FIELDS,
+                                strbuf, sizeof(strbuf));
     if (rc == DB_SUCCESS)
     {
         int i, cookie;
@@ -1120,7 +1383,8 @@ static int check_table_main(db_conn_t *pconn)
             if (is_main_field(i) && !is_funcattr(i))
             {
                 rc = check_and_fix_field(pconn, i, &curr_field_index, T_MAIN,
-                                         fieldtab, main_name_compat, &last, false);
+                                         fieldtab, typetab, defaulttab,
+                                         main_name_compat, &last, false);
                 if (rc == DB_NEED_ALTER)
                     need_alter = true;
                     /* don't return immediately, to report about other fields */
@@ -1153,7 +1417,7 @@ static int create_table_main(db_conn_t *pconn)
     while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         if (is_main_field(i) && !is_funcattr(i))
-            append_field_def(i, request, 0);
+            append_field_def(pconn, i, request, 0);
     }
 
     /* end of field list (null terminated) */
@@ -1188,8 +1452,8 @@ static int check_table_dnames(db_conn_t *pconn)
 {
     char  strbuf[4096];
     char *fieldtab[MAX_DB_FIELDS];
-    int   rc = db_list_table_fields(pconn, DNAMES_TABLE, fieldtab,
-                                    MAX_DB_FIELDS, strbuf, sizeof(strbuf));
+    int   rc = db_list_table_info(pconn, DNAMES_TABLE, fieldtab, NULL, NULL,
+                                  MAX_DB_FIELDS, strbuf, sizeof(strbuf));
 
     if (rc == DB_SUCCESS)
     {
@@ -1207,7 +1471,8 @@ static int check_table_dnames(db_conn_t *pconn)
         {
             if (is_names_field(i) && !is_funcattr(i))
             {
-                if (check_field(i, &curr_field_index, DNAMES_TABLE, fieldtab))
+                if (check_field(i, &curr_field_index, DNAMES_TABLE,
+                                fieldtab, NULL, NULL))
                     return DB_BAD_SCHEMA;
             }
         }
@@ -1237,7 +1502,7 @@ static int create_table_dnames(db_conn_t *pconn)
     {
         if (is_names_field(i) && !is_funcattr(i))
         {
-            append_field_def(i, request, 0);
+            append_field_def(pconn, i, request, 0);
         }
     }
     g_string_append(request, ")");
@@ -1274,11 +1539,13 @@ static int check_table_annex(db_conn_t *pconn)
     int rc, i, cookie;
     char  strbuf[4096];
     char *fieldtab[MAX_DB_FIELDS];
+    char *typetab[MAX_DB_FIELDS];
+    char *defaulttab[MAX_DB_FIELDS];
     const char *last = NULL;
     bool need_alter = false;
 
-    rc = db_list_table_fields(pconn, ANNEX_TABLE, fieldtab, MAX_DB_FIELDS,
-                              strbuf, sizeof(strbuf));
+    rc = db_list_table_info(pconn, ANNEX_TABLE, fieldtab, typetab, defaulttab,
+                            MAX_DB_FIELDS, strbuf, sizeof(strbuf));
 
     if (rc == DB_SUCCESS)
     {
@@ -1295,7 +1562,8 @@ static int check_table_annex(db_conn_t *pconn)
             if (is_annex_field(i) && !is_funcattr(i))
             {
                 rc = check_and_fix_field(pconn, i, &curr_field_index, T_ANNEX,
-                                         fieldtab, NULL, &last, false);
+                                         fieldtab, typetab, defaulttab, NULL,
+                                         &last, false);
                 if (rc)
                     return rc;
             }
@@ -1326,7 +1594,7 @@ static int create_table_annex(db_conn_t *pconn)
     {
         if (is_annex_field(i) && !is_funcattr(i))
         {
-            append_field_def(i, request, 0);
+            append_field_def(pconn, i, request, 0);
         }
     }
     g_string_append(request, ")");
@@ -1364,8 +1632,8 @@ static int check_table_stripe_info(db_conn_t *pconn)
     char *fieldtab[MAX_DB_FIELDS];
     char *typetab[MAX_DB_FIELDS];
 
-    rc = db_list_table_types(pconn, STRIPE_INFO_TABLE, fieldtab, typetab,
-                              MAX_DB_FIELDS, strbuf, sizeof(strbuf));
+    rc = db_list_table_info(pconn, STRIPE_INFO_TABLE, fieldtab, typetab, NULL,
+                            MAX_DB_FIELDS, strbuf, sizeof(strbuf));
     if (rc == DB_SUCCESS)
     {
         int curr_field_index = 0;
@@ -1442,8 +1710,8 @@ static int check_table_stripe_items(db_conn_t *pconn)
     char  strbuf[4096];
     char *fieldtab[MAX_DB_FIELDS];
 
-    rc = db_list_table_fields(pconn, STRIPE_ITEMS_TABLE, fieldtab,
-                              MAX_DB_FIELDS, strbuf, sizeof(strbuf));
+    rc = db_list_table_info(pconn, STRIPE_ITEMS_TABLE, fieldtab, NULL, NULL,
+                            MAX_DB_FIELDS, strbuf, sizeof(strbuf));
 
     if (rc == DB_SUCCESS)
     {
@@ -1538,9 +1806,11 @@ static int check_table_acct(db_conn_t *pconn)
     int i, rc;
     char  strbuf[4096];
     char *fieldtab[MAX_DB_FIELDS];
+    char *typetab[MAX_DB_FIELDS];
+    char *defaulttab[MAX_DB_FIELDS];
 
-    rc = db_list_table_fields(pconn, ACCT_TABLE, fieldtab, MAX_DB_FIELDS,
-                              strbuf, sizeof(strbuf));
+    rc = db_list_table_info(pconn, ACCT_TABLE, fieldtab, typetab, defaulttab,
+                            MAX_DB_FIELDS, strbuf, sizeof(strbuf));
     if (rc == DB_SUCCESS)
     {
         int cookie;
@@ -1575,7 +1845,8 @@ static int check_table_acct(db_conn_t *pconn)
                 /* => force no alter_db */
                 init_flags &= ~LIF_ALTER_DB;
                 rc = check_and_fix_field(pconn, i, &curr_field_index, T_ACCT_PK,
-                                         fieldtab, main_name_compat, &last, false);
+                                         fieldtab, typetab, defaulttab,
+                                         main_name_compat, &last, false);
                 init_flags = save_flags;
                 if (rc != 0 && rc != DB_NEED_ALTER)
                     return rc;
@@ -1591,7 +1862,8 @@ static int check_table_acct(db_conn_t *pconn)
             if (is_acct_field(i))
             {
                 rc = check_and_fix_field(pconn, i, &curr_field_index, T_ACCT_VAL,
-                                         fieldtab, main_name_compat, &last, false);
+                                         fieldtab, typetab, defaulttab,
+                                         main_name_compat, &last, false);
                 if (rc)
                     return rc;
             }
@@ -1700,7 +1972,7 @@ static int create_table_acct(db_conn_t *pconn)
     {
         if (is_acct_pk(i))
         {
-            append_field_def(i, request, is_first_acct_field);
+            append_field_def(pconn, i, request, is_first_acct_field);
             is_first_acct_field = false;
         }
     }
@@ -1709,7 +1981,7 @@ static int create_table_acct(db_conn_t *pconn)
     while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         if (is_acct_field(i))
-            append_field_def(i, request, is_first_acct_field);
+            append_field_def(pconn, i, request, is_first_acct_field);
     }
 
     /* count field */
@@ -1759,10 +2031,12 @@ static int check_table_softrm(db_conn_t *pconn)
     int rc, cookie;
     char  strbuf[4096];
     char *fieldtab[MAX_DB_FIELDS];
+    char *typetab[MAX_DB_FIELDS];
+    char *defaulttab[MAX_DB_FIELDS];
     bool need_alter = false;
 
-    rc = db_list_table_fields(pconn, SOFT_RM_TABLE, fieldtab, MAX_DB_FIELDS,
-                              strbuf, sizeof(strbuf));
+    rc = db_list_table_info(pconn, SOFT_RM_TABLE, fieldtab, typetab, defaulttab,
+                            MAX_DB_FIELDS, strbuf, sizeof(strbuf));
     if (rc == DB_SUCCESS)
     {
         const char *last = NULL;
@@ -1802,7 +2076,8 @@ static int check_table_softrm(db_conn_t *pconn)
             if (is_softrm_field(i))
             {
                 rc = check_and_fix_field(pconn, i, &curr_index, T_SOFTRM,
-                                         fieldtab, main_name_compat, &last, true);
+                                         fieldtab, typetab, defaulttab,
+                                         main_name_compat, &last, true);
                 if (rc == DB_NEED_ALTER)
                     need_alter = true;
                     /* don't return immediately, to report about other fields */
@@ -1835,7 +2110,7 @@ static int create_table_softrm(db_conn_t *pconn)
     while ((i = attr_index_iter(0, &cookie)) != -1)
     {
         if (is_softrm_field(i))
-            append_field_def(i, request, 0);
+            append_field_def(pconn, i, request, 0);
     }
     g_string_append(request, ")");
     append_engine(request);

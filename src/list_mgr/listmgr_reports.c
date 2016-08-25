@@ -80,7 +80,7 @@ static inline void append_filter_cond(GString *str, lmgr_t *p_mgr, const char *a
                            compar2str(desc->filter_compar));
 
     /** TODO support list filters (IN NOT and IN) */
-    printdbtype(p_mgr, str, res->type, &desc->filter_value.value);
+    printdbtype(&p_mgr->conn, str, res->type, &desc->filter_value.value);
 
     g_string_append(str, ")");
 }
