@@ -1,0 +1,84 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_edcfc055",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 2
+      },
+      "lineNbr": 17,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-08-25T16:12:36Z",
+      "side": 1,
+      "message": "they are",
+      "range": {
+        "startLine": 17,
+        "startChar": 52,
+        "endLine": 17,
+        "endChar": 56
+      },
+      "revId": "0f0c633f148cf186efaecabce435f406c0c81158",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_add9b824",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 2
+      },
+      "lineNbr": 20,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-08-25T16:12:36Z",
+      "side": 1,
+      "message": "integer",
+      "range": {
+        "startLine": 20,
+        "startChar": 38,
+        "endLine": 20,
+        "endChar": 46
+      },
+      "revId": "0f0c633f148cf186efaecabce435f406c0c81158",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_8d44b4b7",
+        "filename": "src/list_mgr/listmgr_init.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 106,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-08-25T16:12:36Z",
+      "side": 1,
+      "message": "Could this string could be made constant?\n\n\"ENUM(\u0027\" STR_TYPE_LINK \"\u0027, \u0027\" STR_TYPE_DIR ........",
+      "revId": "0f0c633f148cf186efaecabce435f406c0c81158",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_cdf3dc9e",
+        "filename": "src/list_mgr/listmgr_init.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 125,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2016-08-25T16:12:36Z",
+      "side": 1,
+      "message": "If the space is not needed, you could use g_string_append_c instead.",
+      "revId": "0f0c633f148cf186efaecabce435f406c0c81158",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
