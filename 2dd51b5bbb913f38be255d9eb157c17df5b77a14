@@ -39,6 +39,24 @@
       "revId": "2dd51b5bbb913f38be255d9eb157c17df5b77a14",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_ee6a61b2",
+        "filename": "web_gui/newgui/api/robinhood.php",
+        "patchSetId": 1
+      },
+      "lineNbr": 26,
+      "author": {
+        "id": 1008417
+      },
+      "writtenOn": "2016-08-26T14:53:20Z",
+      "side": 1,
+      "message": "It\u0027s just a dummy function to test if the api is working (not for debug)",
+      "parentUuid": "baa041b7_7142c269",
+      "revId": "2dd51b5bbb913f38be255d9eb157c17df5b77a14",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
