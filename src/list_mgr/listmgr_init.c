@@ -353,6 +353,36 @@ static int type_cmp(const char *db_type, const char *expected)
     return strcasecmp(tmp, expect_trunc);
 }
 
+/** Return the estimated time for a conversion operation.
+ * @retval (time_t)-1 on error.
+ */
+static time_t estimated_time(db_conn_t *pconn, float avg_ent_per_sec)
+{
+    /* Entry count is always the same during listmgr init.
+     * Moreover init is run by a single thread.
+     * So we can use a static value here to avoid retrieving it
+     * multiple times. */
+    static uint64_t entry_count = UINT64_MAX;
+
+    /* get entry count if it is not set yet */
+    if (entry_count == UINT64_MAX)
+    {
+        lmgr_t lmgr;
+        int rc;
+
+        lmgr.conn = *pconn;
+        rc = ListMgr_EntryCount(&lmgr, &entry_count);
+        if (rc)
+            return -1;
+    }
+
+    /* prevent div by zero */
+    if (avg_ent_per_sec == 0.0)
+        return -1;
+
+    return ((float)entry_count)/avg_ent_per_sec;
+}
+
 static int convert_field_type(db_conn_t *pconn, const char *table,
                               const char *field, const char *type)
 /* XXX may be unused if no field type is to be checked... */
@@ -362,27 +392,14 @@ static int convert_field_type(db_conn_t *pconn, const char *table,
                               const char *field, const char *type)
 {
     char query[1024];
-    char t1[128];
-    char t2[128];
     char timestr[256] = "";
+    char t[128];
     int rc;
-    lmgr_t lmgr;
-    uint64_t count = 0;
-    time_t estimated_max = 0;
+    time_t estimated = estimated_time(pconn, 100000);
 
-    lmgr.conn = *pconn;
-
-    /* get entry count for estimating conversion time (5-10s/million entries) */
-    rc = ListMgr_EntryCount(&lmgr, &count);
-    if (rc == DB_SUCCESS)
-    {
-        /* set max to 1 in case count is small, which results in 0s-1s frame */
-        estimated_max = 1+(count/100000); /* 10s/1000000 */
-        /* min is half of it */
-        snprintf(timestr, sizeof(timestr), " (estimated duration: %s-%s)",
-                 FormatDurationFloat(t1, sizeof(t1), estimated_max/2),
-                 FormatDurationFloat(t2, sizeof(t2), estimated_max));
-    }
+    if (estimated != -1)
+        snprintf(timestr, sizeof(timestr), " (estim. duration: ~%s)",
+                 FormatDurationFloat(t, sizeof(t), estimated));
 
     snprintf(query, sizeof(query), "ALTER TABLE %s MODIFY COLUMN %s %s", table, field, type);
 
@@ -1918,12 +1935,25 @@ static int populate_acct_table(db_conn_t *pconn)
     int      i, rc;
     GString *request = NULL;
     char err_buf[1024];
+    char timestr[256] = "";
+    char t[128];
+    time_t estimated;
 
     if (acct_info_table == NULL)
         RBH_BUG("Can't populate "ACCT_TABLE" with no source table");
 
-    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Populating accounting table from existing DB content."
-               " This can take a while...");
+    estimated = estimated_time(pconn, 25000);
+
+    if (estimated != -1)
+        snprintf(timestr, sizeof(timestr), " (estim. duration: ~%s)",
+                 FormatDurationFloat(t, sizeof(t), estimated));
+
+    if (estimated > 1) /* message for long runs */
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Populating accounting table from existing DB contents."
+                   " This can take a while...%s", timestr);
+    else
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Populating accounting table from existing DB contents.");
+
     FlushLogs();
 
     /* Initial table population for already existing entries */
