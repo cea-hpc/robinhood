@@ -1756,6 +1756,34 @@ int _lmgr_flush_commit(lmgr_t *p_mgr, int behavior)
         return DB_SUCCESS;
 }
 
+int lmgr_table_count(db_conn_t *pconn, const char *table, uint64_t *count)
+{
+    char            *str_count = NULL;
+    result_handle_t  result = NULL;
+    char            *sql;
+    int              rc;
+
+    if (asprintf(&sql, "SELECT COUNT(*) FROM %s", table) == -1)
+        return DB_NO_MEMORY;
+
+    /* execute the request */
+    rc = db_exec_sql(pconn, sql, &result);
+    if (rc)
+        goto out_free;
+
+    rc = db_next_record(pconn, &result, &str_count, 1);
+    if (rc)
+        goto out_free;
+
+    if (sscanf(str_count, "%"SCNu64, count) != 1)
+        rc = DB_REQUEST_FAILED;
+
+out_free:
+    if (result != NULL)
+        db_result_free(pconn, &result);
+    free(sql);
+    return rc;
+}
 
 /**
  * If p_target_attrset attributes are unset,

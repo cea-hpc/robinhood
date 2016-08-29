@@ -353,6 +353,27 @@ static int type_cmp(const char *db_type, const char *expected)
     return strcasecmp(tmp, expect_trunc);
 }
 
+/** Return the estimated time for a conversion operation.
+ * @retval (time_t)-1 on error.
+ */
+static time_t estimated_time(db_conn_t *pconn, const char *table,
+                             float avg_ent_per_sec)
+{
+    uint64_t record_count = 0;
+
+    /* prevent div by zero */
+    if (avg_ent_per_sec == 0.0)
+        return -1;
+
+    if(lmgr_table_count(pconn, table, &record_count) != DB_SUCCESS) {
+        DisplayLog(LVL_DEBUG, LISTMGR_TAG, "Warning: lmgr_table_count(%s) failed",
+                   table);
+        return -1;
+    }
+
+    return ((float)record_count)/avg_ent_per_sec;
+}
+
 static int convert_field_type(db_conn_t *pconn, const char *table,
                               const char *field, const char *type)
 /* XXX may be unused if no field type is to be checked... */
@@ -362,27 +383,14 @@ static int convert_field_type(db_conn_t *pconn, const char *table,
                               const char *field, const char *type)
 {
     char query[1024];
-    char t1[128];
-    char t2[128];
     char timestr[256] = "";
+    char t[128];
     int rc;
-    lmgr_t lmgr;
-    uint64_t count = 0;
-    time_t estimated_max = 0;
+    time_t estimated = estimated_time(pconn, table, 100000);
 
-    lmgr.conn = *pconn;
-
-    /* get entry count for estimating conversion time (5-10s/million entries) */
-    rc = ListMgr_EntryCount(&lmgr, &count);
-    if (rc == DB_SUCCESS)
-    {
-        /* set max to 1 in case count is small, which results in 0s-1s frame */
-        estimated_max = 1+(count/100000); /* 10s/1000000 */
-        /* min is half of it */
-        snprintf(timestr, sizeof(timestr), " (estimated duration: %s-%s)",
-                 FormatDurationFloat(t1, sizeof(t1), estimated_max/2),
-                 FormatDurationFloat(t2, sizeof(t2), estimated_max));
-    }
+    if (estimated > 0)
+        snprintf(timestr, sizeof(timestr), " (estim. duration: ~%s)",
+                 FormatDurationFloat(t, sizeof(t), estimated));
 
     snprintf(query, sizeof(query), "ALTER TABLE %s MODIFY COLUMN %s %s", table, field, type);
 
@@ -492,12 +500,25 @@ static int check_field_type(int attr_index, const char* val)
 /** change field type and set its default */
 static int change_field_type(db_conn_t *pconn, table_enum table, int attr_index)
 {
+    const char      *t_name = table2name(table);
+    const char      *f_name = field_name(attr_index);
     GString *query = g_string_new(NULL);
     const db_type_u *default_val;
     int rc = 0;
+    char timestr[256] = "";
+    char t[128];
+    time_t estimated;
+
+    estimated = estimated_time(pconn, t_name, 80000);
+    if (estimated > 0)
+        snprintf(timestr, sizeof(timestr), " (estim. duration: ~%s)",
+                 FormatDurationFloat(t, sizeof(t), estimated));
+
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Converting type of '%s.%s'%s",
+               t_name, f_name, timestr);
 
     g_string_printf(query, "ALTER TABLE %s MODIFY COLUMN %s ",
-                    table2name(table), field_name(attr_index));
+                    t_name, f_name);
 
     if (is_status(attr_index))
     {
@@ -515,8 +536,6 @@ static int change_field_type(db_conn_t *pconn, table_enum table, int attr_index)
         printdbtype(pconn, query, field_type(attr_index), default_val);
     }
 
-    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Converting type of %s.%s: %s",
-               table2name(table), field_name(attr_index), query->str);
     rc = db_exec_sql(pconn, query->str, NULL);
     g_string_free(query, TRUE);
     if (rc)
@@ -529,7 +548,7 @@ static int change_field_type(db_conn_t *pconn, table_enum table, int attr_index)
         return rc;
     }
     DisplayLog(LVL_MAJOR, LISTMGR_TAG, "%s.%s successfully converted",
-               table2name(table), field_name(attr_index));
+               t_name, f_name);
     return 0;
 }
 
@@ -537,12 +556,17 @@ static int change_field_type(db_conn_t *pconn, table_enum table, int attr_index)
 static int change_field_default(db_conn_t *pconn, table_enum table,
                                 int attr_index, bool update_null)
 {
+    const char      *t_name = table2name(table);
+    const char      *f_name = field_name(attr_index);
     GString         *query = g_string_new(NULL);
     const db_type_u *defval;
     int              rc = 0;
 
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Changing default value of '%s.%s'...",
+               t_name, f_name);
+
     g_string_printf(query, "ALTER TABLE %s ALTER COLUMN %s SET DEFAULT ",
-                    table2name(table), field_name(attr_index));
+                    t_name, f_name);
 
     /* get & print default value */
     defval = default_field_value(attr_index);
@@ -559,11 +583,11 @@ static int change_field_default(db_conn_t *pconn, table_enum table,
 
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
                    "Failed to alter field '%s': Error: %s",
-                    field_name(attr_index), db_errmsg(pconn, buff, sizeof(buff)));
+                   f_name, db_errmsg(pconn, buff, sizeof(buff)));
         goto out_free;
     }
     DisplayLog(LVL_MAJOR, LISTMGR_TAG, "%s.%s default successfully changed",
-               table2name(table), field_name(attr_index));
+               t_name, f_name);
 
     if (defval == NULL || !update_null)
         goto out_free;
@@ -571,9 +595,12 @@ static int change_field_default(db_conn_t *pconn, table_enum table,
     /* If the new value is not NULL, update previous records
      * having NULL in this field */
     g_string_printf(query, "UPDATE %s SET %s=",
-                    table2name(table), field_name(attr_index));
+                    t_name, f_name);
     printdbtype(pconn, query, field_type(attr_index), defval);
-    g_string_append_printf(query, " WHERE %s is NULL", field_name(attr_index));
+    g_string_append_printf(query, " WHERE %s is NULL", f_name);
+
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Updating previous NULL values of '%s.%s'...",
+               t_name, f_name);
 
     DisplayLog(LVL_VERB, LISTMGR_TAG, "sql> %s", query->str);
     if (rc)
@@ -582,7 +609,7 @@ static int change_field_default(db_conn_t *pconn, table_enum table,
 
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
                    "Failed to update field '%s': Error: %s",
-                    field_name(attr_index), db_errmsg(pconn, buff, sizeof(buff)));
+                   f_name, db_errmsg(pconn, buff, sizeof(buff)));
     }
 
 out_free:
@@ -597,6 +624,17 @@ static int change_field_name(db_conn_t *pconn, const char *table, const char *ol
     /* syntax: ALTER TABLE <tablename> CHANGE <OldColumnName> <NewColunmName> <DATATYPE>; */
     GString *query = g_string_new(NULL);
     int rc;
+    char timestr[256] = "";
+    char t[128];
+    time_t estimated;
+
+    estimated = estimated_time(pconn, table, 60000);
+    if (estimated > 0)
+        snprintf(timestr, sizeof(timestr), " (estim. duration: ~%s)",
+                 FormatDurationFloat(t, sizeof(t), estimated));
+
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "=> Renaming old field '%s.%s' "
+               "to '%s'%s", table, old_name, new_name, timestr);
 
     g_string_printf(query, "ALTER TABLE %s CHANGE %s ", table, old_name);
     append_field_def(pconn, field_index, query, true);
@@ -657,6 +695,9 @@ static int insert_field(db_conn_t *pconn, const char *table, int def_index,
     /* syntax: ALTER TABLE <tablename> ADD <field_name> <field_type> AFTER <prev_field_name> */
     GString *query;
     int rc;
+    char timestr[256] = "";
+    char t[128];
+    time_t estimated;
 
     if (!alter_db)
     {
@@ -665,12 +706,18 @@ static int insert_field(db_conn_t *pconn, const char *table, int def_index,
         return DB_NEED_ALTER;
     }
 
+    estimated = estimated_time(pconn, table, 68000);
+
+    if (estimated > 0)
+        snprintf(timestr, sizeof(timestr), " (estim. duration: ~%s)",
+                 FormatDurationFloat(t, sizeof(t), estimated));
+
     if (prev_field)
-        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "=> Inserting field '%s' in table %s after '%s'",
-                   field_name(def_index), table, prev_field);
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "=> Inserting field '%s' in table %s after '%s'%s",
+                   field_name(def_index), table, prev_field, timestr);
     else
-        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "=> Appending field '%s' in table %s",
-                   field_name(def_index), table);
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "=> Appending field '%s' in table %s%s",
+                   field_name(def_index), table, timestr);
 
     query = g_string_new(NULL);
     g_string_printf(query, "ALTER TABLE %s ADD ", table);
@@ -701,6 +748,9 @@ static int drop_field(db_conn_t *pconn, const char *table, const char *field)
     /* syntax: ALTER TABLE <tablename> DROP <field_name> */
     GString *query;
     int rc;
+    char timestr[256] = "";
+    char t[128];
+    time_t estimated;
 
     if (!alter_db)
     {
@@ -709,8 +759,13 @@ static int drop_field(db_conn_t *pconn, const char *table, const char *field)
         return DB_NEED_ALTER;
     }
 
-    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "=> Dropping field '%s' from table %s",
-               field, table);
+    estimated = estimated_time(pconn, table, 61000);
+    if (estimated > 0)
+        snprintf(timestr, sizeof(timestr), " (estim. duration: ~%s)",
+                 FormatDurationFloat(t, sizeof(t), estimated));
+
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "=> Dropping field '%s' from table %s%s",
+               field, table, timestr);
 
     query = g_string_new(NULL);
     g_string_printf(query, "ALTER TABLE %s DROP %s", table, field);
@@ -808,10 +863,6 @@ static int check_renamed_db_field(db_conn_t *pconn, table_enum table,
                            tname, compat_table[i].new_name);
                 return -DB_NEED_ALTER;
             }
-
-            DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Renaming old field '%s.%s' "
-                       "to '%s.%s'.", tname, compat_table[i].old_name,
-                       tname, compat_table[i].new_name);
 
             rc = change_field_name(pconn, tname, compat_table[i].old_name,
                                    compat_table[i].new_name, field_index);
@@ -1918,12 +1969,21 @@ static int populate_acct_table(db_conn_t *pconn)
     int      i, rc;
     GString *request = NULL;
     char err_buf[1024];
+    char timestr[256] = "";
+    char t[128];
+    time_t estimated;
 
     if (acct_info_table == NULL)
         RBH_BUG("Can't populate "ACCT_TABLE" with no source table");
 
-    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Populating accounting table from existing DB content."
-               " This can take a while...");
+    estimated = estimated_time(pconn, MAIN_TABLE, 25000);
+
+    if (estimated > 0)
+        snprintf(timestr, sizeof(timestr), " (estim. duration: ~%s)",
+                 FormatDurationFloat(t, sizeof(t), estimated));
+
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Populating accounting table from existing DB contents."
+               " This can take a while...%s", timestr);
     FlushLogs();
 
     /* Initial table population for already existing entries */

@@ -640,4 +640,6 @@ static inline bool no_filter(const lmgr_filter_t *p_filter)
 
 bool match_table(table_enum t, unsigned int attr_index);
 
+int lmgr_table_count(db_conn_t *pconn, const char *table, uint64_t *count);
+
 #endif
