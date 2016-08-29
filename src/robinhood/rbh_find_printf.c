@@ -59,7 +59,8 @@ struct fchunk {
     /* For directives that refer to a status module attribute (for
      * instance "%R{lhsm.archive_id}"). */
     const sm_instance_t *smi;
-    unsigned int attr_index;
+    unsigned int attr_index; /**< absolute attr index */
+    unsigned int rel_sm_info_index; /**< relative index of sm_info attr */
     const sm_info_def_t *def;
 };
 
@@ -427,18 +428,19 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
                     return NULL;
                 }
 
+                attr_mask_set_index(&disp_mask, chunk->attr_index);
+
                 if (strcmp(chunk->def->user_name, "status") == 0) {
                     /* status is a special case. Change the directive
                      * for print_entry(). */
                     chunk->sub_directive = SUB_DIRECTIVE_STATUS;
-                    disp_mask.status |= SMI_MASK(chunk->smi->smi_index);
                     g_string_append_c(chunk->format, 's');
 
                     break;
                 }
 
-                disp_mask.sm_info |= smi_info_bit(chunk->smi, chunk->attr_index);
-                chunk->attr_index = attr2sminfo_index(chunk->attr_index);
+                chunk->rel_sm_info_index = attr2sminfo_index(chunk->attr_index)
+                                           - chunk->smi->sm_info_offset;
 
                 /* The format for that attribute */
                 switch(chunk->def->db_type)
@@ -673,23 +675,23 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
                 break;
 
             case 'm':
-                if (ATTR_MASK_INFO_TEST(attrs, chunk->smi, chunk->attr_index))
+                if (ATTR_MASK_INFO_TEST(attrs, chunk->smi, chunk->rel_sm_info_index))
                 {
                     switch (chunk->def->db_type) {
                     case DB_UINT:
-                        printf(format, *(unsigned int *)SMI_INFO(attrs, chunk->smi, chunk->attr_index));
+                        printf(format, *(unsigned int *)SMI_INFO(attrs, chunk->smi, chunk->rel_sm_info_index));
                         break;
 
                     case DB_INT:
-                        printf(format, *(int *)SMI_INFO(attrs, chunk->smi, chunk->attr_index));
+                        printf(format, *(int *)SMI_INFO(attrs, chunk->smi, chunk->rel_sm_info_index));
                         break;
 
                     case DB_BOOL:
-                        printf(format, *(bool *)SMI_INFO(attrs, chunk->smi, chunk->attr_index));
+                        printf(format, *(bool *)SMI_INFO(attrs, chunk->smi, chunk->rel_sm_info_index));
                         break;
 
                     case DB_TEXT:
-                        printf(format, SMI_INFO(attrs, chunk->smi, chunk->attr_index));
+                        printf(format, SMI_INFO(attrs, chunk->smi, chunk->rel_sm_info_index));
                         break;
 
                     default:

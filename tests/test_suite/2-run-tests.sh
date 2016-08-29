@@ -8131,7 +8131,12 @@ function test_rbh_find_printf
 	check_db_error rh_chglogs.log
     fi
 
-    echo "5-rbh-find checks"
+    echo "5-Run checksum policy"
+    local before_run=$(date +%s)
+    $RH -f $RBH_CFG_DIR/$config_file --run=checksum --target=all -I -l DEBUG -L stdout | grep "Policy run summary"
+    local after_run=$(date +%s)
+
+    echo "6-rbh-find checks"
 
     # Basic functionality
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "")
@@ -8209,7 +8214,7 @@ function test_rbh_find_printf
 
     # Test each Robinhood sub-directive
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf " %Rc rh class\n")
-    [[ $STR == " [n/a] rh class" ]] || error "unexpected rbh-find result (200): $STR"
+    [[ $STR == " [none] rh class" ]] || error "unexpected rbh-find result (200): $STR"
 
     if (( $lustre_major >= 2 )); then
 	# exact match
@@ -8268,7 +8273,7 @@ function test_rbh_find_printf
 
     # Test various combinations
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "FILE %p %s %Y %y %Rc %u %n and stop\n")
-    [[ $STR == "FILE $srcfile 1024 file f [n/a] $root_str 1 and stop" ]] || error "unexpected rbh-find result (300): $STR"
+    [[ $STR == "FILE $srcfile 1024 file f [none] $root_str 1 and stop" ]] || error "unexpected rbh-find result (300): $STR"
 
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%s\t%d\t%y")
     [[ $STR == "1024	1	f" ]] || error "unexpected rbh-find result (301): $STR"
@@ -8296,6 +8301,15 @@ function test_rbh_find_printf
         STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{lhsm.status}")
         [[ $STR == "synchro" ]] || error "unexpected rbh-find result (406): $STR"
     fi
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{checksum.last_check}")
+    # last check must be between before_run and after_run
+    if [[ -z "$STR" ]] || (( $STR < $before_run )) || (( $STR > $after_run )); then
+        error "Unexpected checksum timestamp (407): $STR"
+    fi
+
+    STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{checksum.status}")
+    [[ $STR == "ok" ]] || error "unexpected rbh-find result (408): $STR"
 
     # With some formatting options
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "file='%15f' size=%09s")
@@ -11699,7 +11713,7 @@ run_test 507a     recov_filters  test_recov.conf  dir    "FS recovery with dir f
 run_test 507b     recov_filters  test_recov2.conf  dir    "FS recovery with dir filter (archive_symlinks=FALSE)"
 run_test 508    test_tokudb "Test TokuDB compression"
 run_test 509    test_cfg_overflow "config options too long"
-run_test 510    test_rbh_find_printf test1.conf "Test rbh-find with -printf option"
+run_test 510    test_rbh_find_printf test_checker.conf "Test rbh-find with -printf option"
 run_test 511    archive_uuid1 test_uuid.conf "Test UUID presence while scanning"
 run_test 512    archive_uuid2 test_uuid.conf "Archive and undelete file with UUID using changelogs"
 
