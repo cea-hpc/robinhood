@@ -9,6 +9,8 @@
 # specific deprecated symbol/functions/include lists rather than
 # Documentation/feature-removal-schedule.txt.
 
+# TL 2014/12/18: no tabs
+
 use strict;
 
 my $P = $0;
@@ -132,6 +134,10 @@ if ($#ARGV < 0) {
 }
 
 @ignore = split(/,/, join(',',@ignore));
+
+# __packed if for kernel land
+push @ignore, 'PREFER_PACKED';
+
 foreach my $word (@ignore) {
 	$word =~ s/\s*\n?$//g;
 	$word =~ s/^\s*//g;
@@ -301,6 +307,8 @@ our @typeList = (
 	qr{${Ident}_t},
 	qr{${Ident}_handler},
 	qr{${Ident}_handler_fn},
+    qr{G[A-Z][a-z]+}, # match glib types such as (GString, GHash, ...)
+    qr{g[a-z]+}, # match glib types such as (gchar, gpointer, ...)
 );
 our @modifierList = (
 	qr{fastcall},
@@ -1851,33 +1859,13 @@ sub process {
 # check we are in a valid source file C or perl if not then ignore this hunk
 		next if ($realfile !~ /\.(h|c|pl)$/);
 
-# at the beginning of a line any tabs must come first and anything
-# more than 8 must use tabs.
-		if ($rawline =~ /^\+\s* \t\s*\S/ ||
-		    $rawline =~ /^\+\s*        \s*/) {
+
+        if ($rawline =~ /^\+/ && $rawline =~ /\t/) {
 			my $herevet = "$here\n" . cat_vet($rawline) . "\n";
-			ERROR("CODE_INDENT",
-			      "code indent should use tabs where possible\n" . $herevet);
+			ERROR("TABS",
+			      "please, don't use tabs\n" . $herevet);
 			$rpt_cleaners = 1;
-		}
-
-# check for space before tabs.
-		if ($rawline =~ /^\+/ && $rawline =~ / \t/) {
-			my $herevet = "$here\n" . cat_vet($rawline) . "\n";
-			WARN("SPACE_BEFORE_TAB",
-			     "please, no space before tabs\n" . $herevet);
-		}
-
-# check for spaces at the beginning of a line.
-# Exceptions:
-#  1) within comments
-#  2) indented preprocessor commands
-#  3) hanging labels
-		if ($rawline =~ /^\+ / && $line !~ /\+ *(?:$;|#|$Ident:)/)  {
-			my $herevet = "$here\n" . cat_vet($rawline) . "\n";
-			WARN("LEADING_SPACE",
-			     "please, no spaces at the start of a line\n" . $herevet);
-		}
+        }
 
 # check we are in a valid C source file if not then ignore this hunk
 		next if ($realfile !~ /\.(h|c)$/);
@@ -2133,7 +2121,7 @@ sub process {
 
 			#print "line<$line> prevline<$prevline> indent<$indent> sindent<$sindent> check<$check> continuation<$continuation> s<$s> cond_lines<$cond_lines> stat_real<$stat_real> stat<$stat>\n";
 
-			if ($check && (($sindent % 8) != 0 ||
+			if ($check && (($sindent % 4) != 0 ||
 			    ($sindent <= $indent && $s ne ''))) {
 				WARN("SUSPECT_CODE_INDENT",
 				     "suspect code indent for conditional statements ($indent, $sindent)\n" . $herecurr . "$stat_real\n");
@@ -3206,12 +3194,6 @@ sub process {
 			     "__aligned(size) is preferred over __attribute__((aligned(size)))\n" . $herecurr);
 		}
 
-# Check for __attribute__ format(printf, prefer __printf
-		if ($line =~ /\b__attribute__\s*\(\s*\(\s*format\s*\(\s*printf/) {
-			WARN("PREFER_PRINTF",
-			     "__printf(string-index, first-to-check) is preferred over __attribute__((format(printf, string-index, first-to-check)))\n" . $herecurr);
-		}
-
 # check for sizeof(&)
 		if ($line =~ /\bsizeof\s*\(\s*\&/) {
 			WARN("SIZEOF_ADDRESS",
@@ -3483,13 +3465,13 @@ sub process {
 		}
 	}
 
-	if (keys %ignore_type) {
-	    print "NOTE: Ignored message types:";
-	    foreach my $ignore (sort keys %ignore_type) {
-		print " $ignore";
-	    }
-	    print "\n";
-	    print "\n" if ($quiet == 0);
+	if ((keys %ignore_type) && ($quiet == 0)) {
+        print "NOTE: Ignored message types:";
+        foreach my $ignore (sort keys %ignore_type) {
+        print " $ignore";
+        }
+        print "\n";
+        print "\n" if ($quiet == 0);
 	}
 
 	if ($clean == 1 && $quiet == 0) {
