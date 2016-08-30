@@ -5524,11 +5524,12 @@ function db_schema_convert
 
     # robinhood should have suggested to run '--alter-db'
     grep "Run 'robinhood --alter-db'" rh.log || error "robinhood should have reported DB schema changes"
-    # it should detect if default size is not zero
-    grep "default value of field 'ENTRIES.size' must be changed" rh.log || error "robinhood should detect change of default size"
+    # it should change the default size
+    grep "Changing default value of 'ENTRIES.size'" rh.log || error "default value should have been changed"
+    grep "ALTER COLUMN size SET DEFAULT 0" rh.log || error "change of default size expected"
 
-    # no ALTER TABLE expected
-    grep "ALTER TABLE" rh.log && error "no ALTER TABLE expected"
+    # no other ALTER TABLE expected
+    grep -v "SET DEFAULT" rh.log | grep "ALTER TABLE" && error "no ALTER TABLE expected"
 
     :> rh.log
     echo "robinhood --alter-db"
@@ -5537,7 +5538,6 @@ function db_schema_convert
 
     [ "$DEBUG" = "1" ] && cat rh.log
     grep "ALTER TABLE" rh.log || error "ALTER TABLE expected"
-    grep "ALTER COLUMN size SET DEFAULT 0" rh.log || error "change of default size expected"
 
     # after alter, no more DB change should be reported
     :> rh.log

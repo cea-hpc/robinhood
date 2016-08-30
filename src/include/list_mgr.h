@@ -582,8 +582,10 @@ typedef struct lmgr_sort_type_t
 /* -------- Main functions -------- */
 
 enum lmgr_init_flags {
-    LIF_REPORT_ONLY = (1 << 0), /* report only, no action on DB schema */
-    LIF_ALTER_DB    = (1 << 1), /* allow altering DB (insert/drop fields) */
+    LIF_REPORT_ONLY = (1 << 0), /**< report only, no action on DB schema */
+    LIF_ALTER_DB    = (1 << 1), /**< allow altering DB (insert/drop fields) */
+
+    LIF_ALTER_NODISP = (1 << 2), /**< INTERNAL USE ONLY */
 };
 
 /** Initialize the List Manager */

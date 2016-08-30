@@ -31,6 +31,7 @@ static const char *acct_info_table = NULL;
 static enum lmgr_init_flags init_flags;
 #define report_only (!!(init_flags & LIF_REPORT_ONLY))
 #define alter_db    (!!(init_flags & LIF_ALTER_DB))
+#define alter_no_display (!!(init_flags & LIF_ALTER_NODISP))
 
 #define MAX_DB_FIELDS 64
 
@@ -517,6 +518,9 @@ static int change_field_type(db_conn_t *pconn, table_enum table, int attr_index)
     DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Converting type of '%s.%s'%s",
                t_name, f_name, timestr);
 
+    DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Converting type of '%s.%s'...",
+               table2name(table), field_name(attr_index));
+
     g_string_printf(query, "ALTER TABLE %s MODIFY COLUMN %s ",
                     t_name, f_name);
 
@@ -701,8 +705,9 @@ static int insert_field(db_conn_t *pconn, const char *table, int def_index,
 
     if (!alter_db)
     {
-        DisplayLog(LVL_CRIT, LISTMGR_TAG, "DB schema change detected: field '%s.%s' must be added "
-                   " => Run 'robinhood --alter-db' to apply this change.", table, field_name(def_index));
+        if (!alter_no_display)
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "DB schema change detected: field '%s.%s' must be added "
+                       " => Run 'robinhood --alter-db' to apply this change.", table, field_name(def_index));
         return DB_NEED_ALTER;
     }
 
@@ -754,8 +759,9 @@ static int drop_field(db_conn_t *pconn, const char *table, const char *field)
 
     if (!alter_db)
     {
-        DisplayLog(LVL_CRIT, LISTMGR_TAG, "DB schema change detected: field '%s.%s' must be DROPPED "
-                   " => Run 'robinhood --alter-db' to confirm this change.", table, field);
+        if (!alter_no_display)
+            DisplayLog(LVL_CRIT, LISTMGR_TAG, "DB schema change detected: field '%s.%s' must be DROPPED "
+                       " => Run 'robinhood --alter-db' to confirm this change.", table, field);
         return DB_NEED_ALTER;
     }
 
@@ -856,11 +862,12 @@ static int check_renamed_db_field(db_conn_t *pconn, table_enum table,
         {
             if (!alter_db)
             {
-                DisplayLog(LVL_CRIT, LISTMGR_TAG, "DB schema change detected: "
-                           "field '%s.%s' renamed to '%s.%s' "
-                           " => Run 'robinhood --alter-db' to apply this change.",
-                           tname, compat_table[i].old_name,
-                           tname, compat_table[i].new_name);
+                if (!alter_no_display)
+                    DisplayLog(LVL_CRIT, LISTMGR_TAG, "DB schema change detected: "
+                               "field '%s.%s' renamed to '%s.%s' "
+                               " => Run 'robinhood --alter-db' to apply this change.",
+                               tname, compat_table[i].old_name,
+                               tname, compat_table[i].new_name);
                 return -DB_NEED_ALTER;
             }
 
@@ -987,9 +994,10 @@ static int check_and_fix_def(db_conn_t *pconn, table_enum table, int def_index,
     {
         if (!alter_db)
         {
-            DisplayLog(LVL_CRIT, LISTMGR_TAG, "DB schema change detected: type of field '%s.%s' must be changed "
-                       " => Run 'robinhood --alter-db' to confirm this change.",
-                       table2name(table), field_name(def_index));
+            if (!alter_no_display)
+                DisplayLog(LVL_CRIT, LISTMGR_TAG, "DB schema change detected: type of field '%s.%s' must be changed "
+                           " => Run 'robinhood --alter-db' to confirm this change.",
+                           table2name(table), field_name(def_index));
             return DB_NEED_ALTER;
         }
 
@@ -1007,14 +1015,7 @@ static int check_and_fix_def(db_conn_t *pconn, table_enum table, int def_index,
     /* check field default value */
     if (!default_was_set && check_field_default(def_index, db_default) != 0)
     {
-        if (!alter_db)
-        {
-            DisplayLog(LVL_CRIT, LISTMGR_TAG, "DB schema change detected: default value of field '%s.%s' must be changed "
-                       " => Run 'robinhood --alter-db' to confirm this change.",
-                       table2name(table), field_name(def_index));
-            return DB_NEED_ALTER;
-        }
-
+        /* This is light: don't need 'alterdb' to change default value */
         rc = change_field_default(pconn, table, def_index,
                                   db_default == NULL);
         if (rc)
@@ -1905,6 +1906,8 @@ static int check_table_acct(db_conn_t *pconn)
                 /* only shuffling is allowed in PK, no insert/drop */
                 /* => force no alter_db */
                 init_flags &= ~LIF_ALTER_DB;
+                /* Also, don't ask to run --alter-db */
+                init_flags |= LIF_ALTER_NODISP;
                 rc = check_and_fix_field(pconn, i, &curr_field_index, T_ACCT_PK,
                                          fieldtab, typetab, defaulttab,
                                          main_name_compat, &last, false);
