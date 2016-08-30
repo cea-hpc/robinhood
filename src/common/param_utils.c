@@ -32,8 +32,8 @@
  * @param[in,out] udata user data (udata parameter from placeholder_foreach()).
  * @return 0 on success, an error code on failure.
  */
-typedef int (*placeholder_func_t)(const char *name, int start_idx,
-                                  int end_idx, void *udata);
+typedef int (*placeholder_func_t) (const char *name, int start_idx,
+                                   int end_idx, void *udata);
 
 /** check if a string matches a variable name */
 static bool match_varname(const char *str, int len)
@@ -41,7 +41,7 @@ static bool match_varname(const char *str, int len)
     int i;
 
     if (len == 0)
-        return true; /* allowed empty var */
+        return true;    /* allowed empty var */
 
     /* letter expected as first char */
     if (!isalpha(str[0]))
@@ -57,7 +57,7 @@ static bool match_varname(const char *str, int len)
 
 /** placeholder iterator flags */
 typedef enum {
-    PH_ALLOW_EMPTY   = (1 << 0), /**< allow empty variable names */
+    PH_ALLOW_EMPTY = (1 << 0),   /**< allow empty variable names */
     PH_STRICT_BRACES = (1 << 1), /**< strictly check open/close braces */
 } ph_flags_t;
 
@@ -73,17 +73,16 @@ typedef enum {
  * @return 0 on success, an error code on failure.
  */
 static int placeholder_foreach(const char *str, const char *str_descr,
-                        placeholder_func_t ph_func, void *udata,
-                        ph_flags_t flags)
+                               placeholder_func_t ph_func, void *udata,
+                               ph_flags_t flags)
 {
     const char *pass_begin = str;
 
-    do
-    {
+    do {
         const char *begin_var;
         const char *end_var = NULL;
-        char       *var_name;
-        int         rc;
+        char *var_name;
+        int rc;
 
         /* Look for {var} patterns, allowing the usage of {}'s for other
          * purposes (like JSON format).
@@ -99,36 +98,31 @@ static int placeholder_foreach(const char *str, const char *str_descr,
             end_var = strchr(pass_begin, '}');
 
         /* no more variables */
-        if (!begin_var)
-        {
-            if ((flags & PH_STRICT_BRACES) && (end_var != NULL))
-            {
-                DisplayLog(LVL_CRIT, PARAMS_TAG, "ERROR: unexpected '}' near '%s' in %s",
-                           pass_begin, str_descr);
+        if (!begin_var) {
+            if ((flags & PH_STRICT_BRACES) && (end_var != NULL)) {
+                DisplayLog(LVL_CRIT, PARAMS_TAG,
+                           "ERROR: unexpected '}' near '%s' in %s", pass_begin,
+                           str_descr);
                 return -EINVAL;
             }
             /* don't check '}' */
             break;
         }
 
-        if (flags & PH_STRICT_BRACES)
-        {
-            if (end_var == NULL)
-            {
+        if (flags & PH_STRICT_BRACES) {
+            if (end_var == NULL) {
                 DisplayLog(LVL_CRIT, PARAMS_TAG, "ERROR: unmatched '{' in %s",
                            str_descr);
                 return -EINVAL;
-            }
-            else if (end_var < begin_var)
-            {
-                DisplayLog(LVL_CRIT, PARAMS_TAG, "ERROR: unexpected '}' near '%.*s' in %s",
-                           (int)(begin_var - pass_begin + 1), pass_begin, str_descr);
+            } else if (end_var < begin_var) {
+                DisplayLog(LVL_CRIT, PARAMS_TAG,
+                           "ERROR: unexpected '}' near '%.*s' in %s",
+                           (int)(begin_var - pass_begin + 1), pass_begin,
+                           str_descr);
                 return -EINVAL;
             }
             /* end_var is already set and is after begin_var */
-        }
-        else
-        {
+        } else {
             /* get the first matching '}' after '{' */
             end_var = strchr(begin_var, '}');
             /* no strict braces control: allow no closing brace */
@@ -136,8 +130,7 @@ static int placeholder_foreach(const char *str, const char *str_descr,
                 break;
         }
 
-        if (!(flags & PH_ALLOW_EMPTY) && (end_var == begin_var + 1))
-        {
+        if (!(flags & PH_ALLOW_EMPTY) && (end_var == begin_var + 1)) {
             DisplayLog(LVL_CRIT, PARAMS_TAG, "ERROR: empty var name in %s",
                        str_descr);
             return -EINVAL;
@@ -145,13 +138,13 @@ static int placeholder_foreach(const char *str, const char *str_descr,
 
         /* if the section between braces doesn't match a variable name,
          * skip the opening braces to look for a '{var}' section */
-        if (!match_varname(begin_var + 1, end_var - begin_var - 1))
-        {
+        if (!match_varname(begin_var + 1, end_var - begin_var - 1)) {
             /* unexpected format */
-            if (flags & PH_STRICT_BRACES)
-            {
-                DisplayLog(LVL_CRIT, PARAMS_TAG, "Unexpected variable syntax near '%.*s' in %s",
-                           (int)(end_var - begin_var + 1), begin_var, str_descr);
+            if (flags & PH_STRICT_BRACES) {
+                DisplayLog(LVL_CRIT, PARAMS_TAG,
+                           "Unexpected variable syntax near '%.*s' in %s",
+                           (int)(end_var - begin_var + 1), begin_var,
+                           str_descr);
                 return -EINVAL;
             }
 
@@ -165,7 +158,8 @@ static int placeholder_foreach(const char *str, const char *str_descr,
             return -ENOMEM;
 
 #ifdef _DEBUG_POLICIES
-        fprintf(stderr, "processing variable '%s' in %s\n", var_name, str_descr);
+        fprintf(stderr, "processing variable '%s' in %s\n", var_name,
+                str_descr);
 #endif
 
         rc = ph_func(var_name, begin_var - str, end_var - str, udata);
@@ -175,7 +169,7 @@ static int placeholder_foreach(const char *str, const char *str_descr,
 
         pass_begin = end_var + 1;
 
-    } while(1);
+    } while (1);
 
     return 0;
 }
@@ -184,14 +178,14 @@ static int placeholder_foreach(const char *str, const char *str_descr,
  * Function to get the value of a placeholder.
  * @param[out] free_str whether the returned value must be freed.
  */
-typedef char *(*param_value_get_func_t)(const entry_id_t *id,
-                                        const attr_set_t *attrs,
-                                        int attr_index, bool *free_str);
+typedef char *(*param_value_get_func_t) (const entry_id_t *id,
+                                         const attr_set_t *attrs,
+                                         int attr_index, bool *free_str);
 
 /** information about placeholder values */
 struct param_descr {
-    const char            *name;
-    int                    attr_index; /**< -1 for none */
+    const char *name;
+    int attr_index;                    /**< -1 for none */
     param_value_get_func_t get_func;
 };
 
@@ -203,16 +197,16 @@ static char *get_str_attr(const entry_id_t *id, const attr_set_t *attrs,
 {
     *free_str = false;
 
-    if (attrs == NULL)
-    {
-        DisplayLog(LVL_MAJOR, PARAMS_TAG, "ERROR: entry attributes are not available in this context");
+    if (attrs == NULL) {
+        DisplayLog(LVL_MAJOR, PARAMS_TAG,
+                   "ERROR: entry attributes are not available in this context");
         return NULL;
     }
-    if (!attr_mask_test_index(&attrs->attr_mask, attr_index))
-    {
+    if (!attr_mask_test_index(&attrs->attr_mask, attr_index)) {
         /* for getting field_name in field_info array */
         assert(attr_index < 32);
-        DisplayLog(LVL_MAJOR, PARAMS_TAG, "ERROR: missing attribute '%s' to perform variable substitution",
+        DisplayLog(LVL_MAJOR, PARAMS_TAG,
+                   "ERROR: missing attribute '%s' to perform variable substitution",
                    field_infos[attr_index].field_name);
         return NULL;
     }
@@ -229,13 +223,13 @@ static char *get_str_attr(const entry_id_t *id, const attr_set_t *attrs,
 
 /** return a fid string representation */
 static char *get_fid_str(const entry_id_t *id, const attr_set_t *attrs,
-                  int attr_index, bool *free_str)
+                         int attr_index, bool *free_str)
 {
     char *fid_str;
 
-    if (id == NULL)
-    {
-        DisplayLog(LVL_MAJOR, PARAMS_TAG, "ERROR: entry fid is not available in this context");
+    if (id == NULL) {
+        DisplayLog(LVL_MAJOR, PARAMS_TAG,
+                   "ERROR: entry fid is not available in this context");
         return NULL;
     }
 
@@ -248,7 +242,7 @@ static char *get_fid_str(const entry_id_t *id, const attr_set_t *attrs,
 
 /** return FS name */
 static char *get_fsname_param(const entry_id_t *id, const attr_set_t *attrs,
-                       int attr_index, bool *free_str)
+                              int attr_index, bool *free_str)
 {
     *free_str = false;
     return (char *)get_fsname();
@@ -256,7 +250,7 @@ static char *get_fsname_param(const entry_id_t *id, const attr_set_t *attrs,
 
 /** return FS root directory */
 static char *get_fsroot_param(const entry_id_t *id, const attr_set_t *attrs,
-                       int attr_index, bool *free_str)
+                              int attr_index, bool *free_str)
 {
     *free_str = false;
     return (char *)global_config.fs_path;
@@ -264,15 +258,14 @@ static char *get_fsroot_param(const entry_id_t *id, const attr_set_t *attrs,
 
 /** return path to robinhood configuration file */
 static char *get_cfg_param(const entry_id_t *id, const attr_set_t *attrs,
-                       int attr_index, bool *free_str)
+                           int attr_index, bool *free_str)
 {
     *free_str = false;
     return (char *)config_file_path();
 }
 
 /** standard parameters allowed in placeholders */
-static const struct param_descr std_params[] =
-{
+static const struct param_descr std_params[] = {
     /* entry attributes std params */
     {"name", ATTR_INDEX_name, get_str_attr},
     {"path", ATTR_INDEX_fullpath, get_str_attr},
@@ -293,24 +286,21 @@ static const struct param_descr std_params[] =
 /** get the std parameter descriptor for the given name */
 static const struct param_descr *get_stdarg(const char *name)
 {
-    const struct param_descr   *c;
+    const struct param_descr *c;
 
-    for (c = &std_params[0]; c->name != NULL; c++)
-    {
+    for (c = &std_params[0]; c->name != NULL; c++) {
         if (!strcasecmp(c->name, name))
             return c;
     }
     return NULL;
 }
 
-
 /** argument structure for set_param_mask() callback */
-struct set_param_mask_args
-{
+struct set_param_mask_args {
     /** description of the string being parsed */
-    const char               *str_descr;
+    const char *str_descr;
     /** mask being built (to be returned by params_mask()) */
-    attr_mask_t               mask;
+    attr_mask_t mask;
 };
 
 /** callback function to generate std params mask */
@@ -318,15 +308,14 @@ static int set_param_mask(const char *name, int begin_idx, int end_idx,
                           void *udata)
 {
     struct set_param_mask_args *args = udata;
-    const struct param_descr   *a;
+    const struct param_descr *a;
 
     if (unlikely(args == NULL))
         return -EINVAL;
 
     /* only std parameters have a mask */
     a = get_stdarg(name);
-    if (a != NULL)
-    {
+    if (a != NULL) {
         if (a->attr_index != -1)
             attr_mask_set_index(&args->mask, a->attr_index);
     }
@@ -338,14 +327,13 @@ static int set_param_mask(const char *name, int begin_idx, int end_idx,
 attr_mask_t params_mask(const char *str, const char *str_descr, bool *err)
 {
     struct set_param_mask_args args = {
-        .mask        = {0},
-        .str_descr   = str_descr
+        .mask = {0},
+        .str_descr = str_descr
     };
 
     *err = false;
 
-    if (placeholder_foreach(str, str_descr, set_param_mask, (void*)&args, 0))
-    {
+    if (placeholder_foreach(str, str_descr, set_param_mask, (void *)&args, 0)) {
         *err = true;
         return null_mask;
     }
@@ -354,28 +342,27 @@ attr_mask_t params_mask(const char *str, const char *str_descr, bool *err)
 }
 
 /** argument structure for build_cmd() callback */
-struct build_cmd_args
-{
+struct build_cmd_args {
     bool quote;
 
     /** entry id, attrs, ... */
     const entry_id_t *id;
     const attr_set_t *attrs;
     /** arbitrary parameters */
-    const struct rbh_params  *user_params;
+    const struct rbh_params *user_params;
     /** additional parameters */
-    const char              **addl_params;
+    const char **addl_params;
     /** status manager instance from context */
-    const sm_instance_t      *smi;
+    const sm_instance_t *smi;
     /** description of the string being parsed */
-    const char               *str_descr;
+    const char *str_descr;
     /** original string passed to subst_cmd_params() */
-    const char               *orig_str;
+    const char *orig_str;
     /** index following the last processed placeholder in orig_str */
-    int                       last_idx;
+    int last_idx;
     /** String being built (to be returned by subst_cmd_params()).
      * Initially allocated and empty (""). */
-    GString                  *out_str;
+    GString *out_str;
 };
 
 char *quote_shell_arg(const char *arg)
@@ -384,7 +371,7 @@ char *quote_shell_arg(const char *arg)
     char *arg_walk, *quoted, *quoted_walk;
     int count = 0;
 
-    arg_walk = (char *) arg;
+    arg_walk = (char *)arg;
     while (*arg_walk) {
         if (*arg_walk == '\'') {
             ++count;
@@ -405,7 +392,7 @@ char *quote_shell_arg(const char *arg)
     *quoted_walk = '\'';
     ++quoted_walk;
 
-    arg_walk = (char *) arg;
+    arg_walk = (char *)arg;
     while (*arg_walk) {
         if (*arg_walk == '\'') {
             strcat(quoted_walk, replace_with);
@@ -427,11 +414,11 @@ char *quote_shell_arg(const char *arg)
 /** callback function to build a command by replacing placeholders. */
 static int build_cmd(const char *name, int begin_idx, int end_idx, void *udata)
 {
-    struct build_cmd_args      *args = udata;
-    const char                 *val = NULL;
-    char                       *quoted_arg = NULL;
-    bool                        free_val = false;
-    int                         rc;
+    struct build_cmd_args *args = udata;
+    const char *val = NULL;
+    char *quoted_arg = NULL;
+    bool free_val = false;
+    int rc;
 
     if (unlikely(args == NULL))
         return -EINVAL;
@@ -448,12 +435,10 @@ static int build_cmd(const char *name, int begin_idx, int end_idx, void *udata)
         val = rbh_param_get(args->user_params, name);
 
     /* 2) search in std parameters */
-    if (val == NULL)
-    {
+    if (val == NULL) {
         const struct param_descr *a = get_stdarg(name);
 
-        if (a != NULL)
-        {
+        if (a != NULL) {
             val = a->get_func(args->id, args->attrs, a->attr_index, &free_val);
             if (val == NULL)
                 return -ENOENT;
@@ -461,36 +446,30 @@ static int build_cmd(const char *name, int begin_idx, int end_idx, void *udata)
     }
 
     /* 3) search in additional parameters */
-    if (val == NULL && args->addl_params != NULL)
-    {
+    if (val == NULL && args->addl_params != NULL) {
         const char **cp;
 
-        for (cp = &args->addl_params[0]; *cp != NULL; cp += 2)
-        {
+        for (cp = &args->addl_params[0]; *cp != NULL; cp += 2) {
             if (!strcasecmp(cp[0], name))
                 val = (char *)cp[1];
         }
     }
 
     /* 4) search in policy-specific parameters (status, specific info...) */
-    if (val == NULL)
-    {
+    if (val == NULL) {
         void *pval;
         const sm_info_def_t *def;
         unsigned int idx;
 
         rc = sm_attr_get(args->smi, args->attrs, name, &pval, &def, &idx);
-        if (rc == 0)
-        {
+        if (rc == 0) {
             GString *gs = g_string_new("");
 
             ListMgr_PrintAttrPtr(gs, def->db_type, pval, "");
             val = gs->str;
             free_val = true;
             g_string_free(gs, FALSE);
-        }
-        else if (rc == -ENODATA)
-        {
+        } else if (rc == -ENODATA) {
             /* parameter exists but is not set.
              * No previous value was found, use empty string instead.
              */
@@ -498,39 +477,35 @@ static int build_cmd(const char *name, int begin_idx, int end_idx, void *udata)
         }
     }
 
-    if (val == NULL)
-    {
+    if (val == NULL) {
         /* not found */
-        DisplayLog(LVL_CRIT, PARAMS_TAG, "ERROR: unexpected variable '%s' in %s",
-                   name, args->str_descr);
+        DisplayLog(LVL_CRIT, PARAMS_TAG,
+                   "ERROR: unexpected variable '%s' in %s", name,
+                   args->str_descr);
         return -EINVAL;
     }
 
-    if (args->quote)
-    {
+    if (args->quote) {
         /* quote the value and append it to command line */
         quoted_arg = quote_shell_arg(val);
-        if (!quoted_arg)
-        {
+        if (!quoted_arg) {
             rc = -ENOMEM;
             goto out_free;
         }
 
         g_string_append(args->out_str, quoted_arg);
-    }
-    else
+    } else
         g_string_append(args->out_str, val);
 
     args->last_idx = end_idx + 1;
     rc = 0;
 
-out_free:
+ out_free:
     free(quoted_arg);
     if (free_val)
-        free((char*)val);
+        free((char *)val);
     return rc;
 }
-
 
 char *subst_params(const char *str_in,
                    const char *str_descr,
@@ -560,22 +535,24 @@ char *subst_params(const char *str_in,
     if (!args.out_str || !args.str_descr)
         goto err_free;
 
-    if (placeholder_foreach(str_in, args.str_descr, build_cmd, (void*)&args,
-                       PH_ALLOW_EMPTY | (strict_braces ? PH_STRICT_BRACES : 0)))
+    if (placeholder_foreach(str_in, args.str_descr, build_cmd, (void *)&args,
+                            PH_ALLOW_EMPTY | (strict_braces ? PH_STRICT_BRACES :
+                                              0)))
         goto err_free;
 
     /* append the end of the string */
     if (args.last_idx < strlen(str_in))
-         g_string_append(args.out_str, str_in + args.last_idx);
+        g_string_append(args.out_str, str_in + args.last_idx);
 
     /* don't release the string itself (freed by the caller) */
     ret = args.out_str->str;
     g_string_free(args.out_str, FALSE);
 
-    DisplayLog(LVL_FULL, PARAMS_TAG, "'%s'->'%s' in %s", str_in, ret, str_descr);
+    DisplayLog(LVL_FULL, PARAMS_TAG, "'%s'->'%s' in %s", str_in, ret,
+               str_descr);
     return ret;
 
-err_free:
+ err_free:
     if (args.out_str)
         g_string_free(args.out_str, TRUE);
     return NULL;
@@ -592,8 +569,7 @@ int subst_shell_params(char **cmd_in,
                        const action_params_t *params,
                        const char **subst_array,
                        const struct sm_instance *smi,
-                       bool strict_braces,
-                       char ***cmd_out)
+                       bool strict_braces, char ***cmd_out)
 {
     int i;
     char **out_av;
@@ -603,7 +579,8 @@ int subst_shell_params(char **cmd_in,
         return -EINVAL;
 
     /* count ac once to allocate properly */
-    for (ac = 0; cmd_in[ac]; ac++);
+    for (ac = 0; cmd_in[ac]; ac++)
+        ;
 
     /* allocate out_av, NULL terminated char array */
     out_av = calloc(sizeof(*out_av), ac + 1);
@@ -618,19 +595,19 @@ int subst_shell_params(char **cmd_in,
                    cmd_in[i], out_av[i], str_descr);
     }
 
-
     *cmd_out = out_av;
 
     /* don't release out_av (freed by the caller) */
     return 0;
 
-err_free:
+ err_free:
     g_strfreev(out_av);
     /* only EINVAL for now, might expand that if we explode subst_params */
     return -EINVAL;
 }
 
-char *concat_cmd(char **cmd) {
+char *concat_cmd(char **cmd)
+{
     GString *built_command;
     char *out_str;
     int i;
@@ -639,7 +616,7 @@ char *concat_cmd(char **cmd) {
         return NULL;
 
     built_command = g_string_new(cmd[0]);
-    for (i=1; cmd[i]; i++) {
+    for (i = 1; cmd[i]; i++) {
         g_string_append_c(built_command, ' ');
         g_string_append(built_command, cmd[i]);
     }
@@ -651,7 +628,7 @@ char *concat_cmd(char **cmd) {
 }
 
 /* use compare_generic ? */
-int compare_cmd( char **c1, char **c2 )
+int compare_cmd(char **c1, char **c2)
 {
     int rc;
 
