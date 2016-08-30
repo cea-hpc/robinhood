@@ -54,27 +54,23 @@ size_t group_memb_sz;
 
 /* -------------- cache and hashtables management ------------ */
 
-typedef struct pw_cacheent__
-{
-    struct passwd  pw;
+typedef struct pw_cacheent__ {
+    struct passwd pw;
 } pw_cacheent_t;
 
-typedef struct gr_cacheent__
-{
-    struct group  gr;
+typedef struct gr_cacheent__ {
+    struct group gr;
 } gr_cacheent_t;
 
 /* cache of PW entries */
-static struct
-{
-    rw_lock_t   lock;
+static struct {
+    rw_lock_t lock;
     GHashTable *cache;
 } pw_hash;
 
 /* cache of group entries */
-static struct
-{
-    rw_lock_t   lock;
+static struct {
+    rw_lock_t lock;
     GHashTable *cache;
 } gr_hash;
 
@@ -85,7 +81,6 @@ unsigned int gr_nb_set = 0;
 unsigned int gr_nb_get = 0;
 
 /* ------------ exported functions ------------ */
-
 
 /* Initialization of pwent and grent caches */
 int InitUidGid_Cache(void)
@@ -123,12 +118,13 @@ const struct passwd *GetPwUid(uid_t owner)
     pw_cacheent_t *p_pwcacheent;
     pw_cacheent_t *entry2;
     int            rc;
-    char           *buffer;
+    char          *buffer;
     int            buf_size;
 
     /* is the entry in the cache? */
     P_r(&pw_hash.lock);
-    p_pwcacheent = g_hash_table_lookup(pw_hash.cache, (void *)(uintptr_t)owner);
+    p_pwcacheent =
+        g_hash_table_lookup(pw_hash.cache, (void *)(uintptr_t) owner);
     V_r(&pw_hash.lock);
 
     if (p_pwcacheent)
@@ -136,8 +132,7 @@ const struct passwd *GetPwUid(uid_t owner)
 
     /* if no, allocate a pw cache entry
      * and ask the system to fill it */
-    if (p_pwcacheent == NULL)
-    {
+    if (p_pwcacheent == NULL) {
         /* entry allocation */
         p_pwcacheent = calloc(1, sizeof(pw_cacheent_t));
         if (p_pwcacheent == NULL)
@@ -148,17 +143,15 @@ const struct passwd *GetPwUid(uid_t owner)
         if (buffer == NULL)
             goto out_free;
 
-retry:
+ retry:
         rc = getpwuid_r(owner, &p_pwcacheent->pw, buffer, buf_size, &result);
-        if (rc != 0 || result == NULL)
-        {
+        if (rc != 0 || result == NULL) {
             /* try with larger buff */
-            if (rc == ERANGE)
-            {
+            if (rc == ERANGE) {
                 buf_size *= 2;
                 DisplayLog(LVL_FULL, LOGTAG,
                            "got ERANGE error from getpwuid_r: trying with buf_size=%u",
-                           buf_size );
+                           buf_size);
                 buffer = realloc(buffer, buf_size);
                 if (buffer == NULL)
                     goto out_free;
@@ -189,7 +182,7 @@ retry:
 
         /* Another thread may have inserted it in the meantime. Check
          * again. */
-        entry2 = g_hash_table_lookup(pw_hash.cache, (void *)(uintptr_t)owner);
+        entry2 = g_hash_table_lookup(pw_hash.cache, (void *)(uintptr_t) owner);
         if (entry2) {
             free(p_pwcacheent->pw.pw_name);
             free(p_pwcacheent);
@@ -197,7 +190,7 @@ retry:
             pw_nb_get++;
         } else {
             g_hash_table_insert(pw_hash.cache,
-                                (void *)(uintptr_t)p_pwcacheent->pw.pw_uid,
+                                (void *)(uintptr_t) p_pwcacheent->pw.pw_uid,
                                 p_pwcacheent);
             pw_nb_set++;
         }
@@ -206,9 +199,8 @@ retry:
 
     return &p_pwcacheent->pw;
 
-out_free:
-    if (p_pwcacheent != NULL)
-    {
+ out_free:
+    if (p_pwcacheent != NULL) {
         free(buffer);
         free(p_pwcacheent);
     }
@@ -221,12 +213,12 @@ const struct group *GetGrGid(gid_t grid)
     gr_cacheent_t *p_grcacheent;
     gr_cacheent_t *entry2;
     int            rc;
-    char           *buffer;
+    char          *buffer;
     int            buf_size;
 
     /* is the entry in the cache? */
     P_r(&gr_hash.lock);
-    p_grcacheent = g_hash_table_lookup(gr_hash.cache, (void *)(uintptr_t)grid);
+    p_grcacheent = g_hash_table_lookup(gr_hash.cache, (void *)(uintptr_t) grid);
     V_r(&gr_hash.lock);
 
     if (p_grcacheent)
@@ -234,8 +226,7 @@ const struct group *GetGrGid(gid_t grid)
 
     /* if no, allocate a gr cache entry
      * and ask the system to fill it */
-    if (p_grcacheent == NULL)
-    {
+    if (p_grcacheent == NULL) {
         /* entry allocation */
         p_grcacheent = calloc(1, sizeof(gr_cacheent_t));
         if (p_grcacheent == NULL)
@@ -246,19 +237,17 @@ const struct group *GetGrGid(gid_t grid)
         if (buffer == NULL)
             goto out_free;
 
-retry:
+ retry:
         rc = getgrgid_r(grid, &p_grcacheent->gr, buffer, buf_size, &result);
-        if (rc != 0 || result == NULL)
-        {
+        if (rc != 0 || result == NULL) {
             /* try with larger buff */
-            if (rc == ERANGE)
-            {
+            if (rc == ERANGE) {
                 buf_size *= 2;
                 DisplayLog(LVL_FULL, LOGTAG,
                            "got ERANGE error from getgrgid_r: trying with buf_size=%u",
                            buf_size);
                 buffer = realloc(buffer, buf_size);
-                if ( buffer == NULL )
+                if (buffer == NULL)
                     goto out_free;
                 else
                     goto retry;
@@ -288,7 +277,7 @@ retry:
 
         /* Another thread may have inserted it in the meantime. Check
          * again. */
-        entry2 = g_hash_table_lookup(gr_hash.cache, (void *)(uintptr_t)grid);
+        entry2 = g_hash_table_lookup(gr_hash.cache, (void *)(uintptr_t) grid);
         if (entry2) {
             free(p_grcacheent->gr.gr_name);
             free(p_grcacheent);
@@ -296,7 +285,7 @@ retry:
             gr_nb_get++;
         } else {
             g_hash_table_insert(gr_hash.cache,
-                                (void *)(uintptr_t)p_grcacheent->gr.gr_gid,
+                                (void *)(uintptr_t) p_grcacheent->gr.gr_gid,
                                 p_grcacheent);
             gr_nb_set++;
         }
@@ -305,9 +294,8 @@ retry:
 
     return &p_grcacheent->gr;
 
-out_free:
-    if (p_grcacheent != NULL)
-    {
+ out_free:
+    if (p_grcacheent != NULL) {
         free(buffer);
         free(p_grcacheent);
     }

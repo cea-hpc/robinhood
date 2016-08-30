@@ -33,9 +33,9 @@
  * we call a user-provided function back.
  */
 struct io_chan_arg {
-    int              ident;
-    parse_cb_t       cb;
-    void            *udata;
+    int         ident;
+    parse_cb_t  cb;
+    void       *udata;
     struct exec_ctx *exec_ctx;
 };
 
@@ -71,8 +71,7 @@ static int child_status2errno(int status, const char **msg)
 {
     int rc;
 
-    if (WIFEXITED(status))
-    {
+    if (WIFEXITED(status)) {
         rc = WEXITSTATUS(status);
         /* handle shell special return values */
         switch (rc) {
@@ -95,8 +94,7 @@ static int child_status2errno(int status, const char **msg)
         }
     }
 
-    if (WIFSIGNALED(status))
-    {
+    if (WIFSIGNALED(status)) {
         *msg = "command terminated by signal";
         return -EINTR;
     }
@@ -117,8 +115,7 @@ static void watch_child_cb(GPid pid, gint status, gpointer data)
 
     if (status != 0) {
         ctx->rc = child_status2errno(status, &err);
-        DisplayLog(LVL_DEBUG, TAG, "Command failed (%d): %s", ctx->rc,
-                   err);
+        DisplayLog(LVL_DEBUG, TAG, "Command failed (%d): %s", ctx->rc, err);
     }
 
     g_spawn_close_pid(pid);
@@ -131,25 +128,24 @@ static void watch_child_cb(GPid pid, gint status, gpointer data)
  *
  * Return true as long as the channel has to stay registered, false otherwise.
  */
-static gboolean readline_cb(GIOChannel *channel, GIOCondition cond, gpointer ud)
+static gboolean readline_cb(GIOChannel *channel, GIOCondition cond,
+                            gpointer ud)
 {
-    struct io_chan_arg  *args  = ud;
+    struct io_chan_arg  *args = ud;
     GError              *error = NULL;
     gchar               *line;
     gsize                size;
     GIOStatus            res;
 
     /* The channel is closed, no more data to read */
-    if (cond == G_IO_HUP)
-    {
+    if (cond == G_IO_HUP) {
         g_io_channel_unref(channel);
         ctx_decref(args->exec_ctx);
         return false;
     }
 
     res = g_io_channel_read_line(channel, &line, &size, NULL, &error);
-    if (res != G_IO_STATUS_NORMAL)
-    {
+    if (res != G_IO_STATUS_NORMAL) {
         DisplayLog(LVL_MAJOR, TAG, "Cannot read from child: %s",
                    error->message);
         g_error_free(error);
@@ -167,12 +163,13 @@ static gboolean readline_cb(GIOChannel *channel, GIOCondition cond, gpointer ud)
 /**
  * Wrapper to set io channel encoding to NULL
  */
-static int iochan_null_enc(GIOChannel *chan) {
+static int iochan_null_enc(GIOChannel *chan)
+{
     GError *err_desc = NULL;
     int rc = 0;
 
-    if (g_io_channel_set_encoding(chan, NULL, &err_desc) != G_IO_STATUS_NORMAL)
-    {
+    if (g_io_channel_set_encoding(chan, NULL, &err_desc)
+            != G_IO_STATUS_NORMAL) {
 /* G_CONVERT_ERROR_NO_MEMORY exists since glib 2.40 */
 #if GLIB_CHECK_VERSION(2,40,0)
         if (err_desc->code == G_CONVERT_ERROR_NO_MEMORY)
@@ -194,44 +191,41 @@ static int iochan_null_enc(GIOChannel *chan) {
  * g_main_context_get_default(), which is not what we want
  */
 static int g_child_watch_add_tothread(GPid pid,
-                                      GChildWatchFunc function,
-                                      gpointer data)
+                                      GChildWatchFunc function, gpointer data)
 {
     GSource *source;
     guint id;
 
-    g_return_val_if_fail (function != NULL, 0);
-    g_return_val_if_fail (pid > 0, 0);
+    g_return_val_if_fail(function != NULL, 0);
+    g_return_val_if_fail(pid > 0, 0);
 
-    source = g_child_watch_source_new (pid);
+    source = g_child_watch_source_new(pid);
 
-    g_source_set_callback (source, (GSourceFunc) function, data, NULL);
-    id = g_source_attach (source, g_main_context_get_thread_default());
-    g_source_unref (source);
+    g_source_set_callback(source, (GSourceFunc) function, data, NULL);
+    id = g_source_attach(source, g_main_context_get_thread_default());
+    g_source_unref(source);
 
     return id;
 }
 
-static int g_io_add_watch_tothread (GIOChannel   *channel,
-                                    GIOCondition  condition,
-                                    GIOFunc       func,
-                                    gpointer      user_data)
+static int g_io_add_watch_tothread(GIOChannel *channel,
+                                   GIOCondition condition,
+                                   GIOFunc func, gpointer user_data)
 {
     GSource *source;
     guint id;
 
-    g_return_val_if_fail (channel != NULL, 0);
+    g_return_val_if_fail(channel != NULL, 0);
 
-    source = g_io_create_watch (channel, condition);
+    source = g_io_create_watch(channel, condition);
 
-    g_source_set_callback (source, (GSourceFunc)func, user_data, NULL);
+    g_source_set_callback(source, (GSourceFunc) func, user_data, NULL);
 
-    id = g_source_attach (source, g_main_context_get_thread_default());
-    g_source_unref (source);
+    id = g_source_attach(source, g_main_context_get_thread_default());
+    g_source_unref(source);
 
     return id;
 }
-
 
 /**
  * Execute synchronously an external command, read its output and invoke
@@ -239,39 +233,38 @@ static int g_io_add_watch_tothread (GIOChannel   *channel,
  */
 int execute_shell_command(char **cmd, parse_cb_t cb_func, void *cb_arg)
 {
-    struct exec_ctx   ctx = { 0 };
-    GPid              pid;
-    GError           *err_desc = NULL;
-    GSpawnFlags       flags = G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD;
-    GIOChannel       *out_chan = NULL;
-    GIOChannel       *err_chan = NULL;
-    char             *log_cmd;
-    int               p_stdout;
-    int               p_stderr;
-    bool              success;
-    int               rc = 0;
+    struct exec_ctx     ctx = { 0 };
+    GPid                pid;
+    GError             *err_desc = NULL;
+    GSpawnFlags         flags = G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD;
+    GIOChannel         *out_chan = NULL;
+    GIOChannel         *err_chan = NULL;
+    char               *log_cmd;
+    int                 p_stdout;
+    int                 p_stderr;
+    bool                success;
+    int                 rc = 0;
 
     ctx.gctx = g_main_context_new();
     g_main_context_push_thread_default(ctx.gctx);
     ctx.loop = g_main_loop_new(ctx.gctx, false);
-    ctx.ref  = 0;
-    ctx.rc   = 0;
+    ctx.ref = 0;
+    ctx.rc = 0;
 
     DisplayLog(LVL_DEBUG, TAG, "Spawning external command \"%s\"", cmd[0]);
 
-    success = g_spawn_async_with_pipes(NULL,   /* Working dir */
-                                       cmd,    /* Parameters */
-                                       NULL,   /* Environment */
-                                       flags,  /* Execution directives */
-                                       NULL,   /* Child setup function */
-                                       NULL,   /* Child setup arg */
-                                       &pid,   /* Child PID */
-                                       NULL,      /* STDIN (unused) */
-                                       cb_func ? &p_stdout : NULL, /* STDOUT */
-                                       cb_func ? &p_stderr : NULL, /* STDERR */
+    success = g_spawn_async_with_pipes(NULL,    /* Working dir */
+                                       cmd, /* Parameters */
+                                       NULL,    /* Environment */
+                                       flags,   /* Execution directives */
+                                       NULL,    /* Child setup function */
+                                       NULL,    /* Child setup arg */
+                                       &pid,    /* Child PID */
+                                       NULL,    /* STDIN (unused) */
+                                       cb_func ? &p_stdout : NULL,  /* STDOUT */
+                                       cb_func ? &p_stderr : NULL,  /* STDERR */
                                        &err_desc);
-    if (!success)
-    {
+    if (!success) {
         rc = -ECHILD;
         log_cmd = concat_cmd(cmd);
         DisplayLog(LVL_MAJOR, TAG, "Failed to execute \"%s\": %s",
@@ -284,15 +277,14 @@ int execute_shell_command(char **cmd, parse_cb_t cb_func, void *cb_arg)
     ctx_incref(&ctx);
     g_child_watch_add_tothread(pid, watch_child_cb, &ctx);
 
-    if (cb_func != NULL)
-    {
-        struct io_chan_arg  out_args = {
+    if (cb_func != NULL) {
+        struct io_chan_arg out_args = {
             .ident    = STDOUT_FILENO,
             .cb       = cb_func,
             .udata    = cb_arg,
             .exec_ctx = &ctx
         };
-        struct io_chan_arg  err_args = {
+        struct io_chan_arg err_args = {
             .ident    = STDERR_FILENO,
             .cb       = cb_func,
             .udata    = cb_arg,
@@ -322,7 +314,7 @@ int execute_shell_command(char **cmd, parse_cb_t cb_func, void *cb_arg)
 
     g_main_loop_run(ctx.loop);
 
-out_free:
+ out_free:
     g_main_loop_unref(ctx.loop);
     g_main_context_pop_thread_default(ctx.gctx);
     g_main_context_unref(ctx.gctx);
@@ -333,10 +325,13 @@ out_free:
     return rc ? rc : ctx.rc;
 }
 
-/** template callback to redirect stderr to robinhood log (arg = (void*)log_level) */
+/**
+ * Template callback to redirect stderr to robinhood log
+ * @param arg (void*)log_level.
+ */
 int cb_stderr_to_log(void *arg, char *line, size_t size, int stream)
 {
-    log_level lvl = (log_level)arg;
+    log_level lvl = (log_level) arg;
     int       len;
 
     if (line == NULL)

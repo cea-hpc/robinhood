@@ -42,14 +42,12 @@
  */
 #define MAX_MOD_NAMELEN 128
 
-
 /**
  * Global module list and associated size.
  * Re-allocated when extended.
  */
 static rbh_module_t *mod_list;
 static int           mod_count;
-
 
 static inline const char *module_get_name(const rbh_module_t *mod)
 {
@@ -71,28 +69,20 @@ static int module_sym_load(rbh_module_t *mod, const char *sym_name)
 {
     char *errstr;
 
-    if (strcmp(sym_name, "mod_get_name") == 0)
-    {
+    if (strcmp(sym_name, "mod_get_name") == 0) {
         mod->mod_ops.mod_get_name = dlsym(mod->sym_hdl, sym_name);
-    }
-    else if (strcmp(sym_name, "mod_get_status_manager") == 0)
-    {
+    } else if (strcmp(sym_name, "mod_get_status_manager") == 0) {
         mod->mod_ops.mod_get_status_manager = dlsym(mod->sym_hdl, sym_name);
-    }
-    else if (strcmp(sym_name, "mod_get_action_by_name") == 0)
-    {
+    } else if (strcmp(sym_name, "mod_get_action_by_name") == 0) {
         mod->mod_ops.mod_get_action_by_name = dlsym(mod->sym_hdl, sym_name);
-    }
-    else
-    {
+    } else {
         DisplayLog(LVL_CRIT, MODULE_TAG, "Cannot load %s, unsupported function",
                    sym_name);
         return -EOPNOTSUPP;
     }
 
     errstr = dlerror();
-    if (errstr != NULL)
-    {
+    if (errstr != NULL) {
         DisplayLog(LVL_CRIT, MODULE_TAG, "Cannot load %s from module %s: %s",
                    sym_name, mod->name, errstr);
         return -EINVAL;
@@ -119,8 +109,7 @@ static int module_load_from_file(const char *libfile, rbh_module_t *mod)
     memset(mod, 0, sizeof(*mod));
 
     mod->sym_hdl = dlopen(libfile, RTLD_NOW);
-    if (mod->sym_hdl == NULL)
-    {
+    if (mod->sym_hdl == NULL) {
         DisplayLog(LVL_CRIT, MODULE_TAG, "Cannot dlopen() '%s': %s",
                    libfile, dlerror());
         return -EINVAL;
@@ -148,7 +137,7 @@ static int module_load_from_file(const char *libfile, rbh_module_t *mod)
 
     return 0;
 
-err_out:
+ err_out:
     dlclose(mod->sym_hdl);
     mod->sym_hdl = NULL;
     return rc;
@@ -191,9 +180,9 @@ static int module_fullname_build(char *dst, const char *name)
  */
 static int module_load(const char *name)
 {
-    char             mod_name[MAX_MOD_NAMELEN];
-    rbh_module_t    *new_objects;
-    int              rc;
+    char            mod_name[MAX_MOD_NAMELEN];
+    rbh_module_t   *new_objects;
+    int             rc;
 
     rc = module_fullname_build(mod_name, name);
     if (rc < 0)
@@ -201,7 +190,7 @@ static int module_load(const char *name)
 
     assert(mod_count >= 0);
 
-    new_objects = (rbh_module_t *)calloc(mod_count + 1, sizeof(rbh_module_t));
+    new_objects = (rbh_module_t *) calloc(mod_count + 1, sizeof(rbh_module_t));
     if (new_objects == NULL)
         return -ENOMEM;
 
@@ -217,7 +206,7 @@ static int module_load(const char *name)
 
     return 0;
 
-err_out:
+ err_out:
     free(new_objects);
     return rc;
 }
@@ -235,10 +224,9 @@ static int module_unload(rbh_module_t *mod)
     if (mod->name != NULL)
         DisplayLog(LVL_DEBUG, MODULE_TAG, "Unloading module %s", mod->name);
 
-    if (mod->sym_hdl == NULL)
-    {
+    if (mod->sym_hdl == NULL) {
         DisplayLog(LVL_VERB, MODULE_TAG, "Module already unloaded, ignoring");
-        return 0; /* -EALREADY ? */
+        return 0;   /* -EALREADY ? */
     }
 
     dlclose(mod->sym_hdl);
@@ -259,8 +247,7 @@ int module_unload_all(void)
 
     assert(mod_count >= 0);
 
-    for (i = 0; i < mod_count; i++)
-    {
+    for (i = 0; i < mod_count; i++) {
         rc = module_unload(&mod_list[i]);
         if (rc != 0 && rc_save == 0)
             rc_save = rc;
@@ -287,9 +274,8 @@ static rbh_module_t *module_get(const char *mod_name)
 
     assert(mod_count >= 0);
 
-again:
-    for (i = 0; i < mod_count; i++)
-    {
+ again:
+    for (i = 0; i < mod_count; i++) {
         if (strcasecmp(module_get_name(&mod_list[i]), mod_name) == 0)
             return &mod_list[i];
     }
@@ -331,4 +317,3 @@ status_manager_t *module_get_status_manager(const char *name)
 
     return mod->mod_ops.mod_get_status_manager();
 }
-
