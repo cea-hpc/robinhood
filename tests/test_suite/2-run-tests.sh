@@ -89,9 +89,8 @@ REPORT="$VALGRIND $RBH_SBINDIR/rbh-report $RBH_OPT"
 FIND="$VALGRIND $RBH_BINDIR/rbh-find"
 DU="$VALGRIND $RBH_BINDIR/rbh-du"
 DIFF="$VALGRIND $RBH_SBINDIR/rbh-diff"
-RECOV="$VALGRIND $RBH_SBINDIR/rbh-recov $RBH_OPT"
 UNDELETE="$VALGRIND $RBH_SBINDIR/rbh-undelete"
-IMPORT="$VALGRIND $RBH_SBINDIR/rbh-import $RBH_OPT"
+#IMPORT="$VALGRIND $RBH_SBINDIR/rbh-import $RBH_OPT"
 CMD=robinhood
 ARCH_STR="migration success for"
 REL_STR="purge success for"
@@ -3837,7 +3836,7 @@ function test_manual_run
     run_interval=$2
     flavor=$3
 
-	if (( $is_lhsm + $is_hsmlite == 0 )); then
+	if (( $is_lhsm + $shook == 0 )); then
 		echo "HSM test only: skipped"
 		set_skipped
 		return 1
@@ -5714,8 +5713,6 @@ function partial_paths
         fi
 	fi
 
-    # TODO check disaster recovery
-
     rm -f report.log
 }
 
@@ -6461,12 +6458,14 @@ function test_compress
             rm  -rf $RH_ROOT/*
         fi
 
+        # update SOFTRM table
+        $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing update scan"
+        check_db_error rh_scan.log
+
         # perform the recovery
         echo "Performing recovery (compress=$c)..."
         cp /dev/null recov.log
-        $RECOV -f $RBH_CFG_DIR/$config_file --start -l DEBUG >> recov.log 2>&1 || error "Error starting recovery"
-        $RECOV -f $RBH_CFG_DIR/$config_file --resume -l DEBUG >> recov.log 2>&1 || error "Error performing recovery"
-        $RECOV -f $RBH_CFG_DIR/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
+        $UNDELETE -f $RBH_CFG_DIR/$config_file -R || error "Error performing recovery"
 
         find $RH_ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > $after
         find $RH_ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> $after
@@ -8205,7 +8204,7 @@ function check_recov_status
     local p="$2"
     local exp="$3"
 
-    grep "Restoring $p" $log | egrep -e "$exp" > /dev/null || error "Bad status for $p (expected: <$exp> in <$(grep "Restoring $p" $log)>)"
+    grep "Restoring '$p'" $log | egrep -qe "$exp" || error "Bad status for $p (expected: <$exp> in <$(grep "Restoring '$p'" $log)>)"
     return $?
 }
 
@@ -8311,16 +8310,21 @@ function recovery_test
 
     sleep 2
 
+    $REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv --status-info $STATUS_MGR > rh_report.log || error "report error"
+    [ "$DEBUG" = "1" ] && cat rh_report.log
     # all files are new
-    new_cnt=`$REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv -i | grep file | grep new | cut -d ',' -f 3`
-    echo "$new_cnt files are new"
-    (( $new_cnt == $total )) || error "20 new files expected"
-
-    na_link=`$REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv -i | grep symlink | grep "n/a" | cut -d ',' -f 3`
-    new_link=`$REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv -i | grep symlink | grep new | cut -d ',' -f 3`
+    new_cnt=$(grep file rh_report.log | grep new | cut -d ',' -f 3 | tr -d ' ')
+    na_link=$(grep symlink rh_report.log | grep "n/a" | cut -d ',' -f 3 | tr -d ' ')
+    new_link=$(grep symlink rh_report.log | grep new | cut -d ',' -f 3 | tr -d ' ')
+    [[ -z $new_cnt ]] && new_cnt=0
     [[ -z $new_link ]] && new_link=0
     [[ -z $na_link ]] && na_link=0
+
+    echo "$new_cnt files are new"
     echo "$new_link symlinks are new, $na_link are n/a"
+
+    (( $new_cnt == $total )) || error "20 new files expected"
+
     if (( $arch_slink == 0 )); then
         (( $na_link == $total - $total_empty )) || error "$total n/a symlinks expected"
     else
@@ -8368,6 +8372,7 @@ function recovery_test
         fi
     done
 
+    # update DB contents
     if (( $no_log )); then
         echo "2.2-scan..."
         $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "scanning"
@@ -8376,12 +8381,12 @@ function recovery_test
         $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once 2>/dev/null || error "reading log"
     fi
 
-    $REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv -i > /tmp/report.$$
-    [ "$DEBUG" = "1" ] && cat  /tmp/report.$$
-
-    new_cnt=`grep "new" /tmp/report.$$ | grep file | cut -d ',' -f 3`
-    mod_cnt=`grep "modified" /tmp/report.$$ | grep file | cut -d ',' -f 3`
-    sync_cnt=`grep "synchro" /tmp/report.$$ | grep file | cut -d ',' -f 3`
+    $REPORT -f $RBH_CFG_DIR/$config_file -l MAJOR --csv --status-info $STATUS_MGR > rh_report.log || error "report error"
+    [ "$DEBUG" = "1" ] && cat rh_report.log
+    # all files are new
+    new_cnt=$(grep file rh_report.log | grep new | cut -d ',' -f 3 | tr -d ' ')
+    mod_cnt=$(grep file rh_report.log | grep modified | cut -d ',' -f 3 | tr -d ' ')
+    sync_cnt=$(grep file rh_report.log | grep synchro | cut -d ',' -f 3 | tr -d ' ')
     [[ -z $new_cnt ]] && new_cnt=0
     [[ -z $mod_cnt ]] && mod_cnt=0
     [[ -z $sync_cnt ]] && sync_cnt=0
@@ -8391,9 +8396,9 @@ function recovery_test
     (( $mod_cnt == $nb_delta )) || error "Nbr of modified files doesn't match: $mod_cnt != $nb_delta"
     (( $new_cnt == $nb_nobkp + $nb_empty + $nb_empty_rename )) || error "Nbr of new files doesn't match: $new_cnt != $nb_nobkp + $nb_empty + $nb_empty_rename"
 
-    new_cnt=`grep "new" /tmp/report.$$ | grep symlink | cut -d ',' -f 3`
-    na_cnt=`grep "n/a" /tmp/report.$$ | grep symlink | cut -d ',' -f 3`
-    sync_cnt=`grep "synchro" /tmp/report.$$ | grep symlink | cut -d ',' -f 3`
+    new_cnt=$(grep symlink rh_report.log | grep new | cut -d ',' -f 3 | tr -d ' ')
+    na_cnt=$(grep symlink rh_report.log | grep "n/a" | cut -d ',' -f 3 | tr -d ' ')
+    sync_cnt=$(grep symlink rh_report.log | grep synchro | cut -d ',' -f 3 | tr -d ' ')
     [[ -z $new_cnt ]] && new_cnt=0
     [[ -z $na_cnt ]] && na_cnt=0
     [[ -z $sync_cnt ]] && sync_cnt=0
@@ -8406,7 +8411,6 @@ function recovery_test
         (( $new_cnt == $nb_nobkp+$nb_delta )) || error "Nbr of new links doesn't match: $new_cnt != $(($nb_nobkp+$nb_delta))"
     fi
 
-
     # shots before disaster (time is only significant for files)
     find $RH_ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/before.$$
     find $RH_ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/before.$$
@@ -8417,45 +8421,44 @@ function recovery_test
         echo "3-Disaster: all FS content is lost"
         rm  -rf $RH_ROOT/*
     fi
+    sleep 1
+
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log  || error "performing update scan"
+    check_db_error rh_scan.log
 
     # perform the recovery
     echo "4-Performing recovery..."
-    cp /dev/null recov.log
-    $RECOV -f $RBH_CFG_DIR/$config_file --start -l DEBUG >> recov.log 2>&1 || error "Error starting recovery"
-
-    $RECOV -f $RBH_CFG_DIR/$config_file --resume -l DEBUG >> recov.log 2>&1 || error "Error performing recovery"
-
-    $RECOV -f $RBH_CFG_DIR/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
+    $UNDELETE -f $RBH_CFG_DIR/$config_file -R -l FULL > recov.log 2> recov.err || error "Error performing recovery"
 
     find $RH_ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/after.$$
     find $RH_ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
     find $RH_ROOT -type l -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
 
     diff  /tmp/before.$$ /tmp/after.$$ > /tmp/diff.$$
-    [ "$DEBUG" = "1" ] && cat  /tmp/diff.$$
+    [ "$DEBUG" = "1" ] && cat /tmp/diff.$$
 
     # checking status and diff result
     for i in `seq 1 $total`; do
         if (( $i <= $nb_full )); then
-            check_recov_status recov.log "$RH_ROOT/dir.$i/file.$i" "OK\$"
+            check_recov_status recov.log "$RH_ROOT/dir.$i/file.$i" "OK \(file\)"
             grep "$RH_ROOT/dir.$i/file.$i" /tmp/diff.$$ && error "$RH_ROOT/dir.$i/file.$i NOT expected to differ"
-            check_recov_status recov.log "$RH_ROOT/dir.$i/link.$i" "OK \(non-file\)"
+            check_recov_status recov.log "$RH_ROOT/dir.$i/link.$i" "OK \(symlink\)"
         elif (( $i <= $(($nb_full+$nb_rename)) )); then
             check_recov_status recov.log "$RH_ROOT/dir.new_$i/file_new.$i" "OK\$"
             grep "$RH_ROOT/dir.new$i/link_new.$i" /tmp/diff.$$ && error "$RH_ROOT/dir_new.$i/link_new.$i NOT expected to differ"
-            check_recov_status recov.log "$RH_ROOT/dir.new_$i/link_new.$i" "OK \(non-file\)"
+            check_recov_status recov.log "$RH_ROOT/dir.new_$i/link_new.$i" "OK \(symlink\)"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta)) )); then
             check_recov_status recov.log "$RH_ROOT/dir.$i/file.$i" "OK \(old version\)"
             grep "$RH_ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$RH_ROOT/dir.$i/file.$i is expected to differ"
             # links are never expected to differ as they are stored in the database
             grep "$RH_ROOT/dir.$i/link.$i" /tmp/diff.$$ >/dev/null && error "$RH_ROOT/dir.$i/link.$i NOT expected to differ"
-            check_recov_status recov.log "$RH_ROOT/dir.$i/link.$i" "OK \(non-file\)"
+            check_recov_status recov.log "$RH_ROOT/dir.$i/link.$i" "OK \(symlink\)"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp)) )); then
             check_recov_status recov.log "$RH_ROOT/dir.$i/file.$i" "No backup"
             grep "$RH_ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null || error "$RH_ROOT/dir.$i/file.$i is expected to differ"
             # links are never expected to differ as they are stored in the database
             grep "$RH_ROOT/dir.$i/link.$i" /tmp/diff.$$ >/dev/null && error "$RH_ROOT/dir.$i/link.$i NOT expected to differ"
-            check_recov_status recov.log "$RH_ROOT/dir.$i/link.$i" "OK \(non-file\)"
+            check_recov_status recov.log "$RH_ROOT/dir.$i/link.$i" "OK \(symlink\)"
         elif (( $i <= $(($nb_full+$nb_rename+$nb_delta+$nb_nobkp+$nb_empty)) )); then
             check_recov_status recov.log "$RH_ROOT/dir.$i/file.$i" "OK \(empty file\)"
             grep "$RH_ROOT/dir.$i/file.$i" /tmp/diff.$$ >/dev/null && error "$RH_ROOT/dir.$i/file.$i is NOT expected to differ"
@@ -8465,7 +8468,7 @@ function recovery_test
         fi
     done
 
-    rm -f /tmp/before.$$ /tmp/after.$$ /tmp/diff.$$
+    rm -f /tmp/before.$$ /tmp/after.$$ /tmp/diff.$$ recov.err
 }
 
 function recov_filters
@@ -9163,11 +9166,7 @@ function import_test
 	# perform the recovery
 	echo "4-Performing recovery..."
 	cp /dev/null recov.log
-	$RECOV -f $RBH_CFG_DIR/$config_file --start -l DEBUG >> recov.log 2>&1 || error "Error starting recovery"
-
-	$RECOV -f $RBH_CFG_DIR/$config_file --resume -l DEBUG >> recov.log 2>&1 || error "Error performing recovery"
-
-	$RECOV -f $RBH_CFG_DIR/$config_file --complete -l DEBUG >> recov.log 2>&1 || error "Error completing recovery"
+    $UNDELETE -f $RBH_CFG_DIR/$config_file -R || error "Error performing recovery"
 
 	find $RH_ROOT -type f -printf "%n %m %T@ %g %u %s %p %l\n" > /tmp/after.$$
 	find $RH_ROOT -type d -printf "%n %m %g %u %s %p %l\n" >> /tmp/after.$$
