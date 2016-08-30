@@ -47,6 +47,10 @@ function db_check
     echo "MySQL version is $version."
 
     service=mysqld
+    # mysqld is named mysql on some systems
+    if [ -x /etc/init.d/mysql ]; then
+        service=mysql
+    fi
     rpm -q mariadb > /dev/null && service=mariadb
     running=0
     echo "Checking service $service..."
