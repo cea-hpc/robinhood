@@ -53,7 +53,7 @@ int rbh_param_set(struct rbh_params *params, const char *key,
 {
     if (params->param_set == NULL) {
         params->param_set = g_hash_table_new_full(g_str_hash, g_str_equal, free,
-                                             free);
+                                                  free);
         if (params->param_set == NULL)
             return -ENOMEM;
     }
@@ -67,7 +67,8 @@ int rbh_param_set(struct rbh_params *params, const char *key,
     return 0;
 }
 
-int rbh_list2params(struct rbh_params *params, const char **list, bool key_values)
+int rbh_list2params(struct rbh_params *params, const char **list,
+                    bool key_values)
 {
     const char **c;
 
@@ -107,8 +108,7 @@ static char *escape_delim(char *str, char delim, bool *free_it)
 {
     char *c;
 
-    if (strchr(str, delim) == NULL)
-    {
+    if (strchr(str, delim) == NULL) {
         *free_it = false;
         return str;
     }
@@ -118,8 +118,7 @@ static char *escape_delim(char *str, char delim, bool *free_it)
     str = c;
     *free_it = true;
 
-    while ((c = strchr(c, delim)) != NULL)
-    {
+    while ((c = strchr(c, delim)) != NULL) {
         /* shift the end of the string (including delimiter) */
         memmove(c + 1, c, strlen(c) + 1);
         /* escape it */
@@ -145,7 +144,7 @@ static int param2csv(const char *key, const char *val, void *udata)
     key = escape_delim((char *)key, ',', &free_key);
     val = escape_delim((char *)val, ',', &free_val);
 
-   /* add comma delimiter if needed */
+    /* add comma delimiter if needed */
     if (!GSTRING_EMPTY(args->out_str))
         g_string_append(args->out_str,
                         (args->flags & RBH_PARAM_COMPACT) ? "," : ", ");
@@ -167,9 +166,9 @@ int rbh_params_serialize(const struct rbh_params *params,
                          rbh_param_flags_e        flags)
 {
     struct serialize_args args = {
-        .out_str      = str,
-        .exclude_set  = exclude_set,
-        .flags        = flags
+        .out_str        = str,
+        .exclude_set    = exclude_set,
+        .flags          = flags
     };
 
     if (!(flags & RBH_PARAM_CSV))
@@ -179,7 +178,7 @@ int rbh_params_serialize(const struct rbh_params *params,
 }
 
 int rbh_params_foreach(const struct rbh_params *params, rbh_params_iter_t cb,
-                      void *udata)
+                       void *udata)
 {
     GHashTableIter  iter;
     gpointer        key;

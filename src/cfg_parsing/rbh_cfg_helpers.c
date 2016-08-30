@@ -669,7 +669,8 @@ int           GetFloatParam(config_item_t block, const char *block_name,
  * Check that no unknown parameter or block is found.
  * @param param_array NULL terminated array of allowed parameters.
  */
-void CheckUnknownParameters( config_item_t block, const char *block_name, const char **param_array )
+void CheckUnknownParameters(config_item_t block, const char *block_name,
+                            const char * const *param_array )
 {
     int            i, j;
 
