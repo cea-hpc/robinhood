@@ -162,7 +162,6 @@ static int backup_cfg_read(config_file_t config, void *module_config,
 #ifdef HAVE_SHOOK
         "shook_cfg",
 #endif
-        /** TODO parse recovery action */
         NULL
     };
 
@@ -2610,6 +2609,7 @@ static recov_status_t backup_recover(struct sm_instance *smi,
 }
 
 #ifdef HAVE_SHOOK
+#error "FIXME recovery action"
 /** recovery function
     XXX used to be called like this:
     rc = shook_recov_file(fspath, (*compressed && ATTR_MASK_TEST(attrs, size))?

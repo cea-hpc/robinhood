@@ -377,8 +377,8 @@ rm -rf $RPM_BUILD_ROOT
 # everythink in sbin, except rbh-config which is in adm
 %if %{with shook}
 %exclude %{_sbindir}/rbh-rebind
-%{_sbindir}/rbh-import
-%{_sbindir}/rbh-recov
+#%{_sbindir}/rbh-import
+#%{_sbindir}/rbh-recov
 %endif
 
 %if %{with backup}
@@ -425,7 +425,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_sbindir}/lhsmtool_cmd
 %endif
 %if %{with shook}
-%{_sbindir}/rbh-rebind
+#%{_sbindir}/rbh-rebind
 %endif
 %endif
 
