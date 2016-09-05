@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_ff7f42a9",
+        "filename": "web_gui/newgui/README.txt",
+        "patchSetId": 6
+      },
+      "lineNbr": 42,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-05T14:30:27Z",
+      "side": 1,
+      "message": "\u003cserver-url\u003e/api/robinhood",
+      "revId": "83ccfc22ba144adaa0e2213c23183f2aad4ae387",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_bf489a8b",
+        "filename": "web_gui/newgui/README.txt",
+        "patchSetId": 6
+      },
+      "lineNbr": 48,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-05T14:30:27Z",
+      "side": 1,
+      "message": "(typo) graph\n\nRemove references to old fields (owner, gr_name)",
+      "revId": "83ccfc22ba144adaa0e2213c23183f2aad4ae387",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
