@@ -1,0 +1,140 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_647837f9",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 7
+      },
+      "lineNbr": 193,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-09T14:04:08Z",
+      "side": 1,
+      "message": "about \"newgui\": will it still be \"new\" in 5 years?\n\nMaybe \"gui_v3\"?",
+      "revId": "72b7d584365084d9691cfb59be8c063876f9d257",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_a4e4ffab",
+        "filename": "web_gui/newgui/README.txt",
+        "patchSetId": 7
+      },
+      "lineNbr": 9,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-09T14:04:08Z",
+      "side": 1,
+      "message": "Identify the license of rbh components from other components.",
+      "revId": "72b7d584365084d9691cfb59be8c063876f9d257",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_24822fc9",
+        "filename": "web_gui/newgui/README.txt",
+        "patchSetId": 7
+      },
+      "lineNbr": 41,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-09T14:04:08Z",
+      "side": 1,
+      "message": "space at end of line",
+      "revId": "72b7d584365084d9691cfb59be8c063876f9d257",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_a4763f04",
+        "filename": "web_gui/newgui/README.txt",
+        "patchSetId": 7
+      },
+      "lineNbr": 67,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-09T14:04:08Z",
+      "side": 1,
+      "message": "*\u003cserver-url\u003e/api/native/fields.operator1.operator2/...\nex: ...\n(see bellow)",
+      "revId": "72b7d584365084d9691cfb59be8c063876f9d257",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_e46c4738",
+        "filename": "web_gui/newgui/README.txt",
+        "patchSetId": 7
+      },
+      "lineNbr": 68,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-09T14:04:08Z",
+      "side": 1,
+      "message": "use spaces like in other lines",
+      "revId": "72b7d584365084d9691cfb59be8c063876f9d257",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_4462d33e",
+        "filename": "web_gui/newgui/README.txt",
+        "patchSetId": 7
+      },
+      "lineNbr": 110,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-09T14:04:08Z",
+      "side": 1,
+      "message": "same, grouped by uid.",
+      "revId": "72b7d584365084d9691cfb59be8c063876f9d257",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_24590f8f",
+        "filename": "web_gui/newgui/README.txt",
+        "patchSetId": 7
+      },
+      "lineNbr": 133,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-09T14:04:08Z",
+      "side": 1,
+      "message": "automatically\n\ncomma",
+      "revId": "72b7d584365084d9691cfb59be8c063876f9d257",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_8448dbb4",
+        "filename": "web_gui/newgui/README.txt",
+        "patchSetId": 7
+      },
+      "lineNbr": 193,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-09T14:04:08Z",
+      "side": 1,
+      "message": "v1.0 @ ...\n  - Ready for landing (robinhood 3.0-rc2)",
+      "revId": "72b7d584365084d9691cfb59be8c063876f9d257",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
