@@ -1,9 +1,20 @@
-# default ON
-%bcond_without lustre
-%bcond_without lhsm
+#default ON
 %bcond_without mysql
-%bcond_without backup
 %bcond_without common_rpms
+%bcond_without lustre
+
+%if %{with lustre}
+	# default ON
+	%bcond_without lhsm
+	%bcond_without backup
+	%global cfg_args %{?configure_flags} --enable-lustre
+%else
+	# default OFF
+	%bcond_with lhsm
+	%bcond_with backup
+	%global cfg_args %{?configure_flags} --disable-lustre
+%endif
+
 # default OFF
 %bcond_with shook
 %bcond_with recovtools
@@ -12,6 +23,16 @@
 %global with_systemd 1
 %else
 %global with_systemd 0
+%endif
+
+%if %{with lustre}
+# default value for lustre package and version, if not defined in rpmbuild options
+%{!?lpackage: %global lpackage lustre-client}
+%if !%{defined lversion}
+	%{error:Disable lustre (--without lustre), or specify a target Lustre version (e.g.: --define="lversion 2.7")}
+	# ugly failure to stop immediately
+	%abort
+%endif
 %endif
 
 # target install dir for web gui
@@ -68,7 +89,7 @@ for managing large file systems with millions of entries and petabytes of data.
 
 With support for: %{?with_lustre:Lustre} %{?with_backup:Backup} %{?with_shook:shook}
 
-Generated using options: @ac_configure_args@
+%{?configure_flags:Generated using options: }%{?configure_flags}
 
 %if %{with lustre}
 # Package robinhood-lustre includes robinhood for Lustre filesystem
@@ -86,6 +107,8 @@ Obsoletes: robinhood-backup < 3.0, robinhood-lhsm < 3.0
 %description lustre
 Policy engine for Lustre filesystems.
 
+%{?configure_flags:Generated using options: }%{?configure_flags}
+
 %else
 
 # Package robinhood-posix includes robinhood for other POSIX filesystems
@@ -100,6 +123,8 @@ Obsoletes: robinhood-tmpfs < 3.0, robinhood-tmpfs-posix < 3.0
 
 %description posix
 Policy engine for POSIX filesystems.
+
+%{?configure_flags:Generated using options: }%{?configure_flags}
 
 %endif
 
@@ -159,9 +184,7 @@ Annex tools for robinhood.
 %setup -q -n @PACKAGE@-%{version}
 
 %build
-./configure @ac_configure_args@ %{?configure_flags:configure_flags} \
-        --mandir=%{_mandir} \
-        --libdir=%{_libdir}
+./configure %{?cfg_args} --mandir=%{_mandir} --libdir=%{_libdir}
 make %{?_smp_mflags}
 
 %install
