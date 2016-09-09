@@ -1,9 +1,22 @@
-# default ON
-%bcond_without lustre
-%bcond_without lhsm
+#default ON
 %bcond_without mysql
-%bcond_without backup
 %bcond_without common_rpms
+
+#default OFF
+%bcond_with lustre
+
+%if %{with lustre}
+	%global lswitch --enable-lustre
+	# default ON
+	%bcond_without lhsm
+	%bcond_without backup
+%else
+	%global lswitch --disable-lustre
+	# default OFF
+	%bcond_with lhsm
+	%bcond_with backup
+%endif
+
 # default OFF
 %bcond_with shook
 %bcond_with recovtools
@@ -12,6 +25,15 @@
 %global with_systemd 1
 %else
 %global with_systemd 0
+%endif
+
+%if %{with lustre}
+# default value for lustre package and version, if not defined in rpmbuild options
+%{!?lpackage: %global lpackage lustre-client}
+%if %{undefined lversion}
+	%{warn:WARNING: No target lustre version specified. You should --define "lversion x.y" to ensure lustre compatibility.
+}
+%endif
 %endif
 
 # target install dir for web gui
@@ -53,7 +75,11 @@ BuildRequires: systemd
 %endif
 %endif
 %if %{with lustre}
+%if %{defined lversion}
 BuildRequires: %{lpackage} >= %{lversion}
+%else
+BuildRequires: %{lpackage}
+%endif
 %if %{with lhsm}
 BuildRequires: libuuid-devel
 %endif
@@ -69,7 +95,7 @@ for managing large file systems with millions of entries and petabytes of data.
 
 With support for: %{?with_lustre:Lustre} %{?with_backup:Backup} %{?with_shook:shook}
 
-Generated using options: @ac_configure_args@
+%{?configure_flags:Generated using options: }%{?configure_flags}
 
 %if %{with lustre}
 # Package robinhood-lustre includes robinhood for Lustre filesystem
@@ -78,7 +104,11 @@ Generated using options: @ac_configure_args@
 
 Summary: Robinhood Policy Engine for Lustre filesystems
 Group: Applications/System
+%if %{defined lversion}
 Requires: %{lpackage} >= %{lversion}
+%else
+Requires: %{lpackage}
+%endif
 Conflicts: robinhood-posix
 Provides: robinhood = %{version}-%{release}
 Obsoletes: robinhood-tmpfs < 3.0, robinhood-tmpfs-lustre < 3.0
@@ -86,6 +116,8 @@ Obsoletes: robinhood-backup < 3.0, robinhood-lhsm < 3.0
 
 %description lustre
 Policy engine for Lustre filesystems.
+
+%{?configure_flags:Generated using options: }%{?configure_flags}
 
 %else
 
@@ -101,6 +133,8 @@ Obsoletes: robinhood-tmpfs < 3.0, robinhood-tmpfs-posix < 3.0
 
 %description posix
 Policy engine for POSIX filesystems.
+
+%{?configure_flags:Generated using options: }%{?configure_flags}
 
 %endif
 
@@ -160,9 +194,7 @@ Annex tools for robinhood.
 %setup -q -n @PACKAGE@-%{version}
 
 %build
-./configure @ac_configure_args@ %{?configure_flags:configure_flags} \
-        --mandir=%{_mandir} \
-        --libdir=%{_libdir}
+./configure %{lswitch} %{?configure_flags} --mandir=%{_mandir} --libdir=%{_libdir}
 make %{?_smp_mflags}
 
 %install

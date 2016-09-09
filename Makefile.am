@@ -58,6 +58,7 @@ rpms: robinhood.spec mydist
 	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
 	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" \
 		--define="dbversion $(dbversion)" --define="_prefix $(prefix)" \
+		--define="configure_flags @ac_configure_args@" \
         --define="_sysconfdir @CONFDIR@" \
 		-ta $(distdir).tar.gz
 
@@ -65,15 +66,14 @@ rpm: robinhood.spec mydist
 	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
 	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" --define="_prefix $(prefix)" \
 		--define="dbversion $(dbversion)" \
+		--define="configure_flags @ac_configure_args@" \
         --define="_sysconfdir @CONFDIR@" \
 		--define="_prefix $(prefix)" -tb $(distdir).tar.gz
 
 srpm: robinhood.spec mydist
-	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
-	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" --define="_prefix $(prefix)" \
-		--define="dbversion $(dbversion)" \
-        --define="_sysconfdir @CONFDIR@" \
-		-ts $(distdir).tar.gz
+	mkdir -p $(rpm_dir)/SRPMS $(rpm_dir)/SOURCES
+	cp -f $(distdir).tar.gz $(rpm_dir)/SOURCES/.
+	rpmbuild --without lustre --define="_topdir $(rpm_dir)" -bs robinhood.spec
 
 cppcheck:
 	cppcheck -j12 -v --force --enable=all -I`pwd`/src/include -DHAVE_CONFIG_H @PURPOSE_CFLAGS@ @DB_CFLAGS@ src/
