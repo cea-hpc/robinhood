@@ -58,6 +58,7 @@ rpms: robinhood.spec mydist
 	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
 	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" \
 		--define="dbversion $(dbversion)" --define="_prefix $(prefix)" \
+		--define="configure_flags @ac_configure_args@" \
         --define="_sysconfdir @CONFDIR@" \
 		-ta $(distdir).tar.gz
 
@@ -65,6 +66,7 @@ rpm: robinhood.spec mydist
 	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
 	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" --define="_prefix $(prefix)" \
 		--define="dbversion $(dbversion)" \
+		--define="configure_flags @ac_configure_args@" \
         --define="_sysconfdir @CONFDIR@" \
 		--define="_prefix $(prefix)" -tb $(distdir).tar.gz
 
@@ -72,6 +74,7 @@ srpm: robinhood.spec mydist
 	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
 	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" --define="_prefix $(prefix)" \
 		--define="dbversion $(dbversion)" \
+		--define="configure_flags @ac_configure_args@" \
         --define="_sysconfdir @CONFDIR@" \
 		-ts $(distdir).tar.gz
 

@@ -26,6 +26,16 @@ Vendor: CEA, HPC department <http://www-hpc.cea.fr>
 Prefix: %{_prefix}
 
 %if %{with lustre}
+# default value for lustre package and version, if not defined in rpmbuild options
+%{!?lpackage: %global lpackage lustre-client}
+%if !%{defined lversion}
+	%{error:Disable lustre (--without lustre), or specify a target Lustre version (e.g.: --define="lversion 2.7")}
+	# ugly failure to stop immediately
+	%abort
+%endif
+%endif
+
+%if %{with lustre}
 %if %{defined lversion}
 %define config_dependant .lustre%{lversion}
 %else
@@ -68,7 +78,7 @@ for managing large file systems with millions of entries and petabytes of data.
 
 With support for: %{?with_lustre:Lustre} %{?with_backup:Backup} %{?with_shook:shook}
 
-Generated using options: @ac_configure_args@
+%{?configure_flags:Generated using options: }%{?configure_flags}
 
 %if %{with lustre}
 # Package robinhood-lustre includes robinhood for Lustre filesystem
@@ -86,6 +96,8 @@ Obsoletes: robinhood-backup < 3.0, robinhood-lhsm < 3.0
 %description lustre
 Policy engine for Lustre filesystems.
 
+%{?configure_flags:Generated using options: }%{?configure_flags}
+
 %else
 
 # Package robinhood-posix includes robinhood for other POSIX filesystems
@@ -100,6 +112,8 @@ Obsoletes: robinhood-tmpfs < 3.0, robinhood-tmpfs-posix < 3.0
 
 %description posix
 Policy engine for POSIX filesystems.
+
+%{?configure_flags:Generated using options: }%{?configure_flags}
 
 %endif
 
@@ -159,7 +173,7 @@ Annex tools for robinhood.
 %setup -q -n @PACKAGE@-%{version}
 
 %build
-./configure @ac_configure_args@ %{?configure_flags:configure_flags} \
+./configure %{?configure_flags} \
         --mandir=%{_mandir} \
         --libdir=%{_libdir}
 make %{?_smp_mflags}
