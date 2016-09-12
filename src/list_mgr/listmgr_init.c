@@ -2216,7 +2216,7 @@ free_str:
 #define VERSION_VAR_FUNC    "VersionFunctionSet"
 #define VERSION_VAR_TRIG    "VersionTriggerSet"
 
-#define FUNCTIONSET_VERSION    "1.4"
+#define FUNCTIONSET_VERSION    "1.5"
 #define TRIGGERSET_VERSION     "1.3"
 
 static int check_functions_version(db_conn_t *conn)
@@ -2727,9 +2727,12 @@ static int create_func_onepath(db_conn_t *pconn)
             " DECLARE n VARBINARY(%u) DEFAULT NULL;"
             // returns path when parent is not found (NULL if id is not found)
             " DECLARE EXIT HANDLER FOR NOT FOUND RETURN CONCAT(pid,'/',p);"
-            " SELECT parent_id, name INTO pid, p from NAMES where id=param LIMIT 1;"
+            " SELECT parent_id, name INTO pid, p from NAMES WHERE id=param"
+                // limit result to newest path only
+                " ORDER BY path_update DESC LIMIT 1;"
             " LOOP"
-                " SELECT parent_id, name INTO pid, n from NAMES where id=pid ;"
+                " SELECT parent_id, name INTO pid, n from NAMES WHERE id=pid"
+                    " ORDER BY path_update DESC LIMIT 1;"
                 " SELECT CONCAT( n, '/', p) INTO p;"
             " END LOOP;"
         " END",
@@ -2785,7 +2788,9 @@ static int create_func_thispath(db_conn_t *pconn)
             " SET pid=pid_arg;"
             " SET p=n_arg;"
             " LOOP"
-                " SELECT parent_id, name INTO pid, n from NAMES where id=pid ;"
+                " SELECT parent_id, name INTO pid, n from NAMES WHERE id=pid"
+                    // limit result to newest path only
+                    " ORDER BY path_update DESC LIMIT 1;"
                 " SELECT CONCAT( n, '/', p) INTO p;"
             " END LOOP;"
         " END",
