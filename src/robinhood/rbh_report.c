@@ -2072,7 +2072,6 @@ static void report_topuser( unsigned int count, int flags )
 
     /* select only the top users */
     opt.list_count_max = count;
-    opt.force_no_acct = 0;
     /* skip missing entries */
     opt.allow_no_attr = 0;
     opt.force_no_acct = FORCE_NO_ACCT(flags);
@@ -2281,6 +2280,7 @@ static void report_status_info(int smi_index, const char* val, int flags)
 
     struct lmgr_report_t *it;
     lmgr_filter_t  filter;
+    lmgr_iter_opt_t opt;
     int            rc;
     bool header;
     unsigned int   result_count;
@@ -2331,11 +2331,17 @@ static void report_status_info(int smi_index, const char* val, int flags)
     mk_global_filters(&filter, !NOHEADER(flags), &is_filter);
     result_count = STATUSINFO_FIELDS;
 
+    opt.force_no_acct = FORCE_NO_ACCT(flags);
+    /* no limit */
+    opt.list_count_max = 0;
+    /* skip missing entries */
+    opt.allow_no_attr = false;
+
     /* @TODO add filter on status, if a value is specified */
 
     it = ListMgr_Report(&lmgr, status_info, STATUSINFO_FIELDS,
                         SPROF(flags)? &size_profile : NULL,
-                        is_filter? &filter : NULL, NULL);
+                        is_filter? &filter : NULL, &opt);
     if (it == NULL)
     {
         DisplayLog(LVL_CRIT, REPORT_TAG,
