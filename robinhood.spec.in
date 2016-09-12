@@ -198,6 +198,9 @@ mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/ld.so.conf.d
 %if %{with lhsm}
 install -m 644 doc/templates/includes/lhsm.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes/
 %endif
+%if %{with backup}
+install -m 644 doc/templates/includes/backup.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes/
+%endif
 install -m 644 doc/templates/includes/tmpfs.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes/
 install -m 644 doc/templates/includes/alerts.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes/
 install -m 644 doc/templates/includes/check.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes/
@@ -384,6 +387,9 @@ rm -rf $RPM_BUILD_ROOT
 
 %if %{with lhsm}
 %config %{_sysconfdir}/robinhood.d/includes/lhsm.inc
+%endif
+%if %{with backup}
+%config %{_sysconfdir}/robinhood.d/includes/backup.inc
 %endif
 %config %{_sysconfdir}/robinhood.d/includes/tmpfs.inc
 %config %{_sysconfdir}/robinhood.d/includes/alerts.inc
