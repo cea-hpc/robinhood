@@ -49,6 +49,7 @@ BuildRequires: mailx
 BuildRequires: systemd-rpm-macros
 %else
 BuildRequires: systemd
+%systemd_requires # post/preun/postun
 %endif
 %endif
 %if %{with lustre}
@@ -281,6 +282,25 @@ fi
 %postun posix
 %endif
 /sbin/ldconfig
+
+%if %{with_systemd}
+%if %{defined suse_version}
+%service_del_postun robinhood.service robinhood@.service
+%else
+%systemd_postun
+%endif
+%endif
+
+%if %{with_systemd}
+%if %{defined suse_version}
+%if %{with lustre}
+%pre lustre
+%else
+%pre posix
+%endif
+%service_add_pre robinhood.service robinhood@.service
+%endif
+%endif
 
 %clean
 rm -rf $RPM_BUILD_ROOT
