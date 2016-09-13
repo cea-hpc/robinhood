@@ -54,7 +54,34 @@ cd robinhood
 git checkout master (or other branch)
 sh autogen.sh
 
-Then refer to section 2.1 for next compilation steps.
+Then refer to section 2.1 for next compilation steps.o
+
+2.3 - Build using src rpm
+---------------------------
+
+2.3.1 - Creating src rpm
+------------------------
+Only requirements: rpm-build, gcc, flex, bison
+
+To create src rpm on a host with minimal requirements, run:
+    ./configure --enable-dist
+    make srpm
+
+2.3.2 - Building from src rpm
+-----------------------------
+By default, the src rpm builds robinhood for POSIX filesystems:
+    rpmbuild --rebuild robinhood-3.0*.src.rpm
+
+To build robinhood binary RPM for a Lustre filsystem, run:
+    rpmbuild --rebuild robinhood-3.0*.src.rpm --with lustre --define "lversion x.y"
+where x.y is your target lustre version (e.g. 2.7).
+
+Note: if lustre-client is not installed on your target system, you can specify
+an alternative lustre package by defining "lpackage", e.g.
+	 rpmbuild ... --define "lpackage lustre"
+
+Note: 'lversion' can be omitted, by it is strongly recommanded to prevent
+incompatibility issues between lustreapi versions.
 
 III - Install
 =============
