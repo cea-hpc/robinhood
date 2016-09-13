@@ -5489,6 +5489,17 @@ function posix_acmtime
     export RBH_TEST_LAST_ACCESS_ONLY_ATIME=${org_RBH_TEST_LAST_ACCESS_ONLY_ATIME}
 }
 
+# check that changing ACCT schema updates triggers code
+function check_acct_update_triggers
+{
+    local log=$1
+
+    grep "dropping and repopulating table ACCT_STAT" $log || return 0
+
+    # there was an ACCT_STAT change, triggers should have been updated
+    grep "trigger ACCT_ENTRY" $log || error "Triggers should have been updated"
+}
+
 # test various scenarios of DB schema changes
 function db_schema_convert
 {
@@ -5538,6 +5549,7 @@ function db_schema_convert
 
     [ "$DEBUG" = "1" ] && cat rh.log
     grep "ALTER TABLE" rh.log || error "ALTER TABLE expected"
+    check_acct_update_triggers rh.log
 
     # after alter, no more DB change should be reported
     :> rh.log
@@ -5572,6 +5584,7 @@ function db_schema_convert
 
     [ "$DEBUG" = "1" ] && cat rh.log
     grep "ALTER TABLE" rh.log || error "ALTER TABLE expected"
+    check_acct_update_triggers rh.log
 
     # after alter, no more DB change should be reported
     :> rh.log
@@ -5642,6 +5655,8 @@ function db_schema_convert
 
     [ "$DEBUG" = "1" ] && cat rh.log
     grep "ALTER TABLE" rh.log || error "ALTER TABLE expected"
+    grep "dropping and repopulating table ACCT_STAT" rh.log
+    grep "trigger ACCT_ENTRY" rh.log
 
     # after alter, no more DB change should be reported
     :> rh.log
@@ -5671,6 +5686,8 @@ function db_schema_convert
         RBH_NUM_UIDGID=no $RH -f $cfg1 --alter-db -l FULL -L rh.log
         [ "$DEBUG" = "1" ] && cat rh.log
         grep "ALTER TABLE" rh.log || error "ALTER TABLE expected"
+        grep "dropping and repopulating table ACCT_STAT" rh.log
+        grep "trigger ACCT_ENTRY" rh.log
     fi
 }
 
