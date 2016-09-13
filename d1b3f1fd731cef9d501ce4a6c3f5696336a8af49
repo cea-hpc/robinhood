@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_349493e6",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 10
+      },
+      "lineNbr": 196,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-13T14:58:04Z",
+      "side": 1,
+      "message": "etc is %{_sysconfdir}\n\nalso, this file is missing in %files, which should generate an error.",
+      "revId": "d1b3f1fd731cef9d501ce4a6c3f5696336a8af49",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
