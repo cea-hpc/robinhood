@@ -1306,9 +1306,9 @@ static const char *acct_table(void)
 }
 
 /** generic type for check_table/create_table functions */
-typedef int (*check_create_tab_func_t)(db_conn_t *);
+typedef int (*check_create_tab_func_t)(db_conn_t *, bool *);
 
-static int check_table_vars(db_conn_t *pconn)
+static int check_table_vars(db_conn_t *pconn, bool *affects_trig)
 {
     char    strbuf[4096];
     char   *fieldtab[MAX_DB_FIELDS];
@@ -1386,7 +1386,7 @@ static void append_engine(GString *request)
 #endif
 }
 
-static int create_table_vars(db_conn_t *pconn)
+static int create_table_vars(db_conn_t *pconn, bool *affects_trig)
 {
     int      rc;
     GString *request = g_string_new("CREATE TABLE "VAR_TABLE" ("
@@ -1415,7 +1415,7 @@ static struct name_compat main_name_compat[] = {
     {"archive_id",    "lhsm_archid"},
 */
 
-static int check_table_main(db_conn_t *pconn)
+static int check_table_main(db_conn_t *pconn, bool *affects_trig)
 {
     char strbuf[4096];
     char *fieldtab[MAX_DB_FIELDS];
@@ -1468,7 +1468,7 @@ static int check_table_main(db_conn_t *pconn)
     return (rc == 0 && need_alter) ? DB_NEED_ALTER : rc;
 }
 
-static int create_table_main(db_conn_t *pconn)
+static int create_table_main(db_conn_t *pconn, bool *affects_trig)
 {
     GString    *request;
     int         i, rc, cookie;
@@ -1510,7 +1510,7 @@ free_str:
     return rc;
 }
 
-static int check_table_dnames(db_conn_t *pconn)
+static int check_table_dnames(db_conn_t *pconn, bool *affects_trig)
 {
     char  strbuf[4096];
     char *fieldtab[MAX_DB_FIELDS];
@@ -1551,7 +1551,7 @@ static int check_table_dnames(db_conn_t *pconn)
     return rc;
 }
 
-static int create_table_dnames(db_conn_t *pconn)
+static int create_table_dnames(db_conn_t *pconn, bool *affects_trig)
 {
     GString    *request;
     int         i, rc, cookie;
@@ -1596,7 +1596,7 @@ free_str:
     return rc;
 }
 
-static int check_table_annex(db_conn_t *pconn)
+static int check_table_annex(db_conn_t *pconn, bool *affects_trig)
 {
     int rc, i, cookie;
     char  strbuf[4096];
@@ -1644,7 +1644,7 @@ static int check_table_annex(db_conn_t *pconn)
     return (rc == 0 && need_alter) ? DB_NEED_ALTER : rc;
 }
 
-static int create_table_annex(db_conn_t *pconn)
+static int create_table_annex(db_conn_t *pconn, bool *affects_trig)
 {
     GString  *request;
     int       i, rc, cookie;
@@ -1687,7 +1687,7 @@ free_str:
 }
 
 #ifdef _LUSTRE
-static int check_table_stripe_info(db_conn_t *pconn)
+static int check_table_stripe_info(db_conn_t *pconn, bool *affects_trig)
 {
     int rc;
     char  strbuf[4096];
@@ -1748,7 +1748,7 @@ static int check_table_stripe_info(db_conn_t *pconn)
     return rc;
 }
 
-static int create_table_stripe_info(db_conn_t *pconn)
+static int create_table_stripe_info(db_conn_t *pconn, bool *affects_trig)
 {
     GString *request;
     int      rc;
@@ -1766,7 +1766,7 @@ static int create_table_stripe_info(db_conn_t *pconn)
     return rc;
 }
 
-static int check_table_stripe_items(db_conn_t *pconn)
+static int check_table_stripe_items(db_conn_t *pconn, bool *affects_trig)
 {
     int rc;
     char  strbuf[4096];
@@ -1802,7 +1802,7 @@ static int check_table_stripe_items(db_conn_t *pconn)
     return rc;
 }
 
-static int create_table_stripe_items(db_conn_t *pconn)
+static int create_table_stripe_items(db_conn_t *pconn, bool *affects_trig)
 {
     GString *request;
     int  rc;
@@ -1838,7 +1838,7 @@ static void disable_acct(void)
     acct_attr_set = null_mask;
 }
 
-static int acct_drop_or_warn(db_conn_t *pconn)
+static int acct_drop_or_warn(db_conn_t *pconn, bool *affects_trig)
 {
     char strbuf[4096];
     int  rc;
@@ -1853,9 +1853,15 @@ static int acct_drop_or_warn(db_conn_t *pconn)
     DisplayLog(LVL_CRIT, LISTMGR_TAG, "DB schema change detected:"
                " dropping and repopulating table "ACCT_TABLE);
     rc = db_drop_component(pconn, DBOBJ_TABLE, ACCT_TABLE);
-    /* on success, return DB_NOT_EXISTS to re-create the table */
-    if (rc == DB_SUCCESS)
+    if (rc == DB_SUCCESS || rc == DB_NOT_EXISTS)
+    {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG, "Primary key of "ACCT_TABLE
+                   " table changed. Triggers will be updated.");
+        *affects_trig = true;
+
+        /* always return DB_NOT_EXISTS to re-create the table */
         return DB_NOT_EXISTS;
+    }
 
     DisplayLog(LVL_CRIT, LISTMGR_TAG,
                "Failed to drop table: Error: %s",
@@ -1863,7 +1869,7 @@ static int acct_drop_or_warn(db_conn_t *pconn)
     return rc;
 }
 
-static int check_table_acct(db_conn_t *pconn)
+static int check_table_acct(db_conn_t *pconn, bool *affects_trig)
 {
     int i, rc;
     char  strbuf[4096];
@@ -1916,7 +1922,7 @@ static int check_table_acct(db_conn_t *pconn)
                     return rc;
 
                 if (rc == DB_NEED_ALTER)
-                    return acct_drop_or_warn(pconn);
+                    return acct_drop_or_warn(pconn, affects_trig);
             }
         }
         /* check other fields */
@@ -1934,7 +1940,7 @@ static int check_table_acct(db_conn_t *pconn)
         }
         /* check count field*/
         if (check_field_name(ACCT_FIELD_COUNT, &curr_field_index, ACCT_TABLE, fieldtab))
-            return acct_drop_or_warn(pconn);
+            return acct_drop_or_warn(pconn, affects_trig);
 
         /* check size range fields */
         /* based on log2(size/32) => 0 1 32 1K 32K 1M 32M 1G 32G 1T */
@@ -2028,7 +2034,7 @@ static int populate_acct_table(db_conn_t *pconn)
     return rc;
 }
 
-static int create_table_acct(db_conn_t *pconn)
+static int create_table_acct(db_conn_t *pconn, bool *affects_trig)
 {
     GString *request;
     int      i, rc, cookie;
@@ -2099,7 +2105,7 @@ free_str:
     return rc;
 }
 
-static int check_table_softrm(db_conn_t *pconn)
+static int check_table_softrm(db_conn_t *pconn, bool *affects_trig)
 {
     int rc, cookie;
     char  strbuf[4096];
@@ -2172,7 +2178,7 @@ static int check_table_softrm(db_conn_t *pconn)
     return (rc == 0 && need_alter) ? DB_NEED_ALTER : rc;
 }
 
-static int create_table_softrm(db_conn_t *pconn)
+static int create_table_softrm(db_conn_t *pconn, bool *affects_trig)
 {
     GString *request;
     int      rc, i, cookie;
@@ -2217,7 +2223,7 @@ free_str:
 #define VERSION_VAR_TRIG    "VersionTriggerSet"
 
 #define FUNCTIONSET_VERSION    "1.5"
-#define TRIGGERSET_VERSION     "1.3"
+#define TRIGGERSET_VERSION     "1.4"
 
 static int check_functions_version(db_conn_t *conn)
 {
@@ -2270,7 +2276,7 @@ static int set_functions_version(db_conn_t *conn)
     return rc;
 }
 
-static int check_triggers_version(db_conn_t *pconn)
+static int check_triggers_version(db_conn_t *pconn, bool *affects_trig)
 {
     int rc;
     char val[1024];
@@ -2315,7 +2321,7 @@ static int check_triggers_version(db_conn_t *pconn)
     }
 }
 
-static int set_triggers_version(db_conn_t *pconn)
+static int set_triggers_version(db_conn_t *pconn, bool *affects_trig)
 {
     /* set new triggers version */
     int rc = lmgr_set_var(pconn, VERSION_VAR_TRIG, TRIGGERSET_VERSION);
@@ -2329,7 +2335,7 @@ static int set_triggers_version(db_conn_t *pconn)
 }
 
 
-static int check_trig_acct_insert(db_conn_t *pconn)
+static int check_trig_acct_insert(db_conn_t *pconn, bool *affects_trig)
 {
     int rc;
     char strbuf[4096];
@@ -2363,7 +2369,7 @@ static int check_trig_acct_insert(db_conn_t *pconn)
                               acct_info_table);
 }
 
-static int check_trig_acct_delete(db_conn_t *pconn)
+static int check_trig_acct_delete(db_conn_t *pconn, bool *affects_trig)
 {
     int rc;
     char strbuf[4096];
@@ -2396,7 +2402,7 @@ static int check_trig_acct_delete(db_conn_t *pconn)
                               acct_info_table);
 }
 
-static int check_trig_acct_update(db_conn_t *pconn)
+static int check_trig_acct_update(db_conn_t *pconn, bool *affects_trig)
 {
     int rc;
     char strbuf[4096];
@@ -2429,7 +2435,7 @@ static int check_trig_acct_update(db_conn_t *pconn)
                               acct_info_table);
 }
 
-static int create_trig_acct_insert(db_conn_t *pconn)
+static int create_trig_acct_insert(db_conn_t *pconn, bool *affects_trig)
 {
     int      rc;
     GString *request;
@@ -2486,7 +2492,7 @@ free_str:
     return rc;
 }
 
-static int create_trig_acct_delete(db_conn_t *pconn)
+static int create_trig_acct_delete(db_conn_t *pconn, bool *affects_trig)
 {
     int      rc;
     GString *request;
@@ -2532,7 +2538,7 @@ free_str:
     return rc;
 }
 
-static int create_trig_acct_update(db_conn_t *pconn)
+static int create_trig_acct_update(db_conn_t *pconn, bool *affects_trig)
 {
     int      rc, i, cookie;
     bool     is_first_field = true;
@@ -2652,7 +2658,7 @@ free_str:
     return rc;
 }
 
-static int check_func_szrange(db_conn_t *pconn)
+static int check_func_szrange(db_conn_t *pconn, bool *affects_trig)
 {
     /* XXX /!\ do not modify the code of DB functions
      * without changing FUNCTIONSET_VERSION!!!!
@@ -2660,7 +2666,7 @@ static int check_func_szrange(db_conn_t *pconn)
     return db_check_component(pconn, DBOBJ_FUNCTION, SZRANGE_FUNC, NULL);
 }
 
-static int create_func_szrange(db_conn_t *pconn)
+static int create_func_szrange(db_conn_t *pconn, bool *affects_trig)
 {
     int      rc;
     char     err_buf[1024];
@@ -2691,7 +2697,7 @@ static int create_func_szrange(db_conn_t *pconn)
     return rc;
 }
 
-static int check_func_onepath(db_conn_t *pconn)
+static int check_func_onepath(db_conn_t *pconn, bool *affects_trig)
 {
     /* XXX /!\ do not modify the code of DB functions
      * without changing FUNCTIONSET_VERSION!!!!
@@ -2699,7 +2705,7 @@ static int check_func_onepath(db_conn_t *pconn)
     return db_check_component(pconn, DBOBJ_FUNCTION, ONE_PATH_FUNC, NULL);
 }
 
-static int create_func_onepath(db_conn_t *pconn)
+static int create_func_onepath(db_conn_t *pconn, bool *affects_trig)
 {
     int      rc;
     GString *request;
@@ -2750,12 +2756,12 @@ static int create_func_onepath(db_conn_t *pconn)
     return rc;
 }
 
-static int check_func_thispath(db_conn_t *pconn)
+static int check_func_thispath(db_conn_t *pconn, bool *affects_trig)
 {
     return db_check_component(pconn, DBOBJ_FUNCTION, THIS_PATH_FUNC, NULL);
 }
 
-static int create_func_thispath(db_conn_t *pconn)
+static int create_func_thispath(db_conn_t *pconn, bool *affects_trig)
 {
     int      rc;
     GString *request;
@@ -2865,6 +2871,7 @@ int ListMgr_Init(enum lmgr_init_flags flags)
     const dbobj_descr_t *o;
     bool create_all_functions = false;
     bool create_all_triggers = false;
+    bool dummy;
 
     /* store the parameter as a global variable */
     init_flags = flags;
@@ -2888,7 +2895,7 @@ int ListMgr_Init(enum lmgr_init_flags flags)
     /* check function and trigger version: if wrong, drop and re-create them all */
     if (check_functions_version(&conn) != DB_SUCCESS)
         create_all_functions = true;
-    if (check_triggers_version(&conn) != DB_SUCCESS)
+    if (check_triggers_version(&conn, &dummy) != DB_SUCCESS)
         create_all_triggers = true;
 
     for (o = o_list; o->o_name != NULL; o++)
@@ -2903,7 +2910,7 @@ int ListMgr_Init(enum lmgr_init_flags flags)
         else if ((o->o_type == DBOBJ_FUNCTION) && create_all_functions)
             rc = DB_NOT_EXISTS;
         else
-            rc = o->o_check(&conn);
+            rc = o->o_check(&conn, &create_all_triggers);
 
         switch(rc)
         {
@@ -2918,7 +2925,7 @@ int ListMgr_Init(enum lmgr_init_flags flags)
                 {
                     DisplayLog(LVL_EVENT, LISTMGR_TAG, "%s %s does not exist (or wrong version):"
                                " creating it.", dbobj2str(o->o_type), o->o_name);
-                    rc = o->o_create(&conn);
+                    rc = o->o_create(&conn, &create_all_triggers);
                     if (rc != DB_SUCCESS)
                         goto close_conn;
                 }
@@ -2939,7 +2946,7 @@ int ListMgr_Init(enum lmgr_init_flags flags)
 
     if (create_all_triggers && !report_only)
     {
-        rc = set_triggers_version(&conn);
+        rc = set_triggers_version(&conn, &dummy);
         if (rc)
             goto close_conn;
     }
