@@ -1,0 +1,118 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_71b8ed2a",
+        "filename": "Makefile.am",
+        "patchSetId": 2
+      },
+      "lineNbr": 76,
+      "author": {
+        "id": 1004434
+      },
+      "writtenOn": "2016-09-13T14:14:29Z",
+      "side": 1,
+      "message": "do you really need to create this \"fake\" tree for RPM?\nWhy not use something like\n\n  rpmbuild --define \"_sourcedir $PWD\" --define \"_srcrpmdir WHEREYOULIKE\" ....",
+      "revId": "fda8d5ecdafcc2cabe22280e55022839b1385f0d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_71bd8d01",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 2
+      },
+      "lineNbr": 8,
+      "author": {
+        "id": 1004434
+      },
+      "writtenOn": "2016-09-13T14:14:29Z",
+      "side": 1,
+      "message": "don\u0027t know what side effet this has (having bcond depend on other bcond, regarding command line arg parsing, etc...)",
+      "range": {
+        "startLine": 8,
+        "startChar": 2,
+        "endLine": 8,
+        "endChar": 7
+      },
+      "revId": "fda8d5ecdafcc2cabe22280e55022839b1385f0d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_7448dbcc",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 2
+      },
+      "lineNbr": 31,
+      "author": {
+        "id": 1004434
+      },
+      "writtenOn": "2016-09-13T14:14:29Z",
+      "side": 1,
+      "message": "%{undefined lversion}",
+      "range": {
+        "startLine": 31,
+        "startChar": 4,
+        "endLine": 31,
+        "endChar": 14
+      },
+      "revId": "fda8d5ecdafcc2cabe22280e55022839b1385f0d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_d40d6790",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 2
+      },
+      "lineNbr": 32,
+      "author": {
+        "id": 1004434
+      },
+      "writtenOn": "2016-09-13T14:14:29Z",
+      "side": 1,
+      "message": "Is it so important to force a minimum lustre version?\n\nI see no reason to force a lustre version in all cases. I think there is simple case where requiring Lustre is just enough.",
+      "revId": "fda8d5ecdafcc2cabe22280e55022839b1385f0d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_b425430b",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 2
+      },
+      "lineNbr": 52,
+      "author": {
+        "id": 1004434
+      },
+      "writtenOn": "2016-09-13T14:14:29Z",
+      "side": 1,
+      "message": "this could not happened anymore",
+      "revId": "fda8d5ecdafcc2cabe22280e55022839b1385f0d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_d4368750",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 2
+      },
+      "lineNbr": 187,
+      "author": {
+        "id": 1004434
+      },
+      "writtenOn": "2016-09-13T14:14:29Z",
+      "side": 1,
+      "message": "%cfg_args variable is not needed\n\n  %{?with_lustre:--enable-lustre}",
+      "revId": "fda8d5ecdafcc2cabe22280e55022839b1385f0d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
