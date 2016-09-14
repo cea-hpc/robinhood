@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_16ed0f8e",
+        "filename": "Makefile.am",
+        "patchSetId": 3
+      },
+      "lineNbr": 61,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-14T19:03:26Z",
+      "side": 1,
+      "message": "however it seams that configure args have been properly quoted between single quotes, when @ac_configure_args@ has been replaced:\n configure_flags \u0027--with-lustre\u003d/test/\" foo\u0027 \u0027--without-lustre\u0027\n\nBut it still didn\u0027t like it, perhaps because of the \"?",
+      "parentUuid": "baa041b7_e0db054e",
+      "revId": "889bc188406e4f52f4ca37d3359c5ec630dfbb8a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_80c8b976",
         "filename": "robinhood.spec.in",
         "patchSetId": 3
@@ -30,6 +48,24 @@
       "writtenOn": "2016-09-14T11:46:17Z",
       "side": 1,
       "message": "(nitpick) Why repeat both in %description and in subpackages descriptions?",
+      "revId": "889bc188406e4f52f4ca37d3359c5ec630dfbb8a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_76fc5b3f",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 3
+      },
+      "lineNbr": 120,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-14T19:03:26Z",
+      "side": 1,
+      "message": "I suppose %description is for the \"robinhood\" RPM and %description blabla is for package \"robinhood-blabla\". Isn\u0027t this the case?",
+      "parentUuid": "baa041b7_80c8b976",
       "revId": "889bc188406e4f52f4ca37d3359c5ec630dfbb8a",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
