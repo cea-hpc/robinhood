@@ -1,0 +1,72 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_45ebe3dc",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 12
+      },
+      "lineNbr": 120,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-14T07:24:12Z",
+      "side": 1,
+      "message": "Missing php-mysql, otherwise we get:\n\n Errorcould not find driver",
+      "revId": "b5c2ba6606291d7508a700aa9c271094d637957e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_65bdc701",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 12
+      },
+      "lineNbr": 20,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-14T07:24:12Z",
+      "side": 1,
+      "message": "II- Installation\n2.1 - Requirements\nphp, php-pdo, php-mysql\n2.2 - Install from tarball\n2.3 - Install from RPM",
+      "revId": "b5c2ba6606291d7508a700aa9c271094d637957e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_a5c3cf89",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 12
+      },
+      "lineNbr": 33,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-14T07:24:12Z",
+      "side": 1,
+      "message": "(typo) Authentication",
+      "revId": "b5c2ba6606291d7508a700aa9c271094d637957e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_45fd23b0",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 12
+      },
+      "lineNbr": 54,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-14T07:24:12Z",
+      "side": 1,
+      "message": "Accessing http://localhost/robinhood returns:\n 301 Moved Permanently\n\nAccessing http://localhost/robinhood/ is OK?",
+      "revId": "b5c2ba6606291d7508a700aa9c271094d637957e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
