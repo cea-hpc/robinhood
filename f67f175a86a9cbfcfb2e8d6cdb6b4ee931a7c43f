@@ -1,0 +1,180 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_56da7718",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 14
+      },
+      "lineNbr": 121,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-14T18:52:38Z",
+      "side": 1,
+      "message": "apparently it needs:\nphp \u003e\u003d 5.4\nhttpd \u003e\u003d 2.4",
+      "range": {
+        "startLine": 121,
+        "startChar": 10,
+        "endLine": 121,
+        "endChar": 13
+      },
+      "revId": "f67f175a86a9cbfcfb2e8d6cdb6b4ee931a7c43f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_f6050b79",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 14
+      },
+      "lineNbr": 23,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-14T18:52:38Z",
+      "side": 1,
+      "message": "typo (i)",
+      "revId": "f67f175a86a9cbfcfb2e8d6cdb6b4ee931a7c43f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_96f7df8b",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 14
+      },
+      "lineNbr": 34,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-14T18:52:38Z",
+      "side": 1,
+      "message": "httpd is already part of webgui rpm (indirectly) it is required by php or php-pdo.",
+      "revId": "f67f175a86a9cbfcfb2e8d6cdb6b4ee931a7c43f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_76f21b9d",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 14
+      },
+      "lineNbr": 41,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-14T18:52:38Z",
+      "side": 1,
+      "message": "There also DB_TYPE \u003d \"\".\nBut actually this one could be pre-set as \"mysql\".",
+      "revId": "f67f175a86a9cbfcfb2e8d6cdb6b4ee931a7c43f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_f62ceb02",
+        "filename": "web_gui/gui_v3/config.php",
+        "patchSetId": 14
+      },
+      "lineNbr": 19,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-14T18:52:38Z",
+      "side": 1,
+      "message": "you can pre-set it to \"mysql\"",
+      "revId": "f67f175a86a9cbfcfb2e8d6cdb6b4ee931a7c43f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_d6332761",
+        "filename": "web_gui/gui_v3/config.php",
+        "patchSetId": 14
+      },
+      "lineNbr": 20,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-14T18:52:38Z",
+      "side": 1,
+      "message": "you can pre-set it to localhost",
+      "revId": "f67f175a86a9cbfcfb2e8d6cdb6b4ee931a7c43f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_b636634f",
+        "filename": "web_gui/gui_v3/config.php",
+        "patchSetId": 14
+      },
+      "lineNbr": 21,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-14T18:52:38Z",
+      "side": 1,
+      "message": "you can preset it to robinhood_fsname",
+      "revId": "f67f175a86a9cbfcfb2e8d6cdb6b4ee931a7c43f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_963ebf27",
+        "filename": "web_gui/gui_v3/config.php",
+        "patchSetId": 14
+      },
+      "lineNbr": 22,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-14T18:52:38Z",
+      "side": 1,
+      "message": "you can preset it to robinhood",
+      "revId": "f67f175a86a9cbfcfb2e8d6cdb6b4ee931a7c43f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_564837cc",
+        "filename": "web_gui/gui_v3/config.php",
+        "patchSetId": 14
+      },
+      "lineNbr": 23,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-14T18:52:38Z",
+      "side": 1,
+      "message": "PWD is usually used for designating current directory (bash variable). PASSWD is more common for password.",
+      "revId": "f67f175a86a9cbfcfb2e8d6cdb6b4ee931a7c43f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_36d5b3e4",
+        "filename": "web_gui/robinhood.conf",
+        "patchSetId": 14
+      },
+      "lineNbr": 14,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-14T18:52:38Z",
+      "side": 1,
+      "message": "doesn\u0027t work with apache 2.2?",
+      "revId": "f67f175a86a9cbfcfb2e8d6cdb6b4ee931a7c43f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
