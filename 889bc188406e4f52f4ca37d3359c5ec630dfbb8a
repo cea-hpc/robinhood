@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_e0db054e",
+        "filename": "Makefile.am",
+        "patchSetId": 3
+      },
+      "lineNbr": 61,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-09-14T11:46:17Z",
+      "side": 1,
+      "message": "Might need to test weird ac configure args with quotes etc?\n\nI guess the worst that can happen is just their make rpm fails anyway, not like there\u0027s any trust boundary\n\nThis is a very stupid example:\n\n  ./configure --with-lustre\u003d\u0027/test/\" foo\u0027 --without-lustre\n  make rpm\n  ..\n  rpmbuild --without lustre  --with mysql   --without lhsm  --without shook  --without backup --define\u003d\"_topdir `pwd`/rpms\" --define\u003d\"_prefix /usr\" \\\n\t--define\u003d\"dbversion `mysql_config --version | cut -d \".\" -f 1-2`\" \\\n\t--define\u003d\"configure_flags  \u0027--with-lustre\u003d/test/\" foo\u0027 \u0027--without-lustre\u0027\" \\\n        --define\u003d\"_sysconfdir /etc\" \\\n\t--define\u003d\"_prefix /usr\" -tb robinhood-3.0.tar.gz\n  /bin/sh: -c: line 2: unexpected EOF while looking for matching `\u0027\u0027\n  /bin/sh: -c: line 5: syntax error: unexpected end of file",
+      "revId": "889bc188406e4f52f4ca37d3359c5ec630dfbb8a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_80c8b976",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 3
+      },
+      "lineNbr": 120,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-09-14T11:46:17Z",
+      "side": 1,
+      "message": "(nitpick) Why repeat both in %description and in subpackages descriptions?",
+      "revId": "889bc188406e4f52f4ca37d3359c5ec630dfbb8a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
