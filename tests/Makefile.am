@@ -21,6 +21,7 @@ nobase_dist_pkgdata_SCRIPTS = \
     test_suite/hudson_lsetup.sh         \
     huge_posix/1-test_setup.sh          \
     huge_posix/2-run-tests.sh           \
+    test_rpmbuild.sh			\
     fill_fs.sh                          \
     completion.sh
 endif
