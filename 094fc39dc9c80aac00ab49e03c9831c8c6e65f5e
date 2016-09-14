@@ -16,6 +16,24 @@
       "revId": "094fc39dc9c80aac00ab49e03c9831c8c6e65f5e",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_202b2d35",
+        "filename": "src/list_mgr/listmgr_init.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 2898,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-14T11:25:30Z",
+      "side": 1,
+      "message": "I agree. But this would make this patch more complex, as we have to distinguish carefully various function return codes\n(e.g. trigger doesn\u0027t exist vs. DB doesn\u0027t exist, etc...).\nI prefer to keep it for a later enhancement.",
+      "parentUuid": "baa041b7_1f7bedbf",
+      "revId": "094fc39dc9c80aac00ab49e03c9831c8c6e65f5e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
