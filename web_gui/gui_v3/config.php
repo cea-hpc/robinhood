@@ -16,17 +16,18 @@
 *****************************/
 
 //Support at least mysql/pgsql/sqlite
-$DB_TYPE     = "";
-$DB_HOST     = "";
+$DB_TYPE     = "mysql";
+$DB_HOST     = "localhost";
 $DB_NAME     = "";
 $DB_USER     = "";
-$DB_PWD      = "";
+$DB_PASSWD   = "";
 
+$DB_LASTERROR = "";
 try {
-    $db = new PDO("$DB_TYPE:$DB_HOST;dbname=$DB_NAME", $DB_USER, $DB_PWD);
+    $db = new PDO("$DB_TYPE:$DB_HOST;dbname=$DB_NAME", $DB_USER, $DB_PASSWD);
     $db->exec("USE $DB_NAME;");
 } catch(Exception $e) {
-    die('Error'.$e->getMessage());
+    $DB_LASTERROR = $e->getMessage();
 }
 
 /*****************************
@@ -54,7 +55,11 @@ $ACCESS_LIST['native'][] = '*';
 *****************************/
 //Max row per result
 $MAX_ROWS = 1000;
-$JSON_OPTIONS = JSON_PRETTY_PRINT;
+
+$JSON_OPTIONS = null;
+if (version_compare(phpversion(), '5.4.0', '>='))
+    $JSON_OPTIONS |= JSON_PRETTY_PRINT;
+
 /*****************************
 *        Dynamic Fields      *
 *****************************/
@@ -78,8 +83,11 @@ $FIELD_LIST['count'] = null;
  *        Language            *
  *****************************/
 
+if (array_key_exists('HTTP_ACCEPT_LANGUAGE', $_SERVER))
+    $lang = substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2);
+else
+    $lang = "en";
 
-$lang = substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2);
 switch ($lang) {
 case "fr":
         $lang_file = 'fr.php';

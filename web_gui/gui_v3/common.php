@@ -292,8 +292,11 @@ function build_advanced_filter($args) {
 function l($text)
 {
         global $lang;
-        if (array_key_exists($text, $lang))
+        if (array_key_exists($text, $lang)) {
                 return $lang[$text];
+        } elseif (endsWith($text,"_status")) {
+                return ucfirst(str_replace("_", " ", $text));
+        }
         return $text;
 }
 
