@@ -101,6 +101,54 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_ba2e4540",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 3
+      },
+      "lineNbr": 34,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-15T12:43:12Z",
+      "side": 1,
+      "message": "\"should\" \u003d \"vous devriez\"\n\nC\u0027est bien ce que je veux dire.",
+      "parentUuid": "baa041b7_17ad0a88",
+      "range": {
+        "startLine": 34,
+        "startChar": 57,
+        "endLine": 34,
+        "endChar": 63
+      },
+      "revId": "889bc188406e4f52f4ca37d3359c5ec630dfbb8a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_9a25c15d",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 3
+      },
+      "lineNbr": 34,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-15T12:43:12Z",
+      "side": 1,
+      "message": "Done (changed pĥrasing).",
+      "parentUuid": "baa041b7_f7a746a5",
+      "range": {
+        "startLine": 34,
+        "startChar": 104,
+        "endLine": 34,
+        "endChar": 105
+      },
+      "revId": "889bc188406e4f52f4ca37d3359c5ec630dfbb8a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_379ece54",
         "filename": "robinhood.spec.in",
         "patchSetId": 3
@@ -112,6 +160,30 @@
       "writtenOn": "2016-09-15T08:22:30Z",
       "side": 1,
       "message": "You can keep this on one line if you prefer\n\n(style) %{?lversion: \u003e\u003d %lversion}",
+      "range": {
+        "startLine": 79,
+        "startChar": 27,
+        "endLine": 79,
+        "endChar": 41
+      },
+      "revId": "889bc188406e4f52f4ca37d3359c5ec630dfbb8a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_1a1ad117",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 3
+      },
+      "lineNbr": 79,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-09-15T12:43:12Z",
+      "side": 1,
+      "message": "Good to know, but I find it more obscure.",
+      "parentUuid": "baa041b7_379ece54",
       "range": {
         "startLine": 79,
         "startChar": 27,
