@@ -37,6 +37,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_97afda7c",
+        "filename": "Makefile.am",
+        "patchSetId": 3
+      },
+      "lineNbr": 61,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-09-15T08:26:59Z",
+      "side": 1,
+      "message": "seems* (seam is \u0027coudre\u0027)\n\nAnd yes, everything is within a \" so the automatic quoting is incorrect as it expects giving separate arguments to a program directly.\nI think it\u0027d be \"safe-ish\" if we just quote the double-quotes, but not exactly easy to do (I\u0027m not aware of any at autoconf level, would need a two-step commands that first takes @ac_configure_args@ correctly then use the escaped version).\nAs I said it\u0027s not a security problem/can\u0027t see anyone give weird options like that...\nI think a valid failure here would be a --with-lustre\u003d\"/path/with spaces/\" where the quotes would poof and it\u0027d fail to find the path, but anyone doing that will have problems (and it\u0027d work with single quote path) ;)",
+      "parentUuid": "baa041b7_16ed0f8e",
+      "revId": "889bc188406e4f52f4ca37d3359c5ec630dfbb8a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_f7a746a5",
         "filename": "robinhood.spec.in",
         "patchSetId": 3
@@ -135,6 +153,24 @@
       "side": 1,
       "message": "I suppose %description is for the \"robinhood\" RPM and %description blabla is for package \"robinhood-blabla\". Isn\u0027t this the case?",
       "parentUuid": "baa041b7_80c8b976",
+      "revId": "889bc188406e4f52f4ca37d3359c5ec630dfbb8a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_77b216e7",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 3
+      },
+      "lineNbr": 120,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2016-09-15T08:26:59Z",
+      "side": 1,
+      "message": "But there\u0027s no \"robinhood\" RPM? hmm the srpm maybe.\nIt doesn\u0027t hurt anyway :)",
+      "parentUuid": "baa041b7_76fc5b3f",
       "revId": "889bc188406e4f52f4ca37d3359c5ec630dfbb8a",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
