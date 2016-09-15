@@ -125,7 +125,7 @@ $(function() {
                 url: "api/index.php?request=native/vars"
         }).then(function(data) {
                 $('#main_title').append(": "+data.FS_Path);
-        document.title = document.title + ": "+data.FS_Path;
+                document.title = document.title + ": "+data.FS_Path;
         });
 
 
@@ -163,20 +163,21 @@ function GetGraph(item){
                 defaultFontSize: 14,
                 tooltips: {
                         enabled: true,
-                mode: 'single',
-                callbacks: {
-                        label: function(tooltipItems, data) {
-                                val = data.datasets[tooltipItems.datasetIndex].data[tooltipItems.index]
-                type = data.datasets[tooltipItems.datasetIndex].unit
-                if (type=="size") {
-                        return formatBytes(val,0);
-                }
-        if (type=="count") {
-                return formatCount(val,0);
-        }
-        return val
-                        }
-                }}
+                        mode: 'single',
+                        callbacks: {
+                                label: function(tooltipItems, data) {
+                                        val = data.datasets[tooltipItems.datasetIndex].data[tooltipItems.index]
+                                                type = data.datasets[tooltipItems.datasetIndex].unit
+                                                if (type=="size") {
+                                                        return formatBytes(val,0);
+                                                } else if (type=="count") {
+                                                        return formatCount(val,0);
+                                                } else if (type=="date") {
+                                                        return (new Date(val*1000));
+                                                }
+                                        return val
+                                }
+                        }}
                 }
 
                 if (data.limited) {

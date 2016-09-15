@@ -63,11 +63,12 @@ function formatSizeNumber( $number, $precision=2 )
 function get_acct_columns($all=false) {
         global $FIELD_LIST;
         global $DB_LASTERROR;
+        global $DB_NAME;
         global $db;
         $final = array();
         if (!$db)
                 return $final;
-        $result = $db->query("select column_name from information_schema.columns where table_name = 'ACCT_STAT';");
+        $result = $db->query("select column_name from information_schema.columns where table_name = 'ACCT_STAT' AND TABLE_SCHEMA = '$DB_NAME';");
         if ($result->rowCount() <1) {
                 $DB_LASTERROR = 'Something goes wrong with db schema: ACCT_STAT doesn\'t exist';
                 return $final;
@@ -174,6 +175,7 @@ function build_filter($args, $filter) {
 function build_advanced_filter($args) {
         global $db;
         global $DB_LASTERROR;
+        global $DB_NAME;
         $shortcuts = array();
         $fields = array();
         $select = array();
@@ -188,7 +190,7 @@ function build_advanced_filter($args) {
         $shortcuts['AVG'] = "_avg";
 
         $sqlrequest = "SELECT ";
-        $result = $db->query("select column_name,column_type from information_schema.columns where table_name = 'ACCT_STAT';");
+        $result = $db->query("select column_name,column_type from information_schema.columns where table_name = 'ACCT_STAT' AND TABLE_SCHEMA = '$DB_NAME';");
         if ($result->rowCount() <1) {
                 $DB_LASTERROR = 'Something goes wrong with db schema: ACCT_STAT doesn\'t exist';
                 exit;
@@ -292,8 +294,11 @@ function build_advanced_filter($args) {
 function l($text)
 {
         global $lang;
-        if (array_key_exists($text, $lang))
+        if (array_key_exists($text, $lang)) {
                 return $lang[$text];
+        } elseif (endsWith($text,"_status")) {
+                return ucfirst(str_replace("_", " ", $text));
+        }
         return $text;
 }
 

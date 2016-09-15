@@ -20,7 +20,7 @@ bootstrap: MIT
 II - Installation
 =================
 
-2.1 Requirementsi
+2.1 Requirements
 
 php, php-pdo, php-mysql
 
@@ -31,7 +31,6 @@ configure your web server (your can use the default configuration robinhood.conf
 
 2.3 Install from RPM
 
-yum install yourfavoritewebserver (httpd)
 yum install robinhood-webgui
 
 III - Configuration

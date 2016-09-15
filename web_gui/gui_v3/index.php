@@ -127,8 +127,8 @@ echo '<li><a href="#"  onclick="GetGraph(\'Files\')">Files</a></li>';
 
 <?php
 $permission = getFilePermission("config.php");
-if ($permission != "700") {
-        echo "<script>$(msg_danger(\"Bad permission on config.php ($permission) shoud be 700 .\"))</script>";
+if ($permission != "640") {
+        echo "<script>$(msg_danger(\"Bad permission on config.php ($permission) shoud be 640 .\"))</script>";
 }
 
 if ($DB_TYPE == "" || $DB_HOST == "" || $DB_NAME == "" || $DB_USER == "") {
