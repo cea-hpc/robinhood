@@ -43,11 +43,10 @@
 
 #define TAG "PolicyRun"
 
-typedef struct queue_item__
-{
-    entry_id_t     entry_id;
-    attr_set_t     entry_attr;
-    unsigned long  targeted;
+typedef struct queue_item__ {
+    entry_id_t entry_id;
+    attr_set_t entry_attr;
+    unsigned long targeted;
 } queue_item_t;
 
 /**
@@ -57,9 +56,9 @@ static queue_item_t *entry2queue_item(entry_id_t *p_entry_id,
                                       attr_set_t *p_attr_set,
                                       unsigned long targeted)
 {
-    queue_item_t  *new_entry;
+    queue_item_t *new_entry;
 
-    new_entry = (queue_item_t *)MemAlloc(sizeof(queue_item_t));
+    new_entry = (queue_item_t *) MemAlloc(sizeof(queue_item_t));
     if (!new_entry)
         return NULL;
 
@@ -80,7 +79,7 @@ static void free_queue_item(queue_item_t *item)
 }
 
 typedef struct subst_args {
-    action_params_t  *params;
+    action_params_t *params;
     const entry_id_t *id;
     const attr_set_t *attrs;
     const char **subst_array;
@@ -90,10 +89,10 @@ typedef struct subst_args {
 /** substitute placeholders in a param value */
 static int subst_one_param(const char *key, const char *val, void *udata)
 {
-    subst_args_t *args = (subst_args_t *)udata;
-    gchar        *new_val;
-    char         *descr = NULL;
-    int           rc;
+    subst_args_t *args = (subst_args_t *) udata;
+    gchar *new_val;
+    char *descr = NULL;
+    int rc;
 
     asprintf(&descr, "parameter %s='%s'", key, val);
     new_val = subst_params(val, descr, args->id, args->attrs, args->params,
@@ -110,14 +109,13 @@ static int subst_one_param(const char *key, const char *val, void *udata)
     return rc;
 }
 
-static void set_addl_params(const char* addl_params[], unsigned int size,
+static void set_addl_params(const char *addl_params[], unsigned int size,
                             const rule_item_t *rule,
                             const fileset_item_t *fileset)
 {
-    int   last_param_idx = 0;
+    int last_param_idx = 0;
 
-    if (rule != NULL)
-    {
+    if (rule != NULL) {
         if (unlikely(size < last_param_idx + 2))
             RBH_BUG("set_addl_params: array parameter too small");
 
@@ -126,9 +124,8 @@ static void set_addl_params(const char* addl_params[], unsigned int size,
         last_param_idx += 2;
     }
 
-    /* add params from fileclass (possibly override previous params)*/
-    if (fileset != NULL)
-    {
+    /* add params from fileclass (possibly override previous params) */
+    if (fileset != NULL) {
         if (unlikely(size < last_param_idx + 2))
             RBH_BUG("set_addl_params: array parameter too small");
 
@@ -162,8 +159,9 @@ static int build_action_params(action_params_t *params,
                                const rule_item_t *rule,
                                const fileset_item_t *fileset)
 {
-    int   rc = 0;
-    char const* addl_params[5]; /* 5 max: "fileclass" + its name, "rule" + its name, NULL */
+    int rc = 0;
+    char const *addl_params[5]; /* 5 max: "fileclass" + its name,
+                                  "rule" + its name, NULL */
     subst_args_t subst_param_args = {
         .params = params,
         .id = id,
@@ -181,46 +179,41 @@ static int build_action_params(action_params_t *params,
      * 3) fileclass
      */
     /* params from policy */
-    if (likely(policy->config != NULL))
-    {
+    if (likely(policy->config != NULL)) {
         rc = rbh_params_copy(params, &policy->config->action_params);
         if (rc)
             goto err;
     }
 
-    /* add params from trigger (possibly override previous params)*/
-    if (policy->trigger_action_params != NULL)
-    {
+    /* add params from trigger (possibly override previous params) */
+    if (policy->trigger_action_params != NULL) {
         rc = rbh_params_copy(params, policy->trigger_action_params);
         if (rc)
             goto err;
     }
 
-    /* add params from rule (possibly override previous params)*/
-    if (rule != NULL)
-    {
+    /* add params from rule (possibly override previous params) */
+    if (rule != NULL) {
         rc = rbh_params_copy(params, &rule->action_params);
         if (rc)
             goto err;
     }
 
-    /* add params from fileclass (possibly override previous params)*/
-    if (fileset != NULL)
-    {
+    /* add params from fileclass (possibly override previous params) */
+    if (fileset != NULL) {
         const action_params_t *fileset_params;
 
         /* check if there are parameters for the given policy */
         fileset_params = get_fileset_policy_params(fileset,
                                                    policy->descr->name);
-        if (fileset_params != NULL)
-        {
+        if (fileset_params != NULL) {
             rc = rbh_params_copy(params, fileset_params);
             if (rc)
                 goto err;
         }
     }
 
-    set_addl_params(addl_params, sizeof(addl_params)/sizeof(char *), rule,
+    set_addl_params(addl_params, sizeof(addl_params) / sizeof(char *), rule,
                     fileset);
     subst_param_args.subst_array = addl_params;
 
@@ -231,15 +224,16 @@ static int build_action_params(action_params_t *params,
 
     return 0;
 
-err:
+ err:
     rbh_params_free(params);
     return rc;
 }
 
 /** Execute a policy action. */
 static int policy_action(policy_info_t *policy,
-                         const rule_item_t *rule, const fileset_item_t *fileset,
-                         const entry_id_t *id, attr_set_t *p_attr_set,
+                         const rule_item_t *rule,
+                         const fileset_item_t *fileset, const entry_id_t *id,
+                         attr_set_t *p_attr_set,
                          const action_params_t *params, post_action_e *after)
 {
     int rc = 0;
@@ -258,14 +252,13 @@ static int policy_action(policy_info_t *policy,
     DisplayLog(policy->config->report_actions ? LVL_EVENT : LVL_DEBUG,
                tag(policy),
                "%sExecuting policy action on: " DFID_NOBRACE " (%s)",
-               dry_run(policy)?"(dry-run) ":"", PFID(id),
+               dry_run(policy) ? "(dry-run) " : "", PFID(id),
                ATTR(p_attr_set, fullpath));
-    if (log_config.debug_level >= LVL_DEBUG)
-    {
+    if (log_config.debug_level >= LVL_DEBUG) {
         GString *str = g_string_new("");
         rc = rbh_params_serialize(params, str, NULL, RBH_PARAM_CSV);
         if (rc == 0)
-            DisplayLog(LVL_DEBUG, tag(policy), DFID": action_params: %s",
+            DisplayLog(LVL_DEBUG, tag(policy), DFID ": action_params: %s",
                        PFID(id), str->str);
         g_string_free(str, TRUE);
     }
@@ -275,51 +268,48 @@ static int policy_action(policy_info_t *policy,
 
     /* If the status manager has an 'executor', make it run the action.
      * Else, run directly the action function. */
-    if (smi != NULL && smi->sm->executor != NULL)
-    {
+    if (smi != NULL && smi->sm->executor != NULL) {
         /* @TODO provide a DB callback */
         rc = smi->sm->executor(smi, policy->descr->implements, actionp,
-                               id, p_attr_set, params,
-                               after, NULL, NULL);
-    }
-    else
-    {
-        switch(actionp->type)
-        {
-            case ACTION_FUNCTION:
-                /* @TODO provide a DB callback */
-                DisplayLog(LVL_DEBUG, tag(policy), DFID": action: %s",
-                           PFID(id), actionp->action_u.func.name);
-                rc = actionp->action_u.func.call(id, p_attr_set, params, after,
-                                                 NULL, NULL);
-                break;
-            case ACTION_COMMAND: /* execute custom action */
+                               id, p_attr_set, params, after, NULL, NULL);
+    } else {
+        switch (actionp->type) {
+        case ACTION_FUNCTION:
+            /* @TODO provide a DB callback */
+            DisplayLog(LVL_DEBUG, tag(policy), DFID ": action: %s",
+                       PFID(id), actionp->action_u.func.name);
+            rc = actionp->action_u.func.call(id, p_attr_set, params, after,
+                                             NULL, NULL);
+            break;
+        case ACTION_COMMAND:   /* execute custom action */
             {
                 char *descr = NULL;
                 char **cmd;
-                char const* addl_params[5];
+                char const *addl_params[5];
 
-                set_addl_params(addl_params, sizeof(addl_params)/sizeof(char *),
-                                rule, fileset);
+                set_addl_params(addl_params,
+                                sizeof(addl_params) / sizeof(char *), rule,
+                                fileset);
 
-                asprintf(&descr, "action command '%s'", actionp->action_u.command[0]);
+                asprintf(&descr, "action command '%s'",
+                         actionp->action_u.command[0]);
 
                 /* replaces placeholders in command */
                 rc = subst_shell_params(actionp->action_u.command, descr,
                                         id, p_attr_set, params, addl_params,
                                         smi, true, &cmd);
                 free(descr);
-                if (rc == 0)
-                {
+                if (rc == 0) {
                     /* call custom command */
                     if (log_config.debug_level >= LVL_DEBUG) {
                         char *log_cmd = concat_cmd(cmd);
-                        DisplayLog(LVL_DEBUG, tag(policy), DFID": action: cmd(%s)",
-                                   PFID(id), log_cmd);
+                        DisplayLog(LVL_DEBUG, tag(policy),
+                                   DFID ": action: cmd(%s)", PFID(id), log_cmd);
                         free(log_cmd);
                     }
 
-                    rc = execute_shell_command(cmd, cb_stderr_to_log, (void *)LVL_DEBUG);
+                    rc = execute_shell_command(cmd, cb_stderr_to_log,
+                                               (void *)LVL_DEBUG);
                     g_strfreev(cmd);
                     /* @TODO handle other hardlinks to the same entry */
                 }
@@ -329,20 +319,22 @@ static int policy_action(policy_info_t *policy,
 
                 break;
             }
-            case ACTION_UNSET:
-            case ACTION_NONE:
-                rc = 0;
-                break;
+        case ACTION_UNSET:
+        case ACTION_NONE:
+            rc = 0;
+            break;
         }
 
-        /* call action callback if there is no status manager executor to wrap actions */
-        if (smi != NULL && smi->sm->action_cb != NULL)
-        {
+        /* call action callback if there is no status manager executor to wrap
+         * actions */
+        if (smi != NULL && smi->sm->action_cb != NULL) {
             int tmp_rc = smi->sm->action_cb(smi, policy->descr->implements, rc,
                                             id, p_attr_set, after);
             if (tmp_rc)
-                DisplayLog(LVL_MAJOR, tag(policy), "Action callback failed for action '%s': rc=%d",
-                           policy->descr->implements ? policy->descr->implements : "<null>", tmp_rc);
+                DisplayLog(LVL_MAJOR, tag(policy),
+                           "Action callback failed for action '%s': rc=%d",
+                           policy->descr->implements ? policy->descr->
+                           implements : "<null>", tmp_rc);
         }
     }
 
@@ -360,25 +352,23 @@ static inline int get_sort_attr(policy_info_t *p, const attr_set_t *p_attrs)
     if (!attr_mask_test_index(&p_attrs->attr_mask, p->config->lru_sort_attr))
         return -1;
 
-    if (is_sm_info(p->config->lru_sort_attr))
-    {
+    if (is_sm_info(p->config->lru_sort_attr)) {
         unsigned int idx = attr2sminfo_index(p->config->lru_sort_attr);
 
         return *((unsigned int *)p_attrs->attr_values.sm_info[idx]);
     }
 
-    switch(p->config->lru_sort_attr)
-    {
-        case ATTR_INDEX_creation_time:
-            return ATTR(p_attrs, creation_time);
-        case ATTR_INDEX_last_mod:
-            return ATTR(p_attrs, last_mod);
-        case ATTR_INDEX_last_access:
-            return ATTR(p_attrs, last_access);
-        case ATTR_INDEX_rm_time:
-            return ATTR(p_attrs, rm_time);
-        default:
-            return -1;
+    switch (p->config->lru_sort_attr) {
+    case ATTR_INDEX_creation_time:
+        return ATTR(p_attrs, creation_time);
+    case ATTR_INDEX_last_mod:
+        return ATTR(p_attrs, last_mod);
+    case ATTR_INDEX_last_access:
+        return ATTR(p_attrs, last_access);
+    case ATTR_INDEX_rm_time:
+        return ATTR(p_attrs, rm_time);
+    default:
+        return -1;
     }
 }
 
@@ -386,62 +376,63 @@ static inline int get_sort_attr(policy_info_t *p, const attr_set_t *p_attrs)
 static inline void set_max_time_attrs(policy_info_t *p, attr_set_t *p_attrs,
                                       time_t value)
 {
-    switch(p->config->lru_sort_attr)
-    {
-        case ATTR_INDEX_last_mod:
-            ATTR_MASK_SET(p_attrs, last_mod);
-            ATTR(p_attrs, last_mod) = value;
-            /* cr_time always <=  last_mod */
-            ATTR_MASK_SET(p_attrs, creation_time);
-            ATTR(p_attrs, creation_time) = value;
-            break;
+    switch (p->config->lru_sort_attr) {
+    case ATTR_INDEX_last_mod:
+        ATTR_MASK_SET(p_attrs, last_mod);
+        ATTR(p_attrs, last_mod) = value;
+        /* cr_time always <=  last_mod */
+        ATTR_MASK_SET(p_attrs, creation_time);
+        ATTR(p_attrs, creation_time) = value;
+        break;
 
-        case ATTR_INDEX_last_access:
-            ATTR_MASK_SET(p_attrs, last_access);
-            ATTR(p_attrs, last_access) = value;
-            /* in robinhood, lastmod <= last_access as last_access=MAX(atime,mtime) */
-            ATTR_MASK_SET(p_attrs, last_mod);
-            ATTR(p_attrs, last_mod) = value;
-            /* cr_time always <= last_mod */
-            ATTR_MASK_SET(p_attrs, creation_time);
-            ATTR(p_attrs, creation_time) = value;
-            break;
+    case ATTR_INDEX_last_access:
+        ATTR_MASK_SET(p_attrs, last_access);
+        ATTR(p_attrs, last_access) = value;
+        /* in robinhood, lastmod <= last_access as
+         * last_access=MAX(atime,mtime) */
+        ATTR_MASK_SET(p_attrs, last_mod);
+        ATTR(p_attrs, last_mod) = value;
+        /* cr_time always <= last_mod */
+        ATTR_MASK_SET(p_attrs, creation_time);
+        ATTR(p_attrs, creation_time) = value;
+        break;
 
-        case ATTR_INDEX_creation_time:
-            ATTR_MASK_SET(p_attrs, creation_time);
-            ATTR(p_attrs, creation_time) = value;
-            break;
+    case ATTR_INDEX_creation_time:
+        ATTR_MASK_SET(p_attrs, creation_time);
+        ATTR(p_attrs, creation_time) = value;
+        break;
 
-        default:
-            if (is_sm_info(p->config->lru_sort_attr))
-            {
-                int *dup = malloc(sizeof(int));
+    default:
+        if (is_sm_info(p->config->lru_sort_attr)) {
+            int *dup = malloc(sizeof(int));
 
-                if (!dup)
-                    return;
-                *dup = (int)value;
-
-                /* Don't know the implications of this attribute
-                 * on other time attributes.
-                 * So, just set its value and return. */
-                if (set_sm_info(p->descr->status_mgr, p_attrs,
-                                attr2sminfo_index(p->config->lru_sort_attr)
-                                - p->descr->status_mgr->sm_info_offset,
-                                dup))
-                    free(dup);
+            if (!dup)
                 return;
-            }
+            *dup = (int)value;
 
-            /* unsupported */
-            RBH_BUG("Unsupported LRU sort attribute");
+            /* Don't know the implications of this attribute
+             * on other time attributes.
+             * So, just set its value and return. */
+            if (set_sm_info(p->descr->status_mgr, p_attrs,
+                            attr2sminfo_index(p->config->lru_sort_attr)
+                            - p->descr->status_mgr->sm_info_offset, dup))
+                free(dup);
+            return;
+        }
+
+        /* unsupported */
+        RBH_BUG("Unsupported LRU sort attribute");
     }
 
-#if 0 /* FIXME RBHv3: guess other times, depending on status scope? */
+#if 0   /* FIXME RBHv3: guess other times, depending on status scope? */
     /* If entry is dirty (migration):
-     *      creation_time <= last_archive <= last mod (entry is dirty) <= last_access
+     *      creation_time <= last_archive <= last mod (entry is dirty)
+     *                    <= last_access
      * If entry is synchro (purge):
-     *      creation_time <= last_mod <= last_access <= last_archive (entry is synchro)
-     *      creation_time <= last_restore <= last_access (entry still not purged)
+     *      creation_time <= last_mod <= last_access
+     *                    <= last_archive (entry is synchro)
+     *      creation_time <= last_restore
+     *                    <= last_access (entry still not purged)
      */
 
     /* what about other times??? */
@@ -463,7 +454,7 @@ static const char *pol_attrindex2name(int index)
 }
 
 /** return the name of the lru_sort_attr of the policy */
-static inline const char* sort_attr_name(const policy_info_t *pol)
+static inline const char *sort_attr_name(const policy_info_t *pol)
 {
     int attr = pol->config->lru_sort_attr;
 
@@ -482,9 +473,9 @@ static inline const char* sort_attr_name(const policy_info_t *pol)
  */
 static bool heuristic_end_of_list(policy_info_t *policy, time_t last_time)
 {
-    entry_id_t     void_id;
-    attr_set_t     void_attr = ATTR_SET_INIT;
-    bool           rb = false;
+    entry_id_t void_id;
+    attr_set_t void_attr = ATTR_SET_INIT;
+    bool rb = false;
 
     /* list all files if policies are ignored */
     if (ignore_policies(policy))
@@ -494,7 +485,8 @@ static bool heuristic_end_of_list(policy_info_t *policy, time_t last_time)
     if (last_time <= 1 || last_time > time(NULL))
         return false;
 
-    /* Optimization: we build a void entry with time attr = current sort attr
+    /* Optimization:
+     * we build a void entry with time attr = current sort attr
      * If it doesn't match any policy, next entries won't match too
      * because entries are sorted by this attribute, so it is not necessary
      * to continue. */
@@ -510,17 +502,14 @@ static bool heuristic_end_of_list(policy_info_t *policy, time_t last_time)
      */
     set_max_time_attrs(policy, &void_attr, last_time);
 
-    if (policy_match_all(policy->descr,  &void_id, &void_attr,
-            policy->time_modifier, NULL) == POLICY_NO_MATCH)
-    {
+    if (policy_match_all(policy->descr, &void_id, &void_attr,
+                         policy->time_modifier, NULL) == POLICY_NO_MATCH) {
         DisplayLog(LVL_DEBUG, tag(policy),
                    "Optimization: entries with %s later than %lu cannot match "
                    "any policy condition. Stop retrieving DB entries.",
                    sort_attr_name(policy), last_time);
         rb = true;
-    }
-    else
-    {
+    } else {
         rb = false;
     }
 
@@ -544,18 +533,18 @@ static inline unsigned int ack_count(const unsigned int *status_tab)
 }
 
 /**
- *  Sum the number of skipped entries from a status tab
- */
+*  Sum the number of skipped entries from a status tab
+*/
 static inline unsigned int skipped_count(const unsigned int *status_tab)
 {
     int i;
     unsigned int nb = 0;
 
-    /* skipped if it has been accessed, has changed, is whitelisted, matches no policy,
-     * is in use, already running, type not supported...
+    /* skipped if it has been accessed, has changed, is whitelisted,
+     * matches no policy, is in use, already running, type not supported...
      * i.e. status in AS_ACCESSED to AS_ALREADY
      */
-    for (i = AS_ACCESSED ; i <= AS_ALREADY; i++)
+    for (i = AS_ACCESSED; i <= AS_ALREADY; i++)
         nb += status_tab[i];
 
     return nb;
@@ -595,31 +584,41 @@ static void queue_stats2counters(const unsigned long long *feedback_before,
     *errors = 0;
     *skipped = 0;
 
-    if (feedback_before != NULL && feedback_after != NULL)
-    {
-        if (ctr_ok)
-        {
-            ctr_ok->count = feedback_after[AF_NBR_OK] - feedback_before[AF_NBR_OK];
-            ctr_ok->vol = feedback_after[AF_VOL_OK] - feedback_before[AF_VOL_OK];
-            ctr_ok->blocks = feedback_after[AF_BLOCKS_OK] - feedback_before[AF_BLOCKS_OK];
-            ctr_ok->targeted = feedback_after[AF_TARGETED_OK] - feedback_before[AF_TARGETED_OK];
+    if (feedback_before != NULL && feedback_after != NULL) {
+        if (ctr_ok) {
+            ctr_ok->count =
+                feedback_after[AF_NBR_OK] - feedback_before[AF_NBR_OK];
+            ctr_ok->vol =
+                feedback_after[AF_VOL_OK] - feedback_before[AF_VOL_OK];
+            ctr_ok->blocks =
+                feedback_after[AF_BLOCKS_OK] -
+                feedback_before[AF_BLOCKS_OK];
+            ctr_ok->targeted =
+                feedback_after[AF_TARGETED_OK] -
+                feedback_before[AF_TARGETED_OK];
         }
-        if (ctr_nok)
-        {
-            ctr_nok->count = feedback_after[AF_NBR_NOK] - feedback_before[AF_NBR_NOK];
-            ctr_nok->vol = feedback_after[AF_VOL_NOK] - feedback_before[AF_VOL_NOK];
-            ctr_nok->blocks = feedback_after[AF_BLOCKS_NOK] - feedback_before[AF_BLOCKS_NOK];
-            ctr_nok->targeted = feedback_after[AF_TARGETED_NOK] - feedback_before[AF_TARGETED_NOK];
+        if (ctr_nok) {
+            ctr_nok->count =
+                feedback_after[AF_NBR_NOK] - feedback_before[AF_NBR_NOK];
+            ctr_nok->vol =
+                feedback_after[AF_VOL_NOK] - feedback_before[AF_VOL_NOK];
+            ctr_nok->blocks =
+                feedback_after[AF_BLOCKS_NOK] -
+                feedback_before[AF_BLOCKS_NOK];
+            ctr_nok->targeted =
+                feedback_after[AF_TARGETED_NOK] -
+                feedback_before[AF_TARGETED_NOK];
         }
     }
-    if (status_tab_before != NULL && status_tab_after != NULL)
-    {
+    if (status_tab_before != NULL && status_tab_after != NULL) {
         *ack = ack_count(status_tab_after) - ack_count(status_tab_before);
-        *skipped = skipped_count(status_tab_after) - skipped_count(status_tab_before);
-        *errors =  error_count(status_tab_after) - error_count(status_tab_before);
+        *skipped =
+            skipped_count(status_tab_after) -
+            skipped_count(status_tab_before);
+        *errors =
+            error_count(status_tab_after) - error_count(status_tab_before);
     }
 }
-
 
 /**
  * Test if the policy run limit has been reached,
@@ -627,8 +626,7 @@ static void queue_stats2counters(const unsigned long long *feedback_before,
  */
 static bool check_limit(policy_info_t *policy,
                         const counters_t *ctr_ok,
-                        unsigned int errors,
-                        const counters_t *limit)
+                        unsigned int errors, const counters_t *limit)
 {
     unsigned int total;
 
@@ -647,13 +645,11 @@ static bool check_limit(policy_info_t *policy,
     /* stop if too many error occurred */
     if ((policy->config->suspend_error_pct > 0.0)
         && (policy->config->suspend_error_min > 0)
-        && (errors >= policy->config->suspend_error_min))
-    {
+        && (errors >= policy->config->suspend_error_min)) {
         /* total >= errors >= suspend_error_min  > 0
          * => total != 0 */
-        double pct = 100.0 * (float)errors/(float)total;
-        if (pct >= policy->config->suspend_error_pct)
-        {
+        double pct = 100.0 * (float)errors / (float)total;
+        if (pct >= policy->config->suspend_error_pct) {
             DisplayLog(LVL_EVENT, tag(policy),
                        "error count %u >= %u, error rate %.2f%% >= %.2f => suspending policy run",
                        errors, policy->config->suspend_error_min,
@@ -668,12 +664,13 @@ static bool check_limit(policy_info_t *policy,
  * Compute an adaptive delay (in microseconds) to check if pending requests exceed the limit.
  * The computed value is 10% of the estimated time to process the current queue.
  */
-#define USEC_PER_MSEC 1000      /* 1ms */
+#define USEC_PER_MSEC 1000  /* 1ms */
 #define USEC_PER_SEC  1000000   /* 1s */
-#define MIN_CHECK_DELAY   (10 * USEC_PER_MSEC) /* 10ms */
+#define MIN_CHECK_DELAY   (10 * USEC_PER_MSEC)  /* 10ms */
 #define MAX_CHECK_DELAY   USEC_PER_SEC
 static unsigned long adaptive_check_delay_us(time_t policy_start,
-                                             unsigned long long nb_processed,
+                                             unsigned long long
+                                             nb_processed,
                                              unsigned long long nb_pending)
 {
     unsigned long check_delay;
@@ -684,24 +681,23 @@ static unsigned long adaptive_check_delay_us(time_t policy_start,
     if (spent_us == 0)
         spent_us = 100 * USEC_PER_MSEC; /* default to 100ms */
 
-    if (nb_processed > 0)
-    {
+    if (nb_processed > 0) {
         /* how much time to process these entries? */
         us_per_ent = spent_us / nb_processed;
         /* how much to process 10% of current queue? */
         check_delay = (us_per_ent * nb_pending) / 10;
-        DisplayLog(LVL_FULL, __func__, "%llu entries processed @ %.2f ms/ent, "
+        DisplayLog(LVL_FULL, __func__,
+                   "%llu entries processed @ %.2f ms/ent, "
                    "%llu pending => check delay = 10%% x %llu ms = %lu ms",
-                   nb_processed, (float)us_per_ent/USEC_PER_MSEC,
-                   nb_pending, (us_per_ent * nb_pending)/USEC_PER_MSEC,
-                   check_delay/USEC_PER_MSEC);
-    }
-    else
-    {
+                   nb_processed, (float)us_per_ent / USEC_PER_MSEC,
+                   nb_pending, (us_per_ent * nb_pending) / USEC_PER_MSEC,
+                   check_delay / USEC_PER_MSEC);
+    } else {
         /* nothing was done so far (check again in 10% x spent) */
         check_delay = spent_us / 10;
-        DisplayLog(LVL_FULL, __func__, "No entry processed, %llu pending => check delay = 10%% x %lu ms",
-                   nb_pending, spent_us/USEC_PER_MSEC);
+        DisplayLog(LVL_FULL, __func__,
+                   "No entry processed, %llu pending => check delay = 10%% x %lu ms",
+                   nb_pending, spent_us / USEC_PER_MSEC);
     }
 
     if (check_delay > MAX_CHECK_DELAY)
@@ -712,7 +708,6 @@ static unsigned long adaptive_check_delay_us(time_t policy_start,
     return check_delay;
 }
 
-
 /**
  * Check if enqueued entries reach the limit.
  * If so, wait a while to recheck after some entries have been processed.
@@ -722,7 +717,8 @@ static unsigned long adaptive_check_delay_us(time_t policy_start,
  * \retval true if policy run must stop
  * \retval false if policy run can continue
  */
-static bool check_queue_limit(policy_info_t *pol, const counters_t *pushed,
+static bool check_queue_limit(policy_info_t *pol,
+                              const counters_t *pushed,
                               const unsigned long long *feedback_before,
                               const unsigned int *status_before,
                               const counters_t *target_ctr)
@@ -758,9 +754,9 @@ static bool check_queue_limit(policy_info_t *pol, const counters_t *pushed,
             return true;
 
         /* 2) queue is empty and limit is not reached */
-        if (ctr_pending.count == 0)
-        {
-            DisplayLog(LVL_FULL, tag(pol), "queue is empty => continue enqueuing");
+        if (ctr_pending.count == 0) {
+            DisplayLog(LVL_FULL, tag(pol),
+                       "queue is empty => continue enqueuing");
             return false;
         }
 
@@ -770,24 +766,24 @@ static bool check_queue_limit(policy_info_t *pol, const counters_t *pushed,
         DisplayLog(LVL_FULL, tag(pol), "requests: OK + pending = %llu",
                    ctr_pot.count);
 
-        if (check_limit(pol, &ctr_pot, errors, target_ctr))
-        {
+        if (check_limit(pol, &ctr_pot, errors, target_ctr)) {
             unsigned long check_delay =
-                            adaptive_check_delay_us(pol->progress.policy_start,
-                                                  ctr_ok.count + errors + skipped,
-                                                  ctr_pending.count);
+                adaptive_check_delay_us(pol->progress.policy_start,
+                                        ctr_ok.count + errors + skipped,
+                                        ctr_pending.count);
             DisplayLog(LVL_DEBUG, tag(pol),
                        "Limit potentially reached (%llu requests successful, "
                        "%llu requests in queue, volume: %llu done, %llu pending), "
                        "waiting %lums before re-checking.", ctr_ok.count,
                        ctr_pending.count, ctr_ok.vol, ctr_pending.vol,
-                       check_delay/USEC_PER_MSEC);
+                       check_delay / USEC_PER_MSEC);
             rh_usleep(check_delay);
             continue;
-        }
-        else
+        } else {
             return false;
-    } while(1);
+        }
+    } while (1);
+
     RBH_BUG("This line should not be reached");
 }
 
@@ -798,32 +794,28 @@ static int set_optimization_filters(policy_info_t *policy,
                                     lmgr_filter_t *p_filter)
 {
     policy_rules_t *rules = &policy->descr->rules;
-    /** @TODO build a filter for getting the union of all filesets/conditions */
+/** @TODO build a filter for getting the union of all filesets/conditions */
 
     /* If there is a single policy, try to convert its condition
      * to a simple filter.
      */
     if (rules->rule_count == 1) // TODO won't apply to LUA scripts
     {
-        if (convert_boolexpr_to_simple_filter(&rules->rules[0].condition, p_filter,
-                                              policy->descr->status_mgr,
-                                              policy->time_modifier,
-                                              policy->descr->manage_deleted ?
-                                                FILTER_FLAG_ALLOW_NULL : 0))
-        {
+        if (convert_boolexpr_to_simple_filter
+            (&rules->rules[0].condition, p_filter,
+             policy->descr->status_mgr, policy->time_modifier,
+             policy->descr->manage_deleted ? FILTER_FLAG_ALLOW_NULL : 0)) {
             DisplayLog(LVL_FULL, tag(policy),
                        "Could not convert purge rule '%s' to simple filter.",
                        rules->rules[0].rule_id);
         }
     }
 
-    if (!policy->config->recheck_ignored_entries)
-    {
+    if (!policy->config->recheck_ignored_entries) {
         int i;
 
         /* don't select files in ignored classes */
-        for (i = 0; i < rules->ignore_count; i++)
-        {
+        for (i = 0; i < rules->ignore_count; i++) {
             filter_value_t fval;
             int flags = 0;
 
@@ -837,16 +829,13 @@ static int set_optimization_filters(policy_info_t *policy,
         }
 
         /* don't select entries maching 'ignore' statements */
-        for (i = 0; i < rules->whitelist_count; i++)
-        {
-            if (convert_boolexpr_to_simple_filter(&rules->whitelist_rules[i].bool_expr,
-                                                  p_filter,
-                                                  policy->descr->status_mgr,
-                                                  policy->time_modifier,
-                                                  policy->descr->manage_deleted ?
-                                                    FILTER_FLAG_ALLOW_NULL | FILTER_FLAG_NOT:
-                                                    FILTER_FLAG_NOT))
-            {
+        for (i = 0; i < rules->whitelist_count; i++) {
+            if (convert_boolexpr_to_simple_filter
+                (&rules->whitelist_rules[i].bool_expr, p_filter,
+                 policy->descr->status_mgr, policy->time_modifier,
+                 policy->descr->
+                 manage_deleted ? FILTER_FLAG_ALLOW_NULL | FILTER_FLAG_NOT :
+                 FILTER_FLAG_NOT)) {
                 DisplayLog(LVL_DEBUG, tag(policy),
                            "Could not convert 'ignore' rule to simple filter.");
                 DisplayLog(LVL_EVENT, tag(policy),
@@ -856,19 +845,18 @@ static int set_optimization_filters(policy_info_t *policy,
         }
     }
 
-    /* avoid re-checking all old whitelisted entries at the beginning of the list,
-     * so start from the first non-whitelisted file.
+    /* avoid re-checking all old whitelisted entries at the beginning
+     * of the list, so start from the first non-whitelisted file.
      * restart from initial file when no migration could be done. */
     if ((policy->config->lru_sort_attr != LRU_ATTR_NONE)
-        && policy->first_eligible)
-    {
+        && policy->first_eligible) {
         filter_value_t fval;
         char datestr[128];
         struct tm ts;
 
         fval.value.val_uint = policy->first_eligible;
-        lmgr_simple_filter_add(p_filter, policy->config->lru_sort_attr, MORETHAN,
-                               fval, 0);
+        lmgr_simple_filter_add(p_filter, policy->config->lru_sort_attr,
+                               MORETHAN, fval, 0);
         strftime(datestr, 128, "%Y/%m/%d %T",
                  localtime_r(&policy->first_eligible, &ts));
         DisplayLog(LVL_EVENT, tag(policy),
@@ -888,7 +876,7 @@ static void report_progress(policy_info_t *policy,
                             const unsigned int *status_tab_begin,
                             const unsigned int *status_tab_current)
 {
-    counters_t   curr_ctr;
+    counters_t curr_ctr;
     unsigned int ack, nb_errors, nb_skipped;
 
     /* get current pass counters */
@@ -902,8 +890,7 @@ static void report_progress(policy_info_t *policy,
 
     /* say hello every runtime interval */
     if (time(NULL) - policy->progress.last_report >=
-            policy->config->report_interval)
-    {
+        policy->config->report_interval) {
         char buf1[128];
         char buf2[128];
         char buf3[128];
@@ -912,36 +899,37 @@ static void report_progress(policy_info_t *policy,
             return;
         FormatDuration(buf1, 128, spent);
         FormatFileSize(buf2, 128, curr_ctr.vol);
-        FormatFileSize(buf3, 128, curr_ctr.vol/spent);
+        FormatFileSize(buf3, 128, curr_ctr.vol / spent);
 
-        DisplayLog(LVL_EVENT, tag(policy), "Policy is running (started %s ago): "
+        DisplayLog(LVL_EVENT, tag(policy),
+                   "Policy is running (started %s ago): "
                    "%llu actions succeeded (%.2f/sec); volume: %s (%s/sec); "
-                   "skipped: %u; errors: %u",
-                   buf1, curr_ctr.count, (float)curr_ctr.count/(float)spent,
-                   buf2, buf3, nb_skipped, nb_errors);
+                   "skipped: %u; errors: %u", buf1, curr_ctr.count,
+                   (float)curr_ctr.count / (float)spent, buf2, buf3,
+                   nb_skipped, nb_errors);
         policy->progress.last_report = time(NULL);
     }
 }
-
 
 /**
  * Wait until the queue is empty or migrations timed-out.
  * \retval 0 when the queue is empty
  * \retval ETIME on timeout.
  */
-static int wait_queue_empty(policy_info_t *policy, unsigned int nb_submitted,
-                            const unsigned long long * feedback_init,
-                            const unsigned int * status_tab_init,
-                            unsigned long long * feedback_after,
-                            unsigned int * status_tab_after,
+static int wait_queue_empty(policy_info_t *policy,
+                            unsigned int nb_submitted,
+                            const unsigned long long *feedback_init,
+                            const unsigned int *status_tab_init,
+                            unsigned long long *feedback_after,
+                            unsigned int *status_tab_after,
                             bool long_sleep)
 {
     unsigned int nb_in_queue, nb_action_pending;
 
     /* Wait for end of purge pass */
-    do
-    {
+    do {
         time_t last_push, last_pop, last_ack, last_activity;
+
         last_push = last_pop = last_ack = last_activity = 0;
 
         RetrieveQueueStats(&policy->queue, NULL, &nb_in_queue,
@@ -952,20 +940,21 @@ static int wait_queue_empty(policy_info_t *policy, unsigned int nb_submitted,
         last_activity = MAX3(last_push, last_pop, last_ack);
 
         /* nb of operation pending
-            = nb_enqueued - (nb ack after - nb ack before) */
+           = nb_enqueued - (nb ack after - nb ack before) */
         nb_action_pending = nb_submitted + ack_count(status_tab_init)
                             - ack_count(status_tab_after);
 
-        if ((nb_in_queue > 0) || (nb_action_pending > 0))
-        {
-            /* abort this pass if the last action was done a too long time ago */
-              if ((policy->config->action_timeout != 0) &&
-                 (time(NULL) - last_activity > policy->config->action_timeout))
-            {
-                DisplayLog(LVL_MAJOR, tag(policy),
-                           "Policy run time-out: %u actions inactive for %us",
-                            nb_action_pending, (unsigned int)(time(NULL) - last_activity));
-                /* don't wait for current actions to end, continue with other entries */
+        if ((nb_in_queue > 0) || (nb_action_pending > 0)) {
+            /* abort this pass if the last action was done a too long time
+             * ago */
+            if ((policy->config->action_timeout != 0) &&
+                (time(NULL) - last_activity >
+                 policy->config->action_timeout)) {
+                DisplayLog(LVL_MAJOR, tag(policy), "Policy run time-out: "
+                           "%u actions inactive for %us", nb_action_pending,
+                           (unsigned int)(time(NULL) - last_activity));
+                /* don't wait for current actions to end, continue with
+                 * other entries */
                 return ETIME;
             }
 
@@ -980,13 +969,11 @@ static int wait_queue_empty(policy_info_t *policy, unsigned int nb_submitted,
                        nb_action_pending - nb_in_queue,
                        (unsigned int)(time(NULL) - last_activity));
 
-
             if (long_sleep)
                 rh_sleep(CHECK_QUEUE_INTERVAL);
             else
                 rh_usleep(1000);
-        }
-        else
+        } else
             DisplayLog(LVL_DEBUG, tag(policy), "End of current pass");
     }
     while ((nb_in_queue != 0) || (nb_action_pending != 0));
@@ -998,10 +985,11 @@ static int wait_queue_empty(policy_info_t *policy, unsigned int nb_submitted,
 static attr_mask_t db_attr_mask(policy_info_t *policy,
                                 const policy_param_t *param)
 {
-    attr_mask_t mask = {0};
+    attr_mask_t mask = { 0 };
     attr_mask_t tmp;
 
-/* TODO depends on the prototype of the action to be taken + fileset mask + condition mask... */
+/* TODO depends on the prototype of the action to be taken + fileset mask
+*       + condition mask... */
 
     /* needed for ListMgr_Remove() operations */
 #ifdef _HAVE_FID
@@ -1012,7 +1000,7 @@ static attr_mask_t db_attr_mask(policy_info_t *policy,
 
     /* needed if update params != never */
     if (updt_params.md.when != UPDT_NEVER &&
-        updt_params.md.when != UPDT_ALWAYS )
+        updt_params.md.when != UPDT_ALWAYS)
         mask.std |= ATTR_MASK_md_update;
 
 #ifdef _HAVE_FID
@@ -1024,14 +1012,14 @@ static attr_mask_t db_attr_mask(policy_info_t *policy,
     if (policy->config->lru_sort_attr != LRU_ATTR_NONE)
         attr_mask_set_index(&mask, policy->config->lru_sort_attr);
 
-    /* needed for size counters and logging, or to verify the entry didn't change */
+    /* needed for size counters and logging, or to verify the entry
+     * didn't change */
     mask.std |= ATTR_MASK_size;
     /* depends on policy params (limits) */
     if (param->target_ctr.blocks != 0 || param->target_ctr.targeted != 0)
         mask.std |= ATTR_MASK_blocks;
 #ifdef _LUSTRE
-    if (param->target == TGT_POOL || param->target == TGT_OST)
-    {
+    if (param->target == TGT_POOL || param->target == TGT_OST) {
         mask.std |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
     }
 #endif
@@ -1048,8 +1036,11 @@ static attr_mask_t db_attr_mask(policy_info_t *policy,
 
     /* if the policy manages deleted entries, get all
      * SOFTRM attributes for the current status manager */
-    if (policy->descr->manage_deleted && (policy->descr->status_mgr != NULL))
-        mask = attr_mask_or(&mask, &policy->descr->status_mgr->softrm_table_mask);
+    if (policy->descr->manage_deleted
+        && (policy->descr->status_mgr != NULL))
+        mask =
+            attr_mask_or(&mask,
+                         &policy->descr->status_mgr->softrm_table_mask);
 
     // TODO class management?
 
@@ -1060,8 +1051,7 @@ static attr_mask_t db_attr_mask(policy_info_t *policy,
  * Compute the target amount for an entry.
  */
 static int entry2tgt_amount(const policy_param_t *p_param,
-                            const attr_set_t *attrs,
-                            counters_t *p_ctr)
+                            const attr_set_t *attrs, counters_t *p_ctr)
 {
     memset(p_ctr, 0, sizeof(*p_ctr));
 
@@ -1074,24 +1064,27 @@ static int entry2tgt_amount(const policy_param_t *p_param,
     if (ATTR_MASK_TEST(attrs, blocks))
         p_ctr->blocks = ATTR(attrs, blocks);
 
-    if (p_param->target_ctr.targeted != 0)
-    {
+    if (p_param->target_ctr.targeted != 0) {
         /* When the target amount is not count, vol or blocks
-         * This is the case for OST: the target is only a subset of the blocks.
+         * This is the case for OST: the target is only a subset of the
+         * blocks.
          */
 #ifdef _LUSTRE
-        if (p_param->target != TGT_OST && p_param->target) /* FIXME or pool? */
+        if (p_param->target != TGT_OST && p_param->target)
+        /* FIXME what about pool? */
 #else
         if (p_param->target)
 #endif
         {
-            DisplayLog(LVL_CRIT, "PolicyRun", "unsupported targeted limit != OST");
+            DisplayLog(LVL_CRIT, "PolicyRun",
+                       "unsupported targeted limit != OST");
             return -1;
         }
-
 #ifdef _LUSTRE
-        p_ctr->targeted = BlocksOnOST(p_ctr->blocks, p_param->optarg_u.index,
-                                     &ATTR(attrs, stripe_info), &ATTR(attrs, stripe_items));
+        p_ctr->targeted =
+            BlocksOnOST(p_ctr->blocks, p_param->optarg_u.index,
+                        &ATTR(attrs, stripe_info), &ATTR(attrs,
+                                                         stripe_items));
 #endif
     }
 
@@ -1106,31 +1099,31 @@ static int entry2tgt_amount(const policy_param_t *p_param,
 
 /**
  * Check if a filesystem scan has ever been done.
- * \retval ENOENT if no scan has been done (no complete filesystem list is available).
+ * \retval ENOENT if no scan has been done (no complete filesystem list is
+ *          available).
  */
 static int check_scan_done(const policy_info_t *pol, lmgr_t *lmgr)
 {
-    if (!force_run(pol))
-    {
-        char timestamp[1024];
+    char timestamp[1024];
 
-        if (ListMgr_GetVar(lmgr, LAST_SCAN_END_TIME, timestamp, sizeof(timestamp)) != DB_SUCCESS)
-        {
-            DisplayLog(LVL_MAJOR, tag(pol),
-                        "Full FS Scan has never been done. Policy ordering would be done on a partial list "
-                        "(use --force to apply the policy anyway).");
-            return ENOENT;
-        }
-        else
-        {
-            time_t         last_scan = atoi(timestamp);
-            struct tm      date;
+    if (force_run(pol)) /* no check in that case */
+        return 0;
 
-            localtime_r(&last_scan, &date);
-            DisplayLog(LVL_EVENT, tag(pol), BUILD_LIST_MSG" %.4d/%.2d/%.2d %.2d:%.2d:%.2d",
-                        1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
-                        date.tm_hour, date.tm_min, date.tm_sec);
-        }
+    if (ListMgr_GetVar(lmgr, LAST_SCAN_END_TIME, timestamp,
+                       sizeof(timestamp)) != DB_SUCCESS) {
+        DisplayLog(LVL_MAJOR, tag(pol),
+                   "Full FS Scan has never been done. Policy ordering would be done on a partial list "
+                   "(use --force to apply the policy anyway).");
+        return ENOENT;
+    } else {
+        time_t last_scan = atoi(timestamp);
+        struct tm date;
+
+        localtime_r(&last_scan, &date);
+        DisplayLog(LVL_EVENT, tag(pol),
+                   BUILD_LIST_MSG " %.4d/%.2d/%.2d %.2d:%.2d:%.2d",
+                   1900 + date.tm_year, date.tm_mon + 1, date.tm_mday,
+                   date.tm_hour, date.tm_min, date.tm_sec);
     }
     return 0;
 }
@@ -1139,137 +1132,147 @@ static int check_scan_done(const policy_info_t *pol, lmgr_t *lmgr)
  * Set a DB filter and attr mask depending on the specified target.
  * By the way, log target information for this run.
  */
-static int set_target_filter(const policy_info_t *pol, const policy_param_t *p_param,
-                             lmgr_filter_t  *filter, attr_mask_t *attr_mask)
+static int set_target_filter(const policy_info_t *pol,
+                             const policy_param_t *p_param,
+                             lmgr_filter_t *filter,
+                             attr_mask_t *attr_mask)
 {
     filter_value_t fval;
 
-    switch (p_param->target)
-    {
-        case TGT_FS:    /* apply policies to the filesystem */
-            DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run");
-            return 0;
+    switch (p_param->target) {
+    case TGT_FS:   /* apply policies to the filesystem */
+        DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run");
+        return 0;
 
 #ifdef _LUSTRE
-        case TGT_OST:   /* apply policies to the specified OST */
-            DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on OST #%d",
-                       p_param->optarg_u.index);
+    case TGT_OST:  /* apply policies to the specified OST */
+        DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on OST #%d",
+                   p_param->optarg_u.index);
 
-            /* retrieve stripe info and stripe items */
-            attr_mask->std |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
+        /* retrieve stripe info and stripe items */
+        attr_mask->std |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
 
-            /* retrieve files from this OST */
-            fval.value.val_uint = p_param->optarg_u.index;
-            return lmgr_simple_filter_add(filter, ATTR_INDEX_stripe_items,
-                                          EQUAL, fval, 0);
+        /* retrieve files from this OST */
+        fval.value.val_uint = p_param->optarg_u.index;
+        return lmgr_simple_filter_add(filter, ATTR_INDEX_stripe_items,
+                                      EQUAL, fval, 0);
 
-        case TGT_POOL:  /* apply policies to the specified pool of OSTs */
-            DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on pool '%s'",
-                       p_param->optarg_u.name);
+    case TGT_POOL: /* apply policies to the specified pool of OSTs */
+        DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on pool '%s'",
+                   p_param->optarg_u.name);
 
-            attr_mask->std |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
+        attr_mask->std |= ATTR_MASK_stripe_info | ATTR_MASK_stripe_items;
 
-             /* retrieve files from this pool */
-            fval.value.val_str = p_param->optarg_u.name;
-            return lmgr_simple_filter_add(filter, ATTR_INDEX_stripe_info,
-                                          WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
-                                          fval, 0);
+        /* retrieve files from this pool */
+        fval.value.val_str = p_param->optarg_u.name;
+        return lmgr_simple_filter_add(filter, ATTR_INDEX_stripe_info,
+                                      WILDCARDS_IN(fval.value.
+                                                   val_str) ? LIKE : EQUAL,
+                                      fval, 0);
 #endif
 
-        case TGT_USER:  /* apply policies to the specified user */
-            DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on '%s' user files",
-                       p_param->optarg_u.name);
+    case TGT_USER: /* apply policies to the specified user */
+        DisplayLog(LVL_MAJOR, tag(pol),
+                   "Starting policy run on '%s' user files",
+                   p_param->optarg_u.name);
 
-            attr_mask->std |= ATTR_MASK_uid;
+        attr_mask->std |= ATTR_MASK_uid;
 
-            /* retrieve files for this owner */
-            if (set_uid_val(p_param->optarg_u.name, &fval.value))
-                return EINVAL;
-            return lmgr_simple_filter_add(filter, ATTR_INDEX_uid,
-                                          WILDCARDS_IN(p_param->optarg_u.name)?LIKE:EQUAL,
-                                          fval, 0);
-
-        case TGT_GROUP: /* apply policies to the specified group */
-            DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on '%s' group files",
-                       p_param->optarg_u.name);
-
-            attr_mask->std |= ATTR_MASK_gid;
-
-            /* retrieve files for this group */
-            if (set_gid_val(p_param->optarg_u.name, &fval.value))
-                return EINVAL;
-            return lmgr_simple_filter_add(filter, ATTR_INDEX_gid,
-                                          WILDCARDS_IN(p_param->optarg_u.name)?LIKE:EQUAL,
-                                          fval, 0);
-
-        case TGT_CLASS: /* apply policies to the specified fileclass */
-            DisplayLog(LVL_MAJOR, tag(pol), "Starting policy run on fileclass '%s'",
-                       p_param->optarg_u.name);
-
-            attr_mask->std |= ATTR_MASK_fileclass;
-
-            fval.value.val_str = p_param->optarg_u.name;
-            return lmgr_simple_filter_add(filter, ATTR_INDEX_fileclass,
-                                          WILDCARDS_IN(fval.value.val_str)?LIKE:EQUAL,
-                                          fval, 0);
-
-        case TGT_FILE:
-            /* this is supposed to be handled by specific code: single_file_run() */
-            RBH_BUG("ERROR: file target type is supposed to be handled in a different function");
-            return ENOTSUP;
-
-        default:
-            DisplayLog(LVL_CRIT, tag(pol), "ERROR: unhandled target type %u\n",
-                       p_param->target);
+        /* retrieve files for this owner */
+        if (set_uid_val(p_param->optarg_u.name, &fval.value))
             return EINVAL;
+        return lmgr_simple_filter_add(filter, ATTR_INDEX_uid,
+                                      WILDCARDS_IN(p_param->optarg_u.
+                                                   name) ? LIKE : EQUAL,
+                                      fval, 0);
+
+    case TGT_GROUP:    /* apply policies to the specified group */
+        DisplayLog(LVL_MAJOR, tag(pol),
+                   "Starting policy run on '%s' group files",
+                   p_param->optarg_u.name);
+
+        attr_mask->std |= ATTR_MASK_gid;
+
+        /* retrieve files for this group */
+        if (set_gid_val(p_param->optarg_u.name, &fval.value))
+            return EINVAL;
+        return lmgr_simple_filter_add(filter, ATTR_INDEX_gid,
+                                      WILDCARDS_IN(p_param->optarg_u.
+                                                   name) ? LIKE : EQUAL,
+                                      fval, 0);
+
+    case TGT_CLASS:    /* apply policies to the specified fileclass */
+        DisplayLog(LVL_MAJOR, tag(pol),
+                   "Starting policy run on fileclass '%s'",
+                   p_param->optarg_u.name);
+
+        attr_mask->std |= ATTR_MASK_fileclass;
+
+        fval.value.val_str = p_param->optarg_u.name;
+        return lmgr_simple_filter_add(filter, ATTR_INDEX_fileclass,
+                                      WILDCARDS_IN(fval.value.
+                                                   val_str) ? LIKE : EQUAL,
+                                      fval, 0);
+
+    case TGT_FILE:
+        /* this is supposed to be handled by specific code:
+         * single_file_run() */
+        RBH_BUG("ERROR: file target type is supposed to be handled in "
+                "a different function");
+        return ENOTSUP;
+
+    default:
+        DisplayLog(LVL_CRIT, tag(pol), "ERROR: unhandled target type %u\n",
+                   p_param->target);
+        return EINVAL;
     }
 }
 
 /** reset stats before a policy pass */
 static void init_pass_stats(policy_info_t *pol, counters_t *pushed_ctr,
-                            unsigned int   *status_tab_before,
-                            unsigned int   *status_tab_after,
+                            unsigned int *status_tab_before,
+                            unsigned int *status_tab_after,
                             unsigned long long *feedback_before,
                             unsigned long long *feedback_after)
 {
-        /* Retrieve stats before starting policy,
-         * for computing a delta later.
-         */
-        RetrieveQueueStats(&pol->queue, NULL, NULL, NULL, NULL, NULL,
-                           status_tab_before, feedback_before);
+    /* Retrieve stats before starting policy,
+     * for computing a delta later.
+     */
+    RetrieveQueueStats(&pol->queue, NULL, NULL, NULL, NULL, NULL,
+                       status_tab_before, feedback_before);
 
-        /* set pushed entries counter = 0 */
-        memset(pushed_ctr, 0, sizeof(*pushed_ctr));
+    /* set pushed entries counter = 0 */
+    memset(pushed_ctr, 0, sizeof(*pushed_ctr));
 
-        /* reset after's */
-        memset(feedback_after, 0, AF_ENUM_COUNT * sizeof(*feedback_after));
-        memset(status_tab_after, 0, AS_ENUM_COUNT * sizeof(*status_tab_after));
+    /* reset after's */
+    memset(feedback_after, 0, AF_ENUM_COUNT * sizeof(*feedback_after));
+    memset(status_tab_after, 0, AS_ENUM_COUNT * sizeof(*status_tab_after));
 }
 
 static void update_pass_stats(policy_info_t *pol,
-                              unsigned int   *status_tab_before,
-                              unsigned int   *status_tab_after,
+                              unsigned int *status_tab_before,
+                              unsigned int *status_tab_after,
                               unsigned long long *feedback_before,
                               unsigned long long *feedback_after)
 {
-        /* how much has been processed, errors, skipped... */
-        pol->progress.action_ctr.count += feedback_after[AF_NBR_OK]
-                                          - feedback_before[AF_NBR_OK];
-        pol->progress.action_ctr.vol += feedback_after[AF_VOL_OK]
-                                        - feedback_before[AF_VOL_OK];
-        pol->progress.action_ctr.blocks += feedback_after[AF_BLOCKS_OK]
-                                           - feedback_before[AF_BLOCKS_OK];
-        pol->progress.action_ctr.targeted += feedback_after[AF_TARGETED_OK]
-                                             - feedback_before[AF_TARGETED_OK];
-        pol->progress.skipped += skipped_count(status_tab_after)
-                                 - skipped_count(status_tab_before);
-        pol->progress.errors += error_count(status_tab_after)
-                                - error_count(status_tab_before);
+    /* how much has been processed, errors, skipped... */
+    pol->progress.action_ctr.count += feedback_after[AF_NBR_OK]
+        - feedback_before[AF_NBR_OK];
+    pol->progress.action_ctr.vol += feedback_after[AF_VOL_OK]
+        - feedback_before[AF_VOL_OK];
+    pol->progress.action_ctr.blocks += feedback_after[AF_BLOCKS_OK]
+        - feedback_before[AF_BLOCKS_OK];
+    pol->progress.action_ctr.targeted += feedback_after[AF_TARGETED_OK]
+        - feedback_before[AF_TARGETED_OK];
+    pol->progress.skipped += skipped_count(status_tab_after)
+        - skipped_count(status_tab_before);
+    pol->progress.errors += error_count(status_tab_after)
+        - error_count(status_tab_before);
 }
 
 /* these types allow generic iteration on std entries or removed entries */
 
-typedef enum {IT_LIST, IT_RMD} it_type_e;
+typedef enum { IT_LIST, IT_RMD } it_type_e;
 
 struct policy_iter {
     it_type_e it_type;
@@ -1279,34 +1282,33 @@ struct policy_iter {
     } it;
 };
 
-static inline int iter_next(struct policy_iter *it, entry_id_t *p_id, attr_set_t *p_attrs)
+static inline int iter_next(struct policy_iter *it, entry_id_t *p_id,
+                            attr_set_t *p_attrs)
 {
-    switch(it->it_type)
-    {
-        case IT_LIST:
-            return ListMgr_GetNext(it->it.std_iter, p_id, p_attrs);
-        case IT_RMD:
-            return ListMgr_GetNextRmEntry(it->it.rmd_iter, p_id, p_attrs);
+    switch (it->it_type) {
+    case IT_LIST:
+        return ListMgr_GetNext(it->it.std_iter, p_id, p_attrs);
+    case IT_RMD:
+        return ListMgr_GetNextRmEntry(it->it.rmd_iter, p_id, p_attrs);
     }
     return DB_INVALID_ARG;
 }
 
 static inline void iter_close(struct policy_iter *it)
 {
-    switch(it->it_type)
-    {
-        case IT_LIST:
-            if (it->it.std_iter == NULL)
-                return;
-            ListMgr_CloseIterator(it->it.std_iter);
-            it->it.std_iter = NULL;
-            break;
-        case IT_RMD:
-            if (it->it.rmd_iter == NULL)
-                return;
-            ListMgr_CloseRmList(it->it.rmd_iter);
-            it->it.rmd_iter = NULL;
-            break;
+    switch (it->it_type) {
+    case IT_LIST:
+        if (it->it.std_iter == NULL)
+            return;
+        ListMgr_CloseIterator(it->it.std_iter);
+        it->it.std_iter = NULL;
+        break;
+    case IT_RMD:
+        if (it->it.rmd_iter == NULL)
+            return;
+        ListMgr_CloseRmList(it->it.rmd_iter);
+        it->it.rmd_iter = NULL;
+        break;
     }
 }
 
@@ -1317,25 +1319,22 @@ static inline int iter_open(lmgr_t *lmgr,
                             const lmgr_sort_type_t *sort_type,
                             const lmgr_iter_opt_t *opt)
 {
-     it->it_type = type;
-     switch(type)
-     {
-        case IT_LIST:
-            it->it.std_iter = ListMgr_Iterator(lmgr, filter, sort_type, opt);
-            if (it->it.std_iter == NULL)
-                return DB_REQUEST_FAILED;
-            break;
+    it->it_type = type;
+    switch (type) {
+    case IT_LIST:
+        it->it.std_iter = ListMgr_Iterator(lmgr, filter, sort_type, opt);
+        if (it->it.std_iter == NULL)
+            return DB_REQUEST_FAILED;
+        break;
 
-        case IT_RMD:
-            it->it.rmd_iter = ListMgr_RmList(lmgr, filter, sort_type);
-            if (it->it.rmd_iter == NULL)
-                return DB_REQUEST_FAILED;
-            break;
+    case IT_RMD:
+        it->it.rmd_iter = ListMgr_RmList(lmgr, filter, sort_type);
+        if (it->it.rmd_iter == NULL)
+            return DB_REQUEST_FAILED;
+        break;
     }
     return DB_SUCCESS;
 }
-
-
 
 /** return codes of fill_workers_queue() */
 typedef enum {
@@ -1346,46 +1345,47 @@ typedef enum {
 } pass_status_e;
 
 /**
- * Get entries from the DB and push them to the workers queue until:
- * - end of list is reached
- * or:
- * - the policy limit is potentially reached.
- * @param attr_mask  Mask of attrs to be retrieved from the DB,
- *                   to be able to match policy rules, scope...
- */
+* Get entries from the DB and push them to the workers queue until:
+* - end of list is reached
+* or:
+* - the policy limit is potentially reached.
+* @param attr_mask  Mask of attrs to be retrieved from the DB,
+*                   to be able to match policy rules, scope...
+*/
 static pass_status_e fill_workers_queue(policy_info_t *pol,
-                              const policy_param_t *p_param,
-                              lmgr_t *lmgr,
-                              struct policy_iter *it,
-                              const lmgr_iter_opt_t *req_opt,
-                              const lmgr_sort_type_t *sort_type,
-                              lmgr_filter_t *filter, attr_mask_t attr_mask,
-                              int *last_sort_time,
-                              unsigned int *db_current_list_count,
-                              unsigned int *db_total_list_count)
+                                        const policy_param_t *p_param,
+                                        lmgr_t *lmgr,
+                                        struct policy_iter *it,
+                                        const lmgr_iter_opt_t *req_opt,
+                                        const lmgr_sort_type_t *sort_type,
+                                        lmgr_filter_t *filter,
+                                        attr_mask_t attr_mask,
+                                        int *last_sort_time,
+                                        unsigned int *db_current_list_count,
+                                        unsigned int *db_total_list_count)
 {
-    int                 rc;
-    pass_status_e       st;
-    attr_set_t          attr_set;
-    entry_id_t          entry_id;
-    counters_t          pushed_ctr;
-    filter_value_t      fval;
-    unsigned long long  feedback_before[AF_ENUM_COUNT];
-    unsigned long long  feedback_after[AF_ENUM_COUNT];
-    unsigned int        status_tab_before[AS_ENUM_COUNT];
-    unsigned int        status_tab_after[AS_ENUM_COUNT];
+    int rc;
+    pass_status_e st;
+    attr_set_t attr_set;
+    entry_id_t entry_id;
+    counters_t pushed_ctr;
+    filter_value_t fval;
+    unsigned long long feedback_before[AF_ENUM_COUNT];
+    unsigned long long feedback_after[AF_ENUM_COUNT];
+    unsigned int status_tab_before[AS_ENUM_COUNT];
+    unsigned int status_tab_after[AS_ENUM_COUNT];
 
     init_pass_stats(pol, &pushed_ctr, status_tab_before, status_tab_after,
                     feedback_before, feedback_after);
 
-    st = PASS_LIMIT; /* by default, exit the loop when check_queue_limit is true */
+    /* by default, exit the loop when check_queue_limit is true */
+    st = PASS_LIMIT;
 
     /* List entries for policy */
-    do
-    {
-        counters_t  entry_amount;
+    do {
+        counters_t entry_amount;
 
-        /* reset attr_mask, if it was altered by last ListMgr_GetNext() call */
+        /* reset attr_mask, if it was altered by last ListMgr_GetNext() */
         memset(&attr_set, 0, sizeof(attr_set_t));
         attr_set.attr_mask = attr_mask;
 
@@ -1393,25 +1393,22 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
 
         rc = iter_next(it, &entry_id, &attr_set);
 
-        if (aborted(pol))
-        {
+        if (aborted(pol)) {
             /* free the last returned entry */
             if (rc == 0)
                 ListMgr_FreeAttrs(&attr_set);
 
-            DisplayLog(LVL_MAJOR, tag(pol), "Policy run aborted, stop enqueuing requests.");
+            DisplayLog(LVL_MAJOR, tag(pol),
+                       "Policy run aborted, stop enqueuing requests.");
             st = PASS_ABORTED;
             break;
-        }
-        else if (rc == DB_END_OF_LIST)
-        {
+        } else if (rc == DB_END_OF_LIST) {
             *db_total_list_count += *db_current_list_count;
 
             /* if limit = inifinite => END OF LIST */
             if ((*db_current_list_count == 0)
-                 || ((req_opt->list_count_max > 0) &&
-                    (*db_current_list_count < req_opt->list_count_max)))
-            {
+                || ((req_opt->list_count_max > 0) &&
+                    (*db_current_list_count < req_opt->list_count_max))) {
                 DisplayLog(LVL_FULL, tag(pol), "End of list "
                            "(%u entries returned)", *db_total_list_count);
                 st = PASS_EOL;
@@ -1421,8 +1418,7 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
             /* no new useless request when entries are sorted
              * and the max time is reached */
             if ((pol->config->lru_sort_attr != LRU_ATTR_NONE)
-               && heuristic_end_of_list(pol, *last_sort_time))
-            {
+                && heuristic_end_of_list(pol, *last_sort_time)) {
                 st = PASS_EOL;
                 break;
             }
@@ -1455,13 +1451,12 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
                 return PASS_ERROR;
 
             /* filter on <sort_time> */
-            if (pol->config->lru_sort_attr != LRU_ATTR_NONE)
-            {
+            if (pol->config->lru_sort_attr != LRU_ATTR_NONE) {
                 fval.value.val_int = *last_sort_time;
                 rc = lmgr_simple_filter_add_or_replace(filter,
-                                                       pol->config->lru_sort_attr,
-                                                       MORETHAN, fval,
-                                                       FILTER_FLAG_ALLOW_NULL);
+                                               pol->config->lru_sort_attr,
+                                               MORETHAN, fval,
+                                               FILTER_FLAG_ALLOW_NULL);
                 if (rc)
                     return PASS_ERROR;
 
@@ -1470,9 +1465,7 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
                            " and %s >= %d and md_update < %ld ",
                            req_opt->list_count_max, sort_attr_name(pol),
                            *last_sort_time, pol->progress.policy_start);
-            }
-            else
-            {
+            } else {
                 DisplayLog(LVL_DEBUG, tag(pol),
                            "Performing new request with a limit of %u entries"
                            " and md_update < %ld ", req_opt->list_count_max,
@@ -1480,19 +1473,18 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
             }
 
             *db_current_list_count = 0;
-            rc = iter_open(lmgr, it->it_type, it, filter, sort_type, req_opt);
-            if (rc != DB_SUCCESS)
-            {
+            rc = iter_open(lmgr, it->it_type, it, filter, sort_type,
+                           req_opt);
+            if (rc != DB_SUCCESS) {
                 DisplayLog(LVL_CRIT, tag(pol),
                            "Error %d retrieving list of candidates from "
                            "database. Policy run cancelled.", rc);
                 return PASS_ERROR;
             }
             continue;
-        }
-        else if (rc != 0)
-        {
-            DisplayLog(LVL_CRIT, tag(pol), "Error %d getting next entry of iterator", rc);
+        } else if (rc != 0) {
+            DisplayLog(LVL_CRIT, tag(pol),
+                       "Error %d getting next entry of iterator", rc);
             st = PASS_ERROR;
             break;
         }
@@ -1504,9 +1496,9 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
             *last_sort_time = rc;
 
         rc = entry2tgt_amount(p_param, &attr_set, &entry_amount);
-        if (rc == -1)
-        {
-            DisplayLog(LVL_MAJOR, tag(pol), "Failed to determine target amount for entry "DFID,
+        if (rc == -1) {
+            DisplayLog(LVL_MAJOR, tag(pol),
+                       "Failed to determine target amount for entry " DFID,
                        PFID(&entry_id));
             /* handle next entries */
             continue;
@@ -1514,19 +1506,22 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
 
         /* Insert candidate to workers queue */
         rc = Queue_Insert(&pol->queue,
-                entry2queue_item(&entry_id, &attr_set, entry_amount.targeted));
+                          entry2queue_item(&entry_id, &attr_set,
+                                           entry_amount.targeted));
         if (rc)
             return PASS_ERROR;
 
         counters_add(&pushed_ctr, &entry_amount);
 
-        /* Enqueue entries to workers queue as long as the specified limit is not reached */
+    /* Enqueue entries to workers queue as long as the specified limit is
+     * not reached */
     } while (!check_queue_limit(pol, &pushed_ctr, feedback_before,
                                 status_tab_before, &p_param->target_ctr));
 
     /* Make sure the processing queue is empty. */
     wait_queue_empty(pol, pushed_ctr.count, feedback_before,
-                     status_tab_before, feedback_after, status_tab_after, true);
+                     status_tab_before, feedback_after, status_tab_after,
+                     true);
 
     update_pass_stats(pol, status_tab_before, status_tab_after,
                       feedback_before, feedback_after);
@@ -1538,18 +1533,18 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
 static void process_entry(policy_info_t *pol, lmgr_t *lmgr,
                           queue_item_t *p_item, bool free_item);
 /**
- * Apply policy to a single file.
- */
+* Apply policy to a single file.
+*/
 static int single_file_run(policy_info_t *pol, lmgr_t *lmgr,
                            const policy_param_t *p_param,
                            action_summary_t *p_summary)
 {
-    queue_item_t  item;
-    int           rc;
-    unsigned int        status_before[AS_ENUM_COUNT];
-    unsigned int        status_after[AS_ENUM_COUNT];
-    unsigned long long  feedback_before[AF_ENUM_COUNT];
-    unsigned long long  feedback_after[AF_ENUM_COUNT];
+    queue_item_t item;
+    int rc;
+    unsigned int status_before[AS_ENUM_COUNT];
+    unsigned int status_after[AS_ENUM_COUNT];
+    unsigned long long feedback_before[AF_ENUM_COUNT];
+    unsigned long long feedback_after[AF_ENUM_COUNT];
 
     memset(&item, 0, sizeof(item));
 
@@ -1568,10 +1563,10 @@ static int single_file_run(policy_info_t *pol, lmgr_t *lmgr,
 
     /* get fid from DB */
     rc = ListMgr_Get(lmgr, &item.entry_id, &item.entry_attr);
-    if (rc)
-    {
+    if (rc) {
         if (rc == DB_NOT_EXISTS)
-            DisplayLog(LVL_MAJOR, tag(pol), "%s: this entry is not known in database",
+            DisplayLog(LVL_MAJOR, tag(pol),
+                       "%s: this entry is not known in database",
                        p_param->optarg_u.name);
         /* expect a posix error code */
         rc = EINVAL;
@@ -1595,27 +1590,27 @@ static int single_file_run(policy_info_t *pol, lmgr_t *lmgr,
 }
 
 /**
- * This is called by triggers (or manual policy runs) to run a pass of a policy.
- * @param[in,out] p_pol_info   policy information and resources
- * @param[in]     p_param      parameters of this run (target, limit, ...)
- * @param[out]    p_summary    summary of the policy run
- * @param[in]     lmgr         connection to the database
- *  \return 0 on success, a POSIX error code else, -1 for internal failure.
- *  \retval ENOENT if no file list is available.
- */
+* This is called by triggers (or manual policy runs) to run a pass of a policy.
+* @param[in,out] p_pol_info   policy information and resources
+* @param[in]     p_param      parameters of this run (target, limit, ...)
+* @param[out]    p_summary    summary of the policy run
+* @param[in]     lmgr         connection to the database
+*  \return 0 on success, a POSIX error code else, -1 for internal failure.
+*  \retval ENOENT if no file list is available.
+*/
 int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
                action_summary_t *p_summary, lmgr_t *lmgr)
 {
-    struct policy_iter      it = {0};
-    int                     rc;
-    pass_status_e           st;
-    lmgr_filter_t           filter;
-    filter_value_t          fval;
-    lmgr_sort_type_t        sort_type;
-    int                     last_sort_time = 0;
+    struct policy_iter it = { 0 };
+    int rc;
+    pass_status_e st;
+    lmgr_filter_t filter;
+    filter_value_t fval;
+    lmgr_sort_type_t sort_type;
+    int last_sort_time = 0;
     /* XXX first_request_start = policy_start */
-    attr_mask_t             attr_mask;
-    unsigned int            nb_returned, total_returned;
+    attr_mask_t attr_mask;
+    unsigned int nb_returned, total_returned;
 
     lmgr_iter_opt_t opt = LMGR_ITER_OPT_INIT;
 
@@ -1637,7 +1632,8 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     if (p_param->target == TGT_FILE)
         return single_file_run(p_pol_info, lmgr, p_param, p_summary);
 
-    /* Do nothing if no previous scan was done (except if --force is specified). */
+    /* Do nothing if no previous scan was done
+     * (except if --force is specified). */
     rc = check_scan_done(p_pol_info, lmgr);
     if (rc)
         return rc;
@@ -1646,34 +1642,33 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     attr_mask = db_attr_mask(p_pol_info, p_param);
 
     /* sort by last access */
-    sort_type.attr_index = p_pol_info->config->lru_sort_attr; // TODO manage random
+    // TODO manage random
+    sort_type.attr_index = p_pol_info->config->lru_sort_attr;
     sort_type.order = p_pol_info->config->lru_sort_attr == LRU_ATTR_NONE ?
-                        SORT_NONE : SORT_ASC;
+        SORT_NONE : SORT_ASC;
 
     rc = lmgr_simple_filter_init(&filter);
     if (rc)
         return rc;
 
     /* filter entries in the policy scope */
-    DisplayLog(LVL_FULL, tag(p_pol_info), "Converting scope to DB filter...");
-    if (convert_boolexpr_to_simple_filter(&p_pol_info->descr->scope, &filter,
-                                          p_pol_info->descr->status_mgr,
-                                          p_pol_info->time_modifier,
-                                          p_pol_info->descr->manage_deleted ?
-                                            FILTER_FLAG_ALLOW_NULL : 0))
-    {
+    DisplayLog(LVL_FULL, tag(p_pol_info),
+               "Converting scope to DB filter...");
+    if (convert_boolexpr_to_simple_filter
+        (&p_pol_info->descr->scope, &filter, p_pol_info->descr->status_mgr,
+         p_pol_info->time_modifier,
+         p_pol_info->descr->manage_deleted ? FILTER_FLAG_ALLOW_NULL : 0)) {
         DisplayLog(LVL_DEBUG, tag(p_pol_info),
                    "Could not convert policy scope to simple filter.");
         DisplayLog(LVL_EVENT, tag(p_pol_info),
                    "Warning: scope definition is too complex and may affect policy run performance");
     }
 
-    if (!p_pol_info->descr->manage_deleted)
-    {
+    if (!p_pol_info->descr->manage_deleted) {
         /* do not retrieve 'invalid' entries */
         fval.value.val_bool = false;
-        rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_invalid, EQUAL, fval,
-                                    FILTER_FLAG_ALLOW_NULL);
+        rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_invalid, EQUAL,
+                                    fval, FILTER_FLAG_ALLOW_NULL);
         if (rc)
             return rc;
     }
@@ -1690,19 +1685,20 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     if (!ignore_policies(p_pol_info))
         set_optimization_filters(p_pol_info, &filter);
 
-    /* Do not retrieve all entries at once, as the result may exceed the client memory! */
+    /* Do not retrieve all entries at once, as the result may exceed
+     * the client memory! */
     opt.list_count_max = p_pol_info->config->db_request_limit;
     nb_returned = 0;
     total_returned = 0;
 
-    rc = iter_open(lmgr, p_pol_info->descr->manage_deleted? IT_RMD: IT_LIST,
+    rc = iter_open(lmgr,
+                   p_pol_info->descr->manage_deleted ? IT_RMD : IT_LIST,
                    &it, &filter, &sort_type, &opt);
-    if (rc != DB_SUCCESS)
-    {
+    if (rc != DB_SUCCESS) {
         lmgr_simple_filter_free(&filter);
         DisplayLog(LVL_CRIT, tag(p_pol_info),
-                    "Error retrieving list of candidates from database. "
-                    "Policy run cancelled.");
+                   "Error retrieving list of candidates from database. "
+                   "Policy run cancelled.");
         return rc;
     }
 
@@ -1713,37 +1709,38 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     Alert_StartBatching();
 
     /* loop on all policy passes */
-    do
-    {
+    do {
         /* check if progress must be reported  */
         report_progress(p_pol_info, NULL, NULL, NULL, NULL);
 
         /* feed workers until the specified limit is reached or
          * end of list is reached */
-        st = fill_workers_queue(p_pol_info, p_param, lmgr, &it, &opt, &sort_type,
-                                &filter, attr_mask, &last_sort_time,
-                                &nb_returned, &total_returned);
-        switch (st)
-        {
-            case PASS_EOL:
-                rc = 0;
-                break;
-            case PASS_ABORTED:
-                rc = ECANCELED;
-                break;
-            case PASS_LIMIT:
-                rc = 0;
-                break;
-            case PASS_ERROR:
-                rc = -1;
-                break;
+        st = fill_workers_queue(p_pol_info, p_param, lmgr, &it, &opt,
+                                &sort_type, &filter, attr_mask,
+                                &last_sort_time, &nb_returned,
+                                &total_returned);
+        switch (st) {
+        case PASS_EOL:
+            rc = 0;
+            break;
+        case PASS_ABORTED:
+            rc = ECANCELED;
+            break;
+        case PASS_LIMIT:
+            rc = 0;
+            break;
+        case PASS_ERROR:
+            rc = -1;
+            break;
         }
 
-        /* exit in all cases except pass_limit (double check the limit in this case):
-         * check the real amount of performed actions (progress.action_ctr) */
+    /* exit in all cases except pass_limit (double check the limit in this
+     * case): check the real amount of performed actions
+     * (progress.action_ctr) */
     } while ((st == PASS_LIMIT) &&
              !check_limit(p_pol_info, &p_pol_info->progress.action_ctr,
-                          p_pol_info->progress.errors, &p_param->target_ctr));
+                          p_pol_info->progress.errors,
+                          &p_param->target_ctr));
 
     lmgr_simple_filter_free(&filter);
     /* iterator may have been closed in fill_workers_queue() */
@@ -1760,15 +1757,15 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
 
 #ifndef _HAVE_FID
 /* If entries are accessed by FID, we can always get their status.
- * This is not the case for POSIX, because they may have moved.
- * In this case, the entry is tagged as 'invalid' in the DB
- * until we find it again during a next scan.
- */
-inline static int invalidate_entry(const policy_info_t *pol, lmgr_t *lmgr,
+* This is not the case for POSIX, because they may have moved.
+* In this case, the entry is tagged as 'invalid' in the DB
+* until we find it again during a next scan.
+*/
+static inline int invalidate_entry(const policy_info_t *pol, lmgr_t *lmgr,
                                    entry_id_t *p_entry_id)
 {
-    attr_set_t     new_attr_set = ATTR_SET_INIT;
-    int            rc;
+    attr_set_t new_attr_set = ATTR_SET_INIT;
+    int rc;
 
     ATTR_MASK_INIT(&new_attr_set);
     ATTR_MASK_SET(&new_attr_set, invalid);
@@ -1783,17 +1780,18 @@ inline static int invalidate_entry(const policy_info_t *pol, lmgr_t *lmgr,
 }
 #endif
 
-inline static int update_entry(lmgr_t *lmgr, const entry_id_t *p_entry_id,
+static inline int update_entry(lmgr_t *lmgr, const entry_id_t *p_entry_id,
                                const attr_set_t *p_attr_set)
 {
-    int            rc;
-    attr_set_t     tmp_attrset = *p_attr_set;
+    int rc;
+    attr_set_t tmp_attrset = *p_attr_set;
 
     /* update classes according to new attributes */
     match_classes(p_entry_id, &tmp_attrset, NULL);
 
     /* /!\ do not update stripe info */
-    /* @TODO actually, the best operation would be to update only attributes that changed */
+    /* @TODO actually, the best operation would be to update only
+     * attributes that changed */
     ATTR_MASK_UNSET(&tmp_attrset, stripe_info);
     ATTR_MASK_UNSET(&tmp_attrset, stripe_items);
 
@@ -1806,52 +1804,55 @@ inline static int update_entry(lmgr_t *lmgr, const entry_id_t *p_entry_id,
     /* update DB and skip the entry */
     rc = ListMgr_Update(lmgr, p_entry_id, &tmp_attrset);
     if (rc)
-        DisplayLog(LVL_CRIT, TAG, "Error %d updating entry in database.", rc);
+        DisplayLog(LVL_CRIT, TAG, "Error %d updating entry in database.",
+                   rc);
 
     return rc;
 }
 
 #ifdef _HAVE_FID
 /**
- * Check that entry still exists
- * @param fill entry MD if entry is valid
- */
+* Check that entry still exists
+* @param fill entry MD if entry is valid
+*/
 static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
                        queue_item_t *p_item, attr_set_t *new_attr_set)
 {
-    char           fid_path[RBH_PATH_MAX];
-    struct stat    entry_md;
-    int            rc;
+    char fid_path[RBH_PATH_MAX];
+    struct stat entry_md;
+    int rc;
     sm_instance_t *smi = policy->descr->status_mgr;
 
-    DisplayLog(LVL_FULL, tag(policy), "Considering entry " DFID, PFID(&p_item->entry_id));
+    DisplayLog(LVL_FULL, tag(policy), "Considering entry " DFID,
+               PFID(&p_item->entry_id));
 
     /* 1) Build fid path */
     BuildFidPath(&p_item->entry_id, fid_path);
 
     /* 2) Perform lstat on entry (size is needed!):
-     * important to respect LRU sort order (TODO: not if sort order is not in POSIX attrs)
+     * important to respect LRU sort order (TODO: not if sort order is not
+     * in POSIX attrs)
      */
-    if (lstat(fid_path, &entry_md) != 0)
-    {
+    if (lstat(fid_path, &entry_md) != 0) {
         rc = errno;
 
         /* If lstat returns an error, skip the entry */
-        DisplayLog(LVL_DEBUG, tag(policy), "lstat() failed on %s. Skipping it.", fid_path);
+        DisplayLog(LVL_DEBUG, tag(policy),
+                   "lstat() failed on %s. Skipping it.", fid_path);
 
         /* This entry has been processed and has probably removed */
         if (rc == ENOENT)
-            /** @TODO remove entry from DB if errno = ENOENT ? */
+        /** @TODO remove entry from DB if errno = ENOENT ? */
             return AS_MOVED;
         else
             return AS_STAT_FAILURE;
     }
 
     /* creation time from DB has the priority on filesystem stat */
-    if (ATTR_MASK_TEST(&p_item->entry_attr, creation_time))
-    {
+    if (ATTR_MASK_TEST(&p_item->entry_attr, creation_time)) {
         ATTR_MASK_SET(new_attr_set, creation_time);
-        ATTR(new_attr_set, creation_time) = ATTR(&p_item->entry_attr, creation_time);
+        ATTR(new_attr_set, creation_time) =
+            ATTR(&p_item->entry_attr, creation_time);
     }
 
     /* convert posix attributes to attr structure */
@@ -1862,21 +1863,22 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
     ATTR(new_attr_set, md_update) = time(NULL);
 
     /* get fullpath or name, if they are needed for applying policy */
-    if (policy->descr->rules.run_attr_mask.std & (ATTR_MASK_fullpath | ATTR_MASK_name))
-    {
+    if (policy->descr->rules.run_attr_mask.
+        std & (ATTR_MASK_fullpath | ATTR_MASK_name)) {
         path_check_update(&p_item->entry_id, fid_path, new_attr_set,
                           policy->descr->rules.run_attr_mask);
     }
 
-    /* retrieve up-to-date status from status manager if the scope relies on it */
+    /* retrieve up-to-date status from status manager if the scope reliesk
+     * on it */
     if (smi != NULL && smi->sm->get_status_func != NULL
-        && (policy->descr->scope_mask.status & SMI_MASK(smi->smi_index)))
-    {
-        rc =  smi->sm->get_status_func(smi, &p_item->entry_id,
-                                       new_attr_set, new_attr_set);
-        if (rc != 0)
-        {
-            DisplayLog(LVL_MAJOR, tag(policy), "Failed to get status for "DFID" (%s status manager): error %d",
+        && (policy->descr->scope_mask.status & SMI_MASK(smi->smi_index))) {
+        rc = smi->sm->get_status_func(smi, &p_item->entry_id,
+                                      new_attr_set, new_attr_set);
+        if (rc != 0) {
+            DisplayLog(LVL_MAJOR, tag(policy),
+                       "Failed to get status for " DFID
+                       " (%s status manager): error %d",
                        PFID(&p_item->entry_id), smi->sm->name, rc);
             return AS_ERROR;
         }
@@ -1887,20 +1889,20 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
 }
 #else /* no FID */
 /**
- * Check that entry exists with the good path and its id is consistent.
- * @param fill entry MD if entry is valid
- */
+* Check that entry exists with the good path and its id is consistent.
+* @param fill entry MD if entry is valid
+*/
 static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
                        queue_item_t *p_item, attr_set_t *new_attr_set)
 {
-    struct stat    entry_md;
-    char * stat_path;
+    struct stat entry_md;
+    char *stat_path;
     sm_instance_t *smi = policy->descr->status_mgr;
 
     /* 1) Check if fullpath is set (if no fid support) */
-    if (!ATTR_MASK_TEST(&p_item->entry_attr, fullpath))
-    {
-        DisplayLog(LVL_DEBUG, tag(policy), "Warning: entry fullpath is not set. Tagging it invalid.");
+    if (!ATTR_MASK_TEST(&p_item->entry_attr, fullpath)) {
+        DisplayLog(LVL_DEBUG, tag(policy),
+                   "Warning: entry fullpath is not set. Tagging it invalid.");
         invalidate_entry(policy, lmgr, &p_item->entry_id);
 
         /* not enough metadata */
@@ -1909,14 +1911,14 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
     stat_path = ATTR(&p_item->entry_attr, fullpath);
 
     if (ATTR_MASK_TEST(&p_item->entry_attr, fullpath))
-        DisplayLog(LVL_FULL, tag(policy), "Considering entry %s", ATTR(&p_item->entry_attr, fullpath));
+        DisplayLog(LVL_FULL, tag(policy), "Considering entry %s",
+                   ATTR(&p_item->entry_attr, fullpath));
 
     /* 2) Perform lstat on entry */
-    if (lstat(stat_path, &entry_md) != 0)
-    {
+    if (lstat(stat_path, &entry_md) != 0) {
         /* If lstat returns an error, invalidate the entry */
-        DisplayLog(LVL_DEBUG, tag(policy), "lstat() failed on %s. Tagging it invalid.",
-                    stat_path);
+        DisplayLog(LVL_DEBUG, tag(policy),
+                   "lstat() failed on %s. Tagging it invalid.", stat_path);
         invalidate_entry(policy, lmgr, &p_item->entry_id);
 
         /* This entry has been processed and has probably moved */
@@ -1925,16 +1927,17 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
 
     /* 3) check entry id and fskey */
     if ((entry_md.st_ino != p_item->entry_id.inode)
-         || (get_fskey() != p_item->entry_id.fs_key))
-    {
-        /* If it has changed, invalidate the entry (fullpath does not match entry_id, it will be updated or removed at next FS scan). */
-        DisplayLog(LVL_DEBUG, tag(policy), "Inode of %s changed: old=<%llu,%llu>, "
-                    "new=<%llu,%llu>. Tagging it invalid.",
-                    ATTR(&p_item->entry_attr, fullpath),
-                    (unsigned long long) p_item->entry_id.inode,
-                    (unsigned long long) p_item->entry_id.fs_key,
-                    (unsigned long long) entry_md.st_ino,
-                    (unsigned long long) get_fskey());
+        || (get_fskey() != p_item->entry_id.fs_key)) {
+        /* If it has changed, invalidate the entry (fullpath does not match
+         * entry_id, it will be updated or removed at next FS scan). */
+        DisplayLog(LVL_DEBUG, tag(policy),
+                   "Inode of %s changed: old=<%llu,%llu>, "
+                   "new=<%llu,%llu>. Tagging it invalid.",
+                   ATTR(&p_item->entry_attr, fullpath),
+                   (unsigned long long)p_item->entry_id.inode,
+                   (unsigned long long)p_item->entry_id.fs_key,
+                   (unsigned long long)entry_md.st_ino,
+                   (unsigned long long)get_fskey());
 
         invalidate_entry(policy, lmgr, &p_item->entry_id);
 
@@ -1949,17 +1952,18 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
     ATTR_MASK_SET(new_attr_set, md_update);
     ATTR(new_attr_set, md_update) = time(NULL);
 
-    /* retrieve up-to-date status from status manager if the scope relies on it */
+    /* retrieve up-to-date status from status manager if the scope relies
+     * on it */
     if (smi != NULL && smi->sm->get_status_func != NULL
-        && (policy->descr->scope_mask.status & SMI_MASK(smi->smi_index)))
-    {
+        && (policy->descr->scope_mask.status & SMI_MASK(smi->smi_index))) {
         int rc;
 
-        rc =  smi->sm->get_status_func(smi, &p_item->entry_id,
-                                       new_attr_set, new_attr_set);
-        if (rc != 0)
-        {
-            DisplayLog(LVL_MAJOR, tag(policy), "Failed to get status for "DFID" (%s status manager): error %d",
+        rc = smi->sm->get_status_func(smi, &p_item->entry_id,
+                                      new_attr_set, new_attr_set);
+        if (rc != 0) {
+            DisplayLog(LVL_MAJOR, tag(policy),
+                       "Failed to get status for " DFID
+                       " (%s status manager): error %d",
                        PFID(&p_item->entry_id), smi->sm->name, rc);
             return AS_ERROR;
         }
@@ -1971,22 +1975,21 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
 #endif
 
 /** check that time ordering did not change and that time attributes
- * are consistent. */
+* are consistent. */
 static action_status_t check_entry_times(policy_info_t *pol, lmgr_t *lmgr,
                                          const entry_id_t *p_id,
                                          const attr_set_t *p_attrs_old,
                                          const attr_set_t *p_attrs_new)
 {
-    if (pol->descr->manage_deleted)
-    {
+    if (pol->descr->manage_deleted) {
         /* deleted entry: no new attrs */
 
         /* if lru sort order is rmtime and rmtime is not set: missing MD */
         if ((pol->config->lru_sort_attr == ATTR_INDEX_rm_time)
-            && !ATTR_MASK_TEST(p_attrs_old, rm_time))
-        {
+            && !ATTR_MASK_TEST(p_attrs_old, rm_time)) {
             /* cannot determine if sort criteria has changed */
-            DisplayLog(LVL_VERB, tag(pol), "rm_time attribute is not set for deleted entry: skipping it");
+            DisplayLog(LVL_VERB, tag(pol),
+                       "rm_time attribute is not set for deleted entry: skipping it");
             return AS_MISSING_MD;
         }
         return AS_OK;
@@ -1995,25 +1998,22 @@ static action_status_t check_entry_times(policy_info_t *pol, lmgr_t *lmgr,
     /* If the policy application is ordered, make sure the value used for
      * ordering did not change. If so, update the entry so it will be
      * correctly ordered for the next pass. */
-    if (pol->config->lru_sort_attr != LRU_ATTR_NONE)
-    {
+    if (pol->config->lru_sort_attr != LRU_ATTR_NONE) {
         int val1, val2;
 
         val1 = get_sort_attr(pol, p_attrs_old);
         val2 = get_sort_attr(pol, p_attrs_new);
 
-        if ((val1 == -1) || (val2 == -1))
-        {
+        if ((val1 == -1) || (val2 == -1)) {
             /* cannot determine if sort criteria has changed */
-            DisplayLog(LVL_VERB, tag(pol), "Cannot determine if sort criteria value"
+            DisplayLog(LVL_VERB, tag(pol),
+                       "Cannot determine if sort criteria value"
                        " changed (missing attribute '%s'): skipping entry.",
                        sort_attr_name(pol));
             if (!pol->descr->manage_deleted)
                 update_entry(lmgr, p_id, p_attrs_new);
             return AS_MISSING_MD;
-        }
-        else if (val1 != val2)
-        {
+        } else if (val1 != val2) {
             DisplayLog(LVL_DEBUG, tag(pol),
                        "%s has been accessed/modified since last md update. Skipping entry.",
                        ATTR(p_attrs_old, fullpath));
@@ -2025,9 +2025,9 @@ static action_status_t check_entry_times(policy_info_t *pol, lmgr_t *lmgr,
         /* LRU on access/modification: size change detected? */
         if ((pol->config->lru_sort_attr == ATTR_INDEX_last_access
              || pol->config->lru_sort_attr == ATTR_INDEX_last_mod)
-            && ATTR_MASK_TEST(p_attrs_old, size) && ATTR_MASK_TEST(p_attrs_new, size)
-            && (ATTR(p_attrs_old, size) != ATTR(p_attrs_new, size)))
-        {
+            && ATTR_MASK_TEST(p_attrs_old, size)
+            && ATTR_MASK_TEST(p_attrs_new, size)
+            && (ATTR(p_attrs_old, size) != ATTR(p_attrs_new, size))) {
             DisplayLog(LVL_DEBUG, tag(pol),
                        "%s has been modified since last md update (size changed). Skipping entry.",
                        ATTR(p_attrs_old, fullpath));
@@ -2040,41 +2040,36 @@ static action_status_t check_entry_times(policy_info_t *pol, lmgr_t *lmgr,
 }
 
 /** Display action success to log and report. */
-static void log_action_success(const policy_info_t  *pol,
-                               const attr_set_t     *attrs,
-                               const rule_item_t    *rule,
+static void log_action_success(const policy_info_t *pol,
+                               const attr_set_t *attrs,
+                               const rule_item_t *rule,
                                const fileset_item_t *fileset,
                                int sort_time)
 {
-    GString    *str = NULL;
-    GString    *str_stripe = NULL;
-    char        strsize[256];
+    GString *str = NULL;
+    GString *str_stripe = NULL;
+    char strsize[256];
 
     /* display needed? */
-    if (log_config.debug_level < LVL_DEBUG
-        && !pol->config->report_actions)
+    if (log_config.debug_level < LVL_DEBUG && !pol->config->report_actions)
         return;
 
     str = g_string_new(NULL);
     g_string_printf(str, "%s success for '%s', matching rule '%s'",
-                    tag(pol), ATTR(attrs, fullpath),
-                    rule->rule_id);
+                    tag(pol), ATTR(attrs, fullpath), rule->rule_id);
 
     if (fileset)
         g_string_append_printf(str, " (fileset=%s)", fileset->fileset_id);
 
-    if (pol->config->lru_sort_attr != LRU_ATTR_NONE)
-    {
-        if (sort_time > 0)
-        {
+    if (pol->config->lru_sort_attr != LRU_ATTR_NONE) {
+        if (sort_time > 0) {
             char strtime[256];
 
             FormatDurationFloat(strtime, sizeof(strtime),
                                 time(NULL) - sort_time);
             g_string_append_printf(str, ", %s %s ago", sort_attr_name(pol),
                                    strtime);
-        }
-        else
+        } else
             g_string_append_printf(str, ", %s <none>", sort_attr_name(pol));
     }
 
@@ -2084,8 +2079,7 @@ static void log_action_success(const policy_info_t  *pol,
     /* Only needed if trace level is DEBUG or if report_action
      * is enabled */
     if ((log_config.debug_level >= LVL_DEBUG || pol->config->report_actions)
-        && ATTR_MASK_TEST(attrs, stripe_items))
-    {
+        && ATTR_MASK_TEST(attrs, stripe_items)) {
         str_stripe = g_string_new("");
         append_stripe_list(str_stripe, &ATTR(attrs, stripe_items), false);
     }
@@ -2095,9 +2089,8 @@ static void log_action_success(const policy_info_t  *pol,
                str_stripe ? " stored on " : "",
                str_stripe ? str_stripe->str : "");
 
-    if (pol->config->report_actions)
-    {
-        g_string_append_printf(str, " | size=%"PRI_SZ, ATTR(attrs, size));
+    if (pol->config->report_actions) {
+        g_string_append_printf(str, " | size=%" PRI_SZ, ATTR(attrs, size));
 
         if (pol->config->lru_sort_attr != LRU_ATTR_NONE)
             g_string_append_printf(str, ", %s=%u", sort_attr_name(pol),
@@ -2114,63 +2107,64 @@ static void log_action_success(const policy_info_t  *pol,
     g_string_free(str, TRUE);
 }
 
+/* acknowledging helper */
+#define policy_ack(_q, _status, _pattrs, _tgt)  do {                 \
+            unsigned long long feedback[AF_ENUM_COUNT];              \
+            memset(feedback, 0, sizeof(feedback));   \
+            if (_status == AS_OK) {             \
+                feedback[AF_NBR_OK] = 1;        \
+                feedback[AF_VOL_OK] = ATTR_MASK_TEST(_pattrs, size) ? \
+                                      ATTR(_pattrs, size) : 0;        \
+                feedback[AF_TARGETED_OK] = _tgt;\
+                feedback[AF_BLOCKS_OK] = ATTR_MASK_TEST(_pattrs, blocks) ? \
+                                         ATTR(_pattrs, blocks) : 0; \
+            } else {                            \
+                feedback[AF_NBR_NOK] = 1;        \
+                feedback[AF_VOL_NOK] = ATTR_MASK_TEST(_pattrs, size) ? \
+                                       ATTR(_pattrs, size) : 0;        \
+                feedback[AF_TARGETED_NOK] = _tgt;\
+                feedback[AF_BLOCKS_NOK] = ATTR_MASK_TEST(_pattrs, blocks) ? \
+                                          ATTR(_pattrs, blocks) : 0; \
+            }                                   \
+            Queue_Acknowledge(_q, _status, feedback, AF_ENUM_COUNT); \
+       } while (0)
 
 /**
- * Manage an entry by path or by fid, depending on FS
- */
-static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
-                          queue_item_t * p_item, bool free_item)
+* Manage an entry by path or by fid, depending on FS
+*/
+static void process_entry(policy_info_t *pol, lmgr_t *lmgr,
+                          queue_item_t *p_item, bool free_item)
 {
-    attr_set_t     new_attr_set = ATTR_SET_INIT;
-    int            rc;
+    attr_set_t new_attr_set = ATTR_SET_INIT;
+    int rc;
 
-    policy_match_t   match;
-    rule_item_t     *rule;
-    fileset_item_t  *p_fileset;
-    attr_set_t      attr_sav;
+    policy_match_t match;
+    rule_item_t *rule;
+    fileset_item_t *p_fileset;
+    attr_set_t attr_sav;
     int lastrm;
-    post_action_e   after_action = PA_NONE;
-    action_params_t params = {0};
+    post_action_e after_action = PA_NONE;
+    action_params_t params = { 0 };
 
-
-/* acknowledging helper */
-#define policy_ack(_q, _status, _pattrs, _tgt)  do {                    \
-                               unsigned long long feedback[AF_ENUM_COUNT]; \
-                               memset(feedback, 0, sizeof(feedback));   \
-                                    if (_status == AS_OK) {             \
-                                        feedback[AF_NBR_OK] = 1;        \
-                                        feedback[AF_VOL_OK] = ATTR_MASK_TEST(_pattrs,size)?ATTR(_pattrs,size):0;     \
-                                        feedback[AF_TARGETED_OK] = _tgt;\
-                                        feedback[AF_BLOCKS_OK] = ATTR_MASK_TEST(_pattrs,blocks)?ATTR(_pattrs,blocks):0; \
-                                    } else {                            \
-                                        feedback[AF_NBR_NOK] = 1;        \
-                                        feedback[AF_VOL_NOK] = ATTR_MASK_TEST(_pattrs,size)?ATTR(_pattrs,size):0;     \
-                                        feedback[AF_TARGETED_NOK] = _tgt;\
-                                        feedback[AF_BLOCKS_NOK] = ATTR_MASK_TEST(_pattrs,blocks)?ATTR(_pattrs,blocks):0; \
-                                    }                                   \
-                                    Queue_Acknowledge(_q, _status, feedback, AF_ENUM_COUNT); \
-                                } while(0)
-
-
-    if (aborted(pol))
-    {
-       /* migration aborted by a signal, doesn't submit new migrations */
-       DisplayLog(LVL_FULL, tag(pol), "Policy run aborted: skipping pending requests");
-       policy_ack(&pol->queue, AS_ABORT, &p_item->entry_attr, p_item->targeted);
-       rc = AS_ABORT;
-       goto end;
+    if (aborted(pol)) {
+        /* migration aborted by a signal, doesn't submit new migrations */
+        DisplayLog(LVL_FULL, tag(pol),
+                   "Policy run aborted: skipping pending requests");
+        policy_ack(&pol->queue, AS_ABORT, &p_item->entry_attr,
+                   p_item->targeted);
+        rc = AS_ABORT;
+        goto end;
     }
 
     DisplayLog(LVL_FULL, tag(pol),
                "Checking if entry %s matches policy rules",
                ATTR(&p_item->entry_attr, fullpath));
 
-    if (!pol->descr->manage_deleted)
-    {
+    if (!pol->descr->manage_deleted) {
         rc = check_entry(pol, lmgr, p_item, &new_attr_set);
-        if (rc != AS_OK)
-        {
-            policy_ack(&pol->queue, rc, &p_item->entry_attr, p_item->targeted);
+        if (rc != AS_OK) {
+            policy_ack(&pol->queue, rc, &p_item->entry_attr,
+                       p_item->targeted);
             goto end;
         }
     }
@@ -2185,95 +2179,93 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
 
     /* check the entry still matches the policy scope */
     switch (match_scope(pol->descr, &p_item->entry_id, &new_attr_set,
-                        !pol->descr->manage_deleted))
-    {
-        case POLICY_MATCH:
-            /* OK */
-            break;
-        case POLICY_NO_MATCH:
-            DisplayLog(LVL_DEBUG, tag(pol), "Entry %s doesn't match scope of policy '%s'.",
+                        !pol->descr->manage_deleted)) {
+    case POLICY_MATCH:
+        /* OK */
+        break;
+    case POLICY_NO_MATCH:
+        DisplayLog(LVL_DEBUG, tag(pol),
+                   "Entry %s doesn't match scope of policy '%s'.",
+                   ATTR(&new_attr_set, fullpath), tag(pol));
+        if (!pol->descr->manage_deleted)
+            update_entry(lmgr, &p_item->entry_id, &new_attr_set);
+        policy_ack(&pol->queue, AS_OUT_OF_SCOPE, &p_item->entry_attr,
+                   p_item->targeted);
+        goto end;
+        break;
+    default:
+        if (!pol->descr->manage_deleted) {
+            DisplayLog(LVL_MAJOR, tag(pol),
+                       "Warning: cannot determine if entry %s matches the "
+                       "scope of policy '%s': skipping it.",
                        ATTR(&new_attr_set, fullpath), tag(pol));
-            if (!pol->descr->manage_deleted)
-                update_entry(lmgr, &p_item->entry_id, &new_attr_set);
-            policy_ack(&pol->queue, AS_OUT_OF_SCOPE, &p_item->entry_attr,
+
+            update_entry(lmgr, &p_item->entry_id, &new_attr_set);
+            policy_ack(&pol->queue, AS_MISSING_MD, &p_item->entry_attr,
                        p_item->targeted);
             goto end;
-            break;
-        default:
-            if (!pol->descr->manage_deleted)
-            {
-                DisplayLog(LVL_MAJOR, tag(pol),
-                           "Warning: cannot determine if entry %s matches the "
-                           "scope of policy '%s': skipping it.",
-                           ATTR(&new_attr_set, fullpath), tag(pol));
-
-                update_entry(lmgr, &p_item->entry_id, &new_attr_set);
-                policy_ack(&pol->queue, AS_MISSING_MD, &p_item->entry_attr,
-                           p_item->targeted);
-                goto end;
-            }
-            else
-            {
-                /* For deleted entries, we expect missing attributes.
-                 * so, continue anyway. */
-                DisplayLog(LVL_DEBUG, tag(pol),
-                           "Cannot determine if entry %s matches the "
-                           "scope of policy '%s'. Continuing anyway.",
-                           ATTR(&new_attr_set, fullpath), tag(pol));
-            }
+        } else {
+            /* For deleted entries, we expect missing attributes.
+             * so, continue anyway. */
+            DisplayLog(LVL_DEBUG, tag(pol),
+                       "Cannot determine if entry %s matches the "
+                       "scope of policy '%s'. Continuing anyway.",
+                       ATTR(&new_attr_set, fullpath), tag(pol));
+        }
     }
 
     /* if ignore-policies flag is specified:
      * - don't check rules
      * - don't care about recent atime etc...
      */
-    if (!ignore_policies(pol))
-    {
+    if (!ignore_policies(pol)) {
         /* 4) check whitelist rules */
-        match = is_whitelisted(pol->descr, &p_item->entry_id, &new_attr_set, &p_fileset);
+        match =
+            is_whitelisted(pol->descr, &p_item->entry_id, &new_attr_set,
+                           &p_fileset);
 
-        if (match == POLICY_MATCH)
-        {
+        if (match == POLICY_MATCH) {
             DisplayLog(LVL_DEBUG, tag(pol),
                        "Entry %s matches ignored target %s.",
                        ATTR(&p_item->entry_attr, fullpath),
-                       p_fileset? p_fileset->fileset_id:"(ignore rule)");
+                       p_fileset ? p_fileset->fileset_id : "(ignore rule)");
 
             if (!pol->descr->manage_deleted)
                 update_entry(lmgr, &p_item->entry_id, &new_attr_set);
-            policy_ack(&pol->queue, AS_WHITELISTED, &p_item->entry_attr, p_item->targeted);
+            policy_ack(&pol->queue, AS_WHITELISTED, &p_item->entry_attr,
+                       p_item->targeted);
             goto end;
-        }
-        else if (match != POLICY_NO_MATCH)
-        {
-           /* Cannot determine if entry is whitelisted: skip it (do nothing in database) */
+        } else if (match != POLICY_NO_MATCH) {
+            /* Cannot determine if entry is whitelisted: skip it
+             * (do nothing in database) */
             DisplayLog(LVL_MAJOR, tag(pol),
                        "Warning: cannot determine if entry %s is whitelisted: skipping it.",
                        ATTR(&p_item->entry_attr, fullpath));
 
             if (!pol->descr->manage_deleted)
                 update_entry(lmgr, &p_item->entry_id, &new_attr_set);
-            policy_ack(&pol->queue, AS_MISSING_MD, &p_item->entry_attr, p_item->targeted);
+            policy_ack(&pol->queue, AS_MISSING_MD, &p_item->entry_attr,
+                       p_item->targeted);
             goto end;
         }
 
         /* check that time ordering did not change and that time attributes
          * are consistent. */
-        rc = check_entry_times(pol, lmgr, &p_item->entry_id, &p_item->entry_attr,
-                               &new_attr_set);
-        if (rc != AS_OK)
-        {
+        rc = check_entry_times(pol, lmgr, &p_item->entry_id,
+                               &p_item->entry_attr, &new_attr_set);
+        if (rc != AS_OK) {
             /* check_entry_times already updates the entry */
-            policy_ack(&pol->queue, rc, &p_item->entry_attr, p_item->targeted);
+            policy_ack(&pol->queue, rc, &p_item->entry_attr,
+                       p_item->targeted);
             goto end;
         }
-    } /* end if 'don't ignore policies' */
+    }
 
+    /* end if 'don't ignore policies' */
     /* get policy rule for the entry */
     rule = policy_case(pol->descr, &p_item->entry_id, &new_attr_set,
                        &p_fileset);
-    if (!rule)
-    {
+    if (!rule) {
         DisplayLog(LVL_DEBUG, tag(pol), "Entry %s matches no policy rule",
                    ATTR(&p_item->entry_attr, fullpath));
 
@@ -2285,22 +2277,24 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
         goto end;
     }
 
-    /* don't care about policy condition if 'ignore-policies' flag is specified */
-    if (!ignore_policies(pol))
-    {
+    /* don't care about policy condition if 'ignore-policies' flag is
+     * specified */
+    if (!ignore_policies(pol)) {
         /* check if the entry matches the policy condition */
-        switch(entry_matches(&p_item->entry_id, &new_attr_set, &rule->condition,
-                             pol->time_modifier, pol->descr->status_mgr))
-        {
+        switch (entry_matches
+                (&p_item->entry_id, &new_attr_set, &rule->condition,
+                 pol->time_modifier, pol->descr->status_mgr)) {
         case POLICY_NO_MATCH:
             /* entry is not eligible now */
-            DisplayLog(LVL_DEBUG, tag(pol), "Entry %s doesn't match condition for policy rule '%s'",
+            DisplayLog(LVL_DEBUG, tag(pol),
+                       "Entry %s doesn't match condition for policy rule '%s'",
                        ATTR(&p_item->entry_attr, fullpath), rule->rule_id);
 
             if (!pol->descr->manage_deleted)
                 update_entry(lmgr, &p_item->entry_id, &new_attr_set);
 
-            policy_ack(&pol->queue, AS_WHITELISTED, &p_item->entry_attr, p_item->targeted);
+            policy_ack(&pol->queue, AS_WHITELISTED, &p_item->entry_attr,
+                       p_item->targeted);
 
             goto end;
             break;
@@ -2335,8 +2329,7 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     /* build action parameters */
     rc = build_action_params(&params, &p_item->entry_id, &new_attr_set, pol,
                              rule, p_fileset);
-    if (rc)
-    {
+    if (rc) {
         if (!pol->descr->manage_deleted)
             update_entry(lmgr, &p_item->entry_id, &new_attr_set);
         policy_ack(&pol->queue, AS_ERROR, &p_item->entry_attr,
@@ -2345,18 +2338,17 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     }
 
     /* save attributes before doing the action */
-    /* @FIXME this only save scalar value, not values in allocated structures etc. */
+    /* @FIXME this only save scalar value, not values in allocated structures */
     attr_sav = new_attr_set;
 
     /* apply action to the entry! */
     /* TODO RBHv3: action must indicate what to do with the entry
      * => db update, rm from filesystem etc... */
-    rc = policy_action(pol, rule, p_fileset, &p_item->entry_id, &new_attr_set,
-                       &params, &after_action);
+    rc = policy_action(pol, rule, p_fileset, &p_item->entry_id,
+                       &new_attr_set, &params, &after_action);
     rbh_params_free(&params);
 
-    if (rc != 0)
-    {
+    if (rc != 0) {
         const char *err_str;
 
         if (rc < 0)
@@ -2364,7 +2356,8 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
         else
             err_str = "command execution failed";
 
-        DisplayLog(LVL_DEBUG, tag(pol), "Error applying action on entry %s: %s",
+        DisplayLog(LVL_DEBUG, tag(pol),
+                   "Error applying action on entry %s: %s",
                    ATTR(&new_attr_set, fullpath), err_str);
 
         /* no update for deleted entries */
@@ -2373,49 +2366,42 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
 
         policy_ack(&pol->queue, AS_ERROR, &p_item->entry_attr,
                    p_item->targeted);
-    }
-    else
-    {
+    } else {
         log_action_success(pol, &attr_sav, rule, p_fileset, time_save);
 
         if (pol->descr->manage_deleted &&
-            (after_action == PA_RM_ONE || after_action == PA_RM_ALL))
-        {
+            (after_action == PA_RM_ONE || after_action == PA_RM_ALL)) {
             rc = ListMgr_SoftRemove_Discard(lmgr, &p_item->entry_id);
             if (rc)
-                DisplayLog(LVL_CRIT, tag(pol), "Error %d removing entry from database.", rc);
-        }
-        else if (after_action == PA_UPDATE)
-        {
+                DisplayLog(LVL_CRIT, tag(pol),
+                           "Error %d removing entry from database.", rc);
+        } else if (after_action == PA_UPDATE) {
             if (!pol->descr->manage_deleted)
                 update_entry(lmgr, &p_item->entry_id, &new_attr_set);
-        }
-        else if (after_action ==  PA_RM_ONE)
-        {
-            lastrm = ATTR_MASK_TEST(&attr_sav, nlink)?
-                        (ATTR(&attr_sav, nlink) <= 1):0;
+        } else if (after_action == PA_RM_ONE) {
+            lastrm = ATTR_MASK_TEST(&attr_sav, nlink) ?
+                (ATTR(&attr_sav, nlink) <= 1) : 0;
 
+            /* must be based on the DB content = old attrs */
             rc = ListMgr_Remove(lmgr, &p_item->entry_id,
-                                /* must be based on the DB content = old attrs */
-                                &p_item->entry_attr,
-                                lastrm);
+                                &p_item->entry_attr, lastrm);
             if (rc)
-                DisplayLog(LVL_CRIT, tag(pol), "Error %d removing entry from database.", rc);
-        }
-        else if (after_action == PA_RM_ALL)
-        {
+                DisplayLog(LVL_CRIT, tag(pol),
+                           "Error %d removing entry from database.", rc);
+        } else if (after_action == PA_RM_ALL) {
+            /* must be based on the DB content = old attrs */
             rc = ListMgr_Remove(lmgr, &p_item->entry_id,
-                                /* must be based on the DB content = old attrs */
-                                &p_item->entry_attr,
-                                1);
+                                &p_item->entry_attr, 1);
             if (rc)
-                DisplayLog(LVL_CRIT, tag(pol), "Error %d removing entry from database.", rc);
+                DisplayLog(LVL_CRIT, tag(pol),
+                           "Error %d removing entry from database.", rc);
         }
 
-        policy_ack(&pol->queue, AS_OK, &new_attr_set, p_item->targeted); /* TODO update target info */
+        /* TODO update target info */
+        policy_ack(&pol->queue, AS_OK, &new_attr_set, p_item->targeted);
     }
 
-  end:
+end:
     ListMgr_FreeAttrs(&new_attr_set);
 
     if (free_item)
@@ -2423,82 +2409,82 @@ static void process_entry(policy_info_t *pol, lmgr_t * lmgr,
     return;
 }
 
-
 /**
- *  Main routine of policy thread
- */
-static void   *thr_policy_run(void *arg)
+*  Main routine of policy thread
+*/
+static void *thr_policy_run(void *arg)
 {
-    int            rc;
-    lmgr_t         lmgr;
-    void          *p_queue_entry;
-    policy_info_t *pol = (policy_info_t*)arg;
+    int rc;
+    lmgr_t lmgr;
+    void *p_queue_entry;
+    policy_info_t *pol = (policy_info_t *) arg;
 
     rc = ListMgr_InitAccess(&lmgr);
-    if (rc)
-    {
-        DisplayLog(LVL_CRIT, tag(pol), "Could not connect to database (error %d). Exiting.", rc);
+    if (rc) {
+        DisplayLog(LVL_CRIT, tag(pol),
+                   "Could not connect to database (error %d). Exiting.",
+                   rc);
         exit(rc);
     }
 
     while (Queue_Get(&pol->queue, &p_queue_entry) == 0)
-        process_entry(pol, &lmgr, (queue_item_t *)p_queue_entry, true);
+        process_entry(pol, &lmgr, (queue_item_t *) p_queue_entry, true);
 
     /* Error occurred in purge queue management... */
-    DisplayLog(LVL_CRIT, tag(pol), "An error occurred in policy run queue management. Exiting.");
+    DisplayLog(LVL_CRIT, tag(pol),
+               "An error occurred in policy run queue management. Exiting.");
     exit(-1);
-    return NULL;                /* for avoiding compiler warnings */
+    return NULL;    /* for avoiding compiler warnings */
 }
 
 int start_worker_threads(policy_info_t *pol)
 {
     unsigned int i;
 
-    pol->threads = (pthread_t *)MemCalloc(pol->config->nb_threads,
-                                          sizeof(pthread_t));
-    if (!pol->threads)
-    {
-        DisplayLog(LVL_CRIT, tag(pol), "Memory error in %s", __FUNCTION__);
+    pol->threads = (pthread_t *) MemCalloc(pol->config->nb_threads,
+                                           sizeof(pthread_t));
+    if (!pol->threads) {
+        DisplayLog(LVL_CRIT, tag(pol), "Memory error in %s", __func__);
         return ENOMEM;
     }
 
-    for (i = 0; i < pol->config->nb_threads; i++)
-    {
-        if (pthread_create(&pol->threads[i], NULL, thr_policy_run, pol) != 0)
-        {
-            int            rc = errno;
+    for (i = 0; i < pol->config->nb_threads; i++) {
+        if (pthread_create(&pol->threads[i], NULL, thr_policy_run, pol) !=
+            0) {
+            int rc = errno;
             DisplayLog(LVL_CRIT, tag(pol),
                        "Error %d creating policy threads in %s: %s", rc,
-                       __FUNCTION__, strerror(rc));
+                       __func__, strerror(rc));
             return rc;
         }
     }
     return 0;
 }
 
-
-
 /**
- * Update the status of outstanding actions
- * \param lmgr          [IN] connexion to database
- * \param p_nb_reset    [OUT] number of purge reset
- * \param p_nb_total    [OUT] total number of purge checked
- */
-int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in pol->config */
-                          unsigned int *p_nb_reset, unsigned int *p_nb_total)
+* Update the status of outstanding actions
+* \param lmgr          [IN] connexion to database
+* \param p_nb_reset    [OUT] number of purge reset
+* \param p_nb_total    [OUT] total number of purge checked
+*
+* Note:   the timeout is in pol->config
+*/
+int check_current_actions(policy_info_t *pol, lmgr_t *lmgr,
+                          unsigned int *p_nb_reset,
+                          unsigned int *p_nb_total)
 {
-    int            rc;
+    int rc;
     struct lmgr_iterator_t *it = NULL;
 
-    lmgr_filter_t  filter;
+    lmgr_filter_t filter;
     filter_value_t fval;
 
     queue_item_t q_item;
 
     unsigned int nb_returned = 0;
     unsigned int nb_aborted = 0;
-    attr_mask_t  attr_mask_sav = {0};
-    attr_mask_t  tmp;
+    attr_mask_t attr_mask_sav = { 0 };
+    attr_mask_t tmp;
 
     /* do nothing if this policy applies to deleted entries */
     if (pol->descr->manage_deleted)
@@ -2515,7 +2501,8 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in
 
     /* needed attributes from DB */
     tmp = attrs_for_status_mask(q_item.entry_attr.attr_mask.status, false);
-    q_item.entry_attr.attr_mask = attr_mask_or(&q_item.entry_attr.attr_mask, &tmp);
+    q_item.entry_attr.attr_mask =
+        attr_mask_or(&q_item.entry_attr.attr_mask, &tmp);
 
     attr_mask_sav = q_item.entry_attr.attr_mask;
 
@@ -2525,18 +2512,18 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in
 
     /* if timeout is > 0, only select entries whose last update
      * is old enough (last_update <= now - timeout) or NULL*/
-    if (pol->config->action_timeout > 0)
-    {
+    if (pol->config->action_timeout > 0) {
         fval.value.val_int = time(NULL) - pol->config->action_timeout;
         rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_md_update, LESSTHAN,
-                fval, FILTER_FLAG_ALLOW_NULL);
+                                    fval, FILTER_FLAG_ALLOW_NULL);
         if (rc)
             return rc;
     }
 
     /* filter by status of current actions */
     fval.value.val_str = pol->descr->status_current;
-    rc = lmgr_simple_filter_add(&filter, smi_status_index(pol->descr->status_mgr),
+    rc = lmgr_simple_filter_add(&filter,
+                                smi_status_index(pol->descr->status_mgr),
                                 EQUAL, fval, 0);
     if (rc)
         return rc;
@@ -2545,18 +2532,17 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in
     /* don't retrieve invalid entries (allow entries with invalid == NULL) */
     fval.value.val_int = true;
     rc = lmgr_simple_filter_add(&filter, ATTR_INDEX_invalid, NOTEQUAL, fval,
-            FILTER_FLAG_ALLOW_NULL);
+                                FILTER_FLAG_ALLOW_NULL);
     if (rc)
         return rc;
 #endif
 
     it = ListMgr_Iterator(lmgr, &filter, NULL, NULL);
 
-    if (it == NULL)
-    {
+    if (it == NULL) {
         lmgr_simple_filter_free(&filter);
         DisplayLog(LVL_CRIT, tag(pol),
-                    "Error retrieving the list of current actions. Recovery cancelled.");
+                   "Error retrieving the list of current actions. Recovery cancelled.");
         return -1;
     }
 
@@ -2564,37 +2550,34 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in
     q_item.entry_attr.attr_mask = attr_mask_sav;
 
     while ((rc = ListMgr_GetNext(it, &q_item.entry_id, &q_item.entry_attr))
-                == DB_SUCCESS)
-    {
-        nb_returned ++;
+           == DB_SUCCESS) {
+        nb_returned++;
 
         if (ATTR_MASK_TEST(&q_item.entry_attr, fullpath))
             DisplayLog(LVL_VERB, tag(pol), "Updating status of '%s'...",
-                ATTR(&q_item.entry_attr, fullpath));
+                       ATTR(&q_item.entry_attr, fullpath));
 
         /* check entry */
-        if (check_entry(pol, lmgr, &q_item, &q_item.entry_attr) == AS_OK)
-        {
+        if (check_entry(pol, lmgr, &q_item, &q_item.entry_attr) == AS_OK) {
             int smi_index = pol->descr->status_mgr->smi_index;
 
-            if (ATTR_MASK_STATUS_TEST(&q_item.entry_attr, smi_index))
-            {
+            if (ATTR_MASK_STATUS_TEST(&q_item.entry_attr, smi_index)) {
                 if (strcmp(STATUS_ATTR(&q_item.entry_attr, smi_index),
-                           pol->descr->status_current))
-                {
-                    DisplayLog(LVL_EVENT, tag(pol), "status of '%s' changed: now '%s'",
+                           pol->descr->status_current)) {
+                    DisplayLog(LVL_EVENT, tag(pol),
+                               "status of '%s' changed: now '%s'",
                                ATTR(&q_item.entry_attr, fullpath),
                                STATUS_ATTR(&q_item.entry_attr, smi_index));
                     nb_aborted++;
-                }
-                else
-                    DisplayLog(LVL_EVENT, tag(pol), "status of '%s' is still '%s'",
+                } else
+                    DisplayLog(LVL_EVENT, tag(pol),
+                               "status of '%s' is still '%s'",
                                ATTR(&q_item.entry_attr, fullpath),
                                STATUS_ATTR(&q_item.entry_attr, smi_index));
             }
 
             /* update entry status */
-            update_entry(lmgr, &q_item.entry_id,  &q_item.entry_attr);
+            update_entry(lmgr, &q_item.entry_id, &q_item.entry_attr);
         }
 
         /* reset attr_mask, if it was altered by last ListMgr_GetNext() call */
@@ -2612,9 +2595,9 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr, /* the timeout is in
         *p_nb_reset = nb_aborted;
 
     /* check rc */
-    if (rc != DB_END_OF_LIST)
-    {
-        DisplayLog(LVL_CRIT, tag(pol), "Error %d getting next entry of iterator", rc);
+    if (rc != DB_END_OF_LIST) {
+        DisplayLog(LVL_CRIT, tag(pol),
+                   "Error %d getting next entry of iterator", rc);
         return -1;
     }
 
