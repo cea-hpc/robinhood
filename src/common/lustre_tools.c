@@ -785,34 +785,40 @@ int lustre_mds_stat(const char *fullpath, int parentfd, struct stat *inode)
 
     memset(lmd, 0, sizeof(buffer));
     rh_strncpy(buffer, filename, strlen(filename) + 1);
+
     rc = ioctl(parentfd, IOC_MDC_GETFILEINFO, (void *)lmd);
+    if (rc < 0)
+        rc = -errno;
 
-    if (rc) {
-        if (errno == ENOTTY) {
-            /* ioctl is not supported, it is not a lustre fs.
-             * Do the regular lstat(2) instead. */
-            rc = lstat(fullpath, inode);
-            if (rc) {
-                DisplayLog(LVL_CRIT, TAG_MDSSTAT,
-                           "Error: %s: lstat failed for %s", __func__,
-                           fullpath);
-                return rc;
-            }
-        } else if ((errno == ENOENT) || (errno == ESTALE)) {
-            DisplayLog(LVL_MAJOR, TAG_MDSSTAT, "Warning: %s: %s does not exist",
-                       __func__, fullpath);
-            return ENOENT;
-        } else {
-            DisplayLog(LVL_CRIT, TAG_MDSSTAT,
-                       "Error: %s: IOC_MDC_GETFILEINFO failed for %s: rc=%d, errno=%d",
-                       __func__, fullpath, rc, errno);
-            return rc;
-        }
-    } else
+    switch (rc) {
+    case 0:
         *inode = lmd->lmd_st;
+        break;
 
-    return 0;
+    case -ENOTTY:
+        /* ioctl is not supported, it is not a lustre fs.
+         * Do the regular lstat(2) instead. */
+        rc = lstat(fullpath, inode);
+        if (rc) {
+            DisplayLog(LVL_CRIT, TAG_MDSSTAT,
+                       "Error in %s: lstat failed for %s", __func__,
+                       fullpath);
+            rc = -errno;
+        }
+        break;
+    case -ENOENT:
+    case -ESTALE:
+        DisplayLog(LVL_MAJOR, TAG_MDSSTAT, "Warning: %s: %s does not exist",
+                   __func__, fullpath);
+        rc = -ENOENT;
+        break;
 
+    default:
+        DisplayLog(LVL_CRIT, TAG_MDSSTAT,
+                   "Error: %s: IOC_MDC_GETFILEINFO failed for %s: rc=%d, errno=%d",
+                   __func__, fullpath, rc, errno);
+    }
+    return rc;
 }
 
 #ifdef _HAVE_FID
