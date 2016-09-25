@@ -296,7 +296,10 @@ int Get_OST_usage(const char *fs_path, unsigned int ost_index,
 int Get_pool_usage(const char *poolname, struct statfs *pool_statfs);
 #endif
 
-/** Retrieve file information from MDS */
+/**
+ * Retrieve file information from MDS.
+ * @return 0 on success, -errno on error.
+ */
 int lustre_mds_stat(const char *fullpath, int parentfd, struct stat *inode);
 #ifdef _HAVE_FID
 int lustre_mds_stat_by_fid(const entry_id_t *p_id, struct stat *inode);
