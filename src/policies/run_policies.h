@@ -29,55 +29,42 @@ typedef struct policy_runs_t {
 /* defined in policy_triggers.c */
 extern policy_runs_t policy_runs;
 
-
 /* Action status */
-typedef enum
-{
-    AS_OK = 0,              /* action successful */
+typedef enum {
+    AS_OK = 0,  /* action successful */
 
 /* skipped */
-    AS_ACCESSED,            /* entry has been accessed recently */
-    AS_MOVED,               /* entry has been moved or deleted */
-    AS_WHITELISTED,         /* entry is whitelisted  */
-    AS_OUT_OF_SCOPE,        /* entry is no longer in policy scope */
-    AS_NO_POLICY,           /* entry matches no policy */
-    AS_BAD_TYPE,            /* policy does not apply to this type of entry */
-    AS_BUSY,                /* entry is is use */
-    AS_ALREADY,             /* action is already running */
+    AS_ACCESSED,    /* entry has been accessed recently */
+    AS_MOVED,   /* entry has been moved or deleted */
+    AS_WHITELISTED, /* entry is whitelisted  */
+    AS_OUT_OF_SCOPE,    /* entry is no longer in policy scope */
+    AS_NO_POLICY,   /* entry matches no policy */
+    AS_BAD_TYPE,    /* policy does not apply to this type of entry */
+    AS_BUSY,    /* entry is is use */
+    AS_ALREADY, /* action is already running */
 
 /* errors */
-    AS_MISSING_MD,          /* entry metadata is incomplete */
-    AS_STAT_FAILURE,        /* stat failure */
-    AS_ERROR,               /* action failed */
+    AS_MISSING_MD,  /* entry metadata is incomplete */
+    AS_STAT_FAILURE,    /* stat failure */
+    AS_ERROR,   /* action failed */
 
-    AS_ABORT,               /* action aborted by termination signal */
+    AS_ABORT,   /* action aborted by termination signal */
 
-    AS_ENUM_COUNT           /* last status index + 1*/
+    AS_ENUM_COUNT   /* last status index + 1 */
 } action_status_t;
 
 /* Action status description */
-static const char __attribute__(( __unused__ )) *action_status_descr[AS_ENUM_COUNT] = {
-    "action successful",
-
-    "accessed since last update",
-    "moved or deleted since last update",
-    "whitelisted/ignored",
-    "out of scope",
-    "no matching rule",
-    "entry type out of scope",
-    "entry is in use/busy",
-    "action already running",
-
-    "incomplete metadata",
-    "stat failure",
-    "action error",
-
-    "action aborted"
-};
+static const char __attribute__ ((__unused__))
+    *action_status_descr[AS_ENUM_COUNT] = {
+        "action successful", "accessed since last update",
+        "moved or deleted since last update", "whitelisted/ignored",
+        "out of scope", "no matching rule", "entry type out of scope",
+        "entry is in use/busy", "action already running",
+        "incomplete metadata", "stat failure", "action error",
+        "action aborted"};
 
 /* feedback from action queue (count, volume, ...) */
-typedef enum
-{
+typedef enum {
     AF_NBR_OK,
     AF_NBR_NOK,
 
@@ -90,17 +77,16 @@ typedef enum
     AF_BLOCKS_OK,
     AF_BLOCKS_NOK,
 
-    AF_ENUM_COUNT /* last status index + 1*/
+    AF_ENUM_COUNT   /* last status index + 1 */
 } action_feedback_t;
 
-typedef struct policy_param_t
-{
+typedef struct policy_param_t {
     policy_target_t target;
 // XXX no not differ from policy_info->flags? */
 //    int             flags;
 //
-    target_u 	     optarg_u;
-    counters_t       target_ctr;
+    target_u optarg_u;
+    counters_t target_ctr;
     time_modifier_t *time_mod;
 
     const action_params_t *action_params;
@@ -110,9 +96,11 @@ typedef struct policy_param_t
 int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
                action_summary_t *p_summary, lmgr_t *lmgr);
 
-int start_worker_threads(policy_info_t *p_pol_info); /* the number of threads is in p_pol_info->config */
+/* Note: the number of threads is in p_pol_info->config */
+int start_worker_threads(policy_info_t *p_pol_info);
 
-int check_current_actions(policy_info_t *p_pol_info, lmgr_t *lmgr, /* the timeout is in p_pol_info->config */
+/* Note: the timeout is in p_pol_info->config */
+int check_current_actions(policy_info_t *p_pol_info, lmgr_t *lmgr,
                           unsigned int *p_nb_reset, unsigned int *p_nb_total);
 
 #endif
