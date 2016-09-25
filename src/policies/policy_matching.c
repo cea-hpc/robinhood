@@ -170,7 +170,7 @@ static inline int int_compare(int int1, compare_direction_t comp, int int2)
     }
 }
 
-static inline bool2policy_match(int rc)
+static inline policy_match_t bool2policy_match(int rc)
 {
     return rc ? POLICY_MATCH : POLICY_NO_MATCH;
 }

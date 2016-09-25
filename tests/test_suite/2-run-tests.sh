@@ -4449,16 +4449,16 @@ function test_trigger_check
 
 	nb_release=`grep "$REL_STR" rh_purge.log | wc -l`
 
-	count_trig=`grep " entries must be purged in Filesystem" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
+	count_trig=`grep " entries must be processed in Filesystem" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
 	[ -n "$count_trig" ] || count_trig=0
 
-	vol_fs_trig=`grep " blocks (x512) must be purged on Filesystem" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
+	vol_fs_trig=`grep " blocks (x512) must be processed on Filesystem" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
 	((vol_fs_trig_mb=$vol_fs_trig/2048)) # /2048 == *512/1024/1024
 
-	vol_user_trig=`grep " blocks (x512) must be purged for user" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
+	vol_user_trig=`grep " blocks (x512) must be processed for user" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
 	((vol_user_trig_mb=$vol_user_trig/2048)) # /2048 == *512/1024/1024
 
-	cnt_user_trig=`grep " files must be purged for user" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
+	cnt_user_trig=`grep " files to be processed for user" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
 	[ -n "$cnt_user_trig" ] || cnt_user_trig=0
 
 	echo "triggers reported: $count_trig entries (global), $cnt_user_trig entries (user), $vol_fs_trig_mb MB (global), $vol_user_trig_mb MB (user)"
