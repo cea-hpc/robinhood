@@ -1315,25 +1315,25 @@ int EntryProc_get_info_fs( struct entry_proc_op_t *p_op, lmgr_t * lmgr )
         struct stat    entry_md;
 
         rc = errno = 0;
-#if defined( _LUSTRE ) && defined( _HAVE_FID ) && defined( _MDS_STAT_SUPPORT )
-       if ( global_config.direct_mds_stat )
-           rc = lustre_mds_stat_by_fid( &p_op->entry_id, &entry_md );
+#if defined(_LUSTRE) && defined(_HAVE_FID) && defined(_MDS_STAT_SUPPORT)
+       if (global_config.direct_mds_stat)
+           rc = lustre_mds_stat_by_fid(&p_op->entry_id, &entry_md);
        else
 #endif
-       if ( lstat( path, &entry_md ) != 0 )
-          rc = errno;
+       if (lstat(path, &entry_md) != 0)
+          rc = -errno;
 
         /* get entry attributes */
         if (rc != 0)
         {
-            if (ERR_MISSING(rc))
+            if (ERR_MISSING(-rc))
             {
                 DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "Entry %s no longer exists", path);
                 return rm_record(p_op);
             }
             else
                 DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "lstat() failed on %s: %s", path,
-                           strerror(rc));
+                           strerror(-rc));
 
             /* If lstat returns an error, drop the log record */
             return skip_record(p_op);
