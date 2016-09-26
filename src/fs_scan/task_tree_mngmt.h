@@ -21,31 +21,27 @@
 #include "fs_scan_types.h"
 #include "Memory.h"
 
-
 /* Set the number of preallocated tasks for the pool.
  */
-void           SetNbPreallocTasks( size_t nb_prealloc );
-
+void SetNbPreallocTasks(size_t nb_prealloc);
 
 /* Create and initialize a task */
-robinhood_task_t *CreateTask( void );
-
+robinhood_task_t *CreateTask(void);
 
 /* Free the resources of a task */
-int            FreeTask( robinhood_task_t * p_task );
-
+int FreeTask(robinhood_task_t *p_task);
 
 /* Add a child task (called by the parent) */
-void           AddChildTask( robinhood_task_t * p_parent_task, robinhood_task_t * p_child_task );
+void AddChildTask(robinhood_task_t *p_parent_task,
+                  robinhood_task_t *p_child_task);
 
 /* Remove a child task from a parent task.
  * This is called by a child task, when it finishes.
  * Return TRUE if the parent task and all its children are completed,
  * FALSE otherwise.
  */
-int            RemoveChildTask( robinhood_task_t * p_parent_task,
-                                robinhood_task_t * p_child_task );
-
+int RemoveChildTask(robinhood_task_t *p_parent_task,
+                    robinhood_task_t *p_child_task);
 
 /**
  * Tag a task as completed i.e. finished its own work
@@ -60,8 +56,6 @@ bool FlagTaskAsFinished(robinhood_task_t *p_task);
  */
 bool TestTaskTermination(robinhood_task_t *p_task);
 
-
-void           TasksMemInfo( mem_stat_t * p_mem_stat );
-
+void TasksMemInfo(mem_stat_t *p_mem_stat);
 
 #endif
