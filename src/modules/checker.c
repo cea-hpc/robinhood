@@ -41,58 +41,62 @@
 
 /** set of managed status */
 typedef enum {
-  STATUS_OK,                 /* last executed command exited with status 0 */
-  STATUS_FAILED,             /* last executed command exited with status != 0 */
+    STATUS_OK,  /* last executed command exited with status 0 */
+    STATUS_FAILED,  /* last executed command exited with status != 0 */
 
-  STATUS_COUNT,              /* number of possible statuses */
+    STATUS_COUNT,   /* number of possible statuses */
 } check_status_t;
 
 static const char *check_status_list[] = {
-    [STATUS_OK]     = "ok",
+    [STATUS_OK] = "ok",
     [STATUS_FAILED] = "failed",
 };
 
 static const char *check_status2str(check_status_t st)
 {
-    switch (st)
-    {
-        case STATUS_OK:
-        case STATUS_FAILED:
-            return check_status_list[st];
-        default:
-            return NULL;
+    switch (st) {
+    case STATUS_OK:
+    case STATUS_FAILED:
+        return check_status_list[st];
+    default:
+        return NULL;
     }
 }
 
 /** enum of specific attributes */
-enum check_info_e
-{
-    ATTR_LAST_CHECK = 0, /* time of last command run */
-    ATTR_LAST_SUCCESS,   /* time of last command success */
-    ATTR_OUTPUT,         /* command output (if commands succeeds) */
+enum check_info_e {
+    ATTR_LAST_CHECK = 0,    /* time of last command run */
+    ATTR_LAST_SUCCESS,  /* time of last command success */
+    ATTR_OUTPUT,    /* command output (if commands succeeds) */
 };
 
 /** definition of specific info  */
 static sm_info_def_t check_info[] = {
-    [ATTR_LAST_CHECK]   = { "last_check",   "lstchk",  DB_UINT, 0, {.val_uint = 0}, .crit_type = PT_DURATION },
-    [ATTR_LAST_SUCCESS] = { "last_success", "lstsuc",  DB_UINT, 0, {.val_uint = 0}, .crit_type = PT_DURATION },
+    [ATTR_LAST_CHECK] =
+        {"last_check", "lstchk", DB_UINT, 0, {.val_uint = 0},
+         .crit_type = PT_DURATION},
+    [ATTR_LAST_SUCCESS] =
+        {"last_success", "lstsuc", DB_UINT, 0, {.val_uint = 0},
+         .crit_type = PT_DURATION},
 /** Define a limited output size to reduce de DB footprint. If the user needs to attach more
  * information for each file, he can still store it as an xattr, or in an annex database. */
-    [ATTR_OUTPUT]       = { "output",       "out",     DB_TEXT, 255, {.val_str = NULL}, .crit_type = PT_STRING},
+    [ATTR_OUTPUT] = {"output", "out", DB_TEXT, 255, {.val_str = NULL},
+                     .crit_type = PT_STRING},
 };
 
 static int check_executor(struct sm_instance *smi,
                           const char *implements,
                           const policy_action_t *action,
- /* arguments for the action : */ const entry_id_t *p_id, attr_set_t *p_attrs,
+                          /* arguments for the action : */
+                          const entry_id_t *p_id, attr_set_t *p_attrs,
                           const action_params_t *params,
-                          post_action_e *what_after,
-                          db_cb_func_t db_cb_fn, void *db_cb_arg)
+                          post_action_e *what_after, db_cb_func_t db_cb_fn,
+                          void *db_cb_arg)
 {
-    int         rc = 0;
-    time_t      t;
-    bool        use_str = false;
-    GString     *out = NULL;
+    int rc = 0;
+    time_t t;
+    bool use_str = false;
+    GString *out = NULL;
 
     *what_after = PA_UPDATE;
 
@@ -100,7 +104,8 @@ static int check_executor(struct sm_instance *smi,
      * Functions (defined in modules):
      * o As input, a function action should use 'output' attribute to compare
      *   the result of the last execution.
-     * o As output, a function action can store its result to 'output' attribute.
+     * o As output, a function action can store its result to 'output'
+     *   attribute.
      * Commands:
      * o As input, a command can retrieve the last output by using '{output}'
      *   placeholder.
@@ -121,8 +126,7 @@ static int check_executor(struct sm_instance *smi,
         set_uint_info(smi, p_attrs, ATTR_LAST_SUCCESS, (unsigned int)t);
 
         /* set output if the action was a successful command */
-        if (action->type == ACTION_COMMAND)
-        {
+        if (action->type == ACTION_COMMAND) {
             int rc2;
 
             DisplayLog(LVL_DEBUG, "check_exec", "check command output='%s'",
@@ -132,9 +136,7 @@ static int check_executor(struct sm_instance *smi,
                 /* str is now owner by p_attrs */
                 use_str = true;
         }
-    }
-    else
-    {
+    } else {
         set_status_attr(smi, p_attrs, check_status2str(STATUS_FAILED));
         DisplayLog(LVL_EVENT, "check_exec",
                    "check command FAILED on: " DFID_NOBRACE " (%s)",
@@ -149,7 +151,7 @@ static int check_executor(struct sm_instance *smi,
 status_manager_t checker_sm = {
     .name = "checker",
     .flags = 0,
-    .status_enum = check_status_list, /* initial state is empty(unset) status */
+    .status_enum = check_status_list, /* initial state is empty status (unset) */
     .status_count = STATUS_COUNT,
     .nb_info = G_N_ELEMENTS(check_info),
     .info_types = check_info,

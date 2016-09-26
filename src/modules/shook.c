@@ -23,16 +23,22 @@
 
 static file_status_t shook2rbh_status(shook_state st)
 {
-    switch (st)
-    {
-        case SS_ONLINE:         return STATUS_SYNCHRO; /* may also be dirty or archiving... */
-        case SS_RELEASED:       return STATUS_RELEASED;
-        case SS_RELEASE_PEND:   return STATUS_RELEASE_PENDING;
-        case SS_RESTORE_PEND:   return STATUS_RESTORE_RUNNING;
-        case SS_LOST:           return STATUS_UNKNOWN;
+    switch (st) {
+    case SS_ONLINE:
+        return STATUS_SYNCHRO;  /* may also be dirty or archiving... */
+    case SS_RELEASED:
+        return STATUS_RELEASED;
+    case SS_RELEASE_PEND:
+        return STATUS_RELEASE_PENDING;
+    case SS_RESTORE_PEND:
+        return STATUS_RESTORE_RUNNING;
+    case SS_LOST:
+        return STATUS_UNKNOWN;
         /* handle restripe opreation as a restore */
-        case SS_RESTRIPE_PEND:  return STATUS_RESTORE_RUNNING;
-        default:                return (file_status_t)-1;
+    case SS_RESTRIPE_PEND:
+        return STATUS_RESTORE_RUNNING;
+    default:
+        return (file_status_t)-1;
     }
 }
 
@@ -41,35 +47,34 @@ static file_status_t shook2rbh_status(shook_state st)
  * and convert it to robinhood status.
  * @return 0 on success, <0 on error.
  */
-int ShookGetStatus(const char * path, file_status_t * p_status)
+int ShookGetStatus(const char *path, file_status_t *p_status)
 {
     shook_state st;
     int rc;
 
-    if (shook_get_status( path, &st, FALSE ) != 0)
-    {
+    if (shook_get_status(path, &st, FALSE) != 0) {
         rc = -errno;
-        DisplayLog( LVL_CRIT, SHOOK_TAG, "ERROR getting state of %s: %s",
-                    path, strerror(-rc) );
+        DisplayLog(LVL_CRIT, SHOOK_TAG, "ERROR getting state of %s: %s",
+                   path, strerror(-rc));
         return rc;
     }
 
     if (st != SS_ONLINE)
-        DisplayLog( LVL_FULL, SHOOK_TAG,
-                    "shook indicates '%s' status is '%s'",
-                     path, shook_attr_val[st] );
+        DisplayLog(LVL_FULL, SHOOK_TAG,
+                   "shook indicates '%s' status is '%s'",
+                   path, shook_attr_val[st]);
 
     *p_status = shook2rbh_status(st);
-    if (*p_status == (file_status_t)-1)
-    {
-        DisplayLog( LVL_CRIT, SHOOK_TAG, "ERROR getting state of %s: unknown status %d",
-                    path, (int)st );
+    if (*p_status == (file_status_t)-1) {
+        DisplayLog(LVL_CRIT, SHOOK_TAG,
+                   "ERROR getting state of %s: unknown status %d", path,
+                   (int)st);
         return -EINVAL;
     }
     return 0;
 }
 
-int ShookRecoverById(const entry_id_t * p_id, file_status_t * p_status)
+int ShookRecoverById(const entry_id_t *p_id, file_status_t *p_status)
 {
     int rc;
     shook_state st;
@@ -79,10 +84,10 @@ int ShookRecoverById(const entry_id_t * p_id, file_status_t * p_status)
         return rc;
 
     *p_status = shook2rbh_status(st);
-    if (*p_status == (file_status_t)-1)
-    {
-        DisplayLog( LVL_CRIT, SHOOK_TAG, "ERROR getting recovering "DFID": unknown status %d",
-                    PFID(p_id), (int)st );
+    if (*p_status == (file_status_t)-1) {
+        DisplayLog(LVL_CRIT, SHOOK_TAG,
+                   "ERROR getting recovering " DFID ": unknown status %d",
+                   PFID(p_id), (int)st);
         return -EINVAL;
     }
     return 0;
