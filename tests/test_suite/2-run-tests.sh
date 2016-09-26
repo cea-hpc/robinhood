@@ -4891,6 +4891,8 @@ function test_info_collect2
 		scan_chk $config_file
         check_fcount 10000
         empty_fs
+        # sleep 1 to ensure md_update >= 1s
+        sleep 1
 		scan_chk $config_file
         check_fcount 0
 	elif (( $flavor == 2 )); then
@@ -4903,6 +4905,8 @@ function test_info_collect2
 		readlog_chk $config_file
         check_fcount 10000
         empty_fs
+        # sleep 1 to ensure md_update >= 1s
+        sleep 1
 		scan_chk    $config_file
         check_fcount 0
 	elif (( $flavor == 3 )); then
@@ -4915,6 +4919,8 @@ function test_info_collect2
 		scan_chk    $config_file
         check_fcount 10000
         empty_fs
+        # sleep 1 to ensure md_update >= 1s
+        sleep 1
 		scan_chk    $config_file
         check_fcount 0
 	elif (( $flavor == 4 )); then
@@ -4931,6 +4937,8 @@ function test_info_collect2
         diff_chk $config_file
         check_fcount 10000
         empty_fs
+        # sleep 1 to ensure md_update >= 1s
+        sleep 1
         diff_chk $config_file
         check_fcount 0
 	else
