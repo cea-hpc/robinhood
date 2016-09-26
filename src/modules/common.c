@@ -30,7 +30,6 @@
 #include <sys/sendfile.h>
 #include <zlib.h>
 
-
 /** perform a standard unlink() action */
 static int common_unlink(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
                          const action_params_t *params, post_action_e *after,
@@ -40,8 +39,8 @@ static int common_unlink(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
 
     *after = PA_UPDATE;
 
-    if (ATTR_MASK_TEST(p_attrs,fullpath))
-        path = ATTR(p_attrs,fullpath);
+    if (ATTR_MASK_TEST(p_attrs, fullpath))
+        path = ATTR(p_attrs, fullpath);
     else
         return EINVAL;
 
@@ -55,15 +54,15 @@ static int common_unlink(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
 
 /** perform a standard rmdir() action */
 static int common_rmdir(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                         const action_params_t *params, post_action_e *after,
-                         db_cb_func_t db_cb_fn, void *db_cb_arg)
+                        const action_params_t *params, post_action_e *after,
+                        db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     const char *path = NULL;
 
     *after = PA_UPDATE;
 
-    if (ATTR_MASK_TEST(p_attrs,fullpath))
-        path = ATTR(p_attrs,fullpath);
+    if (ATTR_MASK_TEST(p_attrs, fullpath))
+        path = ATTR(p_attrs, fullpath);
     else
         return EINVAL;
 
@@ -87,9 +86,9 @@ static int common_log(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
         /* ignore (just for logging) */
         g_string_assign(params_str, "ERROR");
 
-    DisplayLog(LVL_MAJOR, "LogAction", "fid="DFID", path=%s, params={%s}",
+    DisplayLog(LVL_MAJOR, "LogAction", "fid=" DFID ", path=%s, params={%s}",
                PFID(p_entry_id),
-               ATTR_MASK_TEST(p_attrs,fullpath)?ATTR(p_attrs,fullpath):"",
+               ATTR_MASK_TEST(p_attrs, fullpath) ? ATTR(p_attrs, fullpath) : "",
                params_str->str);
     g_string_free(params_str, TRUE);
 
@@ -107,12 +106,14 @@ static int common_copy(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
     const char *targetpath = rbh_param_get(params, TARGET_PATH_PARAM);
 
     /* flags for restore vs. flags for archive */
-    int oflg = (flags & CP_COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
+    int oflg = (flags & CP_COPYBACK) ? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
 
-    /* actions expect to get a source path in 'fullpath' and a targetpath in params */
-    if (!ATTR_MASK_TEST(p_attrs, fullpath) || (targetpath == NULL))
-    {
-        DisplayLog(LVL_MAJOR, CP_TAG, "Missing mandatory attribute to perform file copy (fullpath or backendpath)");
+    /* actions expect to get a source path in 'fullpath' and a targetpath
+     * in params */
+    if (!ATTR_MASK_TEST(p_attrs, fullpath) || (targetpath == NULL)) {
+        DisplayLog(LVL_MAJOR, CP_TAG,
+                   "Missing mandatory attribute to perform file copy "
+                   "(fullpath or backendpath)");
         return -EINVAL;
     }
 
@@ -124,20 +125,22 @@ static int common_copy(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
 
 /** copy file contents using sendfile() */
 static int common_sendfile(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
-                           const action_params_t *params, post_action_e *after,
-                           db_cb_func_t db_cb_fn, void *db_cb_arg)
+                           const action_params_t *params,
+                           post_action_e *after, db_cb_func_t db_cb_fn,
+                           void *db_cb_arg)
 {
     int rc;
     copy_flags_e flags = params2flags(params);
     const char *targetpath = rbh_param_get(params, TARGET_PATH_PARAM);
 
     /* flags for restore vs. flags for archive */
-    int oflg = (flags & CP_COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
+    int oflg = (flags & CP_COPYBACK) ? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
 
-    /* actions expect to get a source path in 'fullpath' and a targetpath in params */
-    if (!ATTR_MASK_TEST(p_attrs, fullpath) || (targetpath == NULL))
-    {
-        DisplayLog(LVL_MAJOR, CP_TAG, "Missing mandatory attribute to perform file copy (fullpath or backendpath)");
+    /* actions expect to get a source path in 'fullpath' and a targetpath in
+     * params */
+    if (!ATTR_MASK_TEST(p_attrs, fullpath) || (targetpath == NULL)) {
+        DisplayLog(LVL_MAJOR, CP_TAG,
+                   "Missing mandatory attribute to perform file copy (fullpath or backendpath)");
         return -EINVAL;
     }
 
@@ -157,12 +160,14 @@ static int common_gzip(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
     const char *targetpath = rbh_param_get(params, TARGET_PATH_PARAM);
 
     /* flags for restore vs. flags for archive */
-    int oflg = (flags & CP_COPYBACK)? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
+    int oflg = (flags & CP_COPYBACK) ? O_WRONLY : O_WRONLY | O_CREAT | O_TRUNC;
 
-    /* actions expect to get a source path in 'fullpath' and a targetpath in params */
-    if (!ATTR_MASK_TEST(p_attrs, fullpath) || (targetpath == NULL))
-    {
-        DisplayLog(LVL_MAJOR, CP_TAG, "Missing mandatory attribute to perform file copy (fullpath or backendpath)");
+    /* actions expect to get a source path in 'fullpath' and a targetpath in
+     * params */
+    if (!ATTR_MASK_TEST(p_attrs, fullpath) || (targetpath == NULL)) {
+        DisplayLog(LVL_MAJOR, CP_TAG,
+                   "Missing mandatory attribute to perform file copy "
+                   "(fullpath or backendpath)");
         return -EINVAL;
     }
 

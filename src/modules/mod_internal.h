@@ -25,10 +25,10 @@
 #define TARGET_PATH_PARAM "targetpath"
 
 typedef enum {
-    CP_COMPRESS        = (1 << 0),
-    CP_USE_SENDFILE    = (1 << 1),
-    CP_NO_SYNC         = (1 << 2),
-    CP_COPYBACK        = (1 << 3) /* retrieve a copy */
+    CP_COMPRESS     = (1 << 0),
+    CP_USE_SENDFILE = (1 << 1),
+    CP_NO_SYNC      = (1 << 2),
+    CP_COPYBACK     = (1 << 3)  /* retrieve a copy */
 } copy_flags_e;
 
 /** These functions are shared by several modules (namely common & backup). */
@@ -39,21 +39,19 @@ int builtin_copy(const char *src, const char *dst, int dst_oflags,
 copy_flags_e params2flags(const action_params_t *params);
 
 /** helper to set the entry status for the given SMI */
-static inline int set_status_attr(const sm_instance_t *smi, attr_set_t *pattrs,
-                                  const char *str_st)
+static inline int set_status_attr(const sm_instance_t *smi,
+                                  attr_set_t *pattrs, const char *str_st)
 {
     int rc;
 
-    if (str_st == NULL)
-    {
+    if (str_st == NULL) {
         rc = -EINVAL;
         goto clean_status;
     }
 
     /* check allocation of sm_status array */
     sm_status_ensure_alloc(&pattrs->attr_values.sm_status);
-    if (pattrs->attr_values.sm_status == NULL)
-    {
+    if (pattrs->attr_values.sm_status == NULL) {
         rc = -ENOMEM;
         goto clean_status;
     }
@@ -63,7 +61,7 @@ static inline int set_status_attr(const sm_instance_t *smi, attr_set_t *pattrs,
 
     return 0;
 
-clean_status:
+ clean_status:
     if (pattrs->attr_values.sm_status != NULL)
         /* don't free it as it contains a const char* */
         STATUS_ATTR(pattrs, smi->smi_index) = NULL;
@@ -120,7 +118,6 @@ int action_helper(const policy_action_t *action, const char *name,
                   const action_params_t *params, struct sm_instance *smi,
                   GString *out, post_action_e *after,
                   db_cb_func_t db_cb_fn, void *db_cb_arg);
-
 
 /* ---- Public module interface ---- */
 
