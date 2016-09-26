@@ -33,196 +33,200 @@ static pthread_attr_t starter_attr;
 static bool terminate = false;
 
 /* Scan starter thread */
-static void   *scan_starter( void *arg )
+static void *scan_starter(void *arg)
 {
-    int            rc;
+    int rc;
 
-    DisplayLog( LVL_VERB, FSSCAN_TAG, "Launching FS Scan starter thread" );
+    DisplayLog(LVL_VERB, FSSCAN_TAG, "Launching FS Scan starter thread");
 
-    if (fsscan_flags & RUNFLG_ONCE)
-    {
-        rc = Robinhood_CheckScanDeadlines(  );
-        if ( rc )
-            DisplayLog( LVL_CRIT, FSSCAN_TAG, "Error %d checking FS Scan status", rc );
-        pthread_exit( NULL );
+    if (fsscan_flags & RUNFLG_ONCE) {
+        rc = Robinhood_CheckScanDeadlines();
+        if (rc)
+            DisplayLog(LVL_CRIT, FSSCAN_TAG, "Error %d checking FS Scan status",
+                       rc);
+        pthread_exit(NULL);
         return NULL;
     }
 
     /* not a one-shot mode */
-    while ( !terminate )
-    {
-        rc = Robinhood_CheckScanDeadlines(  );
-        if ( rc )
-            DisplayLog( LVL_CRIT, FSSCAN_TAG, "Error %d checking FS Scan status", rc );
+    while (!terminate) {
+        rc = Robinhood_CheckScanDeadlines();
+        if (rc)
+            DisplayLog(LVL_CRIT, FSSCAN_TAG, "Error %d checking FS Scan status",
+                       rc);
 
         /* attente de la boucle suivante */
-        rh_sleep( fs_scan_config.spooler_check_interval );
+        rh_sleep(fs_scan_config.spooler_check_interval);
     }
 
     return NULL;
 }
 
-
 /** Start FS Scan info collector */
-int FSScan_Start(run_flags_t flags, const char * partial_root)
+int FSScan_Start(run_flags_t flags, const char *partial_root)
 {
-    int            rc;
+    int rc;
 
     fsscan_flags = flags;
     partial_scan_root = partial_root;
 
-    if (partial_root)
-    {
+    if (partial_root) {
         /* check that partial_root is under FS root */
-        if (strncmp(global_config.fs_path, partial_scan_root, strlen(global_config.fs_path)))
-        {
-            DisplayLog( LVL_CRIT, FSSCAN_TAG, "ERROR scan root %s is not under fs root %s",
-                        partial_scan_root, global_config.fs_path );
+        if (strncmp
+            (global_config.fs_path, partial_scan_root,
+             strlen(global_config.fs_path))) {
+            DisplayLog(LVL_CRIT, FSSCAN_TAG,
+                       "ERROR scan root %s is not under fs root %s",
+                       partial_scan_root, global_config.fs_path);
             return EINVAL;
         }
     }
 
     rc = Robinhood_InitScanModule();
-    if ( rc )
+    if (rc)
         return rc;
 
     /* start a background thread */
 
-    pthread_attr_init( &starter_attr );
-    pthread_attr_setscope( &starter_attr, PTHREAD_SCOPE_SYSTEM );
+    pthread_attr_init(&starter_attr);
+    pthread_attr_setscope(&starter_attr, PTHREAD_SCOPE_SYSTEM);
 
-    if ( pthread_create( &scan_starter_thread, &starter_attr, scan_starter, NULL ) )
-    {
+    if (pthread_create(&scan_starter_thread, &starter_attr, scan_starter,
+                       NULL))
         return errno;
-    }
 
     return 0;
 }
 
 /** Wait for scan termination */
-void FSScan_Wait( void )
+void FSScan_Wait(void)
 {
-    wait_scan_finished(  );
+    wait_scan_finished();
 }
 
-
 /** Stop FS Scan info collector */
-void FSScan_Terminate( void )                         /* @TODO */
-{
+void FSScan_Terminate(void)
+{   /* @TODO */
     terminate = true;
 
-    Robinhood_StopScanModule( );
+    Robinhood_StopScanModule();
 }
 
 /** Store FS Scan into database */
-void FSScan_StoreStats( lmgr_t * lmgr )
+void FSScan_StoreStats(lmgr_t *lmgr)
 {
     robinhood_fsscan_stat_t stats;
-    char           tmp_buff[256];
+    char tmp_buff[256];
 
-    Robinhood_StatsScan( &stats );
+    Robinhood_StatsScan(&stats);
 
     /* store the number of scanning threads */
-    sprintf( tmp_buff, "%i", fs_scan_config.nb_threads_scan );
-    ListMgr_SetVar( lmgr, LAST_SCAN_NB_THREADS, tmp_buff );
+    sprintf(tmp_buff, "%i", fs_scan_config.nb_threads_scan);
+    ListMgr_SetVar(lmgr, LAST_SCAN_NB_THREADS, tmp_buff);
 
-    if ( stats.scan_running )
-    {
-        if ( stats.last_action > 0 )
-        {
-           sprintf( tmp_buff, "%lu", ( unsigned long ) stats.last_action );
-           ListMgr_SetVar( lmgr, LAST_SCAN_LAST_ACTION_TIME, tmp_buff);
+    if (stats.scan_running) {
+        if (stats.last_action > 0) {
+            sprintf(tmp_buff, "%lu", (unsigned long)stats.last_action);
+            ListMgr_SetVar(lmgr, LAST_SCAN_LAST_ACTION_TIME, tmp_buff);
         }
 
-        if ( stats.scanned_entries )
-        {
+        if (stats.scanned_entries) {
             sprintf(tmp_buff, "%u", stats.scanned_entries);
-            ListMgr_SetVar( lmgr, LAST_SCAN_ENTRIES_SCANNED, tmp_buff);
+            ListMgr_SetVar(lmgr, LAST_SCAN_ENTRIES_SCANNED, tmp_buff);
             sprintf(tmp_buff, "%u", stats.error_count);
-            ListMgr_SetVar( lmgr, LAST_SCAN_ERRORS, tmp_buff);
+            ListMgr_SetVar(lmgr, LAST_SCAN_ERRORS, tmp_buff);
             sprintf(tmp_buff, "%.2f", stats.avg_ms_per_entry);
-            ListMgr_SetVar( lmgr, LAST_SCAN_AVGMSPE, tmp_buff);
+            ListMgr_SetVar(lmgr, LAST_SCAN_AVGMSPE, tmp_buff);
             sprintf(tmp_buff, "%.2f", stats.curr_ms_per_entry);
-            ListMgr_SetVar( lmgr, LAST_SCAN_CURMSPE, tmp_buff);
+            ListMgr_SetVar(lmgr, LAST_SCAN_CURMSPE, tmp_buff);
         }
     }
     sprintf(tmp_buff, "%u", stats.nb_hang);
-    ListMgr_SetVar( lmgr, LAST_SCAN_TIMEOUTS, tmp_buff);
+    ListMgr_SetVar(lmgr, LAST_SCAN_TIMEOUTS, tmp_buff);
 
 }
 
-
 /** Dump FS Scan stats to log file */
-void FSScan_DumpStats( void )
+void FSScan_DumpStats(void)
 {
     robinhood_fsscan_stat_t stats;
-    struct tm      paramtm;
-    char           tmp_buff[256];
-    char           tmp_buff2[256];
+    struct tm paramtm;
+    char tmp_buff[256];
+    char tmp_buff2[256];
 
-    Robinhood_StatsScan( &stats );
+    Robinhood_StatsScan(&stats);
 
-    DisplayLog( LVL_MAJOR, "STATS", "======== FS scan statistics =========" );
+    DisplayLog(LVL_MAJOR, "STATS", "======== FS scan statistics =========");
 
-    if ( stats.last_fsscan_time != 0 )
-    {
-        strftime( tmp_buff, 256, "%Y/%m/%d %T", localtime_r( &stats.last_fsscan_time, &paramtm ) );
+    if (stats.last_fsscan_time != 0) {
+        strftime(tmp_buff, 256, "%Y/%m/%d %T",
+                 localtime_r(&stats.last_fsscan_time, &paramtm));
 
-        DisplayLog( LVL_MAJOR, "STATS", "last scan  = %s", tmp_buff );
+        DisplayLog(LVL_MAJOR, "STATS", "last scan  = %s", tmp_buff);
 
-        FormatDuration( tmp_buff, 256, stats.last_duration );
+        FormatDuration(tmp_buff, 256, stats.last_duration);
 
-        DisplayLog( LVL_MAJOR, "STATS", "duration    = %s (%u s)", tmp_buff, stats.last_duration );
-        DisplayLog( LVL_MAJOR, "STATS", "status      = %s",
-                    ( stats.scan_complete ? "complete" : "incomplete" ) );
+        DisplayLog(LVL_MAJOR, "STATS", "duration    = %s (%u s)", tmp_buff,
+                   stats.last_duration);
+        DisplayLog(LVL_MAJOR, "STATS", "status      = %s",
+                   (stats.scan_complete ? "complete" : "incomplete"));
     }
 
-    if ( stats.current_scan_interval != 0 )
-    {
-        FormatDurationFloat( tmp_buff, 256, stats.current_scan_interval );
-        DisplayLog( LVL_MAJOR, "STATS", "current scan interval = %s", tmp_buff );
+    if (stats.current_scan_interval != 0) {
+        FormatDurationFloat(tmp_buff, 256, stats.current_scan_interval);
+        DisplayLog(LVL_MAJOR, "STATS", "current scan interval = %s", tmp_buff);
     }
 
-    if ( stats.scan_running )
-    {
+    if (stats.scan_running) {
         time_t now = time(NULL);
 
-        DisplayLog( LVL_MAJOR, "STATS", "scan is running:" );
+        DisplayLog(LVL_MAJOR, "STATS", "scan is running:");
 
-        strftime( tmp_buff, 256, "%Y/%m/%d %T", localtime_r( &stats.start_time, &paramtm ) );
-        FormatDurationFloat( tmp_buff2, 256, now - stats.start_time );
+        strftime(tmp_buff, 256, "%Y/%m/%d %T",
+                 localtime_r(&stats.start_time, &paramtm));
+        FormatDurationFloat(tmp_buff2, 256, now - stats.start_time);
 
-        DisplayLog( LVL_MAJOR, "STATS", "     started at : %s (%s ago)", tmp_buff, tmp_buff2 );
+        DisplayLog(LVL_MAJOR, "STATS", "     started at : %s (%s ago)",
+                   tmp_buff, tmp_buff2);
 
-        strftime( tmp_buff, 256, "%Y/%m/%d %T", localtime_r( &stats.last_action, &paramtm ) );
-        FormatDurationFloat( tmp_buff2, 256, now - stats.last_action );
+        strftime(tmp_buff, 256, "%Y/%m/%d %T",
+                 localtime_r(&stats.last_action, &paramtm));
+        FormatDurationFloat(tmp_buff2, 256, now - stats.last_action);
 
-        DisplayLog( LVL_MAJOR, "STATS", "     last action: %s (%s ago)", tmp_buff, tmp_buff2 );
+        DisplayLog(LVL_MAJOR, "STATS", "     last action: %s (%s ago)",
+                   tmp_buff, tmp_buff2);
 
-        if ( stats.scanned_entries )
-        {
-            double         speed;
+        if (stats.scanned_entries) {
+            double speed;
 
-            DisplayLog(LVL_MAJOR, "STATS", "     progress   : %u entries scanned (%u errors)",
+            DisplayLog(LVL_MAJOR, "STATS",
+                       "     progress   : %u entries scanned (%u errors)",
                        stats.scanned_entries, stats.error_count);
 
             if (stats.curr_ms_per_entry > 0.0)
-                speed = ( 1000.0 / stats.curr_ms_per_entry ) * fs_scan_config.nb_threads_scan;
+                speed =
+                    (1000.0 / stats.curr_ms_per_entry) *
+                    fs_scan_config.nb_threads_scan;
             else
                 speed = 0.0;
 
-            DisplayLog(LVL_MAJOR, "STATS",     "     inst. speed (potential): %9.2f entries/sec (%4.2f ms/entry/thread)",
+            DisplayLog(LVL_MAJOR, "STATS",
+                       "     inst. speed (potential): %9.2f entries/sec (%4.2f ms/entry/thread)",
                        speed, stats.curr_ms_per_entry);
 
             if (now - stats.start_time > 0)
-                DisplayLog(LVL_MAJOR, "STATS", "     avg. speed  (effective): %9.2f entries/sec (%4.2f ms/entry/thread)",
-                           (float)stats.scanned_entries/(float)(now - stats.start_time),
+                DisplayLog(LVL_MAJOR, "STATS",
+                           "     avg. speed  (effective): %9.2f entries/sec (%4.2f ms/entry/thread)",
+                           (float)stats.scanned_entries / (float)(now -
+                                                                  stats.
+                                                                  start_time),
                            stats.avg_ms_per_entry);
         }
     }
 
     if (stats.nb_hang > 0)
-        DisplayLog( LVL_MAJOR, "STATS", "scan operation timeouts = %u", stats.nb_hang );
+        DisplayLog(LVL_MAJOR, "STATS", "scan operation timeouts = %u",
+                   stats.nb_hang);
 
 }
 
@@ -237,7 +241,7 @@ void FSScan_DumpStats( void )
 
 static void fs_scan_cfg_set_default(void *module_config)
 {
-    fs_scan_config_t *conf = (fs_scan_config_t *)module_config;
+    fs_scan_config_t *conf = (fs_scan_config_t *) module_config;
 
 #ifdef HAVE_CHANGELOGS
     /* scan rarely */
@@ -281,50 +285,52 @@ static void fs_scan_cfg_write_default(FILE *output)
     print_end_block(output, 0);
 }
 
-
 #define critical_err_check(_ptr_, _blkname_) do { if (!_ptr_) {\
-                                        sprintf( msg_out, "Internal error reading %s block in config file", _blkname_); \
-                                        return EFAULT; \
-                                    }\
-                                } while (0)
+                    sprintf(msg_out, "Internal error reading %s block in " \
+                            "config file", _blkname_); \
+                    return EFAULT; \
+                 }\
+            } while (0)
 
-static int fs_scan_cfg_read(config_file_t config, void *module_config, char *msg_out)
+static int fs_scan_cfg_read(config_file_t config, void *module_config,
+                            char *msg_out)
 {
-    int               rc, blc_index;
-    fs_scan_config_t *conf = ( fs_scan_config_t *)module_config;
-    bool              scan_intl_set = false;
-    time_t            scan_intl = 0;
-    config_item_t     fsscan_block;
+    int rc, blc_index;
+    fs_scan_config_t *conf = (fs_scan_config_t *) module_config;
+    bool scan_intl_set = false;
+    time_t scan_intl = 0;
+    config_item_t fsscan_block;
 
-    static const char * fsscan_allowed[] =
-    {
+    static const char *fsscan_allowed[] = {
         "scan_interval", "min_scan_interval", "max_scan_interval",
         "scan_retry_delay", "nb_threads_scan", "scan_op_timeout",
         "exit_on_timeout", "spooler_check_interval", "nb_prealloc_tasks",
-		"completion_command",
+        "completion_command",
         IGNORE_BLOCK, NULL
     };
 
     const cfg_param_t cfg_params[] = {
         {"nb_threads_scan", PT_INT, PFLG_POSITIVE | PFLG_NOT_NULL,
-            &conf->nb_threads_scan, 0},
+         &conf->nb_threads_scan, 0},
         {"scan_retry_delay", PT_DURATION, PFLG_POSITIVE | PFLG_NOT_NULL,
-            &conf->scan_retry_delay, 0},
-        {"scan_op_timeout", PT_DURATION, PFLG_POSITIVE, &conf->scan_op_timeout, 0},
+         &conf->scan_retry_delay, 0},
+        {"scan_op_timeout", PT_DURATION, PFLG_POSITIVE, &conf->scan_op_timeout,
+         0},
         {"exit_on_timeout", PT_BOOL, 0, &conf->exit_on_timeout, 0},
         {"spooler_check_interval", PT_DURATION, PFLG_POSITIVE | PFLG_NOT_NULL,
-            &conf->spooler_check_interval, 0},
+         &conf->spooler_check_interval, 0},
         {"nb_prealloc_tasks", PT_INT, PFLG_POSITIVE | PFLG_NOT_NULL,
-            &conf->nb_prealloc_tasks, 0},
-        {"completion_command", PT_CMD, 0, /* can contain wildcards: {cfg}, {fspath} ... */
-            &conf->completion_command, 0},
+         &conf->nb_prealloc_tasks, 0},
+        /* completion command can contain wildcards: {cfg}, {fspath} ... */
+        {"completion_command", PT_CMD, 0,
+         &conf->completion_command, 0},
         END_OF_PARAMS
     };
 
     /* get FS Scan block */
     rc = get_cfg_block(config, FSSCAN_CONFIG_BLOCK, &fsscan_block, msg_out);
     if (rc)
-        return rc == ENOENT ? 0 : rc; /* not mandatory */
+        return rc == ENOENT ? 0 : rc;   /* not mandatory */
 
     /* read scalar parameters */
     rc = read_scalar_params(fsscan_block, FSSCAN_CONFIG_BLOCK, cfg_params,
@@ -354,11 +360,10 @@ static int fs_scan_cfg_read(config_file_t config, void *module_config, char *msg
                           &scan_intl, NULL, NULL, msg_out);
     if ((rc != 0) && (rc != ENOENT))
         return rc;
-    else if ( rc == 0 )
-    {
-        if (scan_intl_set)
-        {
-            strcpy( msg_out, "scan_interval parameter cannot be used with min/max_scan_interval" );
+    else if (rc == 0) {
+        if (scan_intl_set) {
+            strcpy(msg_out,
+                   "scan_interval parameter cannot be used with min/max_scan_interval");
             return EINVAL;
         }
         conf->min_scan_interval = scan_intl;
@@ -366,43 +371,45 @@ static int fs_scan_cfg_read(config_file_t config, void *module_config, char *msg
     }
 
     /* Find and parse "ignore" blocks */
-    for ( blc_index = 0; blc_index < rh_config_GetNbItems( fsscan_block ); blc_index++ )
-    {
-        char          *block_name;
-        config_item_t  curr_item = rh_config_GetItemByIndex( fsscan_block, blc_index );
-        critical_err_check( curr_item, FSSCAN_CONFIG_BLOCK );
+    for (blc_index = 0; blc_index < rh_config_GetNbItems(fsscan_block);
+         blc_index++) {
+        char *block_name;
+        config_item_t curr_item =
+            rh_config_GetItemByIndex(fsscan_block, blc_index);
+        critical_err_check(curr_item, FSSCAN_CONFIG_BLOCK);
 
-        if ( rh_config_ItemType( curr_item ) != CONFIG_ITEM_BLOCK )
+        if (rh_config_ItemType(curr_item) != CONFIG_ITEM_BLOCK)
             continue;
 
-        block_name = rh_config_GetBlockName( curr_item );
-        critical_err_check( curr_item, FSSCAN_CONFIG_BLOCK );
+        block_name = rh_config_GetBlockName(curr_item);
+        critical_err_check(curr_item, FSSCAN_CONFIG_BLOCK);
 
-        if ( !strcasecmp( block_name, IGNORE_BLOCK ) )
-        {
-            if ( conf->ignore_count == 0 )
-                conf->ignore_list = ( whitelist_item_t * ) malloc( sizeof( whitelist_item_t ) );
+        if (!strcasecmp(block_name, IGNORE_BLOCK)) {
+            if (conf->ignore_count == 0)
+                conf->ignore_list =
+                    (whitelist_item_t *) malloc(sizeof(whitelist_item_t));
             else
                 conf->ignore_list =
-                    ( whitelist_item_t * ) realloc( conf->ignore_list,
-                                                 ( conf->ignore_count + 1 )
-                                                 * sizeof( whitelist_item_t ) );
+                    (whitelist_item_t *) realloc(conf->ignore_list,
+                                                 (conf->ignore_count + 1)
+                                                 * sizeof(whitelist_item_t));
 
             conf->ignore_count++;
 
             /* analyze boolean expression */
             rc = GetBoolExpr(curr_item, block_name,
-                             &conf->ignore_list[conf->ignore_count - 1].bool_expr,
-                             &conf->ignore_list[conf->ignore_count - 1].attr_mask,
-                             msg_out, NULL);
+                             &conf->ignore_list[conf->ignore_count -
+                                                1].bool_expr,
+                             &conf->ignore_list[conf->ignore_count -
+                                                1].attr_mask, msg_out, NULL);
 
-            if ( rc )
+            if (rc)
                 return rc;
 
         }
-    }                           /* Loop on subblocks */
+    }   /* Loop on subblocks */
 
-    CheckUnknownParameters( fsscan_block, FSSCAN_CONFIG_BLOCK, fsscan_allowed );
+    CheckUnknownParameters(fsscan_block, FSSCAN_CONFIG_BLOCK, fsscan_allowed);
 
     return 0;
 }
@@ -410,56 +417,57 @@ static int fs_scan_cfg_read(config_file_t config, void *module_config, char *msg
 #define RELOAD_TAG  "FS_Scan_Config"
 
 /** Update ignore rules */
-static void update_ignore( whitelist_item_t * old_items, unsigned int old_count,
-                      whitelist_item_t * new_items, unsigned int new_count,
-                      const char * block_name )
+static void update_ignore(whitelist_item_t *old_items, unsigned int old_count,
+                          whitelist_item_t *new_items, unsigned int new_count,
+                          const char *block_name)
 {
-   unsigned int i;
+    unsigned int i;
 
-   if ( old_count != new_count )
-   {
-        DisplayLog( LVL_MAJOR, RELOAD_TAG, "Ignore rules count changed in block '%s' but cannot be modified dynamically: ignore update cancelled",
-                block_name );
+    if (old_count != new_count) {
+        DisplayLog(LVL_MAJOR, RELOAD_TAG,
+                   "Ignore rules count changed in block '%s' but cannot be modified dynamically: ignore update cancelled",
+                   block_name);
         return;
-   }
+    }
 
-   /* compare ignore boolean expression structure */
-   for (i = 0; i < new_count; i++ )
-   {
+    /* compare ignore boolean expression structure */
+    for (i = 0; i < new_count; i++) {
         if (!attr_mask_equal(&old_items[i].attr_mask, &new_items[i].attr_mask)
-            || compare_boolexpr(&old_items[i].bool_expr, &new_items[i].bool_expr))
-        {
-           DisplayLog(LVL_MAJOR, RELOAD_TAG, "Ignore expression #%u changed in block '%s'. "
-                     "Only numerical values can be modified dynamically. "
-                     "Skipping parameter update.", i, block_name);
-           return;
+            || compare_boolexpr(&old_items[i].bool_expr,
+                                &new_items[i].bool_expr)) {
+            DisplayLog(LVL_MAJOR, RELOAD_TAG,
+                       "Ignore expression #%u changed in block '%s'. "
+                       "Only numerical values can be modified dynamically. "
+                       "Skipping parameter update.", i, block_name);
+            return;
         }
-   }
+    }
 
-   /* if they are all the same, update/check their values */
+    /* if they are all the same, update/check their values */
 
-   for (i = 0; i < new_count; i++ )
-   {
-       if ( update_boolexpr( &old_items[i].bool_expr, &new_items[i].bool_expr ) )
-       {
+    for (i = 0; i < new_count; i++) {
+        if (update_boolexpr(&old_items[i].bool_expr, &new_items[i].bool_expr)) {
             char criteriastr[2048];
-            BoolExpr2str( &old_items[i].bool_expr, criteriastr, 2048 );
-            DisplayLog( LVL_EVENT, RELOAD_TAG, "Ignore expression #%u in block '%s' has been updated and is now: %s",
-                i, block_name, criteriastr );
-       }
-   }
+            BoolExpr2str(&old_items[i].bool_expr, criteriastr, 2048);
+            DisplayLog(LVL_EVENT, RELOAD_TAG,
+                       "Ignore expression #%u in block '%s' has been updated and is now: %s",
+                       i, block_name, criteriastr);
+        }
+    }
 
-    /* XXX attr_mask is unchanged, since we keep the same expression structures */
-} /* update_ignore */
+    /* XXX attr_mask is unchanged, since we keep the same expression
+     *  structures */
 
-static void free_ignore( whitelist_item_t * p_items, unsigned int count )
+}   /* end update_ignore */
+
+static void free_ignore(whitelist_item_t *p_items, unsigned int count)
 {
     unsigned int i;
 
     for (i = 0; i < count; i++)
         FreeBoolExpr(&p_items[i].bool_expr, false);
 
-    if ( (count > 0) && (p_items!= NULL) )
+    if ((count > 0) && (p_items != NULL))
         free(p_items);
 }
 
@@ -467,89 +475,82 @@ static int fs_scan_cfg_reload(fs_scan_config_t *conf)
 {
     /* Parameters that can be modified dynamically */
 
-    if ( conf->min_scan_interval != fs_scan_config.min_scan_interval )
-    {
-        DisplayLog( LVL_EVENT, "FS_Scan_Config",
-                    FSSCAN_CONFIG_BLOCK "::min_scan_interval updated: %ld->%ld",
-                    fs_scan_config.min_scan_interval, conf->min_scan_interval );
+    if (conf->min_scan_interval != fs_scan_config.min_scan_interval) {
+        DisplayLog(LVL_EVENT, "FS_Scan_Config",
+                   FSSCAN_CONFIG_BLOCK "::min_scan_interval updated: %ld->%ld",
+                   fs_scan_config.min_scan_interval, conf->min_scan_interval);
         fs_scan_config.min_scan_interval = conf->min_scan_interval;
     }
 
-    if ( conf->max_scan_interval != fs_scan_config.max_scan_interval )
-    {
-        DisplayLog( LVL_EVENT, "FS_Scan_Config",
-                    FSSCAN_CONFIG_BLOCK "::max_scan_interval updated: %ld->%ld",
-                    fs_scan_config.max_scan_interval, conf->max_scan_interval );
+    if (conf->max_scan_interval != fs_scan_config.max_scan_interval) {
+        DisplayLog(LVL_EVENT, "FS_Scan_Config",
+                   FSSCAN_CONFIG_BLOCK "::max_scan_interval updated: %ld->%ld",
+                   fs_scan_config.max_scan_interval, conf->max_scan_interval);
         fs_scan_config.max_scan_interval = conf->max_scan_interval;
     }
 
-    if ( conf->scan_retry_delay != fs_scan_config.scan_retry_delay )
-    {
-        DisplayLog( LVL_EVENT, "FS_Scan_Config",
-                    FSSCAN_CONFIG_BLOCK "::scan_retry_delay updated: %ld>%ld",
-                    fs_scan_config.scan_retry_delay, conf->scan_retry_delay );
+    if (conf->scan_retry_delay != fs_scan_config.scan_retry_delay) {
+        DisplayLog(LVL_EVENT, "FS_Scan_Config",
+                   FSSCAN_CONFIG_BLOCK "::scan_retry_delay updated: %ld>%ld",
+                   fs_scan_config.scan_retry_delay, conf->scan_retry_delay);
         fs_scan_config.scan_retry_delay = conf->scan_retry_delay;
     }
 
-    if ( conf->scan_op_timeout != fs_scan_config.scan_op_timeout )
-    {
-        DisplayLog( LVL_EVENT, "FS_Scan_Config",
-                    FSSCAN_CONFIG_BLOCK "::scan_op_timeout updated: %ld->%ld",
-                    fs_scan_config.scan_op_timeout, conf->scan_op_timeout );
+    if (conf->scan_op_timeout != fs_scan_config.scan_op_timeout) {
+        DisplayLog(LVL_EVENT, "FS_Scan_Config",
+                   FSSCAN_CONFIG_BLOCK "::scan_op_timeout updated: %ld->%ld",
+                   fs_scan_config.scan_op_timeout, conf->scan_op_timeout);
         fs_scan_config.scan_op_timeout = conf->scan_op_timeout;
     }
 
-    if ( conf->exit_on_timeout != fs_scan_config.exit_on_timeout )
-    {
-        DisplayLog( LVL_EVENT, "FS_Scan_Config",
-                    FSSCAN_CONFIG_BLOCK "::exit_on_timeout updated: %s->%s",
-                    bool2str(fs_scan_config.exit_on_timeout),
-                    bool2str(conf->exit_on_timeout) );
+    if (conf->exit_on_timeout != fs_scan_config.exit_on_timeout) {
+        DisplayLog(LVL_EVENT, "FS_Scan_Config",
+                   FSSCAN_CONFIG_BLOCK "::exit_on_timeout updated: %s->%s",
+                   bool2str(fs_scan_config.exit_on_timeout),
+                   bool2str(conf->exit_on_timeout));
         fs_scan_config.exit_on_timeout = conf->exit_on_timeout;
     }
 
-    if ( conf->spooler_check_interval != fs_scan_config.spooler_check_interval )
-    {
-        DisplayLog( LVL_EVENT, "FS_Scan_Config",
-                    FSSCAN_CONFIG_BLOCK "::spooler_check_interval updated: %ld->%ld",
-                    fs_scan_config.spooler_check_interval, conf->spooler_check_interval );
+    if (conf->spooler_check_interval != fs_scan_config.spooler_check_interval) {
+        DisplayLog(LVL_EVENT, "FS_Scan_Config",
+                   FSSCAN_CONFIG_BLOCK
+                   "::spooler_check_interval updated: %ld->%ld",
+                   fs_scan_config.spooler_check_interval,
+                   conf->spooler_check_interval);
         fs_scan_config.spooler_check_interval = conf->spooler_check_interval;
     }
 
-    if ( compare_cmd( conf->completion_command, fs_scan_config.completion_command ) )
-    {
-        DisplayLog( LVL_MAJOR, "FS_Scan_Config",
-                    FSSCAN_CONFIG_BLOCK
-                    "::completion_command changed in config file, but cannot be modified dynamically" );
+    if (compare_cmd
+        (conf->completion_command, fs_scan_config.completion_command)) {
+        DisplayLog(LVL_MAJOR, "FS_Scan_Config",
+                   FSSCAN_CONFIG_BLOCK
+                   "::completion_command changed in config file, but cannot be modified dynamically");
         g_strfreev(conf->completion_command);
         conf->completion_command = NULL;
     }
 
-
     /* Parameters that canNOT be modified dynamically */
 
-    if ( conf->nb_threads_scan != fs_scan_config.nb_threads_scan )
-        DisplayLog( LVL_MAJOR, "FS_Scan_Config",
-                    FSSCAN_CONFIG_BLOCK
-                    "::nb_threads_scan changed in config file, but cannot be modified dynamically" );
+    if (conf->nb_threads_scan != fs_scan_config.nb_threads_scan)
+        DisplayLog(LVL_MAJOR, "FS_Scan_Config",
+                   FSSCAN_CONFIG_BLOCK
+                   "::nb_threads_scan changed in config file, but cannot be modified dynamically");
 
-
-    if ( conf->nb_prealloc_tasks != fs_scan_config.nb_prealloc_tasks )
-        DisplayLog( LVL_MAJOR, "FS_Scan_Config",
-                    FSSCAN_CONFIG_BLOCK
-                    "::nb_prealloc_tasks changed in config file, but cannot be modified dynamically" );
+    if (conf->nb_prealloc_tasks != fs_scan_config.nb_prealloc_tasks)
+        DisplayLog(LVL_MAJOR, "FS_Scan_Config",
+                   FSSCAN_CONFIG_BLOCK
+                   "::nb_prealloc_tasks changed in config file, but cannot be modified dynamically");
 
     /* compare ignore list */
-    update_ignore( fs_scan_config.ignore_list, fs_scan_config.ignore_count,
-                   conf->ignore_list, conf->ignore_count, FSSCAN_CONFIG_BLOCK );
-
+    update_ignore(fs_scan_config.ignore_list, fs_scan_config.ignore_count,
+                  conf->ignore_list, conf->ignore_count, FSSCAN_CONFIG_BLOCK);
 
     return 0;
 }
 
 static int fs_scan_cfg_set(void *cfg, bool reload)
 {
-    fs_scan_config_t *conf = (fs_scan_config_t *)cfg;
+    fs_scan_config_t *conf = (fs_scan_config_t *) cfg;
 
     if (reload)
         return fs_scan_cfg_reload(conf);
@@ -560,69 +561,73 @@ static int fs_scan_cfg_set(void *cfg, bool reload)
 
 static void fs_scan_cfg_write_template(FILE *output)
 {
-    print_begin_block( output, 0, FSSCAN_CONFIG_BLOCK, NULL );
+    print_begin_block(output, 0, FSSCAN_CONFIG_BLOCK, NULL);
 
-    print_line( output, 1, "# simple scan interval (fixed)" );
+    print_line(output, 1, "# simple scan interval (fixed)");
 #ifdef HAVE_CHANGELOGS
-    print_line( output, 1, "scan_interval      =   2d ;" );
+    print_line(output, 1, "scan_interval      =   2d ;");
 #else
-    print_line( output, 1, "scan_interval      =   6h ;" );
+    print_line(output, 1, "scan_interval      =   6h ;");
 #endif
-    fprintf( output, "\n" );
+    fprintf(output, "\n");
 
-    print_line( output, 1, "# min/max for adaptive scan interval:" );
-    print_line( output, 1, "# the more the filesystem is full, the more frequently it is scanned." );
+    print_line(output, 1, "# min/max for adaptive scan interval:");
+    print_line(output, 1,
+               "# the more the filesystem is full, the more frequently it is scanned.");
 #ifdef HAVE_CHANGELOGS
-    print_line( output, 1, "#min_scan_interval      =   24h ;" );
-    print_line( output, 1, "#max_scan_interval      =    7d ;" );
+    print_line(output, 1, "#min_scan_interval      =   24h ;");
+    print_line(output, 1, "#max_scan_interval      =    7d ;");
 #else
-    print_line( output, 1, "#min_scan_interval      =    2h ;" );
-    print_line( output, 1, "#max_scan_interval      =   12h ;" );
+    print_line(output, 1, "#min_scan_interval      =    2h ;");
+    print_line(output, 1, "#max_scan_interval      =   12h ;");
 #endif
-    fprintf( output, "\n" );
-    print_line( output, 1, "# number of threads used for scanning the filesystem" );
-    print_line( output, 1, "nb_threads_scan        =     2 ;" );
-    fprintf( output, "\n" );
-    print_line( output, 1, "# when a scan fails, this is the delay before retrying" );
-    print_line( output, 1, "scan_retry_delay       =    1h ;" );
-    fprintf( output, "\n" );
-    print_line( output, 1, "# timeout for operations on the filesystem" );
-    print_line( output, 1, "scan_op_timeout        =    1h ;" );
-    print_line( output, 1, "# exit if operation timeout is reached?" );
+    fprintf(output, "\n");
+    print_line(output, 1,
+               "# number of threads used for scanning the filesystem");
+    print_line(output, 1, "nb_threads_scan        =     2 ;");
+    fprintf(output, "\n");
+    print_line(output, 1,
+               "# when a scan fails, this is the delay before retrying");
+    print_line(output, 1, "scan_retry_delay       =    1h ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# timeout for operations on the filesystem");
+    print_line(output, 1, "scan_op_timeout        =    1h ;");
+    print_line(output, 1, "# exit if operation timeout is reached?");
     print_line(output, 1, "exit_on_timeout        =    yes ;");
-    print_line( output, 1, "# external command called on scan termination");
-    print_line( output, 1, "# special arguments can be specified: {cfg} = config file path,");
-    print_line( output, 1, "# {fspath} = path to managed filesystem");
-    print_line( output, 1, "#completion_command     =    \"/path/to/my/script.sh -f {cfg} -p {fspath}\" ;" );
-    fprintf( output, "\n" );
+    print_line(output, 1, "# external command called on scan termination");
+    print_line(output, 1,
+               "# special arguments can be specified: {cfg} = config file path,");
+    print_line(output, 1, "# {fspath} = path to managed filesystem");
+    print_line(output, 1,
+               "#completion_command     =    \"/path/to/my/script.sh -f {cfg} -p {fspath}\" ;");
+    fprintf(output, "\n");
 
-    print_line( output, 1,
-                "# Internal scheduler granularity (for testing and of scan, hangs, ...)" );
-    print_line( output, 1, "spooler_check_interval =  1min ;" );
-    fprintf( output, "\n" );
-    print_line( output, 1, "# Memory preallocation parameters" );
-    print_line( output, 1, "nb_prealloc_tasks      =   256 ;" );
-    fprintf( output, "\n" );
-    print_begin_block( output, 1, IGNORE_BLOCK, NULL );
-    print_line( output, 2,
-                "# ignore \".snapshot\" and \".snapdir\" directories (don't scan them)" );
-    print_line( output, 2, "type == directory" );
-    print_line( output, 2, "and" );
-    print_line( output, 2, "( name == \".snapdir\" or name == \".snapshot\" )" );
-    print_end_block( output, 1 );
-    print_end_block( output, 0 );
+    print_line(output, 1,
+               "# Internal scheduler granularity (for testing and of scan, hangs, ...)");
+    print_line(output, 1, "spooler_check_interval =  1min ;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# Memory preallocation parameters");
+    print_line(output, 1, "nb_prealloc_tasks      =   256 ;");
+    fprintf(output, "\n");
+    print_begin_block(output, 1, IGNORE_BLOCK, NULL);
+    print_line(output, 2,
+               "# ignore \".snapshot\" and \".snapdir\" directories (don't scan them)");
+    print_line(output, 2, "type == directory");
+    print_line(output, 2, "and");
+    print_line(output, 2, "( name == \".snapdir\" or name == \".snapshot\" )");
+    print_end_block(output, 1);
+    print_end_block(output, 0);
 }
 
-static void * fs_scan_cfg_new(void)
+static void *fs_scan_cfg_new(void)
 {
     return calloc(1, sizeof(fs_scan_config_t));
 }
 
 static void fs_scan_cfg_free(void *cfg)
 {
-    if (cfg != NULL)
-    {
-        fs_scan_config_t *conf = (fs_scan_config_t*)cfg;
+    if (cfg != NULL) {
+        fs_scan_config_t *conf = (fs_scan_config_t *) cfg;
 
         /* free conf structure */
         if (conf->ignore_list != NULL)
@@ -638,5 +643,5 @@ mod_cfg_funcs_t fs_scan_cfg_hdlr = {
     .read = fs_scan_cfg_read,
     .set_config = fs_scan_cfg_set,
     .write_default = fs_scan_cfg_write_default,
-    .write_template =  fs_scan_cfg_write_template
+    .write_template = fs_scan_cfg_write_template
 };

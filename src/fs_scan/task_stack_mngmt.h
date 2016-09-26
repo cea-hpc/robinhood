@@ -16,21 +16,18 @@
  *
  */
 
-
 #ifndef _TASK_STACK_MNGMT_H
 #define _TASK_STACK_MNGMT_H
-
 
 #include "fs_scan_types.h"
 
 /* initialize a task stack */
-int            InitTaskStack( task_stack_t * p_stack );
+int InitTaskStack(task_stack_t *p_stack);
 
 /* insert a task in the stack */
-void           InsertTask_to_Stack( task_stack_t * p_stack, robinhood_task_t * p_task );
+void InsertTask_to_Stack(task_stack_t *p_stack, robinhood_task_t *p_task);
 
 /* take a task in the stack (block until there is a task available) */
-robinhood_task_t *GetTask_from_Stack( task_stack_t * p_stack );
-
+robinhood_task_t *GetTask_from_Stack(task_stack_t *p_stack);
 
 #endif
