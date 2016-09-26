@@ -19,26 +19,24 @@
 
 #include "entry_processor.h"
 
-typedef struct entry_proc_config_t
-{
-    unsigned int   nb_thread;
-    unsigned int   max_pending_operations;
-    unsigned int   max_batch_size;
+typedef struct entry_proc_config_t {
+    unsigned int nb_thread;
+    unsigned int max_pending_operations;
+    unsigned int max_batch_size;
 
-    bool           match_classes;
+    bool match_classes;
 
     /* fake mtime in the past causes higher
      * migration priority */
-    bool           detect_fake_mtime;
+    bool detect_fake_mtime;
 
 } entry_proc_config_t;
 
 extern entry_proc_config_t entry_proc_conf;
-extern int                 pipeline_flags;
+extern int pipeline_flags;
 
 /** initialize id constraint manager */
-int            id_constraint_init( void );
-
+int id_constraint_init(void);
 
 #define ID_OK                   0
 #define ID_CONSTRAINT_VIOLATION 1
@@ -50,20 +48,17 @@ int            id_constraint_init( void );
  * @return ID_OK if the entry can be processed.
  *         ID_MISSING if the ID is not set in p_op structure
  */
-int            id_constraint_register( entry_proc_op_t * p_op, int at_head );
-
+int id_constraint_register(entry_proc_op_t *p_op, int at_head);
 
 /**
  * Indicate if a given operation is the first for a given id and parent/name.
  */
 bool id_constraint_is_first_op(entry_proc_op_t *p_op);
 
-
 /**
  * This removes the current reference to an id when the operation is removed.
  */
-int            id_constraint_unregister( entry_proc_op_t * p_op );
-
+int id_constraint_unregister(entry_proc_op_t *p_op);
 
 /* display info about id constraints management */
 void id_constraint_stats(void);
