@@ -36,31 +36,29 @@ enum updt_when {
     UPDT_NEVER,     /* get info once, and never refresh it */
     UPDT_ALWAYS,    /* always update info when processing an entry */
     UPDT_ON_EVENT,  /* get info on related event */
-    UPDT_ON_EVENT_PERIODIC,  /* default: get info on related event, with a
-                              * min interval + periodic update (max interval) */
+    UPDT_ON_EVENT_PERIODIC, /* default: get info on related event, with a
+                             * min interval + periodic update (max interval) */
     UPDT_PERIODIC   /* update info periodically */
 };
 
 /**
  * update policy item
  */
-typedef struct updt_param_item_t
-{
+typedef struct updt_param_item_t {
     enum updt_when      when;
-    unsigned int        period_min; /* 0=no min */
-    unsigned int        period_max; /* 0=no periodic update */
+    unsigned int        period_min;    /* 0=no min */
+    unsigned int        period_max;    /* 0=no periodic update */
 } updt_param_item_t;
 
 /**
  *  update parameters
  */
-typedef struct updt_params_t
-{
-    updt_param_item_t  md;
+typedef struct updt_params_t {
+    updt_param_item_t   md;
 #ifdef _HAVE_FID
-    updt_param_item_t  path;
+    updt_param_item_t   path;
 #endif
-    updt_param_item_t  fileclass; /* only never/always/periodic allowed */
+    updt_param_item_t   fileclass; /* only never/always/periodic allowed */
 } updt_params_t;
 
 /**

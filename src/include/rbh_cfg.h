@@ -35,36 +35,41 @@
  * \addtogroup MODULE_CONFIG_FUNCTIONS
  * @{
  */
-typedef int    (*write_config_func_t) (FILE *output);
+typedef int (*write_config_func_t) (FILE *output);
 
 /** configuration functions for modules */
 typedef struct mod_cfg_funcs {
     const char  *module_name;
-    void *      (*new)(void); /**< allocate a new config structure */
-    void        (*free)(void *); /**< free a config structure */
+    void *      (*new)(void);      /**< allocate a new config structure */
+    void        (*free)(void *);   /**< free a config structure */
 
-    void        (*set_default)(void *); /**< fill config structure with default parameters */
-    int         (*read)(config_file_t config, void *cfg, char *msg_out); /**< read parameters from config file */
-    int         (*set_config)(void *cfg,  bool reload); /**< set the module config */
+    void        (*set_default)(void *);  /**< fill config structure with default
+                                              parameters */
+    /** Read parameters from config file */
+    int         (*read)(config_file_t config, void *cfg, char *msg_out);
+    /** Set the module config */
+    int         (*set_config)(void *cfg, bool reload);
 
-    void        (*write_default)(FILE *output); /**< write defaults */
-    void        (*write_template)(FILE *output); /**< write a template */
+    void        (*write_default)(FILE *output);      /**< write defaults */
+    void        (*write_template)(FILE *output);     /**< write a template */
 } mod_cfg_funcs_t;
 
 /** @} */
 
-/* get config file for the current process (can be used to replace '{cfg}' in external commands) */
+/* Get config file for the current process (can be used to replace '{cfg}' in
+ * external commands) */
 const char *config_file_path(void);
 
 /* behavior flags for all modules */
 typedef enum run_flags {
-    RUNFLG_DRY_RUN    = (1 << 0),
-    RUNFLG_IGNORE_POL = (1 << 1),
-    RUNFLG_ONCE       = (1 << 2),
-    RUNFLG_NO_LIMIT   = (1 << 3),
-    RUNFLG_CHECK_ONLY = (1 << 4), /* only check triggers, don't purge */
-    RUNFLG_NO_GC      = (1 << 5), /* don't clean orphan entries after scan */
-    RUNFLG_FORCE_RUN  = (1 << 6), /* force running policy even if no scan was complete */
+    RUNFLG_DRY_RUN      = (1 << 0),
+    RUNFLG_IGNORE_POL   = (1 << 1),
+    RUNFLG_ONCE         = (1 << 2),
+    RUNFLG_NO_LIMIT     = (1 << 3),
+    RUNFLG_CHECK_ONLY   = (1 << 4),  /* only check triggers, don't purge */
+    RUNFLG_NO_GC        = (1 << 5),  /* don't clean orphan entries after scan */
+    RUNFLG_FORCE_RUN    = (1 << 6),  /* force running policy even if no scan was
+                                        complete */
 } run_flags_t;
 
 /* Config module masks:
@@ -79,11 +84,11 @@ typedef enum run_flags {
 
 #define MODULE_MASK_ALWAYS          0x10000000
 
-
 /**
  * Read robinhood's configuration file and set modules configuration.
  * if everything is OK, returns 0 and fills the structure
- * else, returns an error code and sets a contextual error message in err_msg_out.
+ * else, returns an error code and sets a contextual error message in
+ * err_msg_out.
  */
 int rbh_cfg_load(int module_mask, char *file_path, char *msg_out);
 
@@ -109,8 +114,8 @@ int rbh_cfg_write_default(FILE *stream);
 
 /* ==== Tools for writing config templates ==== */
 
-void print_begin_block(FILE *output, unsigned int indent, const char *blockname,
-                       const char *id );
+void print_begin_block(FILE *output, unsigned int indent,
+                       const char *blockname, const char *id);
 void print_end_block(FILE *output, unsigned int indent);
 void print_line(FILE *output, unsigned int indent, const char *format, ...);
 
