@@ -33,20 +33,19 @@
 
 #include <mysql/mysql.h>
 
-typedef MYSQL  db_conn_t;
-typedef MYSQL_RES *result_handle_t;
+typedef MYSQL       db_conn_t;
+typedef MYSQL_RES  *result_handle_t;
 
 /** specific database configuration */
-typedef struct db_config_t
-{
-    char           server[256];
-    char           db[256];
-    char           user[256];
-    char           password[256];
-    int            port;
-    char           socket[RBH_PATH_MAX];
-    char           engine[1024];
-    char           tokudb_compression[50];
+typedef struct db_config_t {
+    char server[256];
+    char db[256];
+    char user[256];
+    char password[256];
+    int port;
+    char socket[RBH_PATH_MAX];
+    char engine[1024];
+    char tokudb_compression[50];
 } db_config_t;
 
 #elif defined(_SQLITE)
@@ -56,23 +55,21 @@ typedef struct db_config_t
 #include <sqlite3.h>
 
 typedef sqlite3 *db_conn_t;
-typedef struct result_handle_t
-{
-    char         **result_array;
-    unsigned int   curr_row;
-    int            nb_rows;
-    int            nb_cols;
+
+typedef struct result_handle_t {
+    char            **result_array;
+    unsigned int      curr_row;
+    int               nb_rows;
+    int               nb_cols;
 } result_handle_t;
 
-typedef struct db_config_t
-{
-    char           filepath[RBH_PATH_MAX];
-    unsigned int   retry_delay_microsec;         /* retry time when busy */
+typedef struct db_config_t {
+    char         filepath[RBH_PATH_MAX];
+    unsigned int retry_delay_microsec;  /* retry time when busy */
 } db_config_t;
 
-
 #else
-#   error "No database type was specified"
+#error "No database type was specified"
 #endif
 
 #endif

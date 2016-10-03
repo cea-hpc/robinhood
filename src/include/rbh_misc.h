@@ -28,6 +28,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <glib.h>
+#include <semaphore.h>
+#include "rbh_logs.h"
 
 /* displaying FID */
 #ifndef _HAVE_FID
@@ -57,35 +59,38 @@
 /**
  *  Miscellaneous parsing macros
  */
-#define EMPTY_STRING( s ) ( (s)[0] == '\0' )
-#define FINAL_SLASH( s ) ( (strlen(s) > 1) && (s[strlen(s)-1] == '/') )
-#define SLASH_IN( s ) ( strchr( s, '/') != NULL )
-#define REMOVE_FINAL_SLASH( s ) ( (s)[strlen(s)-1] = '\0' )
-#define IS_ABSOLUTE_PATH( s ) ( ((s)[0]) && ((s)[0] == '/'))
+#define EMPTY_STRING(s)       ((s)[0] == '\0')
+#define FINAL_SLASH(s)        ((strlen(s) > 1) && (s[strlen(s)-1] == '/'))
+#define SLASH_IN(s)           (strchr(s, '/') != NULL)
+#define REMOVE_FINAL_SLASH(s) ((s)[strlen(s)-1] = '\0')
+#define IS_ABSOLUTE_PATH(s)   (((s)[0]) && ((s)[0] == '/'))
 
-#define ANY_LEVEL_MATCH( _s_ ) (strstr(_s_,"**") != NULL)
+#define ANY_LEVEL_MATCH(_s_)  (strstr(_s_, "**") != NULL)
 
-#define WILDCARDS_IN( s ) ( strchr(s,'*') || strchr(s,'?') || strchr(s,'[') \
-                            || strchr(s,']') || strchr(s,'{') || strchr(s,'}') )
-#define STAR_SLASH_BEGIN( s ) (((s)[0]=='*') && ((s)[1]=='/'))
+#define WILDCARDS_IN(s) (strchr(s, '*') || strchr(s, '?') || strchr(s, '[') \
+                         || strchr(s, ']') || strchr(s, '{') || strchr(s, '}'))
+#define STAR_SLASH_BEGIN(s) (((s)[0] == '*') && ((s)[1] == '/'))
 
-#define GSTRING_SAFE(_g) (((_g) == NULL || ((_g)->str == NULL))?"":(_g)->str)
+#define GSTRING_SAFE(_g) (((_g) == NULL || ((_g)->str == NULL)) ? "" : \
+                            (_g)->str)
 #define GSTRING_EMPTY(_g) (EMPTY_STRING(GSTRING_SAFE(_g)))
 
+#define bool2str(_b_)   ((_b_) ? "yes" : "no")
 
-#define bool2str(_b_)   ((_b_)?"yes":"no")
-
-#define rh_strncpy(_s1, _s2, _sz) do { strncpy(_s1, _s2, _sz-1); if (_sz > 0) (_s1)[_sz-1] = '\0'; } while(0)
+#define rh_strncpy(_s1, _s2, _sz) do { \
+        strncpy(_s1, _s2, _sz-1);      \
+        if (_sz > 0) \
+            (_s1)[_sz-1] = '\0'; \
+    } while (0)
 
 /**
  *  Other useful definitions
  */
+#define MIN2(_a_, _b_) ((_a_) < (_b_) ? (_a_) : (_b_))
+#define MIN3(_a_, _b_, _c_) (MIN2(MIN2((_a_) , (_b_)) , (_c_)))
 
-#define MIN2( _a_, _b_ ) ( (_a_)<(_b_) ? (_a_) : (_b_) )
-#define MIN3( _a_, _b_, _c_ ) ( MIN2( MIN2( (_a_) , (_b_) ) , (_c_) ) )
-
-#define MAX2( _a_, _b_ ) ( (_a_)>(_b_) ? (_a_) : (_b_) )
-#define MAX3( _a_, _b_, _c_ ) ( MAX2( MAX2( (_a_) , (_b_) ) , (_c_) ) )
+#define MAX2(_a_, _b_) ((_a_) > (_b_) ? (_a_) : (_b_))
+#define MAX3(_a_, _b_, _c_) (MAX2(MAX2((_a_) , (_b_)) , (_c_)))
 
 #ifndef P
 #define P(_mutex_) pthread_mutex_lock(&(_mutex_))
@@ -109,26 +114,25 @@
 #define unlikely(x)     (x)
 #endif
 
-#define member_size(_type, _member) sizeof(((_type*)0)->_member)
+#define member_size(_type, _member) sizeof(((_type *)0)->_member)
 
 /**
  * Send a mail
  */
 #define MAIL_TITLE_MAX  1024
-int            SendMail( const char *recipient, const char *subject, const char *message );
+int SendMail(const char *recipient, const char *subject, const char *message);
 
 /**
  * Search for Robinhood config file
  */
-int SearchConfig(const char *cfg_in, char *cfg_out, bool *changed, char * unmatched,
-                 size_t max_len);
+int SearchConfig(const char *cfg_in, char *cfg_out, bool *changed,
+                 char *unmatched, size_t max_len);
 
 /**
  * This function is blocking as long as the lock file is present.
  * Optionaly updates an action timestamp, at each test.
  */
-void           TestLockFile( time_t * p_last_action );
-
+void TestLockFile(time_t *p_last_action);
 
 /**
  * Convert a POSIX attribute structure (returned by lstat)
@@ -144,13 +148,19 @@ void stat2rbh_attrs(const struct stat *p_inode, attr_set_t *p_attr_set,
 void rbh_attrs2stat(const attr_set_t *p_attr_set, struct stat *p_inode);
 
 /* convert file mode to DB type string */
-const char * mode2type(mode_t mode);
+const char *mode2type(mode_t mode);
 
-/** Retrieve the name associated to a user (or the text representation of its uid if the user doesn't exist) */
-char          *uid2str( uid_t uid, char *username );
-/** Retrieve the name associated to a user (or the text representation of its uid if the user doesn't exist) */
-char          *gid2str( gid_t gid, char *groupname );
+/**
+ * Retrieve the name associated to a user (or the text representation of its
+ * uid if the user doesn't exist)
+ */
+char *uid2str(uid_t uid, char *username);
 
+/**
+ * Retrieve the name associated to a user (or the text representation of its
+ * uid if the user doesn't exist).
+ */
+char *gid2str(gid_t gid, char *groupname);
 
 /**
  * Check mount point and FS type.
@@ -161,96 +171,96 @@ int check_fs_info(const char *path, const char *expected_type,
                   dev_t *p_fs_dev, char *fsname_out,
                   bool check_mounted, bool save_fs);
 
-
 /**
  * Initialize filesystem access and retrieve current devid/fs_key
  * - global_config must be set
  * - initialize mount_point, fsname and dev_id
  */
-int InitFS( void );
+int InitFS(void);
 
 /**
  * This is to be called after a dev_id change was detected
  * return 0 if fskey is unchanged and update mount_point, fsname and dev_id
  * else, return -1
  */
-int ResetFS( void );
-
+int ResetFS(void);
 
 /**
  *  Check that FS path is the same as the last time.
  */
-int            CheckLastFS( void );
+int CheckLastFS(void);
 
 /* retrieve FS info */
-const char    *get_mount_point(unsigned int *plen);
+const char *get_mount_point(unsigned int *plen);
 #ifdef _HAVE_FID
-const char    *get_fid_dir(void);
-const char    *get_dot_lustre_dir(void);
+const char *get_fid_dir(void);
+const char *get_dot_lustre_dir(void);
 const entry_id_t *get_dot_lustre_fid(void);
 const entry_id_t *get_fid_fid(void);
 #endif
 
-const char    *get_fsname(void);
-dev_t          get_fsdev(void);
-uint64_t       get_fskey(void);
+const char *get_fsname(void);
+dev_t get_fsdev(void);
+uint64_t get_fskey(void);
 const entry_id_t *get_root_id(void);
 
 /**
  * extract relative path from full path.
  */
-int relative_path( const char * fullpath, const char * root, char * rel_path );
+int relative_path(const char *fullpath, const char *root, char *rel_path);
 
 /**
  * create parent directory, and return its id (even if it already exists).
  */
-int create_parent_of(const char * child_path, entry_id_t * p_parent_id);
+int create_parent_of(const char *child_path, entry_id_t *p_parent_id);
 
 /**
  * create an object with the given attributes.
  */
-int create_from_attrs(const attr_set_t * attrs_in,
-                      attr_set_t * attrs_out,
+int create_from_attrs(const attr_set_t *attrs_in,
+                      attr_set_t *attrs_out,
                       entry_id_t *new_id, bool overwrite, bool setstripe);
 
 #ifdef _LUSTRE
 
 /** initialize access to lustre */
-int            Lustre_Init( void );
+int Lustre_Init(void);
 
 /** Retrieve stripe info for a file */
-int            File_GetStripeByPath( const char *entry_path, stripe_info_t * p_stripe_info,
-                                     stripe_items_t * p_stripe_items );
+int File_GetStripeByPath(const char *entry_path, stripe_info_t *p_stripe_info,
+                         stripe_items_t *p_stripe_items);
 
 int File_GetStripeByDirFd(int dirfd, const char *fname,
-                          stripe_info_t * p_stripe_info,
-                          stripe_items_t * p_stripe_items);
+                          stripe_info_t *p_stripe_info,
+                          stripe_items_t *p_stripe_items);
 /**
  * check if a file has data on the given OST.
  */
-bool DataOnOST(size_t fsize, unsigned int ost_index, const stripe_info_t *sinfo,
-               const stripe_items_t *sitems);
+bool DataOnOST(size_t fsize, unsigned int ost_index,
+               const stripe_info_t *sinfo, const stripe_items_t *sitems);
 
 /**
  * compute the number of blocks of a file on a given OST.
  */
-blkcnt_t BlocksOnOST(blkcnt_t blocks, unsigned int ost_index, const stripe_info_t * sinfo,
-              const stripe_items_t * sitems);
-
+blkcnt_t BlocksOnOST(blkcnt_t blocks, unsigned int ost_index,
+                     const stripe_info_t *sinfo,
+                     const stripe_items_t *sitems);
 
 #ifdef HAVE_LLAPI_GETPOOL_INFO
 /** Create a file with the given stripe information */
-int CreateStriped( const char * path, const stripe_info_t * old_stripe, int overwrite );
-int CreateWithoutStripe( const char * path, mode_t mode, int overwrite );
+int CreateStriped(const char *path, const stripe_info_t *old_stripe,
+                  int overwrite);
+int CreateWithoutStripe(const char *path, mode_t mode, int overwrite);
 #endif
 
 #ifdef _HAVE_FID
-int            BuildFidPath( const entry_id_t * p_id /* IN */ , char *path /* OUT */  );
-int            Lustre_GetFullPath( const entry_id_t * p_id, char *fullpath, unsigned int len );
-int            Lustre_GetFidFromPath( const char *fullpath, entry_id_t * p_id );
-int            Lustre_GetFidByFd(int fd, entry_id_t * p_id);
-int            Lustre_GetNameParent(const char *path, int linkno,
-                                    lustre_fid *pfid, char *name, int namelen);
+int BuildFidPath(const entry_id_t *p_id /* IN */ , char *path /* OUT */);
+int Lustre_GetFullPath(const entry_id_t *p_id, char *fullpath,
+                       unsigned int len);
+int Lustre_GetFidFromPath(const char *fullpath, entry_id_t *p_id);
+int Lustre_GetFidByFd(int fd, entry_id_t *p_id);
+int Lustre_GetNameParent(const char *path, int linkno,
+                         lustre_fid *pfid, char *name, int namelen);
 
 void path_check_update(const entry_id_t *p_id,
                        const char *fid_path, attr_set_t *p_attrs,
@@ -262,31 +272,32 @@ void path_check_update(const entry_id_t *p_id,
 
 #ifdef HAVE_CHANGELOGS
 /* if the FS has changelogs, define function for converting changelog time */
-static inline time_t cltime2sec( uint64_t cltime )
+static inline time_t cltime2sec(uint64_t cltime)
 {
-   /* extract secs from time field */
-   return cltime >> 30;
+    /* extract secs from time field */
+    return cltime >> 30;
 }
 
-static inline unsigned int cltime2nsec( uint64_t cltime )
+static inline unsigned int cltime2nsec(uint64_t cltime)
 {
-   /* extract nanosecs: */
-   return cltime & ((1<<30) - 1);
+    /* extract nanosecs: */
+    return cltime & ((1 << 30) - 1);
 }
 #endif
 
 /** Retrieve OST usage info ('ost df') */
-int            Get_OST_usage( const char *fs_path, unsigned int ost_index, struct statfs *ost_statfs );
+int Get_OST_usage(const char *fs_path, unsigned int ost_index,
+                  struct statfs *ost_statfs);
 
 #ifdef HAVE_LLAPI_GETPOOL_INFO
 /** Retrieve pool usage info */
-int            Get_pool_usage( const char *poolname, struct statfs *pool_statfs );
+int Get_pool_usage(const char *poolname, struct statfs *pool_statfs);
 #endif
 
 /** Retrieve file information from MDS */
 int lustre_mds_stat(const char *fullpath, int parentfd, struct stat *inode);
 #ifdef _HAVE_FID
-int lustre_mds_stat_by_fid( const entry_id_t * p_id, struct stat *inode );
+int lustre_mds_stat_by_fid(const entry_id_t *p_id, struct stat *inode);
 #endif
 
 #ifndef _MDT_SPECIFIC_LOVEA
@@ -294,7 +305,8 @@ int lustre_mds_stat_by_fid( const entry_id_t * p_id, struct stat *inode );
  * build LOVEA buffer from stripe information
  * @return size of significant information in buffer.
  */
-ssize_t BuildLovEA(const entry_id_t * p_id, const attr_set_t * p_attrs, void * buff, size_t buf_sz);
+ssize_t BuildLovEA(const entry_id_t *p_id, const attr_set_t *p_attrs,
+                   void *buff, size_t buf_sz);
 #endif
 
 #endif /* lustre */
@@ -302,19 +314,19 @@ ssize_t BuildLovEA(const entry_id_t * p_id, const attr_set_t * p_attrs, void * b
 /**
  * Shoot a thread.
  */
-int            TerminateThread( pthread_t thread_id );
+int TerminateThread(pthread_t thread_id);
 
 /**
  * Clean termination of the daemon + display message in log
  */
-void           Exit( int error_code );
+void Exit(int error_code);
 
 /**
  * Format functions
  */
-char          *FormatFileSize( char *buff, size_t str_sz, uint64_t file_size );
-char          *FormatDuration( char *buff, size_t str_sz, time_t duration );
-char          *FormatDurationFloat( char *buff, size_t str_sz, time_t duration );
+char *FormatFileSize(char *buff, size_t str_sz, uint64_t file_size);
+char *FormatDuration(char *buff, size_t str_sz, time_t duration);
+char *FormatDurationFloat(char *buff, size_t str_sz, time_t duration);
 
 #ifdef _LUSTRE
 /**
@@ -333,7 +345,7 @@ void append_stripe_list(GString *str, const stripe_items_t *p_stripe_items,
  * Convert a string to a boolean
  * @return -1 on error.
  */
-int            str2bool( const char *str );
+int str2bool(const char *str);
 
 /**
  * Convert a string to an integer
@@ -341,8 +353,8 @@ int            str2bool( const char *str );
  */
 static inline int str2int(const char *str)
 {
-    char           suffix[256];
-    int            nb_read, value;
+    char suffix[256];
+    int nb_read, value;
 
     if (str == NULL)
         return -1;
@@ -350,10 +362,10 @@ static inline int str2int(const char *str)
     nb_read = sscanf(str, "%d%s", &value, suffix);
 
     if (nb_read <= 0)
-        return -1;              /* invalid format */
+        return -1;  /* invalid format */
 
     if ((nb_read == 1) || (suffix[0] == '\0'))
-        return value;           /* no suffix => 0K */
+        return value;   /* no suffix => 0K */
     else
         return -1;
 }
@@ -362,23 +374,22 @@ static inline int str2int(const char *str)
  * Convert a string to a long integer
  * @return -1 on error.
  */
-long long str2bigint( const char *str );
+long long str2bigint(const char *str);
 
 /**
  * Convert a string to a duration in seconds
  * @return -1 on error.
  */
-int            str2duration( const char *str );
+int str2duration(const char *str);
 
 /**
  * Convert a string to a size (in bytes)
  * @return -1 on error.
  */
-uint64_t str2size( const char *str );
-
+uint64_t str2size(const char *str);
 
 /** parse date/time yyyymmdd[HH[MM[SS]]] */
-time_t str2date( const char *str );
+time_t str2date(const char *str);
 
 /** convert mode to rwxrwxrwx string */
 const char *mode_string(mode_t mode, char *buf);
@@ -396,32 +407,47 @@ void print_attrs(GString *str, const attr_set_t *p_attr_set,
  *  Apply attribute changes
  *  \param change_mask mask of attributes to be changed
  */
-int            ApplyAttrs(const entry_id_t * p_id,
-                          const attr_set_t * p_attr_new, const attr_set_t *p_attr_old,
-                          attr_mask_t change_mask, bool dry_run);
-
+int ApplyAttrs(const entry_id_t *p_id,
+               const attr_set_t *p_attr_new, const attr_set_t *p_attr_old,
+               attr_mask_t change_mask, bool dry_run);
 
 /** Compute greatest common divisor (GCD) of 2 numbers */
-unsigned int   gcd( unsigned int x, unsigned int y );
+unsigned int gcd(unsigned int x, unsigned int y);
 
 /** Ensure that the thread is suspended for a given amount
  * of time, event if the process gets interrupts.
  */
-void rh_sleep( unsigned int seconds );
+void rh_sleep(unsigned int seconds);
 
 /* signal safe semaphore ops with error logging */
-/* man (3) sem_wait/sem_post: on error, the value of the semaphore is left unchanged */
-#define sem_wait_safe(_s) while(sem_wait(_s)) if (errno != EINTR && errno != EAGAIN) \
-                              DisplayLog(LVL_CRIT,"sem","ERROR: sem_wait operation failed: %s", strerror(errno))
-#define sem_post_safe(_s) while(sem_post(_s)) if (errno != EINTR && errno != EAGAIN) \
-                              DisplayLog(LVL_CRIT,"sem","ERROR: sem_post operation failed: %s", strerror(errno))
+/* man (3) sem_wait/sem_post: on error, the value of the semaphore is left
+ * unchanged */
+static inline void sem_wait_safe(sem_t *sem)
+{
+    while (sem_wait(sem)) {
+        if (errno != EINTR && errno != EAGAIN)
+            DisplayLog(LVL_CRIT, "sem", "ERROR: sem_wait operation failed: %s", \
+                       strerror(errno));
+    }
+}
+
+static inline void sem_post_safe(sem_t *sem)
+{
+    while (sem_post(sem)) {
+            if (errno != EINTR && errno != EAGAIN)
+                DisplayLog(LVL_CRIT, "sem",
+                           "ERROR: sem_post operation failed: %s",
+                           strerror(errno));
+    }
+}
 
 /**
  * Interuptible sleep.
  * returns when _v != 0.
  */
-#define rh_intr_sleep( _s, _v ) do { unsigned int _i; for (_i=0; (_i<_s) && !(_v); _i++) rh_sleep(1); } while(0)
-
+#define rh_intr_sleep(_s, _v) do { \
+        unsigned int _i; for (_i = 0; (_i < _s) && !(_v); _i++) rh_sleep(1); \
+    } while (0)
 
 #define rh_usleep(_usec) usleep(_usec)
 
@@ -450,7 +476,7 @@ static inline void subst_char(char *str, char c1, char c2)
  * \param[in]     size      size of the line buffer
  * \param[in]     stream    fileno of the stream the line comes from
  */
-typedef int (*parse_cb_t)(void *cb_arg, char *line, size_t size, int stream);
+typedef int (*parse_cb_t) (void *cb_arg, char *line, size_t size, int stream);
 
 /**
  * Callback function for execute_shell_command() that redirects stderr to
@@ -482,16 +508,23 @@ attr_mask_t params_mask(const char *str, const char *str_descr, bool *err);
 struct sm_instance;
 /**
  * Replace special parameters {cfg}, {fspath}, ... in the given string.
- * Result string is allocated by the function and must be released using g_free().
+ * Result string is allocated by the function and must be released using
+ * g_free().
  * @param[in] str_in    Input string with {} placeholders.
  * @param[in] str_descr String description (for logging).
- * @param[in] p_id      Pointer to entry id (if the command is executed on an entry).
- * @param[in] p_attrs   Pointer to entry attrs (if the command is executed on an entry).
+ * @param[in] p_id      Pointer to entry id (if the command is executed on an
+ *                      entry).
+ * @param[in] p_attrs   Pointer to entry attrs (if the command is executed on an
+ *                      entry).
  * @param[in] params    List of action parameters.
- * @param[in] subst_array char** of param1, value1, param2, value2, ..., NULL, NULL.
- * @param[in] smi       When applying a policy, pointer to the current status manager instance.
- * @param[in] quote     If true, escape and quote the replaced values as shell arguments.
- * @param[in] strict_braces If true, only allow braces for variable names like {var}.
+ * @param[in] subst_array   char** of param1, value1,
+ *                      param2, value2, ..., NULL, NULL.
+ * @param[in] smi       When applying a policy, pointer to the current status
+ *                      manager instance.
+ * @param[in] quote     If true, escape and quote the replaced values as shell
+ *                      arguments.
+ * @param[in] strict_braces If true, only allow braces for variable names like
+ *                      {var}.
  */
 char *subst_params(const char *str_in,
                    const char *str_descr,
@@ -509,12 +542,17 @@ char *subst_params(const char *str_in,
  * returns 0 on success, -errno on error.
  * @param[in] cmd_in    Input command, av contains strings with {} placeholders.
  * @param[in] str_descr String description (for logging).
- * @param[in] p_id      Pointer to entry id (if the command is executed on an entry).
- * @param[in] p_attrs   Pointer to entry attrs (if the command is executed on an entry).
+ * @param[in] p_id      Pointer to entry id (if the command is executed on an
+ *                      entry).
+ * @param[in] p_attrs   Pointer to entry attrs (if the command is executed on an
+ *                      entry).
  * @param[in] params    List of action parameters.
- * @param[in] subst_array char** of param1, value1, param2, value2, ..., NULL, NULL.
- * @param[in] smi       When applying a policy, pointer to the current status manager instance.
- * @param[in] strict_braces If true, only allow braces for variable names like {var}.
+ * @param[in] subst_array char** of param1, value1, param2, value2, ...,
+ *                      NULL, NULL.
+ * @param[in] smi       When applying a policy, pointer to the current status
+ *                      manager instance.
+ * @param[in] strict_braces If true, only allow braces for variable names like
+ *                      {var}.
  * @param[out] cmd_out  parsed argc/argv after subst
  */
 int subst_shell_params(char **cmd_in,
@@ -524,8 +562,7 @@ int subst_shell_params(char **cmd_in,
                        const action_params_t *params,
                        const char **subst_array,
                        const struct sm_instance *smi,
-                       bool strict_braces,
-                       char ***cmd_out);
+                       bool strict_braces, char ***cmd_out);
 
 /**
  * concatenate a string array into a string
@@ -542,7 +579,7 @@ void upperstr(char *str);
 void lowerstr(char *str);
 
 /** recursively create a directoy and return its id */
-int mkdir_recurse(const char * full_path, mode_t mode, entry_id_t *dir_id);
+int mkdir_recurse(const char *full_path, mode_t mode, entry_id_t *dir_id);
 
 /**
  * Get id for the given path.

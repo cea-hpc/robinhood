@@ -74,26 +74,26 @@ extern int llapi_get_poolmembers(const char *poolname, char **members,
 
 #ifndef HAVE_OBD_STATFS
 struct obd_statfs {
-        __u64           os_type;
-        __u64           os_blocks;
-        __u64           os_bfree;
-        __u64           os_bavail;
-        __u64           os_files;
-        __u64           os_ffree;
-        __u8            os_fsid[40];
-        __u32           os_bsize;
-        __u32           os_namelen;
-        __u64           os_maxbytes;
-        __u32           os_state;       /* positive error code on server */
-        __u32           os_spare1;
-        __u32           os_spare2;
-        __u32           os_spare3;
-        __u32           os_spare4;
-        __u32           os_spare5;
-        __u32           os_spare6;
-        __u32           os_spare7;
-        __u32           os_spare8;
-        __u32           os_spare9;
+    __u64 os_type;
+    __u64 os_blocks;
+    __u64 os_bfree;
+    __u64 os_bavail;
+    __u64 os_files;
+    __u64 os_ffree;
+    __u8 os_fsid[40];
+    __u32 os_bsize;
+    __u32 os_namelen;
+    __u64 os_maxbytes;
+    __u32 os_state; /* positive error code on server */
+    __u32 os_spare1;
+    __u32 os_spare2;
+    __u32 os_spare3;
+    __u32 os_spare4;
+    __u32 os_spare5;
+    __u32 os_spare6;
+    __u32 os_spare7;
+    __u32 os_spare8;
+    __u32 os_spare9;
 };
 #endif
 
@@ -125,7 +125,7 @@ struct obd_statfs {
 #if HAVE_DECL_CLF_RENAME
 /* Lustre 2.7 */
 #define CL_REC_TYPE struct changelog_rec
-#define HAVE_FLEX_CL            /* Flexible changelogs */
+#define HAVE_FLEX_CL    /* Flexible changelogs */
 
 static inline bool rh_is_rename_one_record(const struct changelog_rec *rec)
 {
@@ -174,10 +174,10 @@ static inline char *rh_get_cl_cr_name(const struct changelog_rec *rec)
 
 #endif
 
-#endif  /* HAVE_CHANGELOGS */
+#endif /* HAVE_CHANGELOGS */
 
 #ifndef LOV_PATTERN_F_RELEASED
-#define LOV_PATTERN_F_RELEASED  0x80000000 /* HSM released file */
+#define LOV_PATTERN_F_RELEASED  0x80000000  /* HSM released file */
 #endif
 
 #ifdef _HAVE_FID
@@ -191,8 +191,8 @@ static inline char *rh_get_cl_cr_name(const struct changelog_rec *rec)
 #define be32_to_cpu(x) bswap_32(x)
 #define be64_to_cpu(x) (__u64)bswap_64(x)
 #define CLASSERT assert
-#define LASSERTF(a,b,c) assert(a)
-typedef void * lnet_nid_t;
+#define LASSERTF(a, b, c) assert(a)
+typedef void *lnet_nid_t;
 typedef time_t cfs_time_t;
 
 #ifdef _LUSTRE_IDL_HEADER
@@ -214,12 +214,12 @@ typedef time_t cfs_time_t;
 #endif
 
 struct link_ea_header {
-        __u32 leh_magic;
-        __u32 leh_reccount;
-        __u64 leh_len;      /* total size */
-        /* future use */
-        __u32 padding1;
-        __u32 padding2;
+    __u32 leh_magic;
+    __u32 leh_reccount;
+    __u64 leh_len;  /* total size */
+    /* future use */
+    __u32 padding1;
+    __u32 padding2;
 };
 
 /** Hardlink data is name and parent fid.
@@ -227,10 +227,10 @@ struct link_ea_header {
  */
 struct link_ea_entry {
         /** __u16 stored big-endian, unaligned */
-        unsigned char      lee_reclen[2];
-        unsigned char      lee_parent_fid[sizeof(struct lu_fid)];
-        char               lee_name[0];
-}__attribute__((packed));
+    unsigned char lee_reclen[2];
+    unsigned char lee_parent_fid[sizeof(struct lu_fid)];
+    char lee_name[0];
+} __attribute__ ((packed));
 
 static inline void fid_be_to_cpu(struct lu_fid *dst, const struct lu_fid *src)
 {
@@ -238,74 +238,79 @@ static inline void fid_be_to_cpu(struct lu_fid *dst, const struct lu_fid *src)
     dst->f_oid = be32_to_cpu(src->f_oid);
     dst->f_ver = be32_to_cpu(src->f_ver);
 }
+
 enum fid_seq {
-    FID_SEQ_OST_MDT0    = 0,
-    FID_SEQ_LLOG        = 1, /* unnamed llogs */
-    FID_SEQ_ECHO        = 2,
-    FID_SEQ_OST_MDT1    = 3,
-    FID_SEQ_OST_MAX     = 9, /* Max MDT count before OST_on_FID */
-    FID_SEQ_LLOG_NAME   = 10, /* named llogs */
-    FID_SEQ_RSVD        = 11,
-    FID_SEQ_IGIF        = 12,
-    FID_SEQ_IGIF_MAX    = 0x0ffffffffULL,
-    FID_SEQ_IDIF        = 0x100000000ULL,
-    FID_SEQ_IDIF_MAX    = 0x1ffffffffULL,
-    FID_SEQ_START       = 0x200000000ULL,
-    FID_SEQ_LOCAL_FILE  = 0x200000001ULL,
-    FID_SEQ_DOT_LUSTRE  = 0x200000002ULL,
-    FID_SEQ_LOCAL_NAME  = 0x200000003ULL,
-    FID_SEQ_SPECIAL     = 0x200000004ULL,
-    FID_SEQ_QUOTA       = 0x200000005ULL,
-    FID_SEQ_QUOTA_GLB   = 0x200000006ULL,
-    FID_SEQ_ROOT        = 0x200000007ULL,  /* Located on MDT0 */
-    FID_SEQ_NORMAL      = 0x200000400ULL,
+    FID_SEQ_OST_MDT0 = 0,
+    FID_SEQ_LLOG = 1,   /* unnamed llogs */
+    FID_SEQ_ECHO = 2,
+    FID_SEQ_OST_MDT1 = 3,
+    FID_SEQ_OST_MAX = 9,    /* Max MDT count before OST_on_FID */
+    FID_SEQ_LLOG_NAME = 10, /* named llogs */
+    FID_SEQ_RSVD = 11,
+    FID_SEQ_IGIF = 12,
+    FID_SEQ_IGIF_MAX = 0x0ffffffffULL,
+    FID_SEQ_IDIF = 0x100000000ULL,
+    FID_SEQ_IDIF_MAX = 0x1ffffffffULL,
+    FID_SEQ_START = 0x200000000ULL,
+    FID_SEQ_LOCAL_FILE = 0x200000001ULL,
+    FID_SEQ_DOT_LUSTRE = 0x200000002ULL,
+    FID_SEQ_LOCAL_NAME = 0x200000003ULL,
+    FID_SEQ_SPECIAL = 0x200000004ULL,
+    FID_SEQ_QUOTA = 0x200000005ULL,
+    FID_SEQ_QUOTA_GLB = 0x200000006ULL,
+    FID_SEQ_ROOT = 0x200000007ULL,  /* Located on MDT0 */
+    FID_SEQ_NORMAL = 0x200000400ULL,
     FID_SEQ_LOV_DEFAULT = 0xffffffffffffffffULL
 };
 static inline int fid_seq_is_rsvd(const __u64 seq)
 {
-        return (seq > FID_SEQ_OST_MDT0 && seq <= FID_SEQ_RSVD);
+    return (seq > FID_SEQ_OST_MDT0 && seq <= FID_SEQ_RSVD);
 };
+
 static inline int fid_seq_is_idif(const __u64 seq)
 {
-        return seq >= FID_SEQ_IDIF && seq <= FID_SEQ_IDIF_MAX;
+    return seq >= FID_SEQ_IDIF && seq <= FID_SEQ_IDIF_MAX;
 }
+
 static inline int fid_is_idif(const struct lu_fid *fid)
 {
-        return fid_seq_is_idif(fid->f_seq);
+    return fid_seq_is_idif(fid->f_seq);
 }
+
 static inline int fid_seq_is_igif(const __u64 seq)
 {
-        return seq >= FID_SEQ_IGIF && seq <= FID_SEQ_IGIF_MAX;
+    return seq >= FID_SEQ_IGIF && seq <= FID_SEQ_IGIF_MAX;
 }
+
 static inline int fid_is_igif(const struct lu_fid *fid)
 {
-        return fid_seq_is_igif(fid->f_seq);
+    return fid_seq_is_igif(fid->f_seq);
 }
+
 static inline int fid_is_sane(const struct lu_fid *fid)
 {
     return fid != NULL &&
-           ((fid->f_seq >= FID_SEQ_START && fid->f_ver == 0) ||
-        fid_is_igif(fid) || fid_is_idif(fid) ||
-        fid_seq_is_rsvd(fid->f_seq));
+        ((fid->f_seq >= FID_SEQ_START && fid->f_ver == 0) ||
+         fid_is_igif(fid) || fid_is_idif(fid) || fid_seq_is_rsvd(fid->f_seq));
 }
 #endif
 
 struct lu_buf {
-        void   *lb_buf;
-        ssize_t lb_len;
+    void *lb_buf;
+    ssize_t lb_len;
 };
 
 struct linkea_data {
         /**
          ** Buffer to keep link EA body.
          **/
-        struct lu_buf           *ld_buf;
+    struct lu_buf *ld_buf;
         /**
          ** The matched header, entry and its length in the EA
          **/
-        struct link_ea_header   *ld_leh;
-        struct link_ea_entry    *ld_lee;
-        int                     ld_reclen;
+    struct link_ea_header *ld_leh;
+    struct link_ea_entry *ld_lee;
+    int ld_reclen;
 };
 
 #define LINKEA_NEXT_ENTRY(ldata)        \
@@ -315,6 +320,5 @@ struct linkea_data {
         (struct link_ea_entry *)(ldata.ld_leh + 1)
 
 #endif /* _HAVE_FID */
-
 
 #endif

@@ -22,16 +22,14 @@ typedef unsigned long long ull_t;
 #ifdef _LUSTRE
 /* stripe info for Lustre */
 
-typedef struct stripe_item_t
-{
+typedef struct stripe_item_t {
     unsigned int ost_idx; /* ost index */
     unsigned int ost_gen; /* always 0 ? */
     uint64_t obj_id;      /* object index on OST */
     uint64_t obj_seq;     /* sequence from object fid */
 } stripe_item_t;
 
-typedef struct stripe_info_t
-{
+typedef struct stripe_info_t {
     uint64_t       stripe_size;
     unsigned int   stripe_count;
     char           pool_name[MAX_POOL_LEN];
@@ -40,8 +38,7 @@ typedef struct stripe_info_t
 #endif
 } stripe_info_t;
 
-typedef struct stripe_items_t
-{
+typedef struct stripe_items_t {
     unsigned int   count;
     stripe_item_t *stripe;   /* list of stripe pieces */
 } stripe_items_t;
@@ -51,8 +48,7 @@ typedef int stripe_info_t; /* dummy type */
 #endif
 
 /** type of fields in database */
-typedef enum
-{
+typedef enum {
     DB_ID = 0,       /**< entry id */
     DB_STRIPE_INFO,  /**< stripe info */
     DB_STRIPE_ITEMS,  /**< stripe items */
@@ -72,18 +68,17 @@ typedef enum
  * 1st parameter points to the field to be generated.
  * 2nd parameter is the source field.
  */
-typedef int (*gen_func_t) (void *, const void *);
+typedef int (*gen_func_t)(void *, const void *);
 
 
 /** generic field definition for all applications */
-typedef struct field_info_t
-{
+typedef struct field_info_t {
     char          *field_name;
     db_type_e      db_type;
-    unsigned int   db_type_size;                 /**< size for strings */
+    unsigned int   db_type_size; /**< size for strings */
     int            flags;
     off_t          offset;
-    int            gen_index;    /* source attr index for generating this info */
+    int            gen_index;   /* source attr index for generating this info */
     gen_func_t     gen_func;    /* function for automatic generation */
 } field_info_t;
 
@@ -101,8 +96,7 @@ typedef struct field_info_t
 #define SLINK_ATTR   0x80000000 /* specific attr for symlinks */
 
 /** type of operation to be performed on database */
-typedef enum operation_type_e
-{
+typedef enum operation_type_e {
     OP_TYPE_NONE = 0,
     OP_TYPE_INSERT,
     OP_TYPE_UPDATE,
