@@ -80,12 +80,14 @@ const char *criteria2str(compare_criteria_t crit);
 struct sm_instance;
 struct sm_info_def;
 compare_criteria_t str2criteria(const char *str, const struct sm_instance *smi,
-                                const struct sm_info_def **ppdef, unsigned int *idx);
+                                const struct sm_info_def **ppdef,
+                                unsigned int *idx);
 
 #define LRU_ATTR_NONE  (ATTR_INDEX_FLG_UNSPEC)
 #define LRU_ATTR_INVAL (ATTR_INDEX_FLG_UNSPEC | 0x1)
 
-#define ALLOWED_LRU_ATTRS_STR "none, creation, last_access, last_mod, rm_time, or status manager specific."
+#define ALLOWED_LRU_ATTRS_STR "none, creation, last_access, last_mod, "\
+                              "rm_time, or status manager specific."
 
 /**
  * Return the attribute index for the given lru_sort_attr string.
@@ -136,63 +138,58 @@ static inline obj_type_t str2type(const char *str)
 {
     obj_type_t i;
 
-    for (i = TYPE_NONE; i <= TYPE_SOCK; i++)
-    {
+    for (i = TYPE_NONE; i <= TYPE_SOCK; i++) {
         if (!strcasecmp(str, type_cfg_name[i]))
             return i;
     }
     return TYPE_NONE;
 }
 
-typedef union
-{
-    char               str[RBH_PATH_MAX]; /* for all conditions based on a string */
-    unsigned long long size;              /* for size-based conditions */
-    unsigned int       integer;           /* for int base conditions */
-    time_t             duration;          /* for last access and last mod condition */
-    obj_type_t         type;              /* for conditions based on object type */
+typedef union {
+    char               str[RBH_PATH_MAX]; /**< for all conditions based on a
+                                               string */
+    unsigned long long size;      /**< for size-based conditions */
+    unsigned int       integer;   /**< for int base conditions */
+    time_t             duration;  /**< for last access and last mod condition */
+    obj_type_t         type;      /**< for conditions based on object type */
 } compare_value_t;
 
-
 enum compare_flags {
-    CMP_FLG_ANY_LEVEL   = (1<<0), /**< Indicates that the compare triplet is
+    CMP_FLG_ANY_LEVEL   = (1 << 0), /**< Indicates that the compare triplet is
                                      for matching any level of directories. */
-    CMP_FLG_INSENSITIVE = (1<<1), /**< case insensitive string matching */
+    CMP_FLG_INSENSITIVE = (1 << 1), /**< case insensitive string matching */
 };
 
 /* whitelist rules are defined by a tree of comparators */
 
 /** <attribute> <comparator> <value> triplet */
-typedef struct compare_triplet_t
-{
+typedef struct compare_triplet_t {
     enum compare_flags  flags;
     compare_criteria_t  crit;
-    char                attr_name[RBH_NAME_MAX]; /* for xattrs, or status manager specific attr */
+    char                attr_name[RBH_NAME_MAX]; /**< for xattrs, or status
+                                                      manager specific attr */
     compare_direction_t op;
     compare_value_t     val;
 } compare_triplet_t;
 
 /** Type of boolean expression: unary, binary or criteria */
 typedef enum {
-    NODE_CONSTANT, /* boolean constant (TRUE or FALSE) */
+    NODE_CONSTANT,  /**< boolean constant (TRUE or FALSE) */
     NODE_CONDITION,
     NODE_UNARY_EXPR,
     NODE_BINARY_EXPR
 } node_type_t;
 
 /** Recursive definition of a Boolean expression */
-typedef struct bool_node_t
-{
-    node_type_t    node_type;
-    union
-    {
-        compare_triplet_t *condition;            /**< for final condition on any field */
-        bool               constant;             /**< true or false */
-        struct
-        {
-            bool_op_t      bool_op;              /**< boolean operator */
-            struct bool_node_t *expr1;           /**< for unary or binary operators */
-            struct bool_node_t *expr2;           /**< for binary operators */
+typedef struct bool_node_t {
+    node_type_t node_type;
+    union {
+        compare_triplet_t *condition;   /**< for final condition on any field */
+        bool               constant;    /**< true or false */
+        struct {
+            bool_op_t           bool_op; /**< boolean operator */
+            struct bool_node_t *expr1;   /**< for unary or binary operators */
+            struct bool_node_t *expr2;   /**< for binary operators */
 
             /* this tag indicates if expressions 1 and 2
              * are allocated by the owner of this structure
@@ -203,16 +200,16 @@ typedef struct bool_node_t
 } bool_node_t;
 
 /** give the  string for a compare oparation */
-const char    *op2str(compare_direction_t comp);
+const char *op2str(compare_direction_t comp);
 
 /** Create a boolean condition */
-int CreateBoolCond(bool_node_t * p_out_node, compare_direction_t compar,
-                   compare_criteria_t  crit, compare_value_t val,
+int CreateBoolCond(bool_node_t *p_out_node, compare_direction_t compar,
+                   compare_criteria_t crit, compare_value_t val,
                    enum compare_flags flags);
 
 /** Append a boolean condition with bool op = AND */
-int AppendBoolCond(bool_node_t * p_in_out_node, compare_direction_t compar,
-                   compare_criteria_t  crit, compare_value_t val,
+int AppendBoolCond(bool_node_t *p_in_out_node, compare_direction_t compar,
+                   compare_criteria_t crit, compare_value_t val,
                    enum compare_flags flags);
 
 /** Return a constant boolean expression (true or false) */
@@ -221,7 +218,7 @@ int ConstantBoolExpr(bool constant, bool_node_t *p_bool_node);
 /**
  * Free a boolean expression structure
  */
-int FreeBoolExpr(bool_node_t * p_expr, bool free_top_node);
+int FreeBoolExpr(bool_node_t *p_expr, bool free_top_node);
 
 /**
  * Print a boolean expression to a string.
@@ -236,7 +233,6 @@ int BoolExpr2str(bool_node_t *p_bool_node, char *out_str, size_t str_size);
  */
 int compare_boolexpr(const bool_node_t *expr1, const bool_node_t *expr2);
 
-
 /**
  * Update the numerical values of a boolean expression.
  * /!\ compare_boolexpr() must have returned 0 (else, unguarantied behavior).
@@ -246,6 +242,5 @@ int compare_boolexpr(const bool_node_t *expr1, const bool_node_t *expr2);
  * @return false if nothing has been changed
  */
 bool update_boolexpr(bool_node_t *tgt, const bool_node_t *src);
-
 
 #endif

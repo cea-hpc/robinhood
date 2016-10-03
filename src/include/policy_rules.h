@@ -26,10 +26,10 @@
 #include <sys/time.h>
 
 /** whitelist item is just a boolean expression */
-typedef struct whitelist_item_t
-{
-    bool_node_t    bool_expr;
-    attr_mask_t    attr_mask;   /**< summary of attributes involved in boolean expression */
+typedef struct whitelist_item_t {
+    bool_node_t     bool_expr;
+    attr_mask_t     attr_mask; /**< summary of attributes involved in boolean
+                                    expression */
 } whitelist_item_t;
 
 #define POLICY_NAME_LEN  128
@@ -40,26 +40,25 @@ typedef struct whitelist_item_t
 typedef struct rbh_params action_params_t;
 
 /* fileset definition */
-typedef struct fileset_item_t
-{
-    char           fileset_id[FILESET_ID_LEN];
+typedef struct fileset_item_t {
+    char fileset_id[FILESET_ID_LEN];
 
     /** condition for files to be in this fileset */
-    bool_node_t    definition;
+    bool_node_t definition;
     /** summary of attributes involved in boolean expression */
-    attr_mask_t    attr_mask;
+    attr_mask_t attr_mask;
 
     /* user tunable */
-    unsigned int   matchable:1;                /* is the fileset matchable or is it a temporary
-                                                * fileset to build another one? */
+    unsigned int matchable:1;   /* is the fileset matchable or is it a temporary
+                                 * fileset to build another one? */
     /* flags for internal management */
-    unsigned int   used_in_policy:1;           /* is the fileset referenced in a policy? */
+    unsigned int used_in_policy:1;  /* is the fileset referenced in a policy? */
 
     /* action parameters for policies (merged with parameters from "policy" and
      * "rule", and overrides them).
      * Each hash table key is a policy name (lower case),
      * and the associated value is an action_params_t structure. */
-    GHashTable              *policy_action_params;
+    GHashTable *policy_action_params;
 
     /** @TODO aggregation policy */
 
@@ -80,15 +79,15 @@ typedef enum {
     PA_UPDATE
 } post_action_e;
 
-typedef int (*db_cb_func_t)(void *cb_arg, operation_type_e op,
-                            const entry_id_t *id, const attr_set_t *attrs);
+typedef int (*db_cb_func_t) (void *cb_arg, operation_type_e op,
+                             const entry_id_t *id, const attr_set_t *attrs);
 
-typedef int (*action_func_t)(const entry_id_t *id, attr_set_t *attrs,
-                             const action_params_t *params, post_action_e *what_after,
-                             db_cb_func_t db_cb_fn, void *db_cb_arg);
+typedef int (*action_func_t) (const entry_id_t *id, attr_set_t *attrs,
+                              const action_params_t *params,
+                              post_action_e *what_after, db_cb_func_t db_cb_fn,
+                              void *db_cb_arg);
 
-typedef enum
-{
+typedef enum {
     ACTION_UNSET, /**< not set */
     ACTION_NONE,  /**< explicit noop */
     ACTION_FUNCTION,
@@ -97,55 +96,52 @@ typedef enum
 
 struct action_func_info {
     action_func_t call;
-    char         *name;
+    char *name;
 };
 
-typedef struct policy_action
-{
-    action_type_e  type;
+typedef struct policy_action {
+    action_type_e type;
     union {
-        char                  **command;
+        char **command;
         struct action_func_info func;
-    } action_u; /* command for ACTION_COMMAND, function for ACTION_FUNCTION, ... */
-} policy_action_t ;
-
+    } action_u; /* command for ACTION_COMMAND,
+                 * function for ACTION_FUNCTION, ... */
+} policy_action_t;
 
 /** policy rule */
-typedef struct rule_item_t
-{
-    char                 rule_id[RULE_ID_LEN];
+typedef struct rule_item_t {
+    char rule_id[RULE_ID_LEN];
 
-    fileset_item_t     **target_list;
-    unsigned int         target_count;
+    fileset_item_t **target_list;
+    unsigned int target_count;
 
     /** condition for purging/migrating files */
-    bool_node_t          condition;
+    bool_node_t condition;
 
     /** if specified, overrides policy defaults */
-     policy_action_t     action;
+    policy_action_t action;
     /** merged with default action_params from the policy and overrides them.
      *  merged with fileclass action_params (overridden by them). */
-    action_params_t      action_params;
+    action_params_t action_params;
 
     /** attributes involved in condition, action and action_params */
-    attr_mask_t          attr_mask;
+    attr_mask_t attr_mask;
 
 } rule_item_t;
 
 /** list of rules for a policy */
-typedef struct policy_rules_t
-{
-    whitelist_item_t *whitelist_rules;
-    unsigned int   whitelist_count;
+typedef struct policy_rules_t {
+    whitelist_item_t   *whitelist_rules;
+    unsigned int        whitelist_count;
 
-    fileset_item_t **ignore_list;
-    unsigned int   ignore_count;
+    fileset_item_t    **ignore_list;
+    unsigned int        ignore_count;
 
-    rule_item_t   *rules;      /* one of them can be the default policy */
-    unsigned int   rule_count;
+    rule_item_t        *rules; /* one of them can be the default policy */
+    unsigned int        rule_count;
 
-    /* minimum set of attributes for checking rules and building action_params */
-    attr_mask_t    run_attr_mask;
+    /* minimum set of attributes to check rules and build action_params */
+    attr_mask_t         run_attr_mask;
 
 } policy_rules_t;
 
@@ -156,8 +152,7 @@ static bool inline has_default_policy(policy_rules_t *list)
 {
     int i;
 
-    for (i = 0; i < list->rule_count; i++)
-    {
+    for (i = 0; i < list->rule_count; i++) {
         if (!strcasecmp(list->rules[i].rule_id, "default"))
             return true;
     }
@@ -177,32 +172,44 @@ typedef struct policy_descr_t {
     char                name[POLICY_NAME_LEN];
     bool_node_t         scope;
     attr_mask_t         scope_mask;
-    char               *implements; /* in the case of 'multi-action' status managers,
-                                       indicate the implemented action. */
-    const char         *status_current; /* status of entries for which an action is running...
-                                          (used to check status of outstanding entries) */
+
+    /* In the case of 'multi-action' status managers,indicate the implemented
+     * action. */
+    char               *implements;
+
+    /* status of entries for which an action is running...
+     * (used to check status of outstanding entries)
+     */
+    const char         *status_current;
     struct sm_instance *status_mgr;
     policy_action_t     default_action;
+
     /* attr index of the sort order (e.g. last_mod, creation_time, ...) */
-    unsigned int        default_lru_sort_attr; /* default value for policy_run_config_t.lru_sort_attr */
+    /* default value for policy_run_config_t.lru_sort_attr */
+    unsigned int        default_lru_sort_attr;
+
     policy_rules_t      rules;
-    bool                manage_deleted; /* does this policy manage deleted entries */
+
+    /* does this policy manage deleted entries? */
+    bool                manage_deleted;
 } policy_descr_t;
 
-typedef struct policies_t
-{
-    policy_descr_t  *policy_list;
-    unsigned int     policy_count;
-    attr_mask_t      global_status_mask; // mask for all policies that provide a get_status function
+typedef struct policies_t {
+    policy_descr_t     *policy_list;
+    unsigned int        policy_count;
 
-    fileset_item_t  *fileset_list;
-    unsigned int     fileset_count;
-    attr_mask_t      global_fileset_mask; // mask for all filesets
+    /* status mask for all policies that provide a get_status() function */
+    attr_mask_t         global_status_mask;
 
-    unsigned int     manage_deleted:1; // is there any policy that manages deleted entries?
+    fileset_item_t     *fileset_list;
+    unsigned int        fileset_count;
+    attr_mask_t         global_fileset_mask;    /**< mask for all filesets */
+
+    /* is there any policy that manages deleted entries? */
+    unsigned int        manage_deleted:1;
 
 } policies_t;
-extern struct  policies_t policies;
+extern struct policies_t policies;
 
 /**
  * Test if a policy exists and gives its index in policies.policy_list.
@@ -230,14 +237,14 @@ typedef enum {
 } policy_match_t;
 
 /** time modifier */
-typedef struct time_modifier
-{
-   double time_factor;
-   time_t time_min;
+typedef struct time_modifier {
+    double time_factor;
+    time_t time_min;
 } time_modifier_t;
 
 /** retrieve fileset structure from its name */
-fileset_item_t *get_fileset_by_name(const policies_t *policies, const char *name);
+fileset_item_t *get_fileset_by_name(const policies_t *policies,
+                                    const char *name);
 
 /** get the first matching policy case for the given file
  *  \param pp_fileset(out) set to the matching fileset
@@ -252,24 +259,22 @@ rule_item_t *policy_case(const policy_descr_t *policy,
  *  \param pp_fileset is set to the matching fileset
  *         or NULL for the default policy case
  */
-rule_item_t * class_policy_case(const policy_descr_t *policy,
-                                const char *class_id,
-                                fileset_item_t **pp_fileset);
+rule_item_t *class_policy_case(const policy_descr_t *policy,
+                               const char *class_id,
+                               fileset_item_t **pp_fileset);
 
 /** test if an entry is in policy scope */
 policy_match_t match_scope(const policy_descr_t *pol, const entry_id_t *id,
                            const attr_set_t *attrs, bool warn);
 
 /** Add status attributes mask according to all matching policy scopes.
- * @param tolerant if false, display a warning and don't set a status in the mask attributes are missing to check the scope.
- *                 if true, set a status in the mask if the entry can't be matched against a scope (no warning is issued).
+ * @param tolerant If false, display a warning and don't set a status in the
+ *                 mask attributes are missing to check the scope.
+ *                 If true, set a status in the mask if the entry can't be
+ *                 matched against a scope (no warning is issued).
  */
 void add_matching_scopes_mask(const entry_id_t *id, const attr_set_t *attr,
                               bool tolerant, uint32_t *mask);
-
-
-//int match_scope_deleted(policy);
-
 
 /** @TODO RBHv3 check if all these functions are used */
 
@@ -303,8 +308,10 @@ policy_match_t is_whitelisted(const policy_descr_t *policy,
 bool class_is_whitelisted(const policy_descr_t *policy, const char *class_id);
 
 /* check if entry matches a boolean expression */
-policy_match_t entry_matches(const entry_id_t *p_entry_id, const attr_set_t *p_entry_attr,
-                             bool_node_t *p_node, const time_modifier_t *p_pol_mod,
+policy_match_t entry_matches(const entry_id_t *p_entry_id,
+                             const attr_set_t *p_entry_attr,
+                             bool_node_t *p_node,
+                             const time_modifier_t *p_pol_mod,
                              const struct sm_instance *smi);
 
 /* read an action params block from config */
@@ -323,13 +330,15 @@ int parse_policy_action(const char *name, const char *value,
  * \param p_attr_index  OUT: related attribute index
  * \param p_compar      OUT: listmgr comparator
  * \param db_type_u     OUT: value
- * \param p_must_release OUT: set to true if the db_type_u.val_str string must be released
+ * \param p_must_release OUT: set to true if the db_type_u.val_str string must
+ *                            be released.
  * \return -1 if this is not a criteria stored in DB.
  */
 struct sm_instance;
-int criteria2filter(const compare_triplet_t *p_comp, unsigned int *p_attr_index,
-                    filter_comparator_t *p_compar, filter_value_t *p_value,
-                    bool *p_must_release, const struct sm_instance *smi,
+int criteria2filter(const compare_triplet_t *p_comp,
+                    unsigned int *p_attr_index, filter_comparator_t *p_compar,
+                    filter_value_t *p_value, bool *p_must_release,
+                    const struct sm_instance *smi,
                     const time_modifier_t *time_mod);
 
 #endif

@@ -23,15 +23,15 @@
 
 /* A hash table slot. */
 struct id_hash_slot {
-    pthread_mutex_t     lock;
-    struct rh_list_head list;      /* list of ops */
-    unsigned int        count;
+    pthread_mutex_t      lock;
+    struct rh_list_head  list;   /* list of ops */
+    unsigned int         count;
 };
 
 /* A hash table. */
 struct id_hash {
-    unsigned int        hash_size;
-	struct id_hash_slot slot[];
+    unsigned int         hash_size;
+    struct id_hash_slot  slot[];
 };
 
 /**
@@ -40,13 +40,11 @@ struct id_hash {
  */
 struct id_hash *id_hash_init(const unsigned int hash_size, bool use_lock);
 
-
 /* display stats about the hash */
 void id_hash_stats(struct id_hash *id_hash, const char *log_str);
 
 /* dump all values in the hash */
 void id_hash_dump(struct id_hash *id_hash, bool parent);
-
 
 /**
  * Murmur3 uint64 finalizer
@@ -62,7 +60,7 @@ static inline uint64_t __hash64(uint64_t k)
     return k;
 }
 
-static inline uint64_t id_hash64(const entry_id_t * p_id)
+static inline uint64_t id_hash64(const entry_id_t *p_id)
 {
 #ifdef FID_PK
     return __hash64(p_id->f_seq ^ p_id->f_oid);
@@ -71,28 +69,29 @@ static inline uint64_t id_hash64(const entry_id_t * p_id)
 #endif
 }
 
-static inline unsigned int hash_id(const entry_id_t * p_id, unsigned int modulo)
+static inline unsigned int hash_id(const entry_id_t *p_id, unsigned int modulo)
 {
     return id_hash64(p_id) % modulo;
 }
 
-static inline unsigned int hash_name(const entry_id_t * p_id,
+static inline unsigned int hash_name(const entry_id_t *p_id,
                                      const char *name, unsigned int modulo)
 {
     return (id_hash64(p_id) ^ g_str_hash(name)) % modulo;
 }
 
 /* return a slot pointer. */
-static inline struct id_hash_slot *get_hash_slot(struct id_hash * id_hash,
-                                                 const entry_id_t * p_id)
+static inline struct id_hash_slot *get_hash_slot(struct id_hash *id_hash,
+                                                 const entry_id_t *p_id)
 {
-	return &id_hash->slot[hash_id(p_id, id_hash->hash_size)];
+    return &id_hash->slot[hash_id(p_id, id_hash->hash_size)];
 }
 
 /* return a slot pointer. */
 static inline struct id_hash_slot *get_name_hash_slot(struct id_hash *name_hash,
-                                                    const entry_id_t *parent_id,
-                                                    const char *name)
+                                                      const entry_id_t *
+                                                      parent_id,
+                                                      const char *name)
 {
     return &name_hash->slot[hash_name(parent_id, name, name_hash->hash_size)];
 }

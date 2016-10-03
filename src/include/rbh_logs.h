@@ -24,43 +24,43 @@
 #include "rbh_cfg.h"
 #include <stdarg.h>
 #include <stdbool.h>
-#include <stdio.h>              /* for FILE */
-#include <sys/param.h>          /* for RBH_PATH_MAX */
+#include <stdio.h>  /* for FILE */
+#include <sys/param.h>  /* for RBH_PATH_MAX */
 
 typedef enum {
-    LVL_CRIT      =   0,
-    LVL_MAJOR     =   2,
-    LVL_EVENT     =   5,
-    LVL_VERB      =  10,
-    LVL_DEBUG     =  50,
-    LVL_FULL      = 100
+    LVL_CRIT    =  0,
+    LVL_MAJOR   =  2,
+    LVL_EVENT   =  5,
+    LVL_VERB    =  10,
+    LVL_DEBUG   =  50,
+    LVL_FULL    = 100
 } log_level;
 
-typedef struct log_config__
-{
-    log_level      debug_level;
-    char           log_file[RBH_PATH_MAX];
-    char           report_file[RBH_PATH_MAX];
+typedef struct log_config__ {
+    log_level   debug_level;
+    char        log_file[RBH_PATH_MAX];
+    char        report_file[RBH_PATH_MAX];
 
-    char           alert_mail[256];
-    char           alert_file[RBH_PATH_MAX];
+    char        alert_mail[256];
+    char        alert_file[RBH_PATH_MAX];
 
-    char           changelogs_file[RBH_PATH_MAX];
+    char        changelogs_file[RBH_PATH_MAX];
 
-    int            syslog_facility;
-    int            syslog_priority;
+    int         syslog_facility;
+    int         syslog_priority;
 
     /* batching of alerts:
-     * 0=unlimited, 1=no batching, >1 maximum number of reported alerts per summary
+     * 0=unlimited, 1=no batching,
+     * >1 maximum number of reported alerts per summary
      */
-    int            batch_alert_max;
+    int         batch_alert_max;
 
-    time_t         stats_interval;
+    time_t      stats_interval;
 
     /* display entry attributes for each entry in alert reports */
-    bool alert_show_attrs;
-    bool log_process; /* display process name in the log line header */
-    bool log_host;    /* display hostname in the log line header */
+    bool        alert_show_attrs;
+    bool        log_process;  /* display process name in the log line header */
+    bool        log_host;     /* display hostname in the log line header */
 
 } log_config_t;
 
@@ -74,12 +74,12 @@ extern mod_cfg_funcs_t log_cfg_hdlr;
  * verbosity level.
  * Returns (log_level)-1 in case of an error.
  */
-log_level    str2debuglevel(char *str);
+log_level str2debuglevel(char *str);
 
 /**
  * Indicates if traces of the given level are to be displayed.
  */
-int            TestDisplayLevel(log_level level);
+int TestDisplayLevel(log_level level);
 
 /* Open log and report files,
  * Returns -1 and sets error in case of an error.
@@ -87,7 +87,7 @@ int            TestDisplayLevel(log_level level);
 int InitializeLogs(const char *prog_name);
 
 /* flush logs */
-void           FlushLogs(void);
+void FlushLogs(void);
 
 /**
  * Adjust log levels of external components (such as libraries) we get
@@ -100,7 +100,8 @@ void rbh_adjust_log_level_external(void);
  * This should not be called directly but used via the DisplayLog macro below.
  */
 void DisplayLogFn(log_level debug_level, const char *tag,
-                  const char *format, ...)__attribute__((format(printf, 3, 4)));
+                  const char *format, ...)
+    __attribute__ ((format(printf, 3, 4)));
 
 /**
  * Display a log message (variable arguments version).
@@ -128,35 +129,36 @@ void vDisplayLogFn(log_level debug_level, const char *tag, const char *format,
     } while (0)
 
 /* Abort due to a bug */
-#define RBH_BUG(_msg)   do { DisplayLog(LVL_CRIT, "BUG", "in %s::%s(), line %u: %s", \
-                                       __FILE__, __func__, __LINE__, _msg); \
+#define RBH_BUG(_msg)   do { DisplayLog(LVL_CRIT, \
+                                 "BUG", "in %s::%s(), line %u: %s",   \
+                                 __FILE__, __func__, __LINE__, _msg); \
                              FlushLogs(); \
                              abort();   \
-                        } while(0)
+                        } while (0)
 
 /* Displays a line in the report file */
-void           DisplayReport( const char *format, ... )
-                    __attribute__((format(printf, 1, 2))); /* 1=format 2=params */
+void DisplayReport(const char *format, ...)
+    __attribute__ ((format(printf, 1, 2))); /* 1=format 2=params */
 
 #ifdef HAVE_CHANGELOGS
-void           DisplayChangelogs( const char *format, ... )
-                    __attribute__((format(printf, 1, 2))); /* 1=format 2=params */
+void DisplayChangelogs(const char *format, ...)
+    __attribute__ ((format(printf, 1, 2))); /* 1=format 2=params */
 #endif
 
 /* Displays a line in the alert file / send a mail */
-void           RaiseAlert( const char *title, const char *format, ... )
-                    __attribute__((format(printf, 2, 3))); /* 2=format 3=params */
+void RaiseAlert(const char *title, const char *format, ...)
+    __attribute__ ((format(printf, 2, 3))); /* 2=format 3=params */
 
-void RaiseEntryAlert( const char *alert_name, /* alert name (if set) */
-                      const char *alert_string, /* alert description */
-                      const char *entry_path,   /* entry path */
-                      const char *entry_info);  /* alert related attributes */
+void RaiseEntryAlert(const char *alert_name,    /* alert name (if set) */
+                     const char *alert_string,  /* alert description */
+                     const char *entry_path,    /* entry path */
+                     const char *entry_info);   /* alert related attributes */
 
 /* Start grouping several entry alerts in the same email */
-void           Alert_StartBatching(void);
-void           Alert_EndBatching(void);
+void Alert_StartBatching(void);
+void Alert_EndBatching(void);
 
 /* Wait for next stat deadline */
-void           WaitStatsInterval(void);
+void WaitStatsInterval(void);
 
 #endif

@@ -34,19 +34,20 @@ typedef enum param_flags {
     PFLG_MAIL               = (1 << 4),
     PFLG_STDIO_ALLOWED      = (1 << 5),
 
-/* for int and float params */
+    /* for int and float params */
     PFLG_POSITIVE           = (1 << 6),
     PFLG_NOT_NULL           = (1 << 7),
 
-/* float params only */
+    /* float params only */
     PFLG_ALLOW_PCT_SIGN     = (1 << 8),
 
-/* extra flags for values in policy expressions */
-    PFLG_ALLOW_ANY_DEPTH    = (1 << 9), /**< allow '**' */
+    /* extra flags for values in policy expressions */
+    PFLG_ALLOW_ANY_DEPTH    = (1 << 9),    /**< allow '**' */
     PFLG_NO_SLASH           = (1 << 10),
     PFLG_COMPARABLE         = (1 << 11),
     PFLG_XATTR              = (1 << 12),
-    PFLG_STATUS             = (1 << 13), /**< only allowed in some particular context (policy scope) */
+    PFLG_STATUS             = (1 << 13),  /**< only allowed in some particular
+                                               context (policy scope) */
 
     PFLG_NOT_EMPTY          = PFLG_NOT_NULL
 } param_flags_t;
@@ -61,20 +62,20 @@ typedef enum param_flags {
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int            GetStringParam(config_item_t block, const char *block_name,
-                              const char *var_name, param_flags_t flags, char *target,
-                              unsigned int target_size, char ***extra_args_tab,
-                              unsigned int *nb_extra_args, char *err_msg);
+int GetStringParam(config_item_t block, const char *block_name,
+                   const char *var_name, param_flags_t flags, char *target,
+                   unsigned int target_size, char ***extra_args_tab,
+                   unsigned int *nb_extra_args, char *err_msg);
 /**
  *  Retrieve a boolean parameter and check its format
  *  @return 0 on success
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int            GetBoolParam(config_item_t block, const char *block_name,
-                            const char *var_name, param_flags_t flags, bool *target,
-                            char ***extra_args_tab, unsigned int *nb_extra_args,
-                            char *err_msg );
+int GetBoolParam(config_item_t block, const char *block_name,
+                 const char *var_name, param_flags_t flags, bool *target,
+                 char ***extra_args_tab, unsigned int *nb_extra_args,
+                 char *err_msg);
 
 /**
  *  Retrieve a duration parameter and check its format
@@ -82,22 +83,20 @@ int            GetBoolParam(config_item_t block, const char *block_name,
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int            GetDurationParam(config_item_t block, const char *block_name,
-                                const char *var_name, param_flags_t flags, time_t *target,
-                                char ***extra_args_tab,
-                                unsigned int *nb_extra_args, char *err_msg);
+int GetDurationParam(config_item_t block, const char *block_name,
+                     const char *var_name, param_flags_t flags, time_t *target,
+                     char ***extra_args_tab,
+                     unsigned int *nb_extra_args, char *err_msg);
 /**
  *  Retrieve a size parameter and check its format
  *  @return 0 on success
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int            GetSizeParam(config_item_t block, const char *block_name,
-                            const char *var_name, param_flags_t flags,
-                            unsigned long long *target, char ***extra_args_tab,
-                            unsigned int *nb_extra_args, char *err_msg);
-
-
+int GetSizeParam(config_item_t block, const char *block_name,
+                 const char *var_name, param_flags_t flags,
+                 unsigned long long *target, char ***extra_args_tab,
+                 unsigned int *nb_extra_args, char *err_msg);
 
 /**
  *  Retrieve an integer parameter and check its format
@@ -105,10 +104,10 @@ int            GetSizeParam(config_item_t block, const char *block_name,
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int            GetIntParam(config_item_t block, const char *block_name,
-                           const char *var_name, param_flags_t flags, int *target,
-                           char ***extra_args_tab, unsigned int *nb_extra_args,
-                           char *err_msg);
+int GetIntParam(config_item_t block, const char *block_name,
+                const char *var_name, param_flags_t flags, int *target,
+                char ***extra_args_tab, unsigned int *nb_extra_args,
+                char *err_msg);
 
 /**
  *  Retrieve a 64 bits integer parameter and check its format.
@@ -128,15 +127,16 @@ int GetInt64Param(config_item_t block, const char *block_name,
  *          ENOENT if the parameter does not exist in the block
  *          EINVAL if the parameter does not satisfy restrictions
  */
-int           GetFloatParam(config_item_t block, const char *block_name,
-                            const char *var_name, param_flags_t flags, double *target,
-                            char ***extra_args_tab, unsigned int *nb_extra_args,
-                            char *err_msg);
+int GetFloatParam(config_item_t block, const char *block_name,
+                  const char *var_name, param_flags_t flags, double *target,
+                  char ***extra_args_tab, unsigned int *nb_extra_args,
+                  char *err_msg);
 
 /**
  * Get a Config block and check it is unique.
  */
-int get_cfg_block(config_file_t config, const char *name, config_item_t *item, char *msg_out);
+int get_cfg_block(config_file_t config, const char *name, config_item_t *item,
+                  char *msg_out);
 
 /**
  * Types and function to parse a list of simple scalar configuration variables (with no extra args).
@@ -156,7 +156,7 @@ typedef enum {
 /** generic config parsing using structure {type, name, flags, tgtptr} */
 
 typedef struct cfg_param_t {
-    const char     *name; /* NULL for last name */
+    const char     *name;   /* NULL for last name */
     cfg_param_type  type;
     param_flags_t   flags;
     void           *ptr;
@@ -165,37 +165,35 @@ typedef struct cfg_param_t {
 #define END_OF_PARAMS {NULL, 0, 0, NULL, 0}
 
 int read_scalar_params(config_item_t block, const char *block_name,
-                       const cfg_param_t * params, char *msgout);
+                       const cfg_param_t *params, char *msgout);
 
 /**
  * Build a policy boolean expression from the given block
- * \param smi(in) when specifying a policy scope, indicate the
- *                related status manager ('status' criteria is policy dependent).
+ * \param[in] smi  When specifying a policy scope, indicates the related
+ *                 status manager ('status' criteria is policy dependent)
  */
 #include "rbh_boolexpr.h"
 #include "list_mgr.h"
 struct sm_instance;
-int            GetBoolExpr(config_item_t block, const char *block_name,
-                           bool_node_t *p_bool_node, attr_mask_t *p_attr_mask,
-                           char *err_msg, const struct sm_instance *smi);
+int GetBoolExpr(config_item_t block, const char *block_name,
+                bool_node_t *p_bool_node, attr_mask_t *p_attr_mask,
+                char *err_msg, const struct sm_instance *smi);
 
 /**
  * Build a policy boolean expression from a union/intersection of filesets
  */
 struct policies_t;
-int            GetSetExpr(config_item_t block, const char *block_name,
-                          bool_node_t * p_bool_node, attr_mask_t *p_attr_mask,
-                          const struct policies_t *policies, char *err_msg);
+int GetSetExpr(config_item_t block, const char *block_name,
+               bool_node_t *p_bool_node, attr_mask_t *p_attr_mask,
+               const struct policies_t *policies, char *err_msg);
 
 /**
  * Check that no unknown parameter or block is found.
  * @param param_array NULL terminated array of allowed parameters.
  */
 void CheckUnknownParameters(config_item_t block, const char *block_name,
-                            const char * const *param_array);
-
+                            const char *const *param_array);
 
 #endif
-
 
 /** @} */

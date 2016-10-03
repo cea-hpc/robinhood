@@ -28,15 +28,17 @@ struct sm_instance;
 
 /** function prototype to get the status of an entry. */
 typedef int (*sm_status_func_t)(struct sm_instance *smi,
-                             const entry_id_t *id, const attr_set_t *attrs,
-                             attr_set_t *refreshed_attrs);
+                                const entry_id_t *id,
+                                const attr_set_t *attrs,
+                                attr_set_t *refreshed_attrs);
 
-/** changelog callback can indicate an  action for the record or the related entry.
- * actions are ordered by priority (if a policy returns a higher value
+/**
+ * Changelog callback can indicate an  action for the record or the related
+ * entry. Actions are ordered by priority (if a policy returns a higher value
  * than others, this corresponding action is undertaken).
  */
 typedef enum {
-    PROC_ACT_NONE    = 0,      /* no specific action */
+    PROC_ACT_NONE = 0,         /* no specific action */
     PROC_ACT_RM_ALL,           /* remove entry from DB */
     PROC_ACT_SOFTRM_IF_EXISTS, /* soft remove the entry if it was in DB */
     PROC_ACT_SOFTRM_ALWAYS,    /* insert into SOFTRM even if it was not in DB */
@@ -45,7 +47,7 @@ typedef enum {
 #ifdef HAVE_CHANGELOGS
 /** function prototype for changelog callback */
 typedef int (*sm_cl_cb_func_t)(struct sm_instance *smi,
-                               const CL_REC_TYPE *logrec,
+                               const CL_REC_TYPE * logrec,
                                const entry_id_t *id, const attr_set_t *attrs,
                                attr_set_t *refreshed_attrs, bool *getit,
                                proc_action_e *rec_action);
@@ -55,18 +57,20 @@ typedef int (*sm_cl_cb_func_t)(struct sm_instance *smi,
 typedef int (*sm_executor_func_t)(struct sm_instance *smi,
                                   const char *implements,
                                   const policy_action_t *action,
- /* arguments for the action : */ const entry_id_t *id, attr_set_t *attrs,
+                                  /* arguments for the action : */
+                                  const entry_id_t *id, attr_set_t *attrs,
                                   const action_params_t *params,
                                   post_action_e *what_after,
                                   db_cb_func_t db_cb_fn, void *db_cb_arg);
 
 /** function prototype for action callbacks
- * @param[in,out] smi        status manager instance
- * @param[in]     implements action type name
- * @param[in]     id         the impacted entry id
- * @param[in,out] attrs      entry attributes
- * @param[in,out] what_after what to do with the entry (already set by the action,
- *                           but can be overriden in this action callback).
+ * @param[in,out] smi        Status manager instance
+ * @param[in]     implements Action type name
+ * @param[in]     id         The impacted entry id
+ * @param[in,out] attrs      Entry attributes
+ * @param[in,out] what_after What to do with the entry (already set by the
+ *                           action, but can be overriden in this action
+ *                           callback).
  */
 typedef int (*sm_action_cb_func_t)(struct sm_instance *smi,
                                    const char *implements, int action_status,
@@ -86,8 +90,10 @@ typedef proc_action_e (*softrm_filter_func_t)(struct sm_instance *smi,
  *  and the next satatus managers are called with already_recovered = true.
  * @paramo[in] p_old_id old entry id
  * @paramo[in] p_old_attrs old entry attributes (from SOFTRM table)
- * @param [in,out] p_new_id new entry id (already set if already_recovered==true)
- * @param [in,out] p_new_attrs new entry attributes (already set if already_recovered==true)
+ * @param [in,out] p_new_id new entry id (already set if
+ *                          already_recovered==true)
+ * @param [in,out] p_new_attrs new entry attributes (already set if
+ *                             already_recovered==true)
  * @param [out] p_new_attrs new entry attributes
  */
 typedef recov_status_t (*undelete_func_t)(struct sm_instance *smi,
@@ -102,81 +108,87 @@ typedef int (*init_func_t)(struct sm_instance *smi, run_flags_t flags);
 #define SM_NAME_MAX 128
 
 typedef enum {
-    SM_SHARED       = (1<<0), /**< indicate the status manager can be shared between policies */
-    SM_DELETED      = (1<<1), /**< this status manager can manage deleted entries */
-    SM_MULTI_ACTION = (1<<2)  /**< this status manager handles multiple type of actions */
+    SM_SHARED       = (1 << 0), /**< indicate the status manager can be shared
+                                     between policies */
+    SM_DELETED      = (1 << 1), /**< this status manager can manage deleted
+                                     entries */
+    SM_MULTI_ACTION = (1 << 2)  /**< this status manager handles multiple type
+                                     of actions */
 } sm_flags;
 
 /** descriptor of SM specific info */
 typedef struct sm_info_def {
-    const char    *user_name; /**< full name for user interface (config, display...) */
-    const char    *db_name; /**< short name for db storage */
-    db_type_e      db_type;
-    unsigned int   db_type_size;  /**< size for strings */
-    db_type_u      db_default; /**< default value */
-    cfg_param_type crit_type; /**< type for config criteria */
+    const char     *user_name;  /**< full name for user interface (config,
+                                     display...) */
+    const char     *db_name;    /**< short name for db storage */
+    db_type_e       db_type;
+    unsigned int    db_type_size; /**< size for strings */
+    db_type_u       db_default;   /**< default value */
+    cfg_param_type  crit_type;    /**< type for config criteria */
 } sm_info_def_t;
 
 /** Status manager definition */
 typedef struct status_manager {
-    const char *name;
-    sm_flags    flags;
+    const char          *name;
+    sm_flags             flags;
 
     /** possible values for status */
-    const char  **status_enum;
-    unsigned int  status_count;
+    const char         **status_enum;
+    unsigned int         status_count;
 
     /** number of policy specific information */
-    unsigned int nb_info;
+    unsigned int         nb_info;
     /** type and size of policy specific information */
     const sm_info_def_t *info_types;
 
     /** masks of needed attributes (cached or fresh) to get the status of an entry */
-    attr_mask_t status_needs_attrs_cached;
-    attr_mask_t status_needs_attrs_fresh;
+    attr_mask_t          status_needs_attrs_cached;
+    attr_mask_t          status_needs_attrs_fresh;
 
     /** retrieve the status of an entry */
-    sm_status_func_t   get_status_func;
+    sm_status_func_t     get_status_func;
 
 #ifdef HAVE_CHANGELOGS
     /** callback for changelogs */
-    sm_cl_cb_func_t    changelog_cb;
+    sm_cl_cb_func_t      changelog_cb;
 #endif
 
     /** for multi-action status managers, check the status manager knowns
      * the given action name */
-    bool (*check_action_name)(const char *);
+      bool (*check_action_name)(const char *);
 
     /** callback for policy actions (action_name) */
-    sm_action_cb_func_t action_cb;
+    sm_action_cb_func_t  action_cb;
 
     /** If provided, the status manager wraps the action run */
-    sm_executor_func_t  executor;
+    sm_executor_func_t   executor;
 
     /* ---- mask and function to manage deleted entries ---- */
 
     /** needed attributes to determine if the entry is to be moved to softrm */
-    attr_mask_t             softrm_filter_mask;
+    attr_mask_t          softrm_filter_mask;
     /** determine if a deleted entry must be inserted to softrm table */
-    softrm_filter_func_t    softrm_filter_func;
+    softrm_filter_func_t softrm_filter_func;
 
-    /** mask of attributes to be saved in SOFTRM table (needed to re-create the inode,
-     *  schedule the 'remove' policy and recover/rebind the entry). */
-    attr_mask_t             softrm_table_mask;
+    /** mask of attributes to be saved in SOFTRM table (needed to re-create the
+     * inode, schedule the 'remove' policy and recover/rebind the entry). */
+    attr_mask_t          softrm_table_mask;
 
     /** undelete an entry */
-    undelete_func_t         undelete_func; /* NULL if the status manager can't run 'undelete' */
+    undelete_func_t      undelete_func;  /**< NULL if the status manager can't
+                                              run 'undelete' */
 
-    /* XXX about full disaster recovery: must recreate all metadata (incl. symlinks => need link field)
-       not only the entries managed by the policy. */
+    /* XXX about full disaster recovery: must recreate all metadata
+     * (incl. symlinks => need link field)
+     * not only the entries managed by the policy. */
 
     /* ---- setup functions ---- */
 
     /** functions to load Status Manager configuration */
-    const mod_cfg_funcs_t  *cfg_funcs;
+    const mod_cfg_funcs_t *cfg_funcs;
 
     /** Initialize status manager resources */
-    init_func_t             init_func;
+    init_func_t          init_func;
 
 } status_manager_t;
 
@@ -184,8 +196,7 @@ typedef struct status_manager {
  * There can be one instance of a status manager
  * by policy, in the case status manager is not shared.
  */
-typedef struct sm_instance
-{
+typedef struct sm_instance {
     /** status manager instance name:
      * If the status manager is shared between policies,
      * it just consists of the status manager name.
@@ -193,36 +204,36 @@ typedef struct sm_instance
      * The corresponding DB field name is:
      *    <policy_name(truncated)> + "_status".
      */
-    char  *instance_name;
+    char            *instance_name;
     /** name of the related field in DB, using for storing status. */
-    char  *db_field;
+    char            *db_field;
     /** name for user interface (config, reports...) */
-    char  *user_name;
+    char            *user_name;
     /** pointer to the status manager definition */
     const status_manager_t *sm;
     /** instance index: useful for status attribute index. */
-    unsigned int smi_index;
+    unsigned int     smi_index;
 
     /** offset of specific info in attr_set_t.sm_info array */
-    unsigned int sm_info_offset;
+    unsigned int     sm_info_offset;
 
     /** translated masks to get status */
-    attr_mask_t status_mask_fresh;
-    attr_mask_t status_mask_cached;
+    attr_mask_t      status_mask_fresh;
+    attr_mask_t      status_mask_cached;
 
     /** translated mask for softrm filter */
-    attr_mask_t softrm_filter_mask;
+    attr_mask_t      softrm_filter_mask;
 
     /** translated mask to insert into SOFTRM table */
-    attr_mask_t softrm_table_mask;
+    attr_mask_t      softrm_table_mask;
 
     /** status manager global context */
-    void        *context;
+    void            *context;
 
 } sm_instance_t;
 
 /** number of loaded status manager instances */
-extern unsigned int sm_inst_count; /* defined in 'status_manager.c' */
+extern unsigned int sm_inst_count;  /* defined in 'status_manager.c' */
 
 /** number of status manager specific informations */
 extern unsigned int sm_attr_count;
@@ -237,6 +248,7 @@ static inline bool is_status(unsigned int index)
     return ((index & ATTR_INDEX_FLG_STATUS) &&
             (attr2status_index(index) < sm_inst_count));
 }
+
 static inline bool is_sm_info(unsigned int index)
 {
     return ((index & ATTR_INDEX_FLG_SMINFO) &&
@@ -263,7 +275,7 @@ void sm_info_ensure_alloc(void ***p_tab);
 void sm_info_free(void ***p_tab);
 
 /** create a status manager instance */
-sm_instance_t *create_sm_instance(const char *pol_name,const char *sm_name);
+sm_instance_t *create_sm_instance(const char *pol_name, const char *sm_name);
 
 /** get the Nth status manager instance */
 sm_instance_t *get_sm_instance(unsigned int n);
@@ -323,7 +335,6 @@ int run_all_cl_cb(const CL_REC_TYPE *logrec,
 proc_action_e match_all_softrm_filters(const entry_id_t *id,
                                        const attr_set_t *attrs);
 
-
 /** return a mask with n bits 1 starting from offset.
  * e.g. bit_range(5,3) = 011100000
  */
@@ -359,7 +370,8 @@ static inline unsigned int smi_status_index(const sm_instance_t *smi)
 }
 
 /** return the attribute index of the <n>th status manager specific info */
-static inline unsigned int smi_info_index(const sm_instance_t *smi, unsigned int n)
+static inline unsigned int smi_info_index(const sm_instance_t *smi,
+                                          unsigned int n)
 {
     return ATTR_INDEX_FLG_SMINFO | (smi->sm_info_offset + n);
 }
@@ -380,7 +392,8 @@ static inline uint64_t smi_info_bits(const sm_instance_t *smi)
 int set_sm_info(const sm_instance_t *smi, attr_set_t *pattrs,
                 unsigned int attr_index, void *val);
 
-/** translate a generic mask SMI_MASK(0) and GENERIC_INFO_OFFSET to all status and info masks */
+/** Translate a generic mask SMI_MASK(0) and GENERIC_INFO_OFFSET to all status
+ * and info masks */
 attr_mask_t translate_all_status_mask(attr_mask_t mask);
 
 /**
@@ -390,7 +403,8 @@ attr_mask_t translate_all_status_mask(attr_mask_t mask);
  *              false, to get the list of attribute that can be cached
  *                  (retrieved from DB).
  */
-static inline attr_mask_t smi_needed_attrs(const sm_instance_t *smi, bool fresh)
+static inline attr_mask_t smi_needed_attrs(const sm_instance_t *smi,
+                                           bool fresh)
 {
     if (smi == NULL)
         return null_mask;
@@ -406,16 +420,15 @@ static inline attr_mask_t smi_needed_attrs(const sm_instance_t *smi, bool fresh)
  * Note: it doesn't check policy scope, as is its supposed to
  * be checked to build the input mask.
  */
-static inline attr_mask_t attrs_for_status_mask(uint32_t status_mask, bool fresh)
+static inline attr_mask_t attrs_for_status_mask(uint32_t status_mask,
+                                                bool fresh)
 {
     int i = 0;
     uint32_t m;
-    attr_mask_t ret = {0};
+    attr_mask_t ret = { 0 };
 
-    for (i = 0, m = 1; i < sm_inst_count; i++, m <<= 1)
-    {
-        if (status_mask & m)
-        {
+    for (i = 0, m = 1; i < sm_inst_count; i++, m <<= 1) {
+        if (status_mask & m) {
             attr_mask_t attr_need = smi_needed_attrs(get_sm_instance(i), fresh);
 
             ret = attr_mask_or(&ret, &attr_need);
@@ -430,7 +443,8 @@ static inline bool smi_manage_deleted(sm_instance_t *smi)
 {
     if (smi == NULL)
         return false;
-    return (smi->sm->flags & SM_DELETED); /* the status manager handles file removal */
+    /* the status manager handles file removal */
+    return smi->sm->flags & SM_DELETED;
 }
 
 /** indicate if the status manager handles several types of actions */
@@ -438,7 +452,8 @@ static inline bool smi_multi_action(sm_instance_t *smi)
 {
     if (smi == NULL)
         return false;
-    return (smi->sm->flags & SM_MULTI_ACTION); /* the status manager handles multiple types of actions */
+    /* the status manager handles multiple types of actions */
+    return smi->sm->flags & SM_MULTI_ACTION;
 }
 
 /** check the status manager knows the given action name */
@@ -456,15 +471,13 @@ static inline bool smi_support_action(sm_instance_t *smi, const char *name)
  */
 static inline attr_mask_t sm_softrm_fields(void)
 {
-    attr_mask_t    all = null_mask;
-    int            i = 0;
+    attr_mask_t all = null_mask;
+    int i = 0;
     sm_instance_t *smi;
 
     /** XXX based on policies or status managers? what about the scope? */
-    while ((smi = get_sm_instance(i)) != NULL)
-    {
-        if (smi_manage_deleted(smi))
-        {
+    while ((smi = get_sm_instance(i)) != NULL) {
+        if (smi_manage_deleted(smi)) {
             all = attr_mask_or(&all, &smi->softrm_table_mask);
         }
         i++;
@@ -477,13 +490,12 @@ static inline attr_mask_t sm_softrm_fields(void)
  */
 static inline attr_mask_t sm_softrm_mask(void)
 {
-    attr_mask_t    all = null_mask;
-    int            i = 0;
+    attr_mask_t all = null_mask;
+    int i = 0;
     sm_instance_t *smi;
 
     /** XXX based on policies or status managers? what about the scope? */
-    while ((smi = get_sm_instance(i)) != NULL)
-    {
+    while ((smi = get_sm_instance(i)) != NULL) {
         if (smi_manage_deleted(smi))
             all = attr_mask_or(&all, &smi->softrm_filter_mask);
         i++;

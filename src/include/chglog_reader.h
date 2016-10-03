@@ -12,7 +12,6 @@
  * accept its terms.
  */
 
-
 /**
  * \file    chglog_reader.h
  * \author  Th. Leibovici
@@ -34,23 +33,21 @@
 #define MDT_NAME_MAX  32
 #define READER_ID_MAX 16
 
-typedef struct mdt_def_t
-{
-    char           mdt_name[MDT_NAME_MAX];
-    char           reader_id[READER_ID_MAX];
+typedef struct mdt_def_t {
+    char mdt_name[MDT_NAME_MAX];
+    char reader_id[READER_ID_MAX];
 } mdt_def_t;
 
 /** Configuration for ChangeLog reader Module */
-typedef struct chglog_reader_config_t
-{
+typedef struct chglog_reader_config_t {
     /** List of MDTs (used for opening ChangeLogs) */
-    mdt_def_t     *mdt_def;
-    unsigned int   mdt_count;
+    mdt_def_t *mdt_def;
+    unsigned int mdt_count;
 
     /* nbr of changelog records to be agregated for llapi_changelog_clear() */
-    int    batch_ack_count;
+    int batch_ack_count;
 
-    bool   force_polling;
+    bool force_polling;
     time_t polling_interval;
 
     /* Maximum number of operations to keep in the internal queue. */
@@ -75,22 +72,22 @@ typedef struct chglog_reader_config_t
 /** start ChangeLog Readers
  * \param mdt_index -1 for all
  */
-int            cl_reader_start(run_flags_t flags, int mdt_index);
+int cl_reader_start(run_flags_t flags, int mdt_index);
 
 /** terminate ChangeLog Readers */
-int            cl_reader_terminate(void);
+int cl_reader_terminate(void);
 
 /** wait for ChangeLog Readers termination */
-int            cl_reader_wait(void);
+int cl_reader_wait(void);
 
 /** Release last changelog records, and dump the final stats. */
-int            cl_reader_done(void);
+int cl_reader_done(void);
 
 /** dump changelog processing stats */
-int            cl_reader_dump_stats(void);
+int cl_reader_dump_stats(void);
 
 /** store changelog stats to db */
-int            cl_reader_store_stats(lmgr_t *lmgr);
+int cl_reader_store_stats(lmgr_t *lmgr);
 
 /** config handlers */
 extern mod_cfg_funcs_t cl_reader_cfg_hdlr;
