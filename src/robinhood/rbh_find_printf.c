@@ -82,14 +82,13 @@ static const char *escape_name(const char *fullname)
     else
         g_string_truncate(dest, 0);
 
-    while (*src)
-    {
+    while (*src) {
         if (isprint(*src) && *src != '\\')
             g_string_append_c(dest, *src);
         else
             g_string_append_printf(dest, "\\%03o", *src);
 
-        src ++;
+        src++;
     }
 
     return dest->str;
@@ -99,14 +98,12 @@ static const char *escape_name(const char *fullname)
  * set the field to "-20" and return the next position in the string. */
 static const char *extract_field_width(const char *str, GString *format)
 {
-    if (*str == '-')
-    {
+    if (*str == '-') {
         g_string_append_c(format, '-');
         str++;
     }
 
-    while (*str && *str >= '0' && *str <= '9')
-    {
+    while (*str && *str >= '0' && *str <= '9') {
         g_string_append_c(format, *str);
         str++;
     }
@@ -154,7 +151,7 @@ static const char *extract_mod_attr(const char *str, struct fchunk *chunk)
     if (chunk->smi == NULL)
         goto err;
 
-    rc = sm_attr_get(chunk->smi, NULL, p+1, NULL,
+    rc = sm_attr_get(chunk->smi, NULL, p + 1, NULL,
                      &chunk->def, &chunk->attr_index);
     if (rc)
         goto err;
@@ -163,7 +160,7 @@ static const char *extract_mod_attr(const char *str, struct fchunk *chunk)
 
     return end;
 
-err:
+ err:
     free(name);
     return NULL;
 }
@@ -172,15 +169,13 @@ err:
 static const char *append_time_format(const char *str, struct fchunk *chunk)
 {
     str++;
-    if (*str == 0)
-    {
+    if (*str == 0) {
         DisplayLog(LVL_CRIT, FIND_TAG,
                    "Error: incomplete time format at end of format string");
         return NULL;
     }
 
-    if (*str == '{')
-    {
+    if (*str == '{') {
         /* Format is in a substring. */
         chunk->time_format = g_string_sized_new(50);
         g_string_append_c(chunk->format, 's');
@@ -188,34 +183,28 @@ static const char *append_time_format(const char *str, struct fchunk *chunk)
         str++;
 
         /* Copy until the closing bracket */
-        while (*str && *str != '}')
-        {
+        while (*str && *str != '}') {
             g_string_append_c(chunk->time_format, *str);
             str++;
         }
 
-        if (*str != '}')
-        {
+        if (*str != '}') {
             DisplayLog(LVL_CRIT, FIND_TAG, "Error: invalid string format");
             return NULL;
         }
-    }
-    else if (*str == 'E' || *str == 'O')
-    {
+    } else if (*str == 'E' || *str == 'O') {
         /* Format starts with an strftime format modifier. Next
          * character is the directive. */
         g_string_append_c(chunk->format, *str);
         str++;
-        if (*str == 0)
-        {
+        if (*str == 0) {
             DisplayLog(LVL_CRIT, FIND_TAG,
                        "Error: incomplete time format at end of format string");
             return NULL;
         }
 
         g_string_append_c(chunk->format, *str);
-    }
-    else {
+    } else {
         /* Straight directive. */
         g_string_append_c(chunk->format, *str);
     }
@@ -231,16 +220,12 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
 {
     unsigned int directive = 0;
 
-    while (*str)
-    {
-        if (*str != '%')
-        {
-            if (*str == '\\')
-            {
+    while (*str) {
+        if (*str != '%') {
+            if (*str == '\\') {
                 str++;
 
-                switch(*str)
-                {
+                switch (*str) {
                 case '\\':
                     g_string_append_c(chunk->format, '\\');
                     break;
@@ -254,16 +239,16 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
                     break;
 
                 case 0:
-                    DisplayLog(LVL_CRIT, FIND_TAG, "Error: lone \\ at end of format string");
+                    DisplayLog(LVL_CRIT, FIND_TAG,
+                               "Error: lone \\ at end of format string");
                     return NULL;
 
                 default:
-                    DisplayLog(LVL_CRIT, FIND_TAG, "Error: unrecognized escape code \\%c", *str);
+                    DisplayLog(LVL_CRIT, FIND_TAG,
+                               "Error: unrecognized escape code \\%c", *str);
                     return NULL;
                 }
-            }
-            else
-            {
+            } else {
                 g_string_append_c(chunk->format, *str);
             }
 
@@ -271,24 +256,22 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
             continue;
         }
 
-        if (directive)
-        {
+        if (directive) {
             /* Already have a directive. Stop here. */
             return str;
         }
 
         str++;
 
-        if (*str == 0)
-        {
-            DisplayLog(LVL_CRIT, FIND_TAG, "Error: lone %% at end of format string");
+        if (*str == 0) {
+            DisplayLog(LVL_CRIT, FIND_TAG,
+                       "Error: lone %% at end of format string");
             return NULL;
         }
 
         /* Ignore %% as it is a valid printf directive, which saves a
          * chunk. */
-        if (*str == '%')
-        {
+        if (*str == '%') {
             g_string_append(chunk->format, "%%");
             str++;
             continue;
@@ -298,15 +281,16 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
         g_string_append_c(chunk->format, '%');
         str = extract_field_width(str, chunk->format);
         if (str == NULL) {
-            DisplayLog(LVL_CRIT, FIND_TAG, "Error: invalid length field in format string at %s", str);
+            DisplayLog(LVL_CRIT, FIND_TAG,
+                       "Error: invalid length field in format string at %s",
+                       str);
             return NULL;
         }
 
         directive = *str;
         chunk->directive = directive;
 
-        switch (*str)
-        {
+        switch (*str) {
         case 'A':
             disp_mask.std |= ATTR_MASK_last_access;
             str = append_time_format(str, chunk);
@@ -397,8 +381,7 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
             str++;
             chunk->sub_directive = *str;
 
-            switch (*str)
-            {
+            switch (*str) {
             case 'C':
                 disp_mask.std |= ATTR_MASK_creation_time;
                 str = append_time_format(str, chunk);
@@ -421,8 +404,7 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
                 str++;
 
                 str = extract_mod_attr(str, chunk);
-                if (str == NULL)
-                {
+                if (str == NULL) {
                     DisplayLog(LVL_CRIT, FIND_TAG,
                                "Error: cannot extract module attribute name, or invalid name");
                     return NULL;
@@ -443,8 +425,7 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
                                            - chunk->smi->sm_info_offset;
 
                 /* The format for that attribute */
-                switch(chunk->def->db_type)
-                {
+                switch (chunk->def->db_type) {
                 case DB_UINT:
                 case DB_BOOL:
                     g_string_append_c(chunk->format, 'u');
@@ -477,27 +458,30 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
                 break;
 
             case 0:
-                DisplayLog(LVL_CRIT, FIND_TAG, "Error: lone %%R at end of format string");
+                DisplayLog(LVL_CRIT, FIND_TAG,
+                           "Error: lone %%R at end of format string");
                 return NULL;
 
             default:
-                DisplayLog(LVL_CRIT, FIND_TAG, "Error: unrecognized format %%R%c", *str);
+                DisplayLog(LVL_CRIT, FIND_TAG,
+                           "Error: unrecognized format %%R%c", *str);
                 return NULL;
             }
             break;
 
         case 0:
-            DisplayLog(LVL_CRIT, FIND_TAG, "Error: lone %% at end of format string");
+            DisplayLog(LVL_CRIT, FIND_TAG,
+                       "Error: lone %% at end of format string");
             return NULL;
 
         default:
-            DisplayLog(LVL_CRIT, FIND_TAG, "Error: unrecognized format %%%c", *str);
+            DisplayLog(LVL_CRIT, FIND_TAG, "Error: unrecognized format %%%c",
+                       *str);
             return NULL;
         }
 
         str++;
     }
-
 
     return str;
 }
@@ -519,19 +503,14 @@ static void printf_date(const struct fchunk *chunk, time_t date)
     else
         sret = strftime(str, sizeof(str), chunk->format->str, tmp);
 
-    if (sret >= sizeof(str)-1)
-    {
+    if (sret >= sizeof(str) - 1) {
         /* Overflow. 1000 bytes should be big enough for that to never
          * happen in any locale. */
         printf("(date output truncated)");
-    }
-    else if (sret == 0)
-    {
+    } else if (sret == 0) {
         /* According to the man page, a return of 0 is either an error
          * or an empty string. In both cases, don't print anything. */
-    }
-    else
-    {
+    } else {
         if (chunk->time_format)
             printf(chunk->format->str, str);
         else
@@ -546,13 +525,11 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
 {
     int i;
 
-    for (i = 0; i < chunks->len; i++)
-    {
+    for (i = 0; i < chunks->len; i++) {
         struct fchunk *chunk = &g_array_index(chunks, struct fchunk, i);
         const char *format = chunk->format->str;
 
-        switch (chunk->directive)
-        {
+        switch (chunk->directive) {
         case 0:
             printf(format);
             break;
@@ -589,14 +566,14 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
             break;
 
         case 'M':
-        {
-            char mode_str[10]; /* mask + final '\0' */
+            {
+                char mode_str[10];  /* mask + final '\0' */
 
-            mode_str[9] = 0;
-            mode_string(ATTR(attrs, mode), mode_str);
+                mode_str[9] = 0;
+                mode_string(ATTR(attrs, mode), mode_str);
 
-            printf(format, mode_str);
-        }
+                printf(format, mode_str);
+            }
             break;
 
         case 'n':
@@ -626,42 +603,41 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
             break;
 
         case 'Y':
-        {
-            const char * type;
+            {
+                const char *type;
 
-            if (!ATTR_MASK_TEST(attrs, type))
-                type = "?";
-            else
-                type = type2char(ATTR(attrs, type));
+                if (!ATTR_MASK_TEST(attrs, type))
+                    type = "?";
+                else
+                    type = type2char(ATTR(attrs, type));
 
-            printf(format, type);
-        }
+                printf(format, type);
+            }
             break;
 
         case 'y':
-        {
-            char type;
+            {
+                char type;
 
-            if (!ATTR_MASK_TEST(attrs, type))
-                type = '?';
-            else
-                type = type2onechar(ATTR(attrs, type));
+                if (!ATTR_MASK_TEST(attrs, type))
+                    type = '?';
+                else
+                    type = type2onechar(ATTR(attrs, type));
 
-            printf(format, type);
-        }
+                printf(format, type);
+            }
             break;
 
         case 'R':
             /* Robinhood specifiers */
-            switch (chunk->sub_directive)
-            {
+            switch (chunk->sub_directive) {
             case 'C':
                 printf_date(chunk, ATTR(attrs, creation_time));
                 break;
 
             case 'c':
                 printf(format,
-                       class_format(ATTR_MASK_TEST(attrs, fileclass)?
+                       class_format(ATTR_MASK_TEST(attrs, fileclass) ?
                                     ATTR(attrs, fileclass) : NULL));
                 break;
 
@@ -675,31 +651,38 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
                 break;
 
             case 'm':
-                if (ATTR_MASK_INFO_TEST(attrs, chunk->smi, chunk->rel_sm_info_index))
-                {
+                if (ATTR_MASK_INFO_TEST(attrs, chunk->smi,
+                                        chunk->rel_sm_info_index)) {
                     switch (chunk->def->db_type) {
                     case DB_UINT:
-                        printf(format, *(unsigned int *)SMI_INFO(attrs, chunk->smi, chunk->rel_sm_info_index));
+                        printf(format,
+                               *(unsigned int *)SMI_INFO(attrs, chunk->smi,
+                                                         chunk->
+                                                         rel_sm_info_index));
                         break;
 
                     case DB_INT:
-                        printf(format, *(int *)SMI_INFO(attrs, chunk->smi, chunk->rel_sm_info_index));
+                        printf(format,
+                               *(int *)SMI_INFO(attrs, chunk->smi,
+                                                chunk->rel_sm_info_index));
                         break;
 
                     case DB_BOOL:
-                        printf(format, *(bool *)SMI_INFO(attrs, chunk->smi, chunk->rel_sm_info_index));
+                        printf(format,
+                               *(bool *)SMI_INFO(attrs, chunk->smi,
+                                                 chunk->rel_sm_info_index));
                         break;
 
                     case DB_TEXT:
-                        printf(format, SMI_INFO(attrs, chunk->smi, chunk->rel_sm_info_index));
+                        printf(format,
+                               SMI_INFO(attrs, chunk->smi,
+                                        chunk->rel_sm_info_index));
                         break;
 
                     default:
                         break;
                     }
-                }
-                else
-                {
+                } else {
                     switch (chunk->def->db_type) {
                     case DB_UINT:
                     case DB_INT:
@@ -719,8 +702,7 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
 #ifdef _LUSTRE
             case 'o':
                 if (ATTR_MASK_TEST(attrs, stripe_items) &&
-                    (ATTR(attrs, stripe_items).count > 0))
-                {
+                    (ATTR(attrs, stripe_items).count > 0)) {
                     GString *osts = g_string_new("");
 
                     append_stripe_list(osts, &ATTR(attrs, stripe_items), true);
@@ -730,27 +712,28 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
                 break;
 
             case 'p':
-            {
-                char fid_str[RBH_FID_LEN];
+                {
+                    char fid_str[RBH_FID_LEN];
 
-                sprintf(fid_str, DFID_NOBRACE, PFID(&ATTR(attrs, parent_id)));
-                printf(format, fid_str);
+                    sprintf(fid_str, DFID_NOBRACE,
+                            PFID(&ATTR(attrs, parent_id)));
+                    printf(format, fid_str);
 
-                break;
-            }
+                    break;
+                }
 #endif
 
             case SUB_DIRECTIVE_STATUS:
-            {
-                unsigned int smi_index = chunk->smi->smi_index;
+                {
+                    unsigned int smi_index = chunk->smi->smi_index;
 
-                if (ATTR_MASK_STATUS_TEST(attrs, smi_index))
-                    printf(format, STATUS_ATTR(attrs, smi_index));
-                else
-                    printf(format, "[n/a]");
+                    if (ATTR_MASK_STATUS_TEST(attrs, smi_index))
+                        printf(format, STATUS_ATTR(attrs, smi_index));
+                    else
+                        printf(format, "[n/a]");
 
-                break;
-            }
+                    break;
+                }
 
             }
             break;
@@ -765,8 +748,7 @@ void free_printf_formats(GArray *chunks)
 {
     int i;
 
-    for (i = 0; i < chunks->len; i++)
-    {
+    for (i = 0; i < chunks->len; i++) {
         struct fchunk *chunk = &g_array_index(chunks, struct fchunk, i);
 
         g_string_free(chunk->format, TRUE);
@@ -791,8 +773,7 @@ GArray *prepare_printf_format(const char *format)
 
     chunks = g_array_sized_new(FALSE, FALSE, sizeof(struct fchunk), 10);
 
-    while (*format)
-    {
+    while (*format) {
         chunk.format = g_string_sized_new(50);
 
         format = extract_chunk(format, &chunk);
@@ -804,9 +785,8 @@ GArray *prepare_printf_format(const char *format)
 
     return chunks;
 
-free:
+ free:
     free_printf_formats(chunks);
 
     return NULL;
 }
-

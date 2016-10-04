@@ -37,8 +37,7 @@
 
 #define LOGTAG "Undelete"
 
-static struct option option_tab[] =
-{
+static struct option option_tab[] = {
     /* options for cancelling remove operation */
     {"list", no_argument, NULL, 'L'},
     {"restore", no_argument, NULL, 'R'},
@@ -64,8 +63,8 @@ static struct option option_tab[] =
 
 /* global variables */
 
-static lmgr_t  lmgr;
-char path_filter[RBH_PATH_MAX] = "";
+static lmgr_t         lmgr;
+char                  path_filter[RBH_PATH_MAX] = "";
 static sm_instance_t *smi = NULL;
 
 /* special character sequences for displaying help */
@@ -102,8 +101,8 @@ static const char *help_string =
     "        Allowed values: CRIT, MAJOR, EVENT, VERB, DEBUG, FULL.\n"
     "    " _B "-h" B_ ", " _B "--help" B_ "\n"
     "        Display a short help about command line options.\n"
-    "    " _B "-V" B_ ", " _B "--version" B_ "\n" "        Display version info\n";
-
+    "    " _B "-V" B_ ", " _B "--version" B_ "\n"
+    "        Display version info\n";
 
 static inline void display_help(const char *bin_name)
 {
@@ -114,7 +113,7 @@ static inline void display_version(const char *bin_name)
 {
     printf("\n");
     printf("Product:         " PACKAGE_NAME " rm cancellation tool\n");
-    printf("Version:         " PACKAGE_VERSION "-"RELEASE"\n");
+    printf("Version:         " PACKAGE_VERSION "-" RELEASE "\n");
     printf("Build:           " COMPIL_DATE "\n");
     printf("\n");
     printf("Compilation switches:\n");
@@ -131,7 +130,6 @@ static inline void display_version(const char *bin_name)
 #else
     printf("    MDT Changelogs disabled\n");
 #endif
-
 
     printf("\n");
 #ifdef _LUSTRE
@@ -161,17 +159,16 @@ static inline void display_version(const char *bin_name)
  * \param do_display [in] display filters?
  * \param initialized [in/out] indicate if the filter is initialized.
  */
-static int mk_path_filter(lmgr_filter_t *filter, bool do_display, bool *initialized)
+static int mk_path_filter(lmgr_filter_t *filter, bool do_display,
+                          bool *initialized)
 {
     filter_value_t fv;
     char path_regexp[RBH_PATH_MAX] = "";
-    size_t  len;
+    size_t len;
 
     /* is a filter on path specified? */
-    if (!EMPTY_STRING(path_filter))
-    {
-        if ((initialized != NULL) && !(*initialized))
-        {
+    if (!EMPTY_STRING(path_filter)) {
+        if ((initialized != NULL) && !(*initialized)) {
             lmgr_simple_filter_init(filter);
             *initialized = true;
         }
@@ -180,8 +177,8 @@ static int mk_path_filter(lmgr_filter_t *filter, bool do_display, bool *initiali
 
         len = strlen(path_filter);
         /* remove last slash */
-        if (path_filter[len-1] == '/')
-            path_filter[len-1] = '\0';
+        if (path_filter[len - 1] == '/')
+            path_filter[len - 1] = '\0';
 
         /* as this is a RLIKE matching, shell regexp must be replaced by perl:
          * [abc] => OK
@@ -200,12 +197,11 @@ static int mk_path_filter(lmgr_filter_t *filter, bool do_display, bool *initiali
     return 0;
 }
 
-static bool is_id_filter(entry_id_t * id)
+static bool is_id_filter(entry_id_t *id)
 {
-    entry_id_t fid = {0};
+    entry_id_t fid = { 0 };
 
-    if (!EMPTY_STRING(path_filter))
-    {
+    if (!EMPTY_STRING(path_filter)) {
         if (sscanf(path_filter, SFID, RFID(&fid)) != FID_SCAN_CNT)
             return false;
         else {
@@ -219,23 +215,23 @@ static bool is_id_filter(entry_id_t * id)
 
 static int list_rm(void)
 {
-    int            rc, index;
-    entry_id_t     id;
-    attr_set_t     attrs = ATTR_SET_INIT;
-    attr_mask_t    mask;
+    int rc, index;
+    entry_id_t id;
+    attr_set_t attrs = ATTR_SET_INIT;
+    attr_mask_t mask;
 
     static unsigned int list[] = {
-                   ATTR_INDEX_rm_time,
-                   ATTR_INDEX_ID, /* id */
-                   ATTR_INDEX_type,
-                   ATTR_INDEX_uid,
-                   ATTR_INDEX_gid,
-                   ATTR_INDEX_size,
-                   ATTR_INDEX_last_mod,
-                   0, /* to be set in the code: status index */
-                   ATTR_INDEX_fullpath,
-                };
-    int list_cnt = sizeof(list)/sizeof(*list);
+        ATTR_INDEX_rm_time,
+        ATTR_INDEX_ID,  /* id */
+        ATTR_INDEX_type,
+        ATTR_INDEX_uid,
+        ATTR_INDEX_gid,
+        ATTR_INDEX_size,
+        ATTR_INDEX_last_mod,
+        0,  /* to be set in the code: status index */
+        ATTR_INDEX_fullpath,
+    };
+    int list_cnt = sizeof(list) / sizeof(*list);
 
     list[7] = ATTR_INDEX_FLG_STATUS | smi->smi_index;
 
@@ -243,27 +239,23 @@ static int list_rm(void)
 
     print_attr_list(0, list, list_cnt, NULL, false);
 
-    if (is_id_filter(&id)) /* 1 single entry */
-    {
+    if (is_id_filter(&id)) {    /* 1 single entry */
         rc = ListMgr_GetRmEntry(&lmgr, &id, &attrs);
-        if (rc == DB_SUCCESS)
-        {
+        if (rc == DB_SUCCESS) {
             print_attr_values(0, list, list_cnt, &attrs, &id, false, NULL);
-        }
-        else if (rc == DB_NOT_EXISTS)
+        } else if (rc == DB_NOT_EXISTS)
             DisplayLog(LVL_CRIT, LOGTAG,
-                       DFID": fid not found in deferred removal list",
+                       DFID ": fid not found in deferred removal list",
                        PFID(&id));
         else
             DisplayLog(LVL_CRIT, LOGTAG,
-                       "ERROR %d in ListMgr_GetRmEntry("DFID")",
+                       "ERROR %d in ListMgr_GetRmEntry(" DFID ")",
                        rc, PFID(&id));
         return rc;
-    }
-    else /* list of entries */
-    {
+    } else {    /* list of entries */
+
         struct lmgr_rm_list_t *rm_list;
-        lmgr_filter_t  filter = {0};
+        lmgr_filter_t filter = { 0 };
         bool filter_init = false;
 
         /* set filters */
@@ -275,8 +267,7 @@ static int list_rm(void)
         if (filter_init)
             lmgr_simple_filter_free(&filter);
 
-        if (rm_list == NULL)
-        {
+        if (rm_list == NULL) {
             DisplayLog(LVL_CRIT, LOGTAG,
                        "ERROR: Could not retrieve removed entries from "
                        "database.");
@@ -287,8 +278,7 @@ static int list_rm(void)
         attrs.attr_mask = mask;
 
         while ((rc = ListMgr_GetNextRmEntry(rm_list, &id, &attrs))
-               == DB_SUCCESS)
-        {
+               == DB_SUCCESS) {
             index++;
 
             print_attr_values(0, list, list_cnt, &attrs, &id, false, NULL);
@@ -304,7 +294,8 @@ static int list_rm(void)
     return 0;
 }
 
-static ull_t counters[RS_COUNT] = {0};
+static ull_t counters[RS_COUNT] = { 0 };
+
 static ull_t db_err = 0;
 
 static const char *st_names[] = {
@@ -316,13 +307,12 @@ static const char *st_names[] = {
     [RS_ERROR] = "errors"
 };
 
-static void undelete_helper(const entry_id_t *id,
-                            const attr_set_t *attrs)
+static void undelete_helper(const entry_id_t *id, const attr_set_t *attrs)
 {
-    entry_id_t      new_id = {0};
-    recov_status_t  st;
-    attr_set_t      new_attrs = ATTR_SET_INIT;
-    int             rc;
+    entry_id_t new_id = { 0 };
+    recov_status_t st;
+    attr_set_t new_attrs = ATTR_SET_INIT;
+    int rc;
 
     printf("Restoring '%s'...", ATTR(attrs, fullpath));
 
@@ -330,41 +320,39 @@ static void undelete_helper(const entry_id_t *id,
 
     counters[st]++;
 
-    switch (st)
-    {
-        case RS_FILE_OK:
-            printf("\t restore OK (file)\n");
-            break;
-        case RS_FILE_DELTA:
-            printf("\t restored previous version (file)\n");
-            break;
-        case RS_FILE_EMPTY:
-            printf("\t restore OK (empty file)\n");
-            break;
-        case RS_NON_FILE:
-            printf("\t restore OK (%s)\n", ATTR(attrs, type));
-            break;
-        case RS_NOBACKUP:
-            printf("\t cannot restore %s (no backup)\n", ATTR(attrs, type));
-            break;
-        case RS_ERROR:
-            printf("\t ERROR\n");
-            break;
-        default:
-            printf("ERROR: UNEXPECTED STATUS %d\n", st);
+    switch (st) {
+    case RS_FILE_OK:
+        printf("\t restore OK (file)\n");
+        break;
+    case RS_FILE_DELTA:
+        printf("\t restored previous version (file)\n");
+        break;
+    case RS_FILE_EMPTY:
+        printf("\t restore OK (empty file)\n");
+        break;
+    case RS_NON_FILE:
+        printf("\t restore OK (%s)\n", ATTR(attrs, type));
+        break;
+    case RS_NOBACKUP:
+        printf("\t cannot restore %s (no backup)\n", ATTR(attrs, type));
+        break;
+    case RS_ERROR:
+        printf("\t ERROR\n");
+        break;
+    default:
+        printf("ERROR: UNEXPECTED STATUS %d\n", st);
     }
     /* TODO for symlinks and dir, we can implement a common recovery
      * that consists in setting entry attributes from DB.
      * FIXME these entries may not be matches by status managers.
      * XXX Use create_from_attrs() */
 
-    if ((st == RS_FILE_OK) || (st == RS_FILE_DELTA)|| (st == RS_FILE_EMPTY)
-        ||  (st == RS_NON_FILE))
-    {
+    if ((st == RS_FILE_OK) || (st == RS_FILE_DELTA) || (st == RS_FILE_EMPTY)
+        || (st == RS_NON_FILE)) {
         /* discard entry from remove list */
         if (ListMgr_SoftRemove_Discard(&lmgr, id) != 0) {
-            db_err ++;
-            fprintf(stderr, "Error: could not remove previous id "DFID
+            db_err++;
+            fprintf(stderr, "Error: could not remove previous id " DFID
                     " from database\n", PFID(id));
         }
 
@@ -376,7 +364,7 @@ static void undelete_helper(const entry_id_t *id,
         if (rc == 0)
             printf("\tEntry successfully updated in the dabatase\n");
         else {
-            db_err ++;
+            db_err++;
             fprintf(stderr, "\tERROR %d inserting entry in the database\n", rc);
         }
     }
@@ -384,11 +372,11 @@ static void undelete_helper(const entry_id_t *id,
 
 static int undelete(void)
 {
-    int            rc;
+    int rc;
     struct lmgr_rm_list_t *list;
-    entry_id_t     id;
-    attr_set_t     attrs = ATTR_SET_INIT;
-    attr_mask_t    mask;
+    entry_id_t id;
+    attr_set_t attrs = ATTR_SET_INIT;
+    attr_mask_t mask;
     recov_status_t st;
 
     /* get all POSIX + status manager mask */
@@ -397,26 +385,21 @@ static int undelete(void)
 
     attrs.attr_mask = mask;
 
-    if (is_id_filter(&id)) /* 1 single entry */
-    {
+    if (is_id_filter(&id)) {    /* 1 single entry */
         rc = ListMgr_GetRmEntry(&lmgr, &id, &attrs);
-        if (rc == DB_SUCCESS)
-        {
+        if (rc == DB_SUCCESS) {
             undelete_helper(&id, &attrs);
-        }
-        else if (rc == DB_NOT_EXISTS)
+        } else if (rc == DB_NOT_EXISTS)
             DisplayLog(LVL_CRIT, LOGTAG,
-                       DFID": fid not found in removed entries",
-                       PFID(&id));
+                       DFID ": fid not found in removed entries", PFID(&id));
         else
             DisplayLog(LVL_CRIT, LOGTAG,
-                       "ERROR %d in ListMgr_GetRmEntry("DFID")",
+                       "ERROR %d in ListMgr_GetRmEntry(" DFID ")",
                        rc, PFID(&id));
         return rc;
-    }
-    else /* recover a list of entries */
-    {
-        lmgr_filter_t  filter = {0};
+    } else {    /* recover a list of entries */
+
+        lmgr_filter_t filter = { 0 };
         bool filter_init = false;
 
         /* set filters */
@@ -428,15 +411,13 @@ static int undelete(void)
         if (filter_init)
             lmgr_simple_filter_free(&filter);
 
-        if (list == NULL)
-        {
+        if (list == NULL) {
             DisplayLog(LVL_CRIT, LOGTAG,
                        "ERROR: Could not retrieve removed entries from database.");
             return -1;
         }
 
-        while ((rc = ListMgr_GetNextRmEntry(list, &id, &attrs)) == DB_SUCCESS)
-        {
+        while ((rc = ListMgr_GetNextRmEntry(list, &id, &attrs)) == DB_SUCCESS) {
             undelete_helper(&id, &attrs);
 
             /* prepare next call */
@@ -449,8 +430,7 @@ static int undelete(void)
 
     /* display summary */
     printf("\nundelete summary:\n");
-    for (st = RS_FILE_OK; st < RS_COUNT; st++)
-    {
+    for (st = RS_FILE_OK; st < RS_COUNT; st++) {
         printf("\t%9llu %s\n", counters[st], st_names[st]);
     }
     printf("\t%9llu DB errors\n", db_err);
@@ -467,16 +447,13 @@ static int undelete(void)
  */
 static int load_single_smi(void)
 {
-    int            i = 0;
+    int i = 0;
     sm_instance_t *smi_curr;
 
     /** XXX based on policies or status managers? what about the scope? */
-    while ((smi_curr = get_sm_instance(i)) != NULL)
-    {
-        if (smi_curr->sm->undelete_func != NULL)
-        {
-            if (smi != NULL)
-            {
+    while ((smi_curr = get_sm_instance(i)) != NULL) {
+        if (smi_curr->sm->undelete_func != NULL) {
+            if (smi != NULL) {
                 DisplayLog(LVL_CRIT, LOGTAG,
                            "ERROR: no status manager specified, but several of "
                            "them implement 'undelete'");
@@ -506,8 +483,7 @@ static int load_smi(const char *sm_name)
     if (rc)
         return rc;
 
-    if (smi->sm->undelete_func == NULL)
-    {
+    if (smi->sm->undelete_func == NULL) {
         DisplayLog(LVL_CRIT, LOGTAG,
                    "ERROR: the specified status manager '%s' doesn't "
                    "implement 'undelete'", sm_name);
@@ -517,7 +493,6 @@ static int load_smi(const char *sm_name)
     return 0;
 }
 
-
 #define MAX_OPT_LEN 1024
 
 /**
@@ -525,47 +500,48 @@ static int load_smi(const char *sm_name)
  */
 int main(int argc, char **argv)
 {
-    int            c, option_index = 0;
-    const char    *bin;
+    int c, option_index = 0;
+    const char *bin;
 
-    char           config_file[MAX_OPT_LEN] = "";
+    char config_file[MAX_OPT_LEN] = "";
 
     enum { ACTION_NONE, ACTION_LIST, ACTION_RESTORE } action = ACTION_NONE;
-    bool           force_log_level = false;
-    int            log_level = 0;
+    bool force_log_level = false;
+    int log_level = 0;
 
-    int            rc;
-    char           err_msg[4096];
-    bool           chgd = false;
-    char    badcfg[RBH_PATH_MAX];
+    int rc;
+    char err_msg[4096];
+    bool chgd = false;
+    char badcfg[RBH_PATH_MAX];
 
-    char sm_name[SM_NAME_MAX+1] = "";
+    char sm_name[SM_NAME_MAX + 1] = "";
 
     bin = rh_basename(argv[0]); /* supports NULL argument */
 
     /* parse command line options */
     while ((c = getopt_long(argc, argv, SHORT_OPT_STRING, option_tab,
-                               &option_index)) != -1)
-    {
-        switch (c)
-        {
+                            &option_index)) != -1) {
+        switch (c) {
         case 'L':
             if ((action != ACTION_NONE) && (action != ACTION_LIST))
-                fprintf(stderr, "WARNING: only a single action (--list or --restore) is expected\n"
-                                 "on command line. '--restore' will be ignored.\n");
+                fprintf(stderr,
+                        "WARNING: only a single action (--list or --restore) is expected\n"
+                        "on command line. '--restore' will be ignored.\n");
             action = ACTION_LIST;
             break;
         case 'R':
             if ((action != ACTION_NONE) && (action != ACTION_RESTORE))
-                fprintf(stderr, "WARNING: only a single action (--list or --restore) is expected\n"
-                                 "on command line. '--list' will be ignored.\n");
+                fprintf(stderr,
+                        "WARNING: only a single action (--list or --restore) is expected\n"
+                        "on command line. '--list' will be ignored.\n");
             action = ACTION_RESTORE;
             break;
 
         case 's':
             if (!EMPTY_STRING(sm_name))
-                fprintf(stderr, "WARNING: only a single status manager is expected "
-                                 "on command line. '%s' ignored.\n", optarg);
+                fprintf(stderr,
+                        "WARNING: only a single status manager is expected "
+                        "on command line. '%s' ignored.\n", optarg);
             else
                 rh_strncpy(sm_name, optarg, sizeof(sm_name));
             break;
@@ -576,11 +552,10 @@ int main(int argc, char **argv)
         case 'l':
             force_log_level = true;
             log_level = str2debuglevel(optarg);
-            if (log_level == -1)
-            {
+            if (log_level == -1) {
                 fprintf(stderr,
-                         "Unsupported log level '%s'. CRIT, MAJOR, EVENT, VERB, DEBUG or FULL expected.\n",
-                         optarg);
+                        "Unsupported log level '%s'. CRIT, MAJOR, EVENT, VERB, DEBUG or FULL expected.\n",
+                        optarg);
                 exit(1);
             }
             break;
@@ -602,12 +577,11 @@ int main(int argc, char **argv)
     }
 
     /* 1 expected argument: path */
-    if (optind < argc - 1)
-    {
-        fprintf(stderr, "Error: too many arguments on command line: expected <path|fid>\n");
+    if (optind < argc - 1) {
+        fprintf(stderr,
+                "Error: too many arguments on command line: expected <path|fid>\n");
         exit(1);
-    }
-    else if (optind == argc - 1)
+    } else if (optind == argc - 1)
         rh_strncpy(path_filter, argv[optind], RBH_PATH_MAX);
 
     rc = rbh_init_internals();
@@ -615,19 +589,17 @@ int main(int argc, char **argv)
         exit(rc);
 
     /* get default config file, if not specified */
-    if (SearchConfig(config_file, config_file, &chgd, badcfg, MAX_OPT_LEN) != 0)
-    {
-        fprintf(stderr, "No config file (or too many) found matching %s\n", badcfg);
+    if (SearchConfig(config_file, config_file, &chgd, badcfg,
+                     MAX_OPT_LEN) != 0) {
+        fprintf(stderr, "No config file (or too many) found matching %s\n",
+                badcfg);
         exit(2);
-    }
-    else if (chgd)
-    {
+    } else if (chgd) {
         fprintf(stderr, "Using config file '%s'.\n", config_file);
     }
 
     /* only read common config */
-    if (rbh_cfg_load(0, config_file, err_msg))
-    {
+    if (rbh_cfg_load(0, config_file, err_msg)) {
         fprintf(stderr, "Error reading configuration file '%s': %s\n",
                 config_file, err_msg);
         exit(1);
@@ -643,8 +615,7 @@ int main(int argc, char **argv)
 
     /* Initialize logging */
     rc = InitializeLogs(bin);
-    if (rc)
-    {
+    if (rc) {
         fprintf(stderr, "Error opening log files: rc=%d, errno=%d: %s\n",
                 rc, errno, strerror(errno));
         exit(rc);
@@ -670,13 +641,12 @@ int main(int argc, char **argv)
         /* if there is a single smi that allows undelete, use it */
         rc = load_single_smi();
         if (rc)
-            exit (rc);
+            exit(rc);
     }
 
     /* Initialize list manager */
     rc = ListMgr_Init(0);
-    if (rc)
-    {
+    if (rc) {
         DisplayLog(LVL_CRIT, LOGTAG, "Error initializing list manager: %s (%d)",
                    lmgr_err2str(rc), rc);
         exit(rc);
@@ -688,38 +658,35 @@ int main(int argc, char **argv)
 
     /* Create database access */
     rc = ListMgr_InitAccess(&lmgr);
-    if (rc)
-    {
+    if (rc) {
         DisplayLog(LVL_CRIT, LOGTAG, "Error %d: cannot connect to database",
                    rc);
         exit(rc);
     }
 
-    if (!has_deletion_policy())
-    {
+    if (!has_deletion_policy()) {
         DisplayLog(LVL_CRIT, LOGTAG, "Unsupported action: no defined policy "
                    "manages deleted files");
         exit(ENOTSUP);
     }
 
     /* perform the action */
-    switch(action)
-    {
-        case ACTION_LIST:
-            rc = list_rm();
-            break;
-        case ACTION_RESTORE:
-            rc = undelete();
-            break;
-        case ACTION_NONE:
-            display_help(bin);
-            rc = 1;
-            break;
-        default:
-            fprintf(stderr, "Unexpected action (action code=%#x)\n", action);
-            display_help(bin);
-            rc = EINVAL;
-            break;
+    switch (action) {
+    case ACTION_LIST:
+        rc = list_rm();
+        break;
+    case ACTION_RESTORE:
+        rc = undelete();
+        break;
+    case ACTION_NONE:
+        display_help(bin);
+        rc = 1;
+        break;
+    default:
+        fprintf(stderr, "Unexpected action (action code=%#x)\n", action);
+        display_help(bin);
+        rc = EINVAL;
+        break;
     }
 
     ListMgr_CloseAccess(&lmgr);
