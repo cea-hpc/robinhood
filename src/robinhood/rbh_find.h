@@ -18,26 +18,25 @@
 extern attr_mask_t disp_mask;
 
 /* program options */
-struct find_opt
-{
-    const char  *user;
-    const char  *group;
-    const char  *type;
+struct find_opt {
+    const char     *user;
+    const char     *group;
+    const char     *type;
     // size cond: gt/eq/lt <val>
     compare_direction_t sz_compar;
-    uint64_t            sz_val;
-    const char  *name;
-    const char  *class;
-    unsigned int ost_idx;
-    const char  *pool;
+    uint64_t        sz_val;
+    const char     *name;
+    const char     *class;
+    unsigned int    ost_idx;
+    const char     *pool;
     /* status manager for -lsstatus */
-    const char  *lsstatus_name;
-    sm_instance_t *smi;
+    const char     *lsstatus_name;
+    sm_instance_t  *smi;
 
     /* status name and value for -status */
-    sm_instance_t *filter_smi;
-    char  *filter_status_name;
-    char  *filter_status_value;
+    sm_instance_t  *filter_smi;
+    char           *filter_status_name;
+    char           *filter_status_value;
 
     // crtime cond: gt/eq/lt <time>
     compare_direction_t crt_compar;
@@ -58,9 +57,10 @@ struct find_opt
     char              **exec_cmd;
 
     /* query option */
-    enum { bulk_unspec = 0,
-           force_bulk,
-           force_nobulk
+    enum {
+        bulk_unspec = 0,
+        force_bulk,
+        force_nobulk
     } bulk;
 
     /* output flags */
@@ -100,7 +100,7 @@ struct find_opt
     unsigned int iname:1;
 
     /* behavior flags */
-    unsigned int no_dir:1; /* if -t != dir => no dir to be displayed */
+    unsigned int no_dir:1;   /* if -t != dir => no dir to be displayed */
     unsigned int dir_only:1; /* if -t dir => only display dir */
 
     /* actions */
@@ -113,7 +113,8 @@ const char *type2char(const char *type);
 const char type2onechar(const char *type);
 
 GArray *prepare_printf_format(const char *format);
-void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs);
+void printf_entry(GArray *chunks, const wagon_t *id,
+                  const attr_set_t *attrs);
 void free_printf_formats(GArray *chunks);
 
 #endif

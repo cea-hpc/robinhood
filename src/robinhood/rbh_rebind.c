@@ -39,8 +39,7 @@
 
 #define LOGTAG "Rebind"
 
-static struct option option_tab[] =
-{
+static struct option option_tab[] = {
     /* config file options */
     {"config-file", required_argument, NULL, 'f'},
 
@@ -83,93 +82,79 @@ static const char *help_string =
     "        Allowed values: CRIT, MAJOR, EVENT, VERB, DEBUG, FULL.\n"
     "    " _B "-h" B_ ", " _B "--help" B_ "\n"
     "        Display a short help about command line options.\n"
-    "    " _B "-V" B_ ", " _B "--version" B_ "\n" "        Display version info\n";
-
+    "    " _B "-V" B_ ", " _B "--version" B_ "\n"
+    "        Display version info\n";
 
 static inline void display_help(const char *bin_name)
 {
-    printf( help_string, bin_name );
+    printf(help_string, bin_name);
 }
 
 static inline void display_version(const char *bin_name)
 {
-    printf( "\n" );
-    printf( "Product:         " PACKAGE_NAME " rebind tool\n" );
-    printf( "Version:         " PACKAGE_VERSION "-"RELEASE"\n" );
-    printf( "Build:           " COMPIL_DATE "\n" );
-    printf( "\n" );
-    printf( "Compilation switches:\n" );
-
-/* purpose of this daemon */
-#ifdef _LUSTRE_HSM
-    printf( "    Lustre-HSM Policy Engine\n" );
-#elif defined(_TMP_FS_MGR)
-    printf( "    Temporary filesystem manager\n" );
-#elif defined(_HSM_LITE)
-    printf( "    Backup filesystem to external storage\n" );
-#else
-#error "No purpose was specified"
-#endif
+    printf("\n");
+    printf("Product:         " PACKAGE_NAME " rebind tool\n");
+    printf("Version:         " PACKAGE_VERSION "-" RELEASE "\n");
+    printf("Build:           " COMPIL_DATE "\n");
+    printf("\n");
+    printf("Compilation switches:\n");
 
 /* Access by Fid ? */
 #ifdef _HAVE_FID
-    printf( "    Address entries by FID\n" );
+    printf("    Address entries by FID\n");
 #else
-    printf( "    Address entries by path\n" );
+    printf("    Address entries by path\n");
 #endif
 
 #ifdef HAVE_CHANGELOGS
-    printf( "    MDT Changelogs supported\n" );
+    printf("    MDT Changelogs supported\n");
 #else
-    printf( "    MDT Changelogs disabled\n" );
+    printf("    MDT Changelogs disabled\n");
 #endif
 
-
-    printf( "\n" );
+    printf("\n");
 #ifdef _LUSTRE
 #ifdef LUSTRE_VERSION
-    printf( "Lustre Version: " LUSTRE_VERSION "\n" );
+    printf("Lustre Version: " LUSTRE_VERSION "\n");
 #else
-    printf( "Lustre FS support\n" );
+    printf("Lustre FS support\n");
 #endif
 #else
-    printf( "No Lustre support\n" );
+    printf("No Lustre support\n");
 #endif
 
 #ifdef _MYSQL
-    printf( "Database binding: MySQL\n" );
+    printf("Database binding: MySQL\n");
 #elif defined(_SQLITE)
-    printf( "Database binding: SQLite\n" );
+    printf("Database binding: SQLite\n");
 #else
 #error "No database was specified"
 #endif
-    printf( "\n" );
-    printf( "Report bugs to: <" PACKAGE_BUGREPORT ">\n" );
-    printf( "\n" );
+    printf("\n");
+    printf("Report bugs to: <" PACKAGE_BUGREPORT ">\n");
+    printf("\n");
 }
 
-static inline int rebind_helper(const char       *old_backend_path,
-                                const char       *new_fs_path,
-                                const char       *new_fid_str)
+static inline int rebind_helper(const char *old_backend_path,
+                                const char *new_fs_path,
+                                const char *new_fid_str)
 {
     int rc;
     char rp[RBH_PATH_MAX];
     char new_backend_path[RBH_PATH_MAX];
     entry_id_t new_fid;
-    char * tmp;
+    char *tmp;
 
     /* full path required */
-    tmp = realpath( new_fs_path, NULL );
-    if (tmp == NULL)
-    {
+    tmp = realpath(new_fs_path, NULL);
+    if (tmp == NULL) {
         rc = -errno;
         DisplayLog(LVL_CRIT, LOGTAG, "Error in realpath(%s): %s",
                    new_fs_path, strerror(-rc));
         return rc;
     }
-    if (strlen(tmp) >= RBH_PATH_MAX)
-    {
-        DisplayLog( LVL_CRIT, LOGTAG, "Path length is too long!" );
+    if (strlen(tmp) >= RBH_PATH_MAX) {
+        DisplayLog(LVL_CRIT, LOGTAG, "Path length is too long!");
         return -ENAMETOOLONG;
     }
     /* safe because of previous check */
@@ -177,66 +162,60 @@ static inline int rebind_helper(const char       *old_backend_path,
     /* now can release tmp path */
     free(tmp);
 
-    if (new_fid_str)
-    {
+    if (new_fid_str) {
         int nb_read;
 
         /* parse fid */
         if (new_fid_str[0] == '[')
-            nb_read = sscanf(new_fid_str, "["SFID"]", RFID(&new_fid));
+            nb_read = sscanf(new_fid_str, "[" SFID "]", RFID(&new_fid));
         else
             nb_read = sscanf(new_fid_str, SFID, RFID(&new_fid));
 
-        if (nb_read != FID_SCAN_CNT)
-        {
-            DisplayLog( LVL_CRIT, LOGTAG, "Unexpected format for fid %s", new_fid_str );
+        if (nb_read != FID_SCAN_CNT) {
+            DisplayLog(LVL_CRIT, LOGTAG, "Unexpected format for fid %s",
+                       new_fid_str);
             return -EINVAL;
         }
 
-        printf("Binding "DFID" to '%s'...\n", PFID(&new_fid), old_backend_path);
-    }
-    else
-    {
+        printf("Binding " DFID " to '%s'...\n", PFID(&new_fid),
+               old_backend_path);
+    } else {
         /* get fid for the given file */
         rc = Path2Id(new_fs_path, &new_fid);
         if (rc)
             return rc;
 
-        printf("Binding '%s' ("DFID") to '%s'...\n", new_fs_path, PFID(&new_fid),
-               old_backend_path);
+        printf("Binding '%s' (" DFID ") to '%s'...\n", new_fs_path,
+               PFID(&new_fid), old_backend_path);
     }
 
     /* build the new backend path for the entry */
     rc = rbhext_rebind(rp, old_backend_path, new_backend_path, &new_fid);
     if (rc) {
-        fprintf(stderr,"rebind failed for '%s': %s\n", rp, strerror(-rc));
+        fprintf(stderr, "rebind failed for '%s': %s\n", rp, strerror(-rc));
         return rc;
-    }
-    else
-    {
+    } else {
         printf("'%s' successfully rebound to '%s'\n", rp, new_backend_path);
         return 0;
     }
 }
-
-
 
 #define MAX_OPT_LEN 1024
 
 /**
  * Main daemon routine
  */
-int main( int argc, char **argv )
+int main(int argc, char **argv)
 {
-    int            c, option_index = 0;
-    const char    *bin;
-    char           config_file[MAX_OPT_LEN] = "";
+    int c, option_index = 0;
+    const char *bin;
+    char config_file[MAX_OPT_LEN] = "";
 
-    bool           force_log_level = false;
-    int            log_level = 0;
+    bool force_log_level = false;
+    int log_level = 0;
 
-    int            rc;
-    char           err_msg[4096];
+    int rc;
+    char err_msg[4096];
     robinhood_config_t config;
     int chgd = 0;
     char badcfg[RBH_PATH_MAX];
@@ -244,65 +223,58 @@ int main( int argc, char **argv )
     bin = rh_basename(argv[0]);
 
     /* parse command line options */
-    while ( ( c = getopt_long( argc, argv, SHORT_OPT_STRING, option_tab,
-                               &option_index ) ) != -1 )
-    {
-        switch ( c )
-        {
+    while ((c = getopt_long(argc, argv, SHORT_OPT_STRING, option_tab,
+                            &option_index)) != -1) {
+        switch (c) {
         case 'f':
             rh_strncpy(config_file, optarg, MAX_OPT_LEN);
             break;
         case 'l':
             force_log_level = true;
-            log_level = str2debuglevel( optarg );
-            if ( log_level == -1 )
-            {
-                fprintf( stderr,
-                         "Unsupported log level '%s'. CRIT, MAJOR, EVENT, VERB, DEBUG or FULL expected.\n",
-                         optarg );
-                exit( 1 );
+            log_level = str2debuglevel(optarg);
+            if (log_level == -1) {
+                fprintf(stderr,
+                        "Unsupported log level '%s'. CRIT, MAJOR, EVENT, VERB, DEBUG or FULL expected.\n",
+                        optarg);
+                exit(1);
             }
             break;
         case 'h':
-            display_help( bin );
-            exit( 0 );
+            display_help(bin);
+            exit(0);
             break;
         case 'V':
-            display_version( bin );
-            exit( 0 );
+            display_version(bin);
+            exit(0);
             break;
         case ':':
         case '?':
         default:
-            display_help( bin );
-            exit( 1 );
+            display_help(bin);
+            exit(1);
             break;
         }
     }
 
     /* 2 expected argument: old backend path, new path is FS */
-    if ( optind > argc - 2 )
-    {
-        fprintf( stderr, "Error: missing arguments on command line.\n" );
+    if (optind > argc - 2) {
+        fprintf(stderr, "Error: missing arguments on command line.\n");
         display_help(bin);
-        exit( 1 );
-    }
-    else if  ( optind < argc - 3 )
-    {
-        fprintf( stderr, "Error: too many arguments on command line.\n" );
+        exit(1);
+    } else if (optind < argc - 3) {
+        fprintf(stderr, "Error: too many arguments on command line.\n");
         display_help(bin);
-        exit( 1 );
+        exit(1);
     }
 
     /* get default config file, if not specified */
-    if (SearchConfig(config_file, config_file, &chgd, badcfg, MAX_OPT_LEN) != 0)
-    {
-        fprintf(stderr, "No config file (or too many) found matching %s\n", badcfg );
+    if (SearchConfig(config_file, config_file, &chgd, badcfg,
+                     MAX_OPT_LEN) != 0) {
+        fprintf(stderr, "No config file (or too many) found matching %s\n",
+                badcfg);
         exit(2);
-    }
-    else if (chgd)
-    {
-        fprintf(stderr, "Using config file '%s'.\n", config_file );
+    } else if (chgd) {
+        fprintf(stderr, "Using config file '%s'.\n", config_file);
     }
 
     rc = rbh_init_internals();
@@ -310,27 +282,26 @@ int main( int argc, char **argv )
         exit(rc);
 
     /* only read ListMgr config */
-    if (ReadRobinhoodConfig(0, config_file, err_msg, &config, false))
-    {
-        fprintf( stderr, "Error reading configuration file '%s': %s\n", config_file, err_msg );
-        exit( 1 );
+    if (ReadRobinhoodConfig(0, config_file, err_msg, &config, false)) {
+        fprintf(stderr, "Error reading configuration file '%s': %s\n",
+                config_file, err_msg);
+        exit(1);
     }
 
-    if ( force_log_level )
+    if (force_log_level)
         config.log_config.debug_level = log_level;
 
     /* XXX HOOK: Set logging to stderr */
-    strcpy( config.log_config.log_file, "stderr" );
-    strcpy( config.log_config.report_file, "stderr" );
-    strcpy( config.log_config.alert_file, "stderr" );
+    strcpy(config.log_config.log_file, "stderr");
+    strcpy(config.log_config.report_file, "stderr");
+    strcpy(config.log_config.alert_file, "stderr");
 
     /* Initialize logging */
-    rc = InitializeLogs( bin, &config.log_config );
-    if ( rc )
-    {
-        fprintf( stderr, "Error opening log files: rc=%d, errno=%d: %s\n",
-                 rc, errno, strerror( errno ) );
-        exit( rc );
+    rc = InitializeLogs(bin, &config.log_config);
+    if (rc) {
+        fprintf(stderr, "Error opening log files: rc=%d, errno=%d: %s\n",
+                rc, errno, strerror(errno));
+        exit(rc);
     }
 
     /* Initialize Filesystem access */
@@ -344,18 +315,17 @@ int main( int argc, char **argv )
         exit(rc);
 
 #ifdef _HSM_LITE
-    rc = Backend_Start( &config.backend_config, 0 );
-    if ( rc )
-    {
-        DisplayLog( LVL_CRIT, LOGTAG, "Error initializing backend" );
-        exit( 1 );
+    rc = Backend_Start(&config.backend_config, 0);
+    if (rc) {
+        DisplayLog(LVL_CRIT, LOGTAG, "Error initializing backend");
+        exit(1);
     }
 #endif
 
     if (optind == argc - 2)
-        rc = rebind_helper(argv[optind], argv[optind+1], NULL);
+        rc = rebind_helper(argv[optind], argv[optind + 1], NULL);
     else if (optind == argc - 3)
-        rc = rebind_helper(argv[optind], argv[optind+1], argv[optind+2]);
+        rc = rebind_helper(argv[optind], argv[optind + 1], argv[optind + 2]);
 
     return rc;
 }
