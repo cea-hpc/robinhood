@@ -38,7 +38,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include <fcntl.h>              /* for open flags */
+#include <fcntl.h>  /* for open flags */
 #include <signal.h>
 
 #ifdef _LUSTRE
@@ -48,7 +48,7 @@
 #define MAIN_TAG    "Main"
 #define RELOAD_TAG "ReloadConfig"
 
-static time_t  boot_time;
+static time_t boot_time;
 
 /* values must be over max char index */
 #define DRY_RUN           260
@@ -81,19 +81,19 @@ static time_t  boot_time;
 #define ACTION_MASK_RUN_POLICIES        0x00000008
 
 /* currently running modules */
-static int     running_mask = 0;
+static int running_mask = 0;
 /* selected modules (used for reloading config) */
-static int     parsing_mask = 0;
+static int parsing_mask = 0;
 
 /* currently running policies mask */
 static uint64_t policy_run_mask = 0LL;
 
 /* info for started policy modules */
-static policy_info_t    *policy_run = NULL;
-static unsigned int      policy_run_cpt = 0;
+static policy_info_t   *policy_run = NULL;
+static unsigned int     policy_run_cpt = 0;
 
 /* Array of options for getopt_long().
- * Each record consists of: { const char *name, int has_arg, int * flag, int val }
+ * Each record consists of: {const char *name, int has_arg, int *flag, int val}
  */
 
 static struct option option_tab[] = {
@@ -108,15 +108,17 @@ static struct option option_tab[] = {
 #else
     {"readlog", no_argument, NULL, 'r'},
     {"read-log", no_argument, NULL, 'r'},
-    {"handle-events", no_argument, NULL, 'r'}, /* for backward compatibility */
+    {"handle-events", no_argument, NULL, 'r'},  /* for backward compatibility */
 #endif
 #endif
     {"run", optional_argument, NULL, RUN_POLICIES},
     {"check-thresholds", optional_argument, NULL, 'C'},
 
-    /* specifies a policy target */
-    {"target", required_argument, NULL, 't'}, /* ost, pool, all, class, user, group, file... */
-    {"target-usage", required_argument, NULL, TGT_USAGE}, /* target usage for FS, OST or pool */
+    /* specifies a policy target:
+     * ost, pool, all, class, user, group, file... */
+    {"target", required_argument, NULL, 't'},
+    /* target usage for FS, OST or pool */
+    {"target-usage", required_argument, NULL, TGT_USAGE},
 
     /* For policies, this forces to apply policy to files in policy scope,
      * by ignoring condition of policy rules and 'ignore' statements.
@@ -126,14 +128,15 @@ static struct option option_tab[] = {
 
     /* behavior flags */
     {"dry-run", no_argument, NULL, DRY_RUN},
-    {"one-shot", no_argument, NULL, 'O'}, /* for backward compatibility */
+    {"one-shot", no_argument, NULL, 'O'},   /* for backward compatibility */
     {"once", no_argument, NULL, 'O'},
     {"detach", no_argument, NULL, 'd'},
     {"no-limit", no_argument, NULL, NO_LIMIT},
     {"no-gc", no_argument, NULL, NO_GC},
     {"alter-db", no_argument, NULL, ALTER_DB},
     {"alterdb", no_argument, NULL, ALTER_DB},
-    /* generic policies equivalent for --sync: alias to --once --no-limit --ignore-conditions --force */
+    /* generic policies equivalent for --sync:
+     * alias to --once --no-limit --ignore-conditions --force */
     {"force-all", no_argument, NULL, FORCE_ALL},
     {"forceall", no_argument, NULL, FORCE_ALL},
 
@@ -161,7 +164,8 @@ static struct option option_tab[] = {
     {"check-watermarks", no_argument, NULL, DEPRECATED_WM},
     {"migrate", no_argument, NULL, 'M'},
     {"archive", no_argument, NULL, 'M'},
-    {"sync", no_argument, NULL, 's'}, /* generic policies equivalent: --force-all */
+    /* generic policies equivalent: --force-all */
+    {"sync", no_argument, NULL, 's'},
     {"hsm-remove", no_argument, NULL, 'R'},
     {"hsm-rm", no_argument, NULL, 'R'},
     {"rmdir", no_argument, NULL, 'R'},
@@ -216,19 +220,17 @@ typedef struct rbh_options {
 
     int            mdtidx;
     enum lmgr_init_flags db_flags;
-
 } rbh_options;
 
 #define TGT_NOT_SET   -1.0
 
-static inline void zero_options(struct rbh_options * opts)
+static inline void zero_options(struct rbh_options *opts)
 {
     /* default value is 0 for most options */
     memset(opts, 0, sizeof(struct rbh_options));
     opts->usage_target = TGT_NOT_SET;
-    opts->mdtidx = -1; /* all MDTs */
+    opts->mdtidx = -1;  /* all MDTs */
 }
-
 
 /* program options from command line  */
 static struct rbh_options options;
@@ -245,73 +247,70 @@ static struct rbh_options options;
 /* Underline end character sequence */
 #define U_ "[0m"
 
-static const char *cmd_help =
-    _B "Usage:" B_ " %s [options]\n";
+static const char *cmd_help = _B "Usage:" B_ " %s [options]\n";
 
 static const char *action_help =
     _B "Actions:" B_ "\n"
-    "    " _B "-S" B_", " _B "--scan" B_ "[=" _U "dir" U_ "]\n"
-    "        Scan the filesystem namespace. If "_U"dir"U_" is specified, only scan the specified subdir.\n"
+    "    " _B "-S" B_ ", " _B "--scan" B_ "[=" _U "dir" U_ "]\n"
+    "        Scan the filesystem namespace. If " _U "dir" U_ " is specified, only scan the specified subdir.\n"
 #ifdef HAVE_CHANGELOGS
     "    " _B "-r" B_ ", " _B "--read-log" B_ "[=" _U "mdt_idx" U_ "]\n"
     "        Read events from MDT ChangeLog.\n"
-    "        If "_U"mdt_idx"U_" is specified, only read ChangeLogs for the given MDT.\n"
+    "        If " _U "mdt_idx" U_ " is specified, only read ChangeLogs for the given MDT.\n"
     "        Else, start 1 changelog reader thread per MDT (with DNE).\n"
 #endif
-    "    " _B "--run" B_"[=all]\n"
+    "    " _B "--run" B_ "[=all]\n"
     "        Run all polices (based on triggers).\n"
-    "    " _B "--run" B_"=" _U"policy1"U_"("_U"args"U_"),"
-                             _U"policy2"U_"("_U"args"U_")...\n"
+    "    " _B "--run" B_ "=" _U "policy1" U_ "(" _U "args" U_ ")," _U "policy2" U_ "(" _U "args" U_ ")...\n"
     "        Run the given policies with the specified arguments. \n"
-    "        See \"Policy run options\" for details about "_U"args"U_".\n"
-    "    " _B "-C" B_ " " _U"policy1,policy2..."U_", "
-            _B "--check-thresholds" B_"[=" _U "policy1,policy2..." U_ "]\n"
+    "        See \"Policy run options\" for details about " _U "args" U_ ".\n"
+    "    " _B "-C" B_ " " _U "policy1,policy2..." U_ ", " _B "--check-thresholds" B_ "[=" _U "policy1,policy2..." U_ "]\n"
     "        Only check trigger thresholds without applying policy actions.\n"
     "        If no policy is specified (or 'all'), check all triggers.\n";
 
 static const char *run_help =
     _B "Policy run options:" B_ "\n"
-    "    " _U"args"U_ "\n"
+    "    " _U "args" U_ "\n"
     "       Comma-separated list of <param>=<value>.\n"
     "           e.g. --run=cleanup(target=user:foo,max-count=1000)\n"
     "       The following parameters are allowed:\n"
-    "       "_B"target"B_"="_U"tgt"U_"\n"
+    "       " _B "target" B_ "=" _U "tgt" U_ "\n"
     "           Targeted subset of entries for the policy run.\n"
-    "           "_U"tgt"U_" can be one of:\n"
-    "               " _B"all"B_" (all entries), " _B"user"B_":"_U"username"U_", " _B"group"B_":"_U"grpname"U_",\n"
-    "               " _B"file"B_":"_U"path"U_", " _B"class"B_":"_U"fileclass"U_
+    "           " _U "tgt" U_ " can be one of:\n"
+    "               " _B "all" B_ " (all entries), " _B "user" B_ ":" _U "username" U_ ", " _B "group" B_ ":" _U "grpname" U_ ",\n"
+    "               " _B "file" B_ ":" _U "path" U_ ", " _B "class" B_ ":" _U "fileclass" U_
 #ifdef _LUSTRE
-    ", "_B"ost"B_":"_U"ost_idx"U_", "_B"pool"B_":"_U"poolname"U_
+    ", " _B "ost" B_ ":" _U "ost_idx" U_ ", " _B "pool" B_ ":" _U "poolname" U_
 #endif
     ".\n"
-    "       "_B"max-count"B_"="_U"nbr"U_"\n"
+    "       " _B "max-count" B_ "=" _U "nbr" U_ "\n"
     "           Max number of actions to execute for a policy run.\n"
-    "       "_B"max-vol"B_"="_U"size"U_"\n"
+    "       " _B "max-vol" B_ "=" _U "size" U_ "\n"
     "           Max volume of entries impacted by a policy run.\n"
-    "       "_B"target-usage"B_"="_U"pct"U_"\n"
+    "       " _B "target-usage" B_ "=" _U "pct" U_ "\n"
     "           Targeted filesystem or OST usage for a policy run, in percent.\n"
     "\n"
-    "    " _B "-t" B_" " _U"tgt"U_ ", " _B "--target" B_ "=" _U"tgt"U_ "\n"
+    "    " _B "-t" B_ " " _U "tgt" U_ ", " _B "--target" B_ "=" _U "tgt" U_ "\n"
     "        Specify the default target for policy runs (see target syntax above).\n"
-    "    "  _B "--target-usage" B_ "=" _U"pct"U_ "\n"
+    "    " _B "--target-usage" B_ "=" _U "pct" U_ "\n"
     "       Specifies the default target disk usage (in pct) for 'all', 'ost' or 'pool' targets.\n"
-    "    " _B "-I" B_ ", " _B "--ignore-conditions"B_"\n"
+    "    " _B "-I" B_ ", " _B "--ignore-conditions" B_ "\n"
     "        Apply policy to all entries in policy scope, without checking policy rule conditions.\n"
-    "    " _B "-F" B_ ", " _B "--force"B_"\n"
+    "    " _B "-F" B_ ", " _B "--force" B_ "\n"
     "        Force applying policies even if no full scan has never been done (partial DB contents).\n"
-    "    " _B "--no-limit"B_"\n"
+    "    " _B "--no-limit" B_ "\n"
     "        Don't limit the maximum number/volume of policy actions per pass.\n"
-    "    " _B "--dry-run"B_"\n"
+    "    " _B "--dry-run" B_ "\n"
     "        Only report policy actions that would be performed without really doing them.\n"
     "        Note: Robinhood DB is impacted as if the reported actions were really done.\n"
-    "    " _B "--force-all"B_"\n"
+    "    " _B "--force-all" B_ "\n"
     "        Force applying a policy to all eligible entries, without considering\n"
     "        policy limits and rule conditions.\n"
     "        This is equivalent to: --once --no-limit --ignore-conditions --force\n";
 
 static const char *scan_help =
     _B "Scanning options:" B_ "\n"
-    "    " _B "--no-gc"B_"\n"
+    "    " _B "--no-gc" B_ "\n"
     "        Garbage collection of entries in DB is a long operation when terminating\n"
     "        a scan. This skips this operation if you don't care about removed\n"
     "        entries (or don't expect entries to be removed).\n"
@@ -319,9 +318,9 @@ static const char *scan_help =
 
 static const char *output_help =
     _B "Output options:" B_ "\n"
-    "    " _B "--diff"B_"="_U"attrset"U_ "\n"
+    "    " _B "--diff" B_ "=" _U "attrset" U_ "\n"
     "        When scanning or reading changelogs, display changes for the given set of attributes (to stdout).\n"
-    "        "_U"attrset"U_" is a list of values in: path,posix,stripe,all,status,notimes,noatime.\n";
+    "        " _U "attrset" U_ " is a list of values in: path,posix,stripe,all,status,notimes,noatime.\n";
 
 static const char *behavior_help =
     _B "Behavior options:" B_ "\n"
@@ -336,31 +335,29 @@ static const char *config_help =
     _B "Config file options:" B_ "\n"
     "    " _B "-f" B_ " " _U "cfg_file" U_ ", " _B "--config-file=" B_ _U "cfg_file" U_ "\n"
     "        Path to configuration file (or short name).\n"
-    "    " _B "-T" B_ " " _U "output_file"
-    U_ ", " _B "--template" B_"[=" _U "output_file" U_ "]\n"
+    "    " _B "-T" B_ " " _U "output_file" U_ ", " _B "--template" B_ "[=" _U "output_file" U_ "]\n"
     "        Write a configuration file template to the specified file.\n"
     "    " _B "-D" B_ ", " _B "--defaults" B_ "\n"
-    "        Display default configuration values.\n"
-    "    " _B "--test-syntax" B_ "\n"
+    "        Display default configuration values.\n" "    " _B "--test-syntax" B_ "\n"
     "        Check configuration file and exit.\n";
 
 static const char *log_help =
-    _B"Log options:" B_ "\n"
-    "    " _B "-L" B_ " " _U "logfile" U_ ", " _B "--log-file=" B_ _U
-    "logfile" U_ "\n" "        Force the path to the log file (overrides configuration value).\n"
-    "        Special values \"stdout\" and \"stderr\" can be used.\n"
-    "    " _B "-l" B_ " " _U "loglevel" U_ ", " _B "--log-level=" B_ _U "loglevel" U_ "\n"
+    _B "Log options:" B_ "\n"
+    "    " _B "-L" B_ " " _U "logfile" U_ ", " _B "--log-file=" B_ _U "logfile" U_ "\n"
+    "        Force the path to the log file (overrides configuration value).\n"
+    "        Special values \"stdout\" and \"stderr\" can be used.\n" "    " _B
+    "-l" B_ " " _U "loglevel" U_ ", " _B "--log-level=" B_ _U "loglevel" U_ "\n"
     "        Force the log verbosity level (overrides configuration value).\n"
     "        Allowed values: CRIT, MAJOR, EVENT, VERB, DEBUG, FULL.\n";
 
 static const char *misc_help =
-     _B "Miscellaneous options:" B_ "\n"
+    _B "Miscellaneous options:" B_ "\n"
     "    " _B "-h" B_ ", " _B "--help" B_ "\n"
     "        Display a short help about command line options.\n"
-    "    " _B "-V" B_ ", " _B "--version" B_ "\n" "        Display version info\n"
-    "    " _B "-p" B_ " " _U "pidfile" U_ ", "
-    _B "--pid-file=" B_ _U "pidfile" U_ "\n" "         Pid file (used for service management).\n";
-
+    "    " _B "-V" B_ ", " _B "--version" B_ "\n"
+    "        Display version info\n"
+    "    " _B "-p" B_ " " _U "pidfile" U_ ", " _B "--pid-file=" B_ _U "pidfile" U_ "\n"
+    "         Pid file (used for service management).\n";
 
 static inline void display_help(const char *bin_name)
 {
@@ -380,7 +377,7 @@ static inline void display_version(const char *bin_name)
 {
     printf("\n");
     printf("Product:         " PACKAGE_NAME "\n");
-    printf("Version:         " PACKAGE_VERSION "-"RELEASE"\n");
+    printf("Version:         " PACKAGE_VERSION "-" RELEASE "\n");
     printf("Build:           " COMPIL_DATE "\n");
     printf("\n");
     printf("Compilation switches:\n");
@@ -426,10 +423,9 @@ static inline void display_version(const char *bin_name)
 static pthread_t stat_thread;
 
 /* database connexion for updating stats */
-static lmgr_t  lmgr;
-static bool    lmgr_init = false;
-static char    boot_time_str[256];
-
+static lmgr_t   lmgr;
+static bool     lmgr_init = false;
+static char     boot_time_str[256];
 
 static void running_mask2str(int mask, uint64_t pol_mask, char *str)
 {
@@ -440,16 +436,13 @@ static void running_mask2str(int mask, uint64_t pol_mask, char *str)
     if (mask & MODULE_MASK_EVENT_HDLR)
         strcat(str, "log_reader,");
 #endif
-    if (mask & MODULE_MASK_POLICY_RUN)
-    {
+    if (mask & MODULE_MASK_POLICY_RUN) {
         bool first_pol = true;
-        int  i;
+        int i;
 
         strcat(str, "policy_run(");
-        for (i = 0; i < policy_run_cpt; i++)
-        {
-            if ((pol_mask) & (1LL<<i))
-            {
+        for (i = 0; i < policy_run_cpt; i++) {
+            if ((pol_mask) & (1LL << i)) {
                 if (!first_pol)
                     strcat(str, ",");
 
@@ -462,129 +455,117 @@ static void running_mask2str(int mask, uint64_t pol_mask, char *str)
 
     /* remove final ',' */
     int len = strlen(str);
-    if ((len > 0) && str[len-1] == ',')
-        str[len-1] = '\0';
+    if ((len > 0) && str[len - 1] == ',')
+        str[len - 1] = '\0';
     return;
 }
 
 /** prevent from dumping module stats when the daemon is shutting down */
-static pthread_mutex_t  shutdown_mtx  = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t shutdown_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 /** signal flags */
-static int     terminate_sig = 0;
-static bool    reload_sig    = false;
-static bool    dump_sig      = false;
+static int      terminate_sig = 0;
+static bool     reload_sig = false;
+static bool     dump_sig = false;
 
 /** async signal handler */
-static pthread_t        sig_thr;
+static pthread_t sig_thr;
 
 /** dump stats of all modules */
 static void dump_stats(lmgr_t *lmgr, const int *module_mask,
                        const uint64_t *p_policy_mask)
 {
-        char           tmp_buff[256];
-        time_t         now;
-        struct tm      date;
+    char   tmp_buff[256];
+    struct tm date;
+    time_t now;
 
-        if (pthread_mutex_trylock(&shutdown_mtx) != 0)
-            /* daemon is shutting down, don't dump stats */
-            return;
+    if (pthread_mutex_trylock(&shutdown_mtx) != 0)
+        /* daemon is shutting down, don't dump stats */
+        return;
 
-        now = time(NULL);
-        strftime(tmp_buff, sizeof(tmp_buff), "%Y/%m/%d %T",
-                 localtime_r(&now, &date));
+    now = time(NULL);
+    strftime(tmp_buff, sizeof(tmp_buff), "%Y/%m/%d %T",
+             localtime_r(&now, &date));
 
-        DisplayLog(LVL_MAJOR, "STATS",
-                    "==================== Dumping stats at %s =====================", tmp_buff);
-        DisplayLog(LVL_MAJOR, "STATS", "======== General statistics =========");
-        DisplayLog(LVL_MAJOR, "STATS", "Daemon start time: %s", boot_time_str);
-        running_mask2str(*module_mask, *p_policy_mask, tmp_buff);
-        DisplayLog(LVL_MAJOR, "STATS", "Started modules: %s", tmp_buff);
+    DisplayLog(LVL_MAJOR, "STATS",
+               "==================== Dumping stats at %s =====================",
+               tmp_buff);
+    DisplayLog(LVL_MAJOR, "STATS", "======== General statistics =========");
+    DisplayLog(LVL_MAJOR, "STATS", "Daemon start time: %s", boot_time_str);
+    running_mask2str(*module_mask, *p_policy_mask, tmp_buff);
+    DisplayLog(LVL_MAJOR, "STATS", "Started modules: %s", tmp_buff);
 
-        if (*module_mask & MODULE_MASK_FS_SCAN)
-        {
-            FSScan_DumpStats();
-            FSScan_StoreStats(lmgr);
-        }
-
+    if (*module_mask & MODULE_MASK_FS_SCAN) {
+        FSScan_DumpStats();
+        FSScan_StoreStats(lmgr);
+    }
 #ifdef HAVE_CHANGELOGS
-        if (*module_mask & MODULE_MASK_EVENT_HDLR)
-        {
-            cl_reader_dump_stats();
-            cl_reader_store_stats(lmgr);
-        }
+    if (*module_mask & MODULE_MASK_EVENT_HDLR) {
+        cl_reader_dump_stats();
+        cl_reader_store_stats(lmgr);
+    }
 #endif
 
-        if (*module_mask & MODULE_MASK_ENTRY_PROCESSOR)
-        {
-            EntryProcessor_DumpCurrentStages();
+    if (*module_mask & MODULE_MASK_ENTRY_PROCESSOR) {
+        EntryProcessor_DumpCurrentStages();
+    }
+
+    if (*module_mask & MODULE_MASK_POLICY_RUN
+        && *p_policy_mask != 0LL && policy_run_cpt != 0 && policy_run != NULL) {
+        int i;
+
+        for (i = 0; i < policy_run_cpt; i++) {
+            if ((*p_policy_mask) & (1LL << i))
+                policy_module_dump_stats(&policy_run[i]);
         }
+    }
 
-        if (*module_mask & MODULE_MASK_POLICY_RUN
-            && *p_policy_mask != 0LL
-            && policy_run_cpt != 0
-            && policy_run != NULL)
-        {
-            int i;
+    pthread_mutex_unlock(&shutdown_mtx);
 
-            for (i = 0; i <  policy_run_cpt; i++)
-            {
-                if ((*p_policy_mask) & (1LL<<i))
-                    policy_module_dump_stats(&policy_run[i]);
-            }
-        }
-
-        pthread_mutex_unlock(&shutdown_mtx);
-
-        /* Flush stats */
-        FlushLogs();
+    /* Flush stats */
+    FlushLogs();
 }
 
-static void  *stats_thr( void *arg )
+static void *stats_thr(void *arg)
 {
-    struct tm      date;
+    struct tm date;
 
-    strftime( boot_time_str, 256, "%Y/%m/%d %T", localtime_r( &boot_time, &date ) );
+    strftime(boot_time_str, 256, "%Y/%m/%d %T", localtime_r(&boot_time, &date));
 
-    if ( !lmgr_init )
-    {
-        if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS )
+    if (!lmgr_init) {
+        if (ListMgr_InitAccess(&lmgr) != DB_SUCCESS)
             return NULL;
         lmgr_init = true;
     }
 
-    DisplayLog( LVL_VERB, MAIN_TAG, "Statistics thread started" );
+    DisplayLog(LVL_VERB, MAIN_TAG, "Statistics thread started");
 
     WaitStatsInterval();
-    while (!terminate_sig)
-    {
+    while (!terminate_sig) {
         dump_stats(&lmgr, &running_mask, &policy_run_mask);
         WaitStatsInterval();
     }
     return NULL;
 }
 
-
 #define SIGHDL_TAG  "SigHdlr"
 
-static void terminate_handler( int sig )
+static void terminate_handler(int sig)
 {
     terminate_sig = sig;
 }
 
-static void reload_handler( int sig )
+static void reload_handler(int sig)
 {
     reload_sig = true;
 }
 
-static void usr_handler( int sig )
+static void usr_handler(int sig)
 {
     dump_sig = true;
 }
 
-
-
-static int action2parsing_mask( int act_mask )
+static int action2parsing_mask(int act_mask)
 {
     /* build config parsing mask */
     int parse_mask = 0;
@@ -593,15 +574,14 @@ static int action2parsing_mask( int act_mask )
     if (act_mask & ACTION_MASK_RUN_POLICIES)
         parse_mask |= MODULE_MASK_POLICY_RUN;
 #ifdef HAVE_CHANGELOGS
-    if ( act_mask & ACTION_MASK_HANDLE_EVENTS )
+    if (act_mask & ACTION_MASK_HANDLE_EVENTS)
         parse_mask |= MODULE_MASK_EVENT_HDLR | MODULE_MASK_ENTRY_PROCESSOR;
 #endif
 
     return parse_mask;
 }
 
-
-static void   *signal_handler_thr( void *arg )
+static void *signal_handler_thr(void *arg)
 {
 
     struct sigaction act_sighup;
@@ -609,86 +589,84 @@ static void   *signal_handler_thr( void *arg )
     struct sigaction act_sigusr;
 
     /* create signal handlers */
-    memset( &act_sigterm, 0, sizeof( act_sigterm ) );
+    memset(&act_sigterm, 0, sizeof(act_sigterm));
     act_sigterm.sa_flags = 0;
     act_sigterm.sa_handler = terminate_handler;
-    if ( sigaction( SIGTERM, &act_sigterm, NULL ) == -1
-         || sigaction( SIGINT, &act_sigterm, NULL ) == -1 )
-    {
-        DisplayLog( LVL_CRIT, SIGHDL_TAG,
-                    "Error while setting signal handlers for SIGTERM and SIGINT: %s",
-                    strerror( errno ) );
-        exit( 1 );
-    }
-    else
+    if (sigaction(SIGTERM, &act_sigterm, NULL) == -1
+        || sigaction(SIGINT, &act_sigterm, NULL) == -1) {
+        DisplayLog(LVL_CRIT, SIGHDL_TAG,
+                   "Error while setting signal handlers for SIGTERM and SIGINT: %s",
+                   strerror(errno));
+        exit(1);
+    } else
         DisplayLog(LVL_VERB, SIGHDL_TAG,
                    "Signals SIGTERM and SIGINT (daemon shutdown) are ready to be used");
 
-    memset( &act_sighup, 0, sizeof( act_sighup ) );
+    memset(&act_sighup, 0, sizeof(act_sighup));
     act_sighup.sa_flags = 0;
     act_sighup.sa_handler = reload_handler;
-    if ( sigaction( SIGHUP, &act_sighup, NULL ) == -1 )
-    {
-        DisplayLog( LVL_CRIT, SIGHDL_TAG, "Error while setting signal handlers for SIGHUP: %s",
-                    strerror( errno ) );
-        exit( 1 );
-    }
-    else
-        DisplayLog(LVL_VERB, SIGHDL_TAG, "Signal SIGHUP (config reloading) is ready to be used");
+    if (sigaction(SIGHUP, &act_sighup, NULL) == -1) {
+        DisplayLog(LVL_CRIT, SIGHDL_TAG,
+                   "Error while setting signal handlers for SIGHUP: %s",
+                   strerror(errno));
+        exit(1);
+    } else
+        DisplayLog(LVL_VERB, SIGHDL_TAG,
+                   "Signal SIGHUP (config reloading) is ready to be used");
 
-    memset( &act_sigusr, 0, sizeof( act_sigusr ) );
+    memset(&act_sigusr, 0, sizeof(act_sigusr));
     act_sigusr.sa_flags = 0;
     act_sigusr.sa_handler = usr_handler;
-    if ( sigaction( SIGUSR1, &act_sigusr, NULL ) == -1 )
-    {
-        DisplayLog( LVL_CRIT, SIGHDL_TAG, "Error while setting signal handlers for SIGUSR1: %s",
-                    strerror( errno ) );
-        exit( 1 );
-    }
-    else
-        DisplayLog(LVL_VERB, SIGHDL_TAG, "Signal SIGUSR1 (stats dump) is ready to be used");
-
+    if (sigaction(SIGUSR1, &act_sigusr, NULL) == -1) {
+        DisplayLog(LVL_CRIT, SIGHDL_TAG,
+                   "Error while setting signal handlers for SIGUSR1: %s",
+                   strerror(errno));
+        exit(1);
+    } else
+        DisplayLog(LVL_VERB, SIGHDL_TAG,
+                   "Signal SIGUSR1 (stats dump) is ready to be used");
 
     /* signal flag checking loop */
-    while ( 1 )
-    {
+    while (1) {
         /* check for signal every second */
-        rh_sleep( 1 );
+        rh_sleep(1);
 
-        if ( terminate_sig != 0 )
-        {
-            const struct timespec timeout = { .tv_sec = 1, .tv_nsec = 0 };
+        if (terminate_sig != 0) {
+            const struct timespec timeout = {.tv_sec = 1, .tv_nsec = 0 };
 
-            if ( terminate_sig == SIGTERM )
-                DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGTERM received: performing clean daemon shutdown" );
-            else if ( terminate_sig == SIGINT )
-                DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGINT received: performing clean daemon shutdown" );
-            FlushLogs(  );
+            if (terminate_sig == SIGTERM)
+                DisplayLog(LVL_MAJOR, SIGHDL_TAG,
+                           "SIGTERM received: performing clean daemon shutdown");
+            else if (terminate_sig == SIGINT)
+                DisplayLog(LVL_MAJOR, SIGHDL_TAG,
+                           "SIGINT received: performing clean daemon shutdown");
+            FlushLogs();
 
-            /* wait up to 1s to get the termination mutex (avoids dumping stats while terminating the daemon) */
-            if (pthread_mutex_timedlock(&shutdown_mtx, &timeout) != 0)
-            {
-                /* Something when wrong for an unexpected reason, but we have to shutdown now!
+            /* wait up to 1s to get the termination mutex (avoids dumping stats
+             * while terminating the daemon) */
+            if (pthread_mutex_timedlock(&shutdown_mtx, &timeout) != 0) {
+                /* Something when wrong for an unexpected reason,
+                 * but we have to shutdown now!
                  * => continuing */
-                DisplayLog(LVL_MAJOR, SIGHDL_TAG, "WARNING: Failed to get termination mutex: %m");
+                DisplayLog(LVL_MAJOR, SIGHDL_TAG,
+                           "WARNING: Failed to get termination mutex: %m");
             }
 
-            /* first ask policy consummers and feeders to stop (long operations first) */
+            /* first ask policy consummers and feeders to stop
+             * (long operations first) */
 
             /* 1- stop submitting policy actions */
             if (running_mask & MODULE_MASK_POLICY_RUN
                 && policy_run_mask != 0LL
-                && policy_run_cpt != 0
-                && policy_run != NULL)
-            {
+                && policy_run_cpt != 0 && policy_run != NULL) {
                 int i;
-                for (i = 0; i <  policy_run_cpt; i++)
-                {
-                    if (policy_run_mask & (1LL<<i))
-                    {
+
+                for (i = 0; i < policy_run_cpt; i++) {
+                    if (policy_run_mask & (1LL << i)) {
                         int rc = policy_module_stop(&policy_run[i]);
                         if (rc)
-                            DisplayLog(LVL_CRIT, SIGHDL_TAG, "Failed to stop policy module '%s' (rc=%d).",
+                            DisplayLog(LVL_CRIT, SIGHDL_TAG,
+                                       "Failed to stop policy module '%s' (rc=%d).",
                                        policy_run[i].descr->name, rc);
                         FlushLogs();
                     }
@@ -697,113 +675,106 @@ static void   *signal_handler_thr( void *arg )
 
             /* 2 - stop feeding with changelogs */
 #ifdef HAVE_CHANGELOGS
-            if (running_mask & MODULE_MASK_EVENT_HDLR)
-            {
+            if (running_mask & MODULE_MASK_EVENT_HDLR) {
                 /* stop changelog processing */
-                cl_reader_terminate(  );
-                FlushLogs(  );
+                cl_reader_terminate();
+                FlushLogs();
             }
 #endif
             /* 2b - stop feeding from scan */
-            if (running_mask & MODULE_MASK_FS_SCAN)
-            {
-                /* avoid stats thread to try dumping the stats while terminating */
+            if (running_mask & MODULE_MASK_FS_SCAN) {
+                /* avoid stats thread to try dumping the stats while
+                 * terminating */
                 running_mask &= ~MODULE_MASK_FS_SCAN;
 
                 /* stop FS scan (blocking) */
-                FSScan_Terminate(  );
-                FlushLogs(  );
+                FSScan_Terminate();
+                FlushLogs();
             }
 
             /* TODO 3) wait changelog reader (blocking) */
 
             /* 4 - entry processor can be stopped */
-            if (running_mask & MODULE_MASK_ENTRY_PROCESSOR)
-            {
-                /* avoid stats thread to try dumping the status while terminating */
+            if (running_mask & MODULE_MASK_ENTRY_PROCESSOR) {
+                /* avoid stats thread to try dumping the status while
+                 * terminating */
                 running_mask &= ~MODULE_MASK_ENTRY_PROCESSOR;
 
                 /* drop pipeline waiting operations and terminate threads */
                 EntryProcessor_Terminate(false);
 
 #ifdef HAVE_CHANGELOGS
-                if (running_mask & MODULE_MASK_EVENT_HDLR)
-                {
+                if (running_mask & MODULE_MASK_EVENT_HDLR) {
                     /* Ack last changelog records. */
                     cl_reader_done();
                 }
 #endif
-                FlushLogs(  );
+                FlushLogs();
             }
 
             /* 5 - wait policy consumers */
             if (running_mask & MODULE_MASK_POLICY_RUN
                 && policy_run_mask != 0LL
-                && policy_run_cpt != 0
-                && policy_run != NULL)
-            {
+                && policy_run_cpt != 0 && policy_run != NULL) {
                 int i, rc;
 
                 running_mask &= ~MODULE_MASK_POLICY_RUN;
 
-                for (i = 0; i < policy_run_cpt; i++)
-                {
-                    if (policy_run_mask & (1LL<<i))
-                    {
-                        policy_run_mask &= ~(1LL<<i);
+                for (i = 0; i < policy_run_cpt; i++) {
+                    if (policy_run_mask & (1LL << i)) {
+                        policy_run_mask &= ~(1LL << i);
                         rc = policy_module_wait(&policy_run[i]);
                         if (rc)
-                            DisplayLog(LVL_CRIT, SIGHDL_TAG, "Failure while waiting for policy module '%s' to end (rc=%d).",
+                            DisplayLog(LVL_CRIT, SIGHDL_TAG,
+                                       "Failure while waiting for policy module '%s' to end (rc=%d).",
                                        policy_run[i].descr->name, rc);
                         FlushLogs();
                     }
                 }
             }
 
-            if (lmgr_init)
-            {
+            if (lmgr_init) {
                 ListMgr_CloseAccess(&lmgr);
                 lmgr_init = false;
             }
 
-            DisplayLog( LVL_MAJOR, SIGHDL_TAG, "Exiting." );
-            FlushLogs(  );
+            DisplayLog(LVL_MAJOR, SIGHDL_TAG, "Exiting.");
+            FlushLogs();
 
             /* indicate the process terminated due to a signal */
-            exit( 128 + terminate_sig );
+            exit(128 + terminate_sig);
 
-        }
-        else if (reload_sig)
-        {
-            DisplayLog(LVL_MAJOR, SIGHDL_TAG, "SIGHUP received: reloading configuration");
-            DisplayLog(LVL_EVENT, RELOAD_TAG, "Reloading configuration from '%s'", config_file_path());
+        } else if (reload_sig) {
+            DisplayLog(LVL_MAJOR, SIGHDL_TAG,
+                       "SIGHUP received: reloading configuration");
+            DisplayLog(LVL_EVENT, RELOAD_TAG,
+                       "Reloading configuration from '%s'", config_file_path());
 
-            if(rbh_cfg_reload(parsing_mask) == 0)
-            {
-                if (options.force_log && strcmp(options.log, log_config.log_file))
-                {
-                    DisplayLog( LVL_EVENT, RELOAD_TAG, "Restoring log file option (forced on command line): %s)",
-                                options.log );
+            if (rbh_cfg_reload(parsing_mask) == 0) {
+                if (options.force_log
+                    && strcmp(options.log, log_config.log_file)) {
+                    DisplayLog(LVL_EVENT, RELOAD_TAG,
+                               "Restoring log file option (forced on command line): %s)",
+                               options.log);
                     strcpy(log_config.log_file, options.log);
                 }
-                if (options.force_log_level && (options.log_level != log_config.debug_level))
-                {
-                    DisplayLog(LVL_EVENT, RELOAD_TAG, "Restoring log level option (forced on command line): %d)",
+                if (options.force_log_level
+                    && (options.log_level != log_config.debug_level)) {
+                    DisplayLog(LVL_EVENT, RELOAD_TAG,
+                               "Restoring log level option (forced on command line): %d)",
                                options.log_level);
                     log_config.debug_level = options.log_level;
                 }
             }
 
             reload_sig = false;
-            FlushLogs(  );
-        }
-        else if ( dump_sig )
-        {
-            DisplayLog( LVL_MAJOR, SIGHDL_TAG, "SIGUSR1 received: dumping stats" );
+            FlushLogs();
+        } else if (dump_sig) {
+            DisplayLog(LVL_MAJOR, SIGHDL_TAG,
+                       "SIGUSR1 received: dumping stats");
 
-            if ( !lmgr_init )
-            {
-                if ( ListMgr_InitAccess( &lmgr ) != DB_SUCCESS )
+            if (!lmgr_init) {
+                if (ListMgr_InitAccess(&lmgr) != DB_SUCCESS)
                     return NULL;
                 lmgr_init = true;
             }
@@ -814,64 +785,58 @@ static void   *signal_handler_thr( void *arg )
     }
 }
 
-
-
-static inline int do_write_template( const char *file )
+static inline int do_write_template(const char *file)
 {
-    int            rc;
-    FILE          *stream;
+    int rc;
+    FILE *stream;
 
-    if ( !EMPTY_STRING( file ) )
-    {
-        stream = fopen( file, "w" );
+    if (!EMPTY_STRING(file)) {
+        stream = fopen(file, "w");
 
-        if ( stream == NULL )
-        {
+        if (stream == NULL) {
             rc = errno;
-            fprintf( stderr, "Error opening file '%s' for writing: %s.\n", file, strerror( rc ) );
+            fprintf(stderr, "Error opening file '%s' for writing: %s.\n", file,
+                    strerror(rc));
             return rc;
         }
-    }
-    else
+    } else
         stream = stdout;
 
     rc = rbh_cfg_write_template(stream);
-    if ( rc )
-        fprintf( stderr, "Error writing configuration template: %s\n", strerror( rc ) );
-    else if ( stream != stdout )
-        fprintf( stderr, "Configuration template successfully written to '%s'.\n", file );
+    if (rc)
+        fprintf(stderr, "Error writing configuration template: %s\n",
+                strerror(rc));
+    else if (stream != stdout)
+        fprintf(stderr,
+                "Configuration template successfully written to '%s'.\n", file);
 
-    if ( stream != stdout )
-        fclose( stream );
+    if (stream != stdout)
+        fclose(stream);
 
     return rc;
 }
 
-
-static void create_pid_file( const char *pid_file )
+static void create_pid_file(const char *pid_file)
 {
-    int            fd = open( pid_file, O_CREAT | O_TRUNC | O_WRONLY, 0644 );
+    int fd = open(pid_file, O_CREAT | O_TRUNC | O_WRONLY, 0644);
 
-    if ( fd < 0 )
-    {
-        DisplayLog( LVL_CRIT, MAIN_TAG, "WARNING: Could not open pid file %s: %s",
-                    pid_file, strerror( errno ) );
-    }
-    else
-    {
-        char           pid_str[128];
-        ssize_t        iolen;
+    if (fd < 0) {
+        DisplayLog(LVL_CRIT, MAIN_TAG,
+                   "WARNING: Could not open pid file %s: %s", pid_file,
+                   strerror(errno));
+    } else {
+        char pid_str[128];
+        ssize_t iolen;
 
-        snprintf( pid_str, 128, "%lu\n", ( unsigned long ) getpid(  ) );
-        iolen = write( fd, pid_str, strlen( pid_str ) + 1 );
+        snprintf(pid_str, 128, "%lu\n", (unsigned long)getpid());
+        iolen = write(fd, pid_str, strlen(pid_str) + 1);
 
-        if ( iolen == -1 )
-        {
-            DisplayLog( LVL_CRIT, MAIN_TAG, "ERROR writing pid file %s: %s", pid_file,
-                        strerror( errno ) );
+        if (iolen == -1) {
+            DisplayLog(LVL_CRIT, MAIN_TAG, "ERROR writing pid file %s: %s",
+                       pid_file, strerror(errno));
         }
 
-        close( fd );
+        close(fd);
     }
 
 }
@@ -886,13 +851,12 @@ static int parse_target_usage(const char *str, double *val)
 
     /* parse float argument */
     n = sscanf(str, "%lf%s", val, extra_chr);
-    if (n != 1 && n != 2)
-    {
-        fprintf(stderr, "ERROR: invalid target-usage '%s'. Float expected.\n", str);
+    if (n != 1 && n != 2) {
+        fprintf(stderr, "ERROR: invalid target-usage '%s'. Float expected.\n",
+                str);
         return EINVAL;
     }
-    if (n == 2 && strcmp(extra_chr, "\%") != 0)
-    {
+    if (n == 2 && strcmp(extra_chr, "\%") != 0) {
         fprintf(stderr, "ERROR: unexpected suffix '%s' in target-usage. "
                 "Only '%%' is allowed.\n", extra_chr);
         return EINVAL;
@@ -905,8 +869,8 @@ static int parse_target_usage(const char *str, double *val)
 static int rh_read_parameters(const char *bin, int argc, char **argv,
                               int *action_mask, struct rbh_options *opt)
 {
-    int            c, option_index = 0;
-    char           err_msg[4096];
+    int c, option_index = 0;
+    char err_msg[4096];
 
     /* no action, by default */
     *action_mask = 0;
@@ -915,19 +879,18 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
 
     /* parse command line options */
     while ((c = getopt_long(argc, argv, SHORT_OPT_STRING SHORT_OPT_DEPRECATED,
-                            option_tab, &option_index)) != -1)
-    {
-        switch ( c )
-        {
+                            option_tab, &option_index)) != -1) {
+        switch (c) {
         case PARTIAL_SCAN:
-            fprintf(stderr, "Warning: --partial-scan is deprecated. Use '--scan=<dir>' instead.\n");
+            fprintf(stderr,
+                    "Warning: --partial-scan is deprecated. Use '--scan=<dir>' instead.\n");
             /* same as 'scan' with optarg != NULL
              * => continue to -S:
              */
         case 'S':
             *action_mask |= ACTION_MASK_SCAN;
 
-            if (optarg) {       /* optional argument => partial scan*/
+            if (optarg) {   /* optional argument => partial scan */
                 opt->flags |= RUNFLG_ONCE;
                 opt->partial_scan = true;
                 rh_strncpy(opt->partial_scan_path, optarg, RBH_PATH_MAX);
@@ -938,16 +901,15 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
             break;
 
         case SHOW_DIFF:
-            if (parse_diff_mask(optarg, &opt->diff_mask, err_msg))
-            {
-                fprintf(stderr,
-                        "Invalid argument for --diff: %s\n", err_msg);
+            if (parse_diff_mask(optarg, &opt->diff_mask, err_msg)) {
+                fprintf(stderr, "Invalid argument for --diff: %s\n", err_msg);
                 return EINVAL;
             }
             break;
 
         case DEPRECATED_WM:
-            fprintf(stderr, "Warning: '--check-watermarks' is deprecated. Use '--check-thresholds' instead.\n");
+            fprintf(stderr,
+                    "Warning: '--check-watermarks' is deprecated. Use '--check-thresholds' instead.\n");
             optarg = NULL;
             /* same as '--check-thresholds' with opt_arg=NULL.
              * => continue to -C
@@ -967,43 +929,42 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
              */
             /* first case: */
             if (!EMPTY_STRING(opt->policy_string) && (optarg != NULL)
-                && !EMPTY_STRING(optarg))
-            {
-                if(strcasecmp(opt->policy_string, optarg) != 0)
-                {
-                    fprintf(stderr, "Incompatible arguments for --run and --check-thresholds ('%s' != '%s').\n"
-                                    "You can specify:\n"
-                                    "--check-thresholds=foo,bar\n"
-                                    "--run=foo,bar --check-thresholds\n",
-                                    opt->policy_string, optarg);
+                && !EMPTY_STRING(optarg)) {
+                if (strcasecmp(opt->policy_string, optarg) != 0) {
+                    fprintf(stderr,
+                            "Incompatible arguments for --run and --check-thresholds ('%s' != '%s').\n"
+                            "You can specify:\n" "--check-thresholds=foo,bar\n"
+                            "--run=foo,bar --check-thresholds\n",
+                            opt->policy_string, optarg);
                     return EINVAL;
-                }
-                else
-                    fprintf(stderr, "Duplicate arguments for --run and --check-thresholds\n"
-                                    "Assuming --check-thresholds=%s",
-                                    opt->policy_string);
-            }
-            else /* all other cases: global check flag. */
-            {
+                } else
+                    fprintf(stderr,
+                            "Duplicate arguments for --run and --check-thresholds\n"
+                            "Assuming --check-thresholds=%s",
+                            opt->policy_string);
+            } else {    /* all other cases: global check flag. */
+
                 /* copy specified policies (unless if specified by run) */
                 if (EMPTY_STRING(opt->policy_string) && optarg != NULL &&
                     !EMPTY_STRING(optarg))
-                    rh_strncpy(opt->policy_string, optarg, sizeof(opt->policy_string));
+                    rh_strncpy(opt->policy_string, optarg,
+                               sizeof(opt->policy_string));
             }
             break;
 
         case 'r':
 #ifndef HAVE_CHANGELOGS
-            fprintf( stderr,
-                     "-r | --read-log option is only supported in Lustre v2.x versions.\n" );
+            fprintf(stderr,
+                    "-r | --read-log option is only supported in Lustre v2.x versions.\n");
             return ENOTSUP;
 #else
             *action_mask |= ACTION_MASK_HANDLE_EVENTS;
 #ifdef HAVE_DNE
-            if (optarg) {  /* optional argument => MDT index */
+            if (optarg) {   /* optional argument => MDT index */
                 opt->mdtidx = str2int(optarg);
                 if (opt->mdtidx == -1) {
-                    fprintf(stderr, "Invalid argument to --read-log: expected numeric value for <mdt_index>.\n");
+                    fprintf(stderr,
+                            "Invalid argument to --read-log: expected numeric value for <mdt_index>.\n");
                     return EINVAL;
                 }
             }
@@ -1013,43 +974,41 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
 
         case RUN_POLICIES:
             /* avoid conflicts with check-policies */
-            if (opt->flags & RUNFLG_CHECK_ONLY)
-            {
+            if (opt->flags & RUNFLG_CHECK_ONLY) {
                 if (optarg != NULL && !EMPTY_STRING(optarg))
-                    fprintf(stderr, "ERROR: --run is redundant with --check-thresholds\n"
+                    fprintf(stderr,
+                            "ERROR: --run is redundant with --check-thresholds\n"
                             "Did you mean: --check-thresholds=%s ?\n", optarg);
                 else if (!EMPTY_STRING(opt->policy_string))
-                    fprintf(stderr, "ERROR: --run is redundant with --check-thresholds\n"
-                            "Did you just mean: --check-thresholds=%s ?\n", opt->policy_string);
-                else /* both empty */
-                    fprintf(stderr, "ERROR: --run is redundant with --check-thresholds\n"
+                    fprintf(stderr,
+                            "ERROR: --run is redundant with --check-thresholds\n"
+                            "Did you just mean: --check-thresholds=%s ?\n",
+                            opt->policy_string);
+                else    /* both empty */
+                    fprintf(stderr,
+                            "ERROR: --run is redundant with --check-thresholds\n"
                             "Did you just mean: --check-thresholds ?\n");
                 return EINVAL;
-            }
-            else if (!EMPTY_STRING(opt->policy_string))
-            {
+            } else if (!EMPTY_STRING(opt->policy_string)) {
                 /* forbid using '--run' (without option)
                  * together with '--run=policy1...' (with options) */
-                if (optarg == NULL)
-                {
+                if (optarg == NULL) {
                     fprintf(stderr, "ERROR: multiple inconsistent '--run' "
                             "parameters on command line.\n");
                     return EINVAL;
                 }
-                /* Concatenate with previous 'run' parameters, to allow specifying
-                 * --run=policy1 --run=policy2,...
+                /* Concatenate with previous 'run' parameters, to allow
+                 * specifying --run=policy1 --run=policy2,...
                  */
                 strncat(opt->policy_string, ",", sizeof(opt->policy_string)
                         - strlen(opt->policy_string) - 1);
                 strncat(opt->policy_string, optarg, sizeof(opt->policy_string)
                         - strlen(opt->policy_string) - 1);
-            }
-            else if (optarg != NULL && !EMPTY_STRING(optarg))
-            {
+            } else if (optarg != NULL && !EMPTY_STRING(optarg)) {
                 /* was there a previous '--run' without policies? */
-                if ((*action_mask) & ACTION_MASK_RUN_POLICIES)
-                {
-                    fprintf(stderr, "ERROR: multiple inconsistent '--run' or '--check-thresholds' "
+                if ((*action_mask) & ACTION_MASK_RUN_POLICIES) {
+                    fprintf(stderr,
+                            "ERROR: multiple inconsistent '--run' or '--check-thresholds' "
                             "parameters on command line.\n");
                     return EINVAL;
                 }
@@ -1063,18 +1022,18 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
             break;
 
         case 't':
-            if (!EMPTY_STRING(opt->target_string))
-            {
-                fprintf(stderr, "ERROR: multiple target definition on command line: '%s' and '%s'.\n",
+            if (!EMPTY_STRING(opt->target_string)) {
+                fprintf(stderr,
+                        "ERROR: multiple target definition on command line: '%s' and '%s'.\n",
                         opt->target_string, optarg);
                 return EINVAL;
             }
             rh_strncpy(opt->target_string, optarg, sizeof(opt->target_string));
             break;
         case TGT_USAGE:
-            if (opt->usage_target != TGT_NOT_SET)
-            {
-                fprintf(stderr, "ERROR: multiple target-usage specified on command line.\n");
+            if (opt->usage_target != TGT_NOT_SET) {
+                fprintf(stderr,
+                        "ERROR: multiple target-usage specified on command line.\n");
                 return EINVAL;
             }
             /* parse float argument */
@@ -1083,7 +1042,8 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
             break;
 
         case 's':
-            fprintf(stderr, "ERROR: --sync option is deprecated. Instead, use --run=<policy_name> --force-all\n");
+            fprintf(stderr,
+                    "ERROR: --sync option is deprecated. Instead, use --run=<policy_name> --force-all\n");
             return EINVAL;
             break;
 
@@ -1107,7 +1067,7 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
             break;
         case FORCE_ALL:
             opt->flags |= RUNFLG_ONCE | RUNFLG_NO_LIMIT | RUNFLG_IGNORE_POL
-                          | RUNFLG_FORCE_RUN;
+                | RUNFLG_FORCE_RUN;
             break;
 
         case 'd':
@@ -1120,7 +1080,7 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
             rh_strncpy(opt->config_file, optarg, MAX_OPT_LEN);
             break;
         case 'T':
-            if ( optarg )       /* optional argument */
+            if (optarg) /* optional argument */
                 rh_strncpy(opt->template_file, optarg, MAX_OPT_LEN);
             opt->write_template = true;
             break;
@@ -1137,8 +1097,7 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
         case 'l':
             opt->force_log_level = true;
             opt->log_level = str2debuglevel(optarg);
-            if (opt->log_level == -1)
-            {
+            if (opt->log_level == -1) {
                 fprintf(stderr,
                         "Unsupported log level '%s'. CRIT, MAJOR, EVENT, VERB, DEBUG or FULL expected.\n",
                         optarg);
@@ -1150,90 +1109,102 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
             rh_strncpy(opt->pid_filepath, optarg, MAX_OPT_LEN);
             break;
         case 'h':
-            display_help( bin );
+            display_help(bin);
             return -1;
             break;
         case 'V':
-            display_version( bin );
+            display_version(bin);
             return -1;
             break;
 
-        /* Deprecated options */
+            /* Deprecated options */
         case 'P':
         case 'R':
         case 'M':
-            fprintf(stderr, "ERROR: option -%c is deprecated. Instead, use: --run=<policyname>\n",
+            fprintf(stderr,
+                    "ERROR: option -%c is deprecated. Instead, use: --run=<policyname>\n",
                     c);
             return EINVAL;
             break;
         case 'i':
-            fprintf(stderr, "ERROR: option '-i' is deprecated: use '-I' instead.\n");
+            fprintf(stderr,
+                    "ERROR: option '-i' is deprecated: use '-I' instead.\n");
             return EINVAL;
             break;
         case FORCE_OST_PURGE:
-            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=ost:<idx> --target-usage=<pct>\n",
+            fprintf(stderr,
+                    "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=ost:<idx> --target-usage=<pct>\n",
                     option_tab[option_index].name);
             return EINVAL;
         case FORCE_FS_PURGE:
-            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=all --target-usage=<pct>\n",
+            fprintf(stderr,
+                    "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=all --target-usage=<pct>\n",
                     option_tab[option_index].name);
             return EINVAL;
         case FORCE_CLASS_PURGE:
-            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=class:<name>\n",
+            fprintf(stderr,
+                    "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=class:<name>\n",
                     option_tab[option_index].name);
             return EINVAL;
         case FORCE_OST_MIGR:
-            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=ost:<name>\n",
+            fprintf(stderr,
+                    "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=ost:<name>\n",
                     option_tab[option_index].name);
             return EINVAL;
         case FORCE_USER_MIGR:
-            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=user:<name>\n",
+            fprintf(stderr,
+                    "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=user:<name>\n",
                     option_tab[option_index].name);
             return EINVAL;
         case FORCE_GROUP_MIGR:
-            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=group:<name>\n",
+            fprintf(stderr,
+                    "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=group:<name>\n",
                     option_tab[option_index].name);
             return EINVAL;
         case FORCE_CLASS_MIGR:
-            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=class:<name>\n",
+            fprintf(stderr,
+                    "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=class:<name>\n",
                     option_tab[option_index].name);
             return EINVAL;
         case MIGR_ONE_FILE:
-            fprintf(stderr, "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=file:<path>\n",
+            fprintf(stderr,
+                    "ERROR: option --%s is deprecated.\nInstead, use: --run=<policyname> --target=file:<path>\n",
                     option_tab[option_index].name);
             return EINVAL;
 
         case ':':
         case '?':
         default:
-            fprintf(stderr,"Run '%s --help' for more details.\n", bin);
+            fprintf(stderr, "Run '%s --help' for more details.\n", bin);
             return EINVAL;
             break;
         }
     }
 
     /* check there is no extra arguments */
-    if (optind != argc)
-    {
+    if (optind != argc) {
         fprintf(stderr, "Error: unexpected argument on command line: %s\n",
                 argv[optind]);
         return EINVAL;
     }
 
     if (!attr_mask_is_null(opt->diff_mask) && (*action_mask != ACTION_MASK_SCAN)
-        && (*action_mask != ACTION_MASK_HANDLE_EVENTS))
-    {
-        fprintf(stderr, "Error: --diff option only applies to --scan and --readlog actions\n");
+        && (*action_mask != ACTION_MASK_HANDLE_EVENTS)) {
+        fprintf(stderr,
+                "Error: --diff option only applies to --scan and --readlog actions\n");
         return EINVAL;
     }
 
     return 0;
-} /* rh_read_parameters */
+}   /* rh_read_parameters */
 
 #ifdef _LUSTRE
-#define TGT_HELP "Allowed values: 'all', 'user:<username>', 'group:<groupname>', 'file:<path>', 'class:<fileclass>', 'ost:<ost_idx>', 'pool:<poolname>'."
+#define TGT_HELP "Allowed values: 'all', 'user:<username>', "\
+                 "'group:<groupname>', 'file:<path>', 'class:<fileclass>', "\
+                 "'ost:<ost_idx>', 'pool:<poolname>'."
 #else
-#define TGT_HELP "Allowed values: 'all', 'user:<username>', 'group:<groupname>', 'file:<path>', 'class:<fileclass>'."
+#define TGT_HELP "Allowed values: 'all', 'user:<username>', "\
+                 "'group:<groupname>', 'file:<path>', 'class:<fileclass>'."
 #endif
 
 /** convert a target string option to a policy_opt_t structure */
@@ -1242,74 +1213,57 @@ static int policyopt_set_target(char *opt_string, policy_opt_t *opt)
     char *next;
     char *c;
 
-    if (EMPTY_STRING(opt_string))
-    {
+    if (EMPTY_STRING(opt_string)) {
         opt->target = TGT_NONE;
         return 0;
     }
 
-    if (!strcasecmp(opt_string, "all"))
-    {
+    if (!strcasecmp(opt_string, "all")) {
         opt->target = TGT_FS;
         return 0;
     }
 
-    if ((c = strchr(opt_string, ':')) == NULL)
-    {
-        fprintf(stderr, "Invalid target '%s'. "TGT_HELP"\n", opt_string);
+    if ((c = strchr(opt_string, ':')) == NULL) {
+        fprintf(stderr, "Invalid target '%s'. " TGT_HELP "\n", opt_string);
         return EINVAL;
     }
     *c = '\0';
-    next = c+1;
+    next = c + 1;
     c = opt_string;
 
-    if (!strcasecmp(c, "all"))
-    {
+    if (!strcasecmp(c, "all")) {
         fprintf(stderr, "No ':' expected after 'all' target.\n");
         return EINVAL;
-    }
-    else if (!strcasecmp(c, "user"))
-    {
+    } else if (!strcasecmp(c, "user")) {
         opt->target = TGT_USER;
         opt->optarg_u.name = next;
-    }
-    else if (!strcasecmp(c, "group"))
-    {
+    } else if (!strcasecmp(c, "group")) {
         opt->target = TGT_GROUP;
         opt->optarg_u.name = next;
-    }
-    else if (!strcasecmp(c, "file"))
-    {
+    } else if (!strcasecmp(c, "file")) {
         opt->target = TGT_FILE;
         opt->optarg_u.name = next;
-    }
-    else if (!strcasecmp(c, "class"))
-    {
+    } else if (!strcasecmp(c, "class")) {
         opt->target = TGT_CLASS;
         opt->optarg_u.name = next;
     }
 #ifdef _LUSTRE
-    else if (!strcasecmp(c, "ost"))
-    {
+    else if (!strcasecmp(c, "ost")) {
         char extra_chr[MAX_OPT_LEN];
         opt->target = TGT_OST;
         if (sscanf(next, "%i%s", &opt->optarg_u.index, extra_chr) != 1
-            || opt->optarg_u.index < 0)
-        {
+            || opt->optarg_u.index < 0) {
             fprintf(stderr, "Invalid ost target specification: index expected. "
                     "E.g. --target=ost:42\n");
             return EINVAL;
         }
-    }
-    else if (!strcasecmp(c, "pool"))
-    {
+    } else if (!strcasecmp(c, "pool")) {
         opt->target = TGT_POOL;
         opt->optarg_u.name = next;
     }
 #endif
-    else
-    {
-        fprintf(stderr, "Invalid target type '%s'. "TGT_HELP"\n", c);
+    else {
+        fprintf(stderr, "Invalid target type '%s'. " TGT_HELP "\n", c);
         return EINVAL;
     }
     return 0;
@@ -1317,8 +1271,8 @@ static int policyopt_set_target(char *opt_string, policy_opt_t *opt)
 
 /** policy and options for each policy run */
 typedef struct run_item {
-    int           policy_index;
-    policy_opt_t  run_opt;
+    int policy_index;
+    policy_opt_t run_opt;
 } run_item_t;
 
 /** add a policy run to the list */
@@ -1332,18 +1286,15 @@ static int add_policy_run(run_item_t **runs, unsigned int *count,
     /* opts should be policy specific or the default */
     assert(opts != NULL);
 
-    if (!policy_exists(name, &index))
-    {
+    if (!policy_exists(name, &index)) {
         fprintf(stderr, "ERROR: policy '%s' is not declared in config file.\n",
                 name);
         return EINVAL;
     }
 
     /** check duplicates */
-    for (i = 0; i < *count; i++)
-    {
-        if ((*runs)[i].policy_index == index)
-        {
+    for (i = 0; i < *count; i++) {
+        if ((*runs)[i].policy_index == index) {
             fprintf(stderr, "ERROR: policy '%s' is invoked multiple times "
                     "in '--run' arguments\n", name);
             return EINVAL;
@@ -1371,23 +1322,20 @@ static int add_policy_run(run_item_t **runs, unsigned int *count,
  * @param[in,out] opts  Policy options resulting from policy run arguments.
  * @param[in,out] arg   String of the argument to be parsed.
  * @param[in]     name  Policy name (for error messages).
- * @param[in]     implicit true if the argument name is implicit (policy target).
+ * @param[in]     implicit  true if the argument name is implicit
+ *                          (policy target).
  */
 static int parse_policy_single_arg(policy_opt_t *opts, char *arg,
                                    const char *name, bool implicit)
 {
     char *val = strchr(arg, '=');
 
-    if (!val)
-    {
-        if (!implicit)
-        {
+    if (!val) {
+        if (!implicit) {
             fprintf(stderr, "Invalid '--run' argument: missing parameter name "
                     "at '%s' (policy '%s')\n", arg, name);
             return EINVAL;
-        }
-        else
-        {
+        } else {
             /* implicit arg name => arg is a policy target */
             return policyopt_set_target(arg, opts);
         }
@@ -1395,43 +1343,32 @@ static int parse_policy_single_arg(policy_opt_t *opts, char *arg,
     *val = '\0';
     val++;
 
-    if (!strcmp(arg, "target"))
-    {
+    if (!strcmp(arg, "target")) {
         return policyopt_set_target(val, opts);
-    }
-    else if (!strcmp(arg, "target-usage"))
-    {
+    } else if (!strcmp(arg, "target-usage")) {
         return parse_target_usage(val, &opts->usage_pct);
-    }
-    else if (!strcmp(arg, "max-count"))
-    {
+    } else if (!strcmp(arg, "max-count")) {
         /* support for 'KMG...' suffixes */
         uint64_t tmp = str2size(val);
 
-        if (tmp == (uint64_t)-1LL || tmp > UINT_MAX)
-        {
+        if (tmp == (uint64_t)-1LL || tmp > UINT_MAX) {
             fprintf(stderr, "ERROR: invalid value '%s' for max-count: "
-                   "integer (32 bits) expected.\n", val);
+                    "integer (32 bits) expected.\n", val);
             return EINVAL;
         }
         opts->max_action_nbr = tmp;
-    }
-    else if (!strcmp(arg, "max-volume") || !strcmp(arg, "max-vol"))
-    {
+    } else if (!strcmp(arg, "max-volume") || !strcmp(arg, "max-vol")) {
         /* parse val */
         uint64_t tmp;
 
         tmp = str2size(val);
-        if (tmp == (uint64_t)-1LL)
-        {
+        if (tmp == (uint64_t)-1LL) {
             fprintf(stderr, "ERROR: invalid value '%s' for max-vol: "
-                   "<int>[KMGTPE] expected.\n", val);
+                    "<int>[KMGTPE] expected.\n", val);
             return EINVAL;
         }
         opts->max_action_vol = tmp;
-    }
-    else
-    {
+    } else {
         /* error */
         fprintf(stderr, "ERROR: unexpected parameter name '%s' in run "
                 "arguments for policy '%s'.\n\t'target', 'target-usage', "
@@ -1441,7 +1378,6 @@ static int parse_policy_single_arg(policy_opt_t *opts, char *arg,
 
     return 0;
 }
-
 
 /** parse a list of arguments for a policy run */
 static int parse_policy_args(policy_opt_t *opts, char *args, const char *name)
@@ -1459,8 +1395,7 @@ static int parse_policy_args(policy_opt_t *opts, char *args, const char *name)
     if (rc)
         return rc;
 
-    while ((param = strtok_r(NULL, ",", &curr)))
-    {
+    while ((param = strtok_r(NULL, ",", &curr))) {
         /* don't allow implicit parameter name for next arguments */
         rc = parse_policy_single_arg(opts, param, name, false);
         if (rc)
@@ -1481,22 +1416,20 @@ static char *extract_arg_list(const char *str, char **next)
 {
     char *arg_end;
     char *args_tmp;
-    int   arg_len;
+    int arg_len;
 
     /*  The first char is a '(' */
     assert(str != NULL && str[0] == '(');
 
     /*  Match the next ')' */
     arg_end = strchr(str + 1, ')');
-    if (arg_end == NULL)
-    {
+    if (arg_end == NULL) {
         fprintf(stderr, "Error in policy run specification: unmatched "
                 "'(' in '%s'\n", str);
         return NULL;
     }
     /* then ',' or '\0' is expected. */
-    if (arg_end[1] != ',' && arg_end[1] != '\0')
-    {
+    if (arg_end[1] != ',' && arg_end[1] != '\0') {
         fprintf(stderr, "Error in policy run specification: ',' or "
                 "end of string expected after ')', but '%s' found\n",
                 arg_end + 1);
@@ -1519,7 +1452,6 @@ static char *extract_arg_list(const char *str, char **next)
     return args_tmp;
 }
 
-
 /**
  * Read the next policy in '--run' argument.
  * @return Pointer to the next policy run string.
@@ -1539,11 +1471,9 @@ static const char *read_next_policy_run(run_item_t **runs, unsigned int *count,
     assert(default_opt != NULL);
 
     /* stop at the first '(' or ',' */
-    for (curr = param_str;;curr++)
-    {
+    for (curr = param_str;; curr++) {
         /* reached end of current run */
-        if (*curr == ',' || *curr == '\0')
-        {
+        if (*curr == ',' || *curr == '\0') {
             name = strndup(param_str, curr - param_str);
             if (!name)
                 return NULL;
@@ -1557,8 +1487,7 @@ static const char *read_next_policy_run(run_item_t **runs, unsigned int *count,
             return (*curr == '\0') ? curr : curr + 1;
         }
         /* starting argument list */
-        if (*curr == '(')
-        {
+        if (*curr == '(') {
             char *next = NULL;
             policy_opt_t opts = *default_opt;
 
@@ -1582,7 +1511,7 @@ static const char *read_next_policy_run(run_item_t **runs, unsigned int *count,
             return next;
         }
     }
-err:
+ err:
     free(name);
     free(args);
     return NULL;
@@ -1609,18 +1538,15 @@ static int parse_policy_runs(run_item_t **runs, unsigned int *count,
     int i;
 
     /* if no policy is specified (or "all") run them all. */
-    if (EMPTY_STRING(param_str) || !strcasecmp(param_str, "all"))
-    {
+    if (EMPTY_STRING(param_str) || !strcasecmp(param_str, "all")) {
         /* return the list of all policies */
         *count = policies.policy_count;
         *runs = calloc(*count, sizeof(run_item_t));
-        if (!runs)
-        {
+        if (!runs) {
             fprintf(stderr, "ERROR: cannot allocate memory\n");
             return ENOMEM;
         }
-        for (i = 0; i < *count; i++)
-        {
+        for (i = 0; i < *count; i++) {
             (*runs)[i].policy_index = i;
             (*runs)[i].run_opt = *default_opt;
         }
@@ -1630,9 +1556,9 @@ static int parse_policy_runs(run_item_t **runs, unsigned int *count,
     /* split the string as: 'policy(args),policy(args),...' */
     for (curr = param_str; curr != NULL && *curr != '\0';
          curr = read_next_policy_run(runs, count, curr, default_opt))
-        /* noop */;
+        /* noop */ ;
 
-    if (curr == NULL) /* error */
+    if (curr == NULL)   /* error */
         return EINVAL;
 
     /* Copyback general flag to policies */
@@ -1642,24 +1568,23 @@ static int parse_policy_runs(run_item_t **runs, unsigned int *count,
     return 0;
 }
 
-
 /**
  * Main daemon routine
  */
 int main(int argc, char **argv)
 {
-    int            rc;
-    bool           chgd = false;
-    char           badcfg[RBH_PATH_MAX];
-    int            action_mask = 0;
-    char           err_msg[4096];
+    int rc;
+    bool chgd = false;
+    char badcfg[RBH_PATH_MAX];
+    int action_mask = 0;
+    char err_msg[4096];
 
     /* policy runs */
     run_item_t *runs = NULL;
     unsigned int run_count = 0;
 
-    policy_opt_t   default_policy_opt = {.target = TGT_NONE};
-    const char    *bin;
+    policy_opt_t default_policy_opt = {.target = TGT_NONE };
+    const char *bin;
 
     bin = rh_basename(argv[0]);
 
@@ -1667,22 +1592,19 @@ int main(int argc, char **argv)
 
     rc = rh_read_parameters(bin, argc, argv, &action_mask, &options);
     if (rc)
-        exit((rc == -1 ? 0 : rc)); /* -1 is returned for normal exit */
+        exit((rc == -1 ? 0 : rc));  /* -1 is returned for normal exit */
 
     /* Template or Defaults options specified ? */
-    if (options.write_template)
-    {
+    if (options.write_template) {
         rc = do_write_template(options.template_file);
         exit(rc);
     }
 
-    if (options.write_defaults)
-    {
+    if (options.write_defaults) {
         rc = rbh_cfg_write_default(stdout);
-        if (rc)
-        {
-            fprintf(stderr, "Error %d retrieving default configuration: %s\n", rc,
-                    strerror(rc));
+        if (rc) {
+            fprintf(stderr, "Error %d retrieving default configuration: %s\n",
+                    rc, strerror(rc));
         }
         exit(rc);
     }
@@ -1694,12 +1616,11 @@ int main(int argc, char **argv)
 
     /* get default config file, if not specified */
     if (SearchConfig(options.config_file, options.config_file, &chgd,
-                     badcfg, MAX_OPT_LEN) != 0)
-    {
-        fprintf(stderr, "No config file (or too many) found matching %s\n", badcfg);
+                     badcfg, MAX_OPT_LEN) != 0) {
+        fprintf(stderr, "No config file (or too many) found matching %s\n",
+                badcfg);
         exit(ENOENT);
-    }
-    else if (chgd)
+    } else if (chgd)
         fprintf(stderr, "Using config file '%s'.\n", options.config_file);
 
     /* build config parsing mask */
@@ -1710,15 +1631,13 @@ int main(int argc, char **argv)
         parsing_mask = action2parsing_mask(action_mask);
 
     /* load and set modules configuration */
-    if(rbh_cfg_load(parsing_mask, options.config_file, err_msg))
-    {
+    if (rbh_cfg_load(parsing_mask, options.config_file, err_msg)) {
         fprintf(stderr, "Error reading configuration file '%s': %s\n",
                 options.config_file, err_msg);
         exit(1);
     }
 
-    if (options.test_syntax)
-    {
+    if (options.test_syntax) {
         printf("Configuration file '%s' has been read successfully\n",
                options.config_file);
         exit(0);
@@ -1727,16 +1646,14 @@ int main(int argc, char **argv)
     /* override config file options with command line parameters */
     if (options.force_log)
         strcpy(log_config.log_file, options.log);
-    else if (isatty(fileno(stderr)) && !options.detach)
-    {
+    else if (isatty(fileno(stderr)) && !options.detach) {
         options.force_log = true;
         strcpy(log_config.log_file, "stderr");
     }
     if (options.force_log_level)
         log_config.debug_level = options.log_level;
 
-    if (action_mask & ACTION_MASK_RUN_POLICIES)
-    {
+    if (action_mask & ACTION_MASK_RUN_POLICIES) {
         /* Parse 'target' option, if any.
          * The resulting policy_opt is used as default for policy runs. */
         rc = policyopt_set_target(options.target_string, &default_policy_opt);
@@ -1751,19 +1668,16 @@ int main(int argc, char **argv)
                                &default_policy_opt);
         if (rc)
             exit(rc);
-    }
-    else if (!EMPTY_STRING(options.target_string))
-    {
+    } else if (!EMPTY_STRING(options.target_string)) {
         fprintf(stderr, "Warning: --target option has no effect "
                 "without --run or --check-thresholds.\n");
     }
-
 #ifdef HAVE_CHANGELOGS
     /* Only enable changelog processing for Lustre filesystems */
-    if( (action_mask & ACTION_MASK_HANDLE_EVENTS)
-        && ( strcmp( global_config.fs_type, "lustre" ) != 0 ) )
-    {
-        DisplayLog( LVL_MAJOR, MAIN_TAG, "Disabling ChangeLogs for this non-lustre filesystem" );
+    if ((action_mask & ACTION_MASK_HANDLE_EVENTS)
+        && (strcmp(global_config.fs_type, "lustre") != 0)) {
+        DisplayLog(LVL_MAJOR, MAIN_TAG,
+                   "Disabling ChangeLogs for this non-lustre filesystem");
         action_mask &= ~ACTION_MASK_HANDLE_EVENTS;
     }
 
@@ -1771,31 +1685,30 @@ int main(int argc, char **argv)
  * and the once option is not set, display a warning */
     if ((action_mask & ACTION_MASK_SCAN) && !(options.flags & RUNFLG_ONCE)
         && !(action_mask & ACTION_MASK_HANDLE_EVENTS)
-        && strcmp(global_config.fs_type, "lustre") == 0)
-    {
-        fprintf(stderr, "ADVICE: this filesystem is changelog-capable, you should use changelogs instead of scanning.\n");
+        && strcmp(global_config.fs_type, "lustre") == 0) {
+        fprintf(stderr,
+                "ADVICE: this filesystem is changelog-capable, you should use changelogs instead of scanning.\n");
     }
 #endif
 
     /* Initialize logging */
     rc = InitializeLogs(bin);
-    if (rc)
-    {
+    if (rc) {
         fprintf(stderr, "Error opening log files: rc=%d, errno=%d: %s\n",
-                 rc, errno, strerror(errno));
+                rc, errno, strerror(errno));
         exit(rc);
     }
 
     /* deamonize program if detach flag is set */
-    if (options.detach)
-    {
+    if (options.detach) {
         rc = daemon(0, 0);
 
-        if (rc)
-        {
-            DisplayLog(LVL_CRIT, MAIN_TAG, "Error detaching process from parent: %s",
-                        strerror(errno));
-            fprintf(stderr, "Error detaching process from parent: %s\n", strerror(errno));
+        if (rc) {
+            DisplayLog(LVL_CRIT, MAIN_TAG,
+                       "Error detaching process from parent: %s",
+                       strerror(errno));
+            fprintf(stderr, "Error detaching process from parent: %s\n",
+                    strerror(errno));
             exit(1);
         }
     }
@@ -1815,37 +1728,33 @@ int main(int argc, char **argv)
 
     /* create signal handling thread */
     rc = pthread_create(&sig_thr, NULL, signal_handler_thr, NULL);
-    if (rc)
-    {
-        DisplayLog(LVL_CRIT, MAIN_TAG, "Error starting signal handler thread: %s",
-                    strerror(errno));
+    if (rc) {
+        DisplayLog(LVL_CRIT, MAIN_TAG,
+                   "Error starting signal handler thread: %s", strerror(errno));
         exit(1);
-    }
-    else
-        DisplayLog(LVL_VERB, MAIN_TAG, "Signal handler thread started successfully");
+    } else
+        DisplayLog(LVL_VERB, MAIN_TAG,
+                   "Signal handler thread started successfully");
 
     /* Initialize list manager */
     rc = ListMgr_Init(options.db_flags);
-    if (rc)
-    {
-        DisplayLog(LVL_CRIT, MAIN_TAG, "Error initializing list manager: %s (%d)",
-                   lmgr_err2str(rc), rc);
+    if (rc) {
+        DisplayLog(LVL_CRIT, MAIN_TAG,
+                   "Error initializing list manager: %s (%d)", lmgr_err2str(rc),
+                   rc);
         exit(rc);
-    }
-    else
+    } else
         DisplayLog(LVL_VERB, MAIN_TAG, "ListManager successfully initialized");
 
     if (CheckLastFS() != 0)
         exit(1);
 
-    if (options.flags & RUNFLG_ONCE)
-    {
+    if (options.flags & RUNFLG_ONCE) {
         /* used for dumping stats in one shot mode */
         pthread_create(&stat_thread, NULL, stats_thr, NULL);
     }
 
-    if ( action_mask & ( ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS ) )
-    {
+    if (action_mask & (ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS)) {
         if (!attr_mask_is_null(options.diff_mask))
             /* convert status[0] to all status flags */
             options.diff_mask = translate_all_status_mask(options.diff_mask);
@@ -1855,23 +1764,24 @@ int main(int argc, char **argv)
         int nb_stages = 3;
         rc = EntryProcessor_Init(0, options.flags, &nb_stages);
 #else
-        rc = EntryProcessor_Init(STD_PIPELINE, options.flags, &options.diff_mask);
+        rc = EntryProcessor_Init(STD_PIPELINE, options.flags,
+                                 &options.diff_mask);
 #endif
-        if ( rc )
-        {
-            DisplayLog( LVL_CRIT, MAIN_TAG, "Error %d initializing EntryProcessor pipeline", rc );
-            exit( rc );
-        }
-        else
-            DisplayLog( LVL_VERB, MAIN_TAG, "EntryProcessor successfully initialized" );
+        if (rc) {
+            DisplayLog(LVL_CRIT, MAIN_TAG,
+                       "Error %d initializing EntryProcessor pipeline", rc);
+            exit(rc);
+        } else
+            DisplayLog(LVL_VERB, MAIN_TAG,
+                       "EntryProcessor successfully initialized");
     }
 
-    /* Note: in 'one-shot' mode, we must take care of performing action in the correct order:
-     * First scan, then process changelogs, then migrate, then purge, etc.
+    /* Note: in 'one-shot' mode, we must take care of performing action in
+     * the correct order:
+     * first scan, then process changelogs, then migrate, then purge, etc.
      */
 
-    if ( action_mask & ACTION_MASK_SCAN )
-    {
+    if (action_mask & ACTION_MASK_SCAN) {
 
         /* Start FS scan */
         if (options.partial_scan)
@@ -1879,67 +1789,63 @@ int main(int argc, char **argv)
         else
             rc = FSScan_Start(options.flags, NULL);
 
-        if ( rc )
-        {
-            DisplayLog( LVL_CRIT, MAIN_TAG, "Error %d initializing FS Scan module", rc );
-            exit( rc );
-        }
-        else
-            DisplayLog( LVL_VERB, MAIN_TAG, "FS Scan module successfully initialized" );
+        if (rc) {
+            DisplayLog(LVL_CRIT, MAIN_TAG,
+                       "Error %d initializing FS Scan module", rc);
+            exit(rc);
+        } else
+            DisplayLog(LVL_VERB, MAIN_TAG,
+                       "FS Scan module successfully initialized");
 
         /* Flush logs now, to have a trace in the logs */
-        FlushLogs(  );
+        FlushLogs();
 
         if (options.flags & RUNFLG_ONCE)
             running_mask = MODULE_MASK_FS_SCAN | MODULE_MASK_ENTRY_PROCESSOR;
         else
             running_mask |= MODULE_MASK_FS_SCAN | MODULE_MASK_ENTRY_PROCESSOR;
 
-        if (options.flags & RUNFLG_ONCE)
-        {
-            FSScan_Wait(  );
-            DisplayLog( LVL_MAJOR, MAIN_TAG, "FS Scan finished" );
+        if (options.flags & RUNFLG_ONCE) {
+            FSScan_Wait();
+            DisplayLog(LVL_MAJOR, MAIN_TAG, "FS Scan finished");
         }
     }
-
 #ifdef HAVE_CHANGELOGS
-    if ( action_mask & ACTION_MASK_HANDLE_EVENTS )
-    {
+    if (action_mask & ACTION_MASK_HANDLE_EVENTS) {
 
         /* Start reading changelogs */
         rc = cl_reader_start(options.flags, options.mdtidx);
-        if ( rc )
-        {
-            DisplayLog( LVL_CRIT, MAIN_TAG, "Error %d initializing ChangeLog Reader", rc );
-            exit( rc );
-        }
-        else
-            DisplayLog( LVL_VERB, MAIN_TAG, "ChangeLog Reader successfully initialized" );
+        if (rc) {
+            DisplayLog(LVL_CRIT, MAIN_TAG,
+                       "Error %d initializing ChangeLog Reader", rc);
+            exit(rc);
+        } else
+            DisplayLog(LVL_VERB, MAIN_TAG,
+                       "ChangeLog Reader successfully initialized");
 
         /* Flush logs now, to have a trace in the logs */
-        FlushLogs(  );
+        FlushLogs();
 
         if (options.flags & RUNFLG_ONCE)
             running_mask = MODULE_MASK_EVENT_HDLR | MODULE_MASK_ENTRY_PROCESSOR;
         else
-            running_mask |= MODULE_MASK_EVENT_HDLR | MODULE_MASK_ENTRY_PROCESSOR;
+            running_mask |=
+                MODULE_MASK_EVENT_HDLR | MODULE_MASK_ENTRY_PROCESSOR;
 
-        if (options.flags & RUNFLG_ONCE)
-        {
+        if (options.flags & RUNFLG_ONCE) {
             cl_reader_wait();
-            DisplayLog( LVL_MAJOR, MAIN_TAG, "Event Processing finished" );
+            DisplayLog(LVL_MAJOR, MAIN_TAG, "Event Processing finished");
         }
     }
 #endif
 
-    if ( (options.flags & RUNFLG_ONCE) && (  action_mask & ( ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS ) ) )
-    {
+    if ((options.flags & RUNFLG_ONCE)
+        && (action_mask & (ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS))) {
         /* Pipeline must be flushed */
         EntryProcessor_Terminate(true);
 
 #ifdef HAVE_CHANGELOGS
-        if ( action_mask & ACTION_MASK_HANDLE_EVENTS )
-        {
+        if (action_mask & ACTION_MASK_HANDLE_EVENTS) {
             /* Ack last changelog records. */
             cl_reader_done();
         }
@@ -1947,48 +1853,40 @@ int main(int argc, char **argv)
         running_mask = 0;
     }
 
-    if (action_mask & ACTION_MASK_RUN_POLICIES)
-    {
+    if (action_mask & ACTION_MASK_RUN_POLICIES) {
         int i;
         /* allocate policy_run structure */
         policy_run = calloc(run_count, sizeof(policy_info_t));
-        if (!policy_run)
-        {
+        if (!policy_run) {
             DisplayLog(LVL_CRIT, MAIN_TAG, "Cannot allocate memory");
             exit(1);
         }
         policy_run_cpt = run_count;
 
-        for (i = 0; i < run_count; i++)
-        {
+        for (i = 0; i < run_count; i++) {
             unsigned int pol_idx = runs[i].policy_index;
 
             rc = policy_module_start(&policy_run[i],
                                      &policies.policy_list[pol_idx],
                                      &run_cfgs.configs[pol_idx],
                                      &runs[i].run_opt);
-            if (rc == ENOENT)
-            {
+            if (rc == ENOENT) {
                 DisplayLog(LVL_CRIT, MAIN_TAG, "Policy %s is disabled.",
                            policies.policy_list[pol_idx].name);
                 continue;
-            }
-            else if (rc)
-            {
+            } else if (rc) {
                 fprintf(stderr, "Error %d initializing Migration module\n", rc);
                 exit(rc);
-            }
-            else
-            {
-                DisplayLog(LVL_VERB, MAIN_TAG, "Policy %s successfully initialized",
+            } else {
+                DisplayLog(LVL_VERB, MAIN_TAG,
+                           "Policy %s successfully initialized",
                            policies.policy_list[pol_idx].name);
                 /* Flush logs now, to have a trace in the logs */
                 FlushLogs();
             }
 
             /* For 'one-shot' mode, run policy after policy */
-            if (options.flags & RUNFLG_ONCE)
-            {
+            if (options.flags & RUNFLG_ONCE) {
                 running_mask = MODULE_MASK_POLICY_RUN;
                 policy_run_mask = (1LL << i);
                 rc = policy_module_wait(&policy_run[i]);
@@ -1996,28 +1894,25 @@ int main(int argc, char **argv)
                 running_mask = 0;
                 DisplayLog(LVL_MAJOR, MAIN_TAG,
                            "%s: policy run terminated (rc = %d).",
-                           policies.policy_list[pol_idx].name,
-                           rc);
-            }
-            else
-               policy_run_mask |= (1LL << i);
+                           policies.policy_list[pol_idx].name, rc);
+            } else
+                policy_run_mask |= (1LL << i);
         }
         if (!(options.flags & RUNFLG_ONCE) && (policy_run_mask != 0))
             running_mask |= MODULE_MASK_POLICY_RUN;
     }
 
-    if (!(options.flags & RUNFLG_ONCE))
-    {
+    if (!(options.flags & RUNFLG_ONCE)) {
         char tmpstr[1024];
 
-        if (!running_mask)
-        {
+        if (!running_mask) {
             DisplayLog(LVL_MAJOR, MAIN_TAG, "Nothing started.");
             exit(1);
         }
 
         running_mask2str(running_mask, policy_run_mask, tmpstr);
-        DisplayLog(LVL_MAJOR, MAIN_TAG, "Daemon started (running modules: %s)", tmpstr);
+        DisplayLog(LVL_MAJOR, MAIN_TAG, "Daemon started (running modules: %s)",
+                   tmpstr);
         FlushLogs();
 
         /* dump stats periodically */
@@ -2025,13 +1920,11 @@ int main(int argc, char **argv)
 
         /* should never return */
         exit(1);
-    }
-    else
-    {
-        DisplayLog( LVL_MAJOR, MAIN_TAG, "All tasks done! Exiting." );
-        exit( 0 );
+    } else {
+        DisplayLog(LVL_MAJOR, MAIN_TAG, "All tasks done! Exiting.");
+        exit(0);
     }
 
-    return 0;                   /* for compiler */
+    return 0;   /* for compiler */
 
 }
