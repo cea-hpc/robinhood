@@ -1103,6 +1103,7 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
                         optarg);
                 return EINVAL;
             }
+            log_config.debug_level = options.log_level;
             break;
         case 'p':
             opt->pid_file = true;

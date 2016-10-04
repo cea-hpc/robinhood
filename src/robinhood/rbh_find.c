@@ -1563,6 +1563,7 @@ int main(int argc, char **argv)
                 fprintf(stderr, "! (-not) unexpected before -d option\n");
                 exit(1);
             }
+            log_config.debug_level = log_level;
             break;
 
         case 'b':
