@@ -386,6 +386,7 @@ static int backup_init(struct sm_instance *smi, run_flags_t flags)
     return 0;
 }
 
+#if 0 /* FIXME RBH V3 */
 /** @TODO te be called by get_status function, changelog callback, etc. */
 static bool backup_ignore(const entry_id_t *p_id, attr_set_t *p_attrs)
 {
@@ -477,6 +478,7 @@ static bool backup_ignore(const entry_id_t *p_id, attr_set_t *p_attrs)
     return false;
 #endif
 }
+#endif
 
 typedef enum {
     FOR_LOOKUP,
