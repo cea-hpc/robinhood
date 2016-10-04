@@ -2,7 +2,7 @@
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
 /*
- * Copyright (C) 2014 CEA/DAM
+ * Copyright (C) 2015-2016 CEA/DAM
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the CeCILL License.
@@ -29,8 +29,8 @@
  * Operations exposed by robinhood dynamic modules. These should be invoked
  * using the static inline wrappers defined below.
  *
- * None of these operations is considered optionnal and valid modules should
- * export all of them.
+ * 'mod_get_name' and 'mod_get_version' are mandatory.
+ * Other operations are optional.
  */
 struct rbh_module_operations {
     const char         *(*mod_get_name)(void);

@@ -70,10 +70,12 @@ static int module_get_version(const rbh_module_t *mod)
  *
  * \param[in, out]  mod         Module descriptor to update
  * \param[in]       sym_name    Name of the symbol to load
+ * \param[in]       mandatory   true if the symbol is mandatory
  *
  * \return 0 on success, negative error code on failure
  */
-static int module_sym_load(rbh_module_t *mod, const char *sym_name)
+static int module_sym_load(rbh_module_t *mod, const char *sym_name,
+                           bool mandatory)
 {
     char *errstr;
 
@@ -93,9 +95,15 @@ static int module_sym_load(rbh_module_t *mod, const char *sym_name)
 
     errstr = dlerror();
     if (errstr != NULL) {
-        DisplayLog(LVL_CRIT, MODULE_TAG, "Cannot load %s from module %s: %s",
-                   sym_name, mod->name, errstr);
-        return -EINVAL;
+        if (mandatory) {
+            DisplayLog(LVL_CRIT, MODULE_TAG, "Cannot load %s from module %s: %s",
+                       sym_name, mod->name, errstr);
+            return -EINVAL;
+        }
+        /* not mandatory, only display in DEBUG level */
+        DisplayLog(LVL_DEBUG, MODULE_TAG,
+                   "Module '%s': optional symbol '%s' not found: %s",
+                   mod->name, sym_name, errstr);
     }
 
     return 0;
@@ -128,19 +136,19 @@ static int module_load_from_file(const char *libfile, rbh_module_t *mod)
     /* Use the filename as module name until loading is done and successful */
     mod->name = libfile;
 
-    rc = module_sym_load(mod, "mod_get_name");
+    rc = module_sym_load(mod, "mod_get_name", true);
     if (rc)
         goto err_out;
 
-    rc = module_sym_load(mod, "mod_get_version");
+    rc = module_sym_load(mod, "mod_get_version", true);
     if (rc)
         goto err_out;
 
-    rc = module_sym_load(mod, "mod_get_status_manager");
+    rc = module_sym_load(mod, "mod_get_status_manager", false);
     if (rc)
         goto err_out;
 
-    rc = module_sym_load(mod, "mod_get_action");
+    rc = module_sym_load(mod, "mod_get_action", false);
     if (rc)
         goto err_out;
 
@@ -148,14 +156,14 @@ static int module_load_from_file(const char *libfile, rbh_module_t *mod)
     mod->name = module_get_name(mod);
     mod->version = module_get_version(mod);
     if (mod->version != RBH_MODULE_VERSION) {
-        DisplayLog(LVL_CRIT, MODULE_TAG, "Module %s: incompatible version. "
+        DisplayLog(LVL_CRIT, MODULE_TAG, "Module '%s': incompatible version. "
                    "version %d != expected version %d", mod->name, mod->version,
                    RBH_MODULE_VERSION);
         rc = -EPROTO;
         goto err_out;
     }
 
-    DisplayLog(LVL_DEBUG, MODULE_TAG, "Successfully loaded module %s",
+    DisplayLog(LVL_DEBUG, MODULE_TAG, "Successfully loaded module '%s'",
                mod->name);
 
     return 0;
