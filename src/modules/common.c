@@ -182,11 +182,6 @@ const char *mod_get_name(void)
     return "common";
 }
 
-status_manager_t *mod_get_status_manager(void)
-{
-    return NULL;
-}
-
 action_func_t mod_get_action_by_name(const char *action_name)
 {
     if (strcmp(action_name, "common.unlink") == 0)
