@@ -776,6 +776,7 @@ int main(int argc, char **argv)
                         optarg);
                 exit(1);
             }
+            log_config.debug_level = log_level;
             break;
         case 'h':
             display_help(bin);
