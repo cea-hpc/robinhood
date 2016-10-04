@@ -276,7 +276,7 @@ static rbh_module_t *module_get(const char *mod_name)
 
  again:
     for (i = 0; i < mod_count; i++) {
-        if (strcasecmp(module_get_name(&mod_list[i]), mod_name) == 0)
+        if (strcasecmp(mod_list[i].name, mod_name) == 0)
             return &mod_list[i];
     }
 
