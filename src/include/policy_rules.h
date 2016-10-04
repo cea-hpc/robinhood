@@ -73,7 +73,7 @@ action_params_t *get_fileset_policy_params(const fileset_item_t *fileset,
 /* what to do with the entry after the policy action.
  * returned by action_function */
 typedef enum {
-    PA_NONE,
+    PA_NONE = 0,
     PA_RM_ONE,
     PA_RM_ALL,
     PA_UPDATE
