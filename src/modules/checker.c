@@ -147,9 +147,11 @@ static int check_executor(struct sm_instance *smi,
     return rc;
 }
 
+#define MOD_NAME "checker"
+
 /** Status manager for file check management */
 status_manager_t checker_sm = {
-    .name = "checker",
+    .name = MOD_NAME,
     .flags = 0,
     .status_enum = check_status_list, /* initial state is empty status (unset) */
     .status_count = STATUS_COUNT,
@@ -161,18 +163,16 @@ status_manager_t checker_sm = {
     .executor = check_executor,
 };
 
-/* ======= PUBLIC FUNCTIONS ======= */
-const char *mod_get_name(void)
-{
-    return checker_sm.name;
-}
+/* ======= PUBLIC SYMBOLS ======= */
+
+const char mod_name[] = MOD_NAME;
 
 status_manager_t *mod_get_status_manager(void)
 {
     return &checker_sm;
 }
 
-action_func_t mod_get_action_by_name(const char *action_name)
+action_func_t mod_get_action(const char *action_name)
 {
     /* no specific action implemented */
     return NULL;

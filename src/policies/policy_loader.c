@@ -203,7 +203,7 @@ int parse_policy_action(const char *name, const char *value,
             return EINVAL;
         }
         action->type = ACTION_FUNCTION;
-        action->action_u.func.call = module_get_action_by_name(value);
+        action->action_u.func.call = module_get_action(value);
         if (action->action_u.func.call == NULL) {
             sprintf(msg_out, "%s: unknown function '%s'", name, value);
             return EINVAL;

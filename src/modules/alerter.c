@@ -167,9 +167,11 @@ static int alerter_alert(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
     return 0;
 }
 
+#define MOD_NAME "alerter"
+
 /** Status manager for alerts management */
 status_manager_t alerter_sm = {
-    .name = "alerter",
+    .name = MOD_NAME,
     /* TODO can possibly raise alerts on file deletion? if so, must set a softrm_* fields */
     .flags = 0,
     .status_enum = alerter_status_list, /* initial state is empty(unset) status */
@@ -182,18 +184,15 @@ status_manager_t alerter_sm = {
     .executor = alerter_executor,
 };
 
-/* ======= PUBLIC FUNCTIONS ======= */
-const char *mod_get_name(void)
-{
-    return alerter_sm.name;
-}
+/* ======= PUBLIC SYMBOLS ======= */
+const char mod_name[] = MOD_NAME;
 
 status_manager_t *mod_get_status_manager(void)
 {
     return &alerter_sm;
 }
 
-action_func_t mod_get_action_by_name(const char *action_name)
+action_func_t mod_get_action(const char *action_name)
 {
     if (strcmp(action_name, "alerter.alert") == 0)
         return alerter_alert;

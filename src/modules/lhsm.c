@@ -1047,9 +1047,11 @@ static const mod_cfg_funcs_t lhsm_cfg_hdlr = {
     .write_template = lhsm_cfg_write_template,
 };
 
+#define MOD_NAME "lhsm"
+
 /** Status manager for Lustre/HSM */
 static status_manager_t lhsm_sm = {
-    .name = "lhsm",
+    .name = MOD_NAME,
     .flags = SM_SHARED | SM_DELETED | SM_MULTI_ACTION,
     .status_enum = lhsm_status_list,
     .status_count = STATUS_COUNT,
@@ -1094,17 +1096,16 @@ static status_manager_t lhsm_sm = {
     .init_func = lhsm_init
 };
 
-const char *mod_get_name(void)
-{
-    return "lhsm";
-}
+/* ======= PUBLIC SYMBOLS ======= */
+
+const char mod_name[] = MOD_NAME;
 
 status_manager_t *mod_get_status_manager(void)
 {
     return &lhsm_sm;
 }
 
-action_func_t mod_get_action_by_name(const char *action_name)
+action_func_t mod_get_action(const char *action_name)
 {
     if (strcmp(action_name, "lhsm.archive") == 0)
         return lhsm_archive;

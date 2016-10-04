@@ -121,9 +121,11 @@ int action_helper(const policy_action_t *action, const char *name,
 
 /* ---- Public module interface ---- */
 
-const char *mod_get_name(void);
+extern const char mod_name[];
+extern const int mod_version;
 
 status_manager_t *mod_get_status_manager(void);
 
-action_func_t mod_get_action_by_name(const char *action_name);
+action_func_t mod_get_action(const char *action_name);
+
 #endif

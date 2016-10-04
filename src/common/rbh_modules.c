@@ -49,12 +49,20 @@
 static rbh_module_t *mod_list;
 static int           mod_count;
 
-static inline const char *module_get_name(const rbh_module_t *mod)
+static const char *module_get_name(const rbh_module_t *mod)
 {
-    if (mod == NULL || mod->mod_ops.mod_get_name == NULL)
+    if (mod == NULL)
         return NULL;
 
-    return mod->mod_ops.mod_get_name();
+    return mod->mod_sym.mod_name;
+}
+
+static int module_get_version(const rbh_module_t *mod)
+{
+    if (mod == NULL || mod->mod_sym.mod_version == NULL)
+        return 0;
+
+    return *mod->mod_sym.mod_version;
 }
 
 /**
@@ -69,12 +77,14 @@ static int module_sym_load(rbh_module_t *mod, const char *sym_name)
 {
     char *errstr;
 
-    if (strcmp(sym_name, "mod_get_name") == 0) {
-        mod->mod_ops.mod_get_name = dlsym(mod->sym_hdl, sym_name);
+    if (strcmp(sym_name, "mod_name") == 0) {
+        mod->mod_sym.mod_name = dlsym(mod->sym_hdl, sym_name);
+    } else if (strcmp(sym_name, "mod_version") == 0) {
+        mod->mod_sym.mod_version = dlsym(mod->sym_hdl, sym_name);
     } else if (strcmp(sym_name, "mod_get_status_manager") == 0) {
-        mod->mod_ops.mod_get_status_manager = dlsym(mod->sym_hdl, sym_name);
-    } else if (strcmp(sym_name, "mod_get_action_by_name") == 0) {
-        mod->mod_ops.mod_get_action_by_name = dlsym(mod->sym_hdl, sym_name);
+        mod->mod_sym.mod_get_status_manager = dlsym(mod->sym_hdl, sym_name);
+    } else if (strcmp(sym_name, "mod_get_action") == 0) {
+        mod->mod_sym.mod_get_action = dlsym(mod->sym_hdl, sym_name);
     } else {
         DisplayLog(LVL_CRIT, MODULE_TAG, "Cannot load %s, unsupported function",
                    sym_name);
@@ -118,7 +128,11 @@ static int module_load_from_file(const char *libfile, rbh_module_t *mod)
     /* Use the filename as module name until loading is done and successful */
     mod->name = libfile;
 
-    rc = module_sym_load(mod, "mod_get_name");
+    rc = module_sym_load(mod, "mod_name");
+    if (rc)
+        goto err_out;
+
+    rc = module_sym_load(mod, "mod_version");
     if (rc)
         goto err_out;
 
@@ -126,12 +140,22 @@ static int module_load_from_file(const char *libfile, rbh_module_t *mod)
     if (rc)
         goto err_out;
 
-    rc = module_sym_load(mod, "mod_get_action_by_name");
+    rc = module_sym_load(mod, "mod_get_action");
     if (rc)
         goto err_out;
 
     /* Get direct reference to the module name for faster accesses */
     mod->name = module_get_name(mod);
+    mod->version = module_get_version(mod);
+
+    if (mod->version != RBH_MODULE_VERSION) {
+        DisplayLog(LVL_CRIT, MODULE_TAG, "Module %s: incompatible version. "
+                   "version %d != expected version %d", mod->name, mod->version,
+                   RBH_MODULE_VERSION);
+        rc = -EPROTO;
+        goto err_out;
+    }
+
     DisplayLog(LVL_DEBUG, MODULE_TAG, "Successfully loaded module %s",
                mod->name);
 
@@ -287,7 +311,7 @@ static rbh_module_t *module_get(const char *mod_name)
     return NULL;
 }
 
-action_func_t module_get_action_by_name(const char *name)
+action_func_t module_get_action(const char *name)
 {
     char             mod_name[MAX_MOD_NAMELEN];
     char            *prefix;
@@ -301,10 +325,10 @@ action_func_t module_get_action_by_name(const char *name)
     mod_name[prefix - name] = '\0';
 
     mod = module_get(mod_name);
-    if (mod == NULL || mod->mod_ops.mod_get_action_by_name == NULL)
+    if (mod == NULL || mod->mod_sym.mod_get_action == NULL)
         return NULL;
 
-    return mod->mod_ops.mod_get_action_by_name(name);
+    return mod->mod_sym.mod_get_action(name);
 }
 
 status_manager_t *module_get_status_manager(const char *name)
@@ -312,8 +336,8 @@ status_manager_t *module_get_status_manager(const char *name)
     rbh_module_t    *mod;
 
     mod = module_get(name);
-    if (mod == NULL || mod->mod_ops.mod_get_status_manager == NULL)
+    if (mod == NULL || mod->mod_sym.mod_get_status_manager == NULL)
         return NULL;
 
-    return mod->mod_ops.mod_get_status_manager();
+    return mod->mod_sym.mod_get_status_manager();
 }
