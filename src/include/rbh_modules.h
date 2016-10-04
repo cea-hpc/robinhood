@@ -29,17 +29,22 @@
  * Operations exposed by robinhood dynamic modules. These should be invoked
  * using the static inline wrappers defined below.
  *
- * None of these operations is considered optionnal and valid modules should
+ * None of these operations is considered optional and valid modules should
  * export all of them.
  */
 struct rbh_module_operations {
     const char         *(*mod_get_name)(void);
+    int                 (*mod_get_version)(void);
     status_manager_t   *(*mod_get_status_manager)(void);
     action_func_t       (*mod_get_action_by_name)(const char *);
 };
 
+/** current version of modules */
+#define RBH_MODULE_VERSION  1
+
 typedef struct rbh_module {
     const char                      *name;      /**< Module name */
+    int                              version;   /**< Module version */
     void                            *sym_hdl;   /**< Private dlsym handle */
     struct rbh_module_operations     mod_ops;   /**< Module operation vector */
 } rbh_module_t;

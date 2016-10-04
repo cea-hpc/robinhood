@@ -57,6 +57,14 @@ static inline const char *module_get_name(const rbh_module_t *mod)
     return mod->mod_ops.mod_get_name();
 }
 
+static inline int module_get_version(const rbh_module_t *mod)
+{
+    if (mod == NULL || mod->mod_ops.mod_get_version == NULL)
+        return 0;
+
+    return mod->mod_ops.mod_get_version();
+}
+
 /**
  * Load a given symbol from dlopened library.
  *
@@ -71,6 +79,8 @@ static int module_sym_load(rbh_module_t *mod, const char *sym_name)
 
     if (strcmp(sym_name, "mod_get_name") == 0) {
         mod->mod_ops.mod_get_name = dlsym(mod->sym_hdl, sym_name);
+    } else if (strcmp(sym_name, "mod_get_version") == 0) {
+        mod->mod_ops.mod_get_version = dlsym(mod->sym_hdl, sym_name);
     } else if (strcmp(sym_name, "mod_get_status_manager") == 0) {
         mod->mod_ops.mod_get_status_manager = dlsym(mod->sym_hdl, sym_name);
     } else if (strcmp(sym_name, "mod_get_action_by_name") == 0) {
@@ -122,6 +132,10 @@ static int module_load_from_file(const char *libfile, rbh_module_t *mod)
     if (rc)
         goto err_out;
 
+    rc = module_sym_load(mod, "mod_get_version");
+    if (rc)
+        goto err_out;
+
     rc = module_sym_load(mod, "mod_get_status_manager");
     if (rc)
         goto err_out;
@@ -132,6 +146,16 @@ static int module_load_from_file(const char *libfile, rbh_module_t *mod)
 
     /* Get direct reference to the module name for faster accesses */
     mod->name = module_get_name(mod);
+    mod->version = module_get_version(mod);
+
+    if (mod->version != RBH_MODULE_VERSION) {
+        DisplayLog(LVL_CRIT, MODULE_TAG, "Module %s: incompatible version. "
+                   "version %d != expected version %d", mod->name, mod->version,
+                   RBH_MODULE_VERSION);
+        rc = -EPROTO;
+        goto err_out;
+    }
+
     DisplayLog(LVL_DEBUG, MODULE_TAG, "Successfully loaded module %s",
                mod->name);
 
