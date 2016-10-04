@@ -177,17 +177,16 @@ static int common_gzip(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
     return rc;
 }
 
-const char *mod_get_name(void)
-{
-    return "common";
-}
+/* ======= PUBLIC SYMBOLS ======= */
+
+const char mod_name[] = "common";
 
 status_manager_t *mod_get_status_manager(void)
 {
     return NULL;
 }
 
-action_func_t mod_get_action_by_name(const char *action_name)
+action_func_t mod_get_action(const char *action_name)
 {
     if (strcmp(action_name, "common.unlink") == 0)
         return common_unlink;

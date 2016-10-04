@@ -435,3 +435,10 @@ int action_helper(const policy_action_t *action, const char *name,
     }
     return rc;
 }
+
+/**
+ * This symbol is embedded in all modules. Thus, it stores the version
+ * of the modules depending on the source tree where they have been
+ * built.
+ */
+const int mod_version = RBH_MODULE_VERSION;

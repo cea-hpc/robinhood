@@ -29,19 +29,24 @@
  * Operations exposed by robinhood dynamic modules. These should be invoked
  * using the static inline wrappers defined below.
  *
- * None of these operations is considered optionnal and valid modules should
+ * None of these symbols is considered optional and valid modules should
  * export all of them.
  */
-struct rbh_module_operations {
-    const char         *(*mod_get_name)(void);
+struct rbh_module_symbols {
+    const int            *mod_version;
+    const char           *mod_name;
     status_manager_t   *(*mod_get_status_manager)(void);
-    action_func_t       (*mod_get_action_by_name)(const char *);
+    action_func_t       (*mod_get_action)(const char *);
 };
+
+/** current version of modules */
+#define RBH_MODULE_VERSION  1
 
 typedef struct rbh_module {
     const char                      *name;      /**< Module name */
+    int                              version;   /**< Module version */
     void                            *sym_hdl;   /**< Private dlsym handle */
-    struct rbh_module_operations     mod_ops;   /**< Module operation vector */
+    struct rbh_module_symbols        mod_sym;   /**< Module symbol vector */
 } rbh_module_t;
 
 
@@ -67,7 +72,7 @@ status_manager_t *module_get_status_manager(const char *name);
  * \return A pointer to the desired function or NULL if no suitable action
  *         of this name was found.
  */
-action_func_t module_get_action_by_name(const char *name);
+action_func_t module_get_action(const char *name);
 
 /**
  * Release resources associated to robinhood dynamic modules.

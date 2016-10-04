@@ -2618,13 +2618,15 @@ int rbh_shook_release(const entry_id_t *p_id, attr_set_t *p_attrs)
 }
 #endif
 
+#ifdef HAVE_SHOOK
+#define MOD_NAME "shook"
+#else
+#define MOD_NAME "backup"
+#endif
+
 /** Status manager for backup or shook (2 builds with different flags) */
 static status_manager_t backup_sm = {
-#ifdef HAVE_SHOOK
-    .name = "shook",
-#else
-    .name = "backup",
-#endif
+    .name = MOD_NAME,
     .flags = SM_SHARED | SM_DELETED | SM_MULTI_ACTION,
     .status_enum = backup_status_list,  /* unknown is empty(unset) status */
     .status_count = STATUS_COUNT - 1,
@@ -2666,17 +2668,16 @@ static status_manager_t backup_sm = {
     .init_func = backup_init
 };
 
-const char *mod_get_name(void)
-{
-    return backup_sm.name;
-}
+/* ======= PUBLIC SYMBOLS ======= */
+
+const char mod_name[] = MOD_NAME;
 
 status_manager_t *mod_get_status_manager(void)
 {
     return &backup_sm;
 }
 
-action_func_t mod_get_action_by_name(const char *action_name)
+action_func_t mod_get_action(const char *action_name)
 {
     /* none implemented */
     return NULL;
