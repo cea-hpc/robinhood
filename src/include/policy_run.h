@@ -298,11 +298,49 @@ typedef struct policy_info_t {
                                                join the trigger thread */
 } policy_info_t;
 
+/** function to be called by an action scheduler to trigger an action */
+typedef int (*sched_action_cb_t)(void *udata);
+
+/**
+ * Scheduler init function prototype.
+ * @param[in]   config          Scheduler configuration created by its config handlers.
+ * @param[out]  p_sched_data    Private context allocated by this function.
+ */
+typedef int (*sched_init_func_t)(void *config, void **p_sched_data);
+
+/**
+ * Scheduler function prototype.
+ * @param[in,out] sched_data   Scheduler private context created by
+ *                             sched_init.
+ * @param[in]     id           Entry id for the action to be scheduled.
+ * @param[in]     attrs        Entry attributes for the action to be scheduled.
+ * @param[in]     cb           Function to be called by the scheduler to trigger
+ *                             an action.
+ * @param[in]     udata        Argument to be passed to cb function.
+ */
+typedef int (*sched_func_t)(void *sched_data,
+                            const entry_id_t *id,
+                            const attr_set_t *attrs,
+                            sched_action_cb_t cb,
+                            void *udata);
+
+/** Action scheduler (implemented by plugins) */
+typedef struct action_scheduler {
+    ctx_cfg_funcs_t     shed_cfg_hdlr;   /**< Configuration handlers */
+    sched_init_func_t   sched_init_func; /**< Scheduler initialization
+                                              function */
+    attr_mask_t         sched_attr_mask; /**< Needed attributes to make the
+                                              scheduling decision */
+    sched_func_t        sched_schedule;  /**< Function to invoke the
+                                              scheduler */
+} action_scheduler_t;
+
 /** policies runtime config */
 typedef struct policy_run_config_list_t {
     policy_run_config_t *configs;
     unsigned int         count;
 } policy_run_config_list_t;
+
 /** defined in policies/policy_run_cfg.c */
 extern policy_run_config_list_t run_cfgs;
 
