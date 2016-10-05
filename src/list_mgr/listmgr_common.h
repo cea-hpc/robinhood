@@ -183,7 +183,7 @@ static inline void *dup_value(db_type_e db_type, db_type_u uval)
             ptr = calloc(1, sizeof(uidgid_u));
             if (ptr == NULL)
                 return NULL;
-            snprintf(((uidgid_u *)ptr)->txt, member_size(uidgid_u, txt), "%s", uval.val_str);
+            snprintf(((uidgid_u *)ptr)->txt, MEMBER_SIZE(uidgid_u, txt), "%s", uval.val_str);
             break;
         case DB_INT:
             TYPE_DUP(int, ptr, &uval.val_int);

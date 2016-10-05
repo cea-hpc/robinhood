@@ -22,6 +22,7 @@
 #define _RBH_MODULES_H
 
 #include "policy_rules.h"
+#include "policy_run.h"
 #include "status_manager.h"
 
 
@@ -37,6 +38,7 @@ struct rbh_module_operations {
     int                 (*mod_get_version)(void);
     status_manager_t   *(*mod_get_status_manager)(void);
     action_func_t       (*mod_get_action)(const char *);
+    action_scheduler_t *(*mod_get_scheduler)(const char *);
 };
 
 /** current version of modules */
@@ -73,6 +75,21 @@ status_manager_t *module_get_status_manager(const char *name);
  *         of this name was found.
  */
 action_func_t module_get_action(const char *name);
+
+/**
+ * Get an action scheduler from a robinhood dynamic module.
+ * Scheduler are names of the form <module_name>.<sched_name>.
+ * We expect the whole string here.
+ * This function will dlopen() the appropriate module if needed.
+ * The library handle will then remain cached until module_unload_all() is
+ * called.
+ *
+ * \param[in] name  The scheduler name: <module_name>.<sched_name>.
+ *
+ * \return A pointer to the desired scheduler or NULL if no item matches this
+ *         name.
+ */
+action_scheduler_t *module_get_scheduler(const char *name);
 
 /**
  * Release resources associated to robinhood dynamic modules.
