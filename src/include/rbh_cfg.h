@@ -35,7 +35,6 @@
  * \addtogroup MODULE_CONFIG_FUNCTIONS
  * @{
  */
-typedef int (*write_config_func_t) (FILE *output);
 
 /** configuration functions for modules */
 typedef struct mod_cfg_funcs {
@@ -53,6 +52,29 @@ typedef struct mod_cfg_funcs {
     void        (*write_default)(FILE *output);      /**< write defaults */
     void        (*write_template)(FILE *output);     /**< write a template */
 } mod_cfg_funcs_t;
+
+/** configuration function for context-dependant modules
+ * (configuration is included in another module's block)
+ * that can have multiple instances.
+ * e.g. scheduling parameters in <policy>_parameters.
+ */
+typedef struct ctx_cfg_funcs {
+    const char  *module_name;
+    void *      (*new)(void);      /**< allocate a new config structure */
+    void        (*free)(void *);   /**< free a config structure */
+
+    void        (*set_default)(void *);  /**< fill config structure with default
+                                              parameters */
+    /** Read parameters from a given block */
+    int         (*read_from_block)(config_item_t block, void *cfg,
+                                   char *msg_out);
+    /** Set the module config (ctx is context dependant) */
+    int         (*set_config)(void *ctx, void *cfg, bool reload);
+
+    void        (*write_default)(int indent, FILE *output);  /**< write defaults */
+    void        (*write_template)(int indent, FILE *output); /**< write a template */
+} ctx_cfg_funcs_t;
+
 
 /** @} */
 
