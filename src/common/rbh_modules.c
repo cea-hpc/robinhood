@@ -65,45 +65,54 @@ static int module_get_version(const rbh_module_t *mod)
     return *mod->mod_sym.mod_version;
 }
 
+/** description of managed symbols */
+struct symbol_descr {
+    const char *name;   /**< symbol name */
+    off_t       offset; /**< offset in mod->mod_sym */
+    bool        mandatory; /**< weither this symbol is mandatory */
+};
+
+#define DECLARE_SYMBOL(_n, _mand) { #_n,                  \
+            offsetof(struct rbh_module_symbols, _n), \
+            (_mand) }
+
+/** list of supported symbols */
+struct symbol_descr rbh_mod_symbols[] = {
+    DECLARE_SYMBOL(mod_name, true),
+    DECLARE_SYMBOL(mod_version, true),
+    DECLARE_SYMBOL(mod_get_status_manager, false),
+    DECLARE_SYMBOL(mod_get_action, false),
+    DECLARE_SYMBOL(mod_get_scheduler, false),
+    /* end of symbol list */
+    {NULL, 0, 0}
+};
+
 /**
  * Load a given symbol from dlopened library.
  *
  * \param[in, out]  mod         Module descriptor to update
- * \param[in]       sym_name    Name of the symbol to load
- * \param[in]       mandatory   true if the symbol is mandatory
+ * \param[in]       sym_descr   Description of the module to be loaded.
  *
  * \return 0 on success, negative error code on failure
  */
-static int module_sym_load(rbh_module_t *mod, const char *sym_name,
-                           bool mandatory)
+static int module_sym_load(rbh_module_t *mod, struct symbol_descr *sym_descr)
 {
     char *errstr;
 
-    if (strcmp(sym_name, "mod_name") == 0) {
-        mod->mod_sym.mod_name = dlsym(mod->sym_hdl, sym_name);
-    } else if (strcmp(sym_name, "mod_version") == 0) {
-        mod->mod_sym.mod_version = dlsym(mod->sym_hdl, sym_name);
-    } else if (strcmp(sym_name, "mod_get_status_manager") == 0) {
-        mod->mod_sym.mod_get_status_manager = dlsym(mod->sym_hdl, sym_name);
-    } else if (strcmp(sym_name, "mod_get_action") == 0) {
-        mod->mod_sym.mod_get_action = dlsym(mod->sym_hdl, sym_name);
-    } else {
-        DisplayLog(LVL_CRIT, MODULE_TAG, "Cannot load %s, unsupported function",
-                   sym_name);
-        return -EOPNOTSUPP;
-    }
+    *((void **)((ptrdiff_t)&mod->mod_sym + sym_descr->offset))
+        = dlsym(mod->sym_hdl, sym_descr->name);
 
     errstr = dlerror();
     if (errstr != NULL) {
-        if (mandatory) {
+        if (sym_descr->mandatory) {
             DisplayLog(LVL_CRIT, MODULE_TAG, "Cannot load %s from module %s: %s",
-                       sym_name, mod->name, errstr);
+                       sym_descr->name, mod->name, errstr);
             return -EINVAL;
         }
         /* not mandatory, only display in DEBUG level */
         DisplayLog(LVL_DEBUG, MODULE_TAG,
                    "Module '%s': optional symbol '%s' not found: %s",
-                   mod->name, sym_name, errstr);
+                   mod->name, sym_descr->name, errstr);
     }
 
     return 0;
@@ -120,6 +129,7 @@ static int module_sym_load(rbh_module_t *mod, const char *sym_name,
 static int module_load_from_file(const char *libfile, rbh_module_t *mod)
 {
     int rc;
+    struct symbol_descr *sym;
 
     if (libfile == NULL)
         return -EINVAL;
@@ -136,21 +146,11 @@ static int module_load_from_file(const char *libfile, rbh_module_t *mod)
     /* Use the filename as module name until loading is done and successful */
     mod->name = libfile;
 
-    rc = module_sym_load(mod, "mod_name", true);
-    if (rc)
-        goto err_out;
-
-    rc = module_sym_load(mod, "mod_version", true);
-    if (rc)
-        goto err_out;
-
-    rc = module_sym_load(mod, "mod_get_status_manager", false);
-    if (rc)
-        goto err_out;
-
-    rc = module_sym_load(mod, "mod_get_action", false);
-    if (rc)
-        goto err_out;
+    for (sym = rbh_mod_symbols; sym->name != NULL; sym++) {
+        rc = module_sym_load(mod, sym);
+        if (rc)
+            goto err_out;
+    }
 
     /* Get direct reference to the module name for faster accesses */
     mod->name = module_get_name(mod);
@@ -169,7 +169,7 @@ static int module_load_from_file(const char *libfile, rbh_module_t *mod)
 
     return 0;
 
- err_out:
+err_out:
     dlclose(mod->sym_hdl);
     mod->sym_hdl = NULL;
     return rc;
@@ -348,4 +348,15 @@ status_manager_t *module_get_status_manager(const char *name)
         return NULL;
 
     return mod->mod_sym.mod_get_status_manager();
+}
+
+action_scheduler_t *module_get_scheduler(const char *name)
+{
+    rbh_module_t    *mod;
+
+    mod = module_get(name);
+    if (mod == NULL || mod->mod_sym.mod_get_scheduler == NULL)
+        return NULL;
+
+    return mod->mod_sym.mod_get_scheduler(name);
 }
