@@ -385,19 +385,19 @@ sm_instance_t *create_sm_instance(const char *pol_name, const char *sm_name)
     /* @TODO initialize it */
 
     /* check it fits into the status mask */
-    if (sm_inst_count + 1 >= member_size(attr_mask_t, status) * CHAR_BIT) {
+    if (sm_inst_count + 1 >= MEMBER_SIZE(attr_mask_t, status) * CHAR_BIT) {
         DisplayLog(LVL_CRIT, "smi_create",
                    "Too many status managers: max %lu supported",
-                   member_size(attr_mask_t, status) * CHAR_BIT);
+                   MEMBER_SIZE(attr_mask_t, status) * CHAR_BIT);
         goto out_free;
     }
 
     /* check it fits into the sm_info mask */
     if (sm_attr_count + sm->nb_info >=
-        member_size(attr_mask_t, sm_info) * CHAR_BIT) {
+        MEMBER_SIZE(attr_mask_t, sm_info) * CHAR_BIT) {
         DisplayLog(LVL_CRIT, "smi_create",
                    "Too many policy-specific attributes: max %lu supported",
-                   member_size(attr_mask_t, sm_info) * CHAR_BIT);
+                   MEMBER_SIZE(attr_mask_t, sm_info) * CHAR_BIT);
         goto out_free;
     }
 
