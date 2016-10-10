@@ -45,7 +45,7 @@ typedef enum {
 
 /* errors */
     AS_MISSING_MD,  /* entry metadata is incomplete */
-    AS_STAT_FAILURE,    /* stat failure */
+    AS_STAT_FAILURE,  /* stat failure */
     AS_ERROR,   /* action failed */
 
     AS_ABORT,   /* action aborted by termination signal */

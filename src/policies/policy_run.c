@@ -669,7 +669,7 @@ static bool check_limit(policy_info_t *policy,
 }
 
 /**
- * Compute an adaptive delay (in microseconds) to check if pending requests exceed the limit.
+ * Compute an adaptive delay (in microseconds) to check if in flight requests exceed the limit.
  * The computed value is 10% of the estimated time to process the current queue.
  */
 #define USEC_PER_MSEC 1000  /* 1ms */
@@ -677,9 +677,8 @@ static bool check_limit(policy_info_t *policy,
 #define MIN_CHECK_DELAY   (10 * USEC_PER_MSEC)  /* 10ms */
 #define MAX_CHECK_DELAY   USEC_PER_SEC
 static unsigned long adaptive_check_delay_us(time_t policy_start,
-                                             unsigned long long
-                                             nb_processed,
-                                             unsigned long long nb_pending)
+                                             unsigned long long nb_processed,
+                                             unsigned long long nb_in_flight)
 {
     unsigned long check_delay;
     unsigned long spent_us = USEC_PER_SEC * (time(NULL) - policy_start);
@@ -693,19 +692,20 @@ static unsigned long adaptive_check_delay_us(time_t policy_start,
         /* how much time to process these entries? */
         us_per_ent = spent_us / nb_processed;
         /* how much to process 10% of current queue? */
-        check_delay = (us_per_ent * nb_pending) / 10;
+        check_delay = (us_per_ent * nb_in_flight) / 10;
         DisplayLog(LVL_FULL, __func__,
                    "%llu entries processed @ %.2f ms/ent, "
-                   "%llu pending => check delay = 10%% x %llu ms = %lu ms",
+                   "%llu in flight => check delay = 10%% x %llu ms = %lu ms",
                    nb_processed, (float)us_per_ent / USEC_PER_MSEC,
-                   nb_pending, (us_per_ent * nb_pending) / USEC_PER_MSEC,
+                   nb_in_flight, (us_per_ent * nb_in_flight) / USEC_PER_MSEC,
                    check_delay / USEC_PER_MSEC);
     } else {
         /* nothing was done so far (check again in 10% x spent) */
         check_delay = spent_us / 10;
         DisplayLog(LVL_FULL, __func__,
-                   "No entry processed, %llu pending => check delay = 10%% x %lu ms",
-                   nb_pending, spent_us / USEC_PER_MSEC);
+                   "No entry processed, %llu in flight "
+                   "=> check delay = 10%% x %lu ms",
+                   nb_in_flight, spent_us / USEC_PER_MSEC);
     }
 
     if (check_delay > MAX_CHECK_DELAY)
@@ -719,12 +719,13 @@ static unsigned long adaptive_check_delay_us(time_t policy_start,
 /**
  * Check if enqueued entries reach the limit.
  * If so, wait a while to recheck after some entries have been processed.
- * return if no more entries are pending,
+ * return if no more entries are in flight,
  *     or if the limit is not reached
  *     or if the limit is definitely reached.
  * \retval true if policy run must stop
  * \retval false if policy run can continue
  */
+/* @TODO Implement over-provisioning + action cut */
 static bool check_queue_limit(policy_info_t *pol,
                               const counters_t *pushed,
                               const unsigned long long *feedback_before,
@@ -735,7 +736,7 @@ static bool check_queue_limit(policy_info_t *pol,
     unsigned int status_after[AS_ENUM_COUNT];
 
     do {
-        counters_t ctr_ok, ctr_nok, ctr_pending, ctr_pot;
+        counters_t ctr_ok, ctr_nok, ctr_in_flight, ctr_pot;
         unsigned int errors, skipped, ack;
 
         RetrieveQueueStats(&pol->queue, NULL, NULL, NULL, NULL, NULL,
@@ -745,12 +746,12 @@ static bool check_queue_limit(policy_info_t *pol,
                              status_before, status_after,
                              &ctr_ok, &ctr_nok, &ack, &errors, &skipped);
 
-        /* compute pending conters (pushed - done) */
-        ctr_pending = *pushed;
-        ctr_pending.count -= ack;
-        ctr_pending.vol -= ctr_ok.vol + ctr_nok.vol;
-        ctr_pending.blocks -= ctr_ok.blocks + ctr_nok.blocks;
-        ctr_pending.targeted -= ctr_ok.targeted + ctr_nok.targeted;
+        /* compute in-flight conters (pushed - done) */
+        ctr_in_flight = *pushed;
+        ctr_in_flight.count -= ack;
+        ctr_in_flight.vol -= ctr_ok.vol + ctr_nok.vol;
+        ctr_in_flight.blocks -= ctr_ok.blocks + ctr_nok.blocks;
+        ctr_in_flight.targeted -= ctr_ok.targeted + ctr_nok.targeted;
 
         /* compute total counter */
         counters_add(&ctr_ok, &pol->progress.action_ctr);
@@ -762,28 +763,28 @@ static bool check_queue_limit(policy_info_t *pol,
             return true;
 
         /* 2) queue is empty and limit is not reached */
-        if (ctr_pending.count == 0) {
+        if (ctr_in_flight.count == 0) {
             DisplayLog(LVL_FULL, tag(pol),
                        "queue is empty => continue enqueuing");
             return false;
         }
 
-        /* check the potential limit of successful + pending */
-        ctr_pot = ctr_pending;
+        /* check the potential limit of successful + in flight */
+        ctr_pot = ctr_in_flight;
         counters_add(&ctr_pot, &ctr_ok);
-        DisplayLog(LVL_FULL, tag(pol), "requests: OK + pending = %llu",
+        DisplayLog(LVL_FULL, tag(pol), "requests: OK + in flight = %llu",
                    ctr_pot.count);
 
         if (check_limit(pol, &ctr_pot, errors, target_ctr)) {
             unsigned long check_delay =
                 adaptive_check_delay_us(pol->progress.policy_start,
                                         ctr_ok.count + errors + skipped,
-                                        ctr_pending.count);
+                                        ctr_in_flight.count);
             DisplayLog(LVL_DEBUG, tag(pol),
                        "Limit potentially reached (%llu requests successful, "
-                       "%llu requests in queue, volume: %llu done, %llu pending), "
+                       "%llu requests in queue, volume: %llu done, %llu in flight), "
                        "waiting %lums before re-checking.", ctr_ok.count,
-                       ctr_pending.count, ctr_ok.vol, ctr_pending.vol,
+                       ctr_in_flight.count, ctr_ok.vol, ctr_in_flight.vol,
                        check_delay / USEC_PER_MSEC);
             rh_usleep(check_delay);
             continue;
@@ -931,7 +932,7 @@ static int wait_queue_empty(policy_info_t *policy,
                             unsigned int *status_tab_after,
                             bool long_sleep)
 {
-    unsigned int nb_in_queue, nb_action_pending;
+    unsigned int nb_in_queue, nb_action_in_flight;
 
     /* Wait for end of policy pass */
     do {
@@ -946,19 +947,19 @@ static int wait_queue_empty(policy_info_t *policy,
         /* the last time a request was pushed/poped/acknowledged */
         last_activity = MAX3(last_push, last_pop, last_ack);
 
-        /* nb of operation pending
+        /* nb of operation in flight
            = nb_enqueued - (nb ack after - nb ack before) */
-        nb_action_pending = nb_submitted + ack_count(status_tab_init)
+        nb_action_in_flight = nb_submitted + ack_count(status_tab_init)
                             - ack_count(status_tab_after);
 
-        if ((nb_in_queue > 0) || (nb_action_pending > 0)) {
+        if ((nb_in_queue > 0) || (nb_action_in_flight > 0)) {
             /* abort this pass if the last action was done a too long time
              * ago */
             if ((policy->config->action_timeout != 0) &&
                 (time(NULL) - last_activity >
                  policy->config->action_timeout)) {
                 DisplayLog(LVL_MAJOR, tag(policy), "Policy run time-out: "
-                           "%u actions inactive for %us", nb_action_pending,
+                           "%u actions inactive for %us", nb_action_in_flight,
                            (unsigned int)(time(NULL) - last_activity));
                 /* don't wait for current actions to end, continue with
                  * other entries */
@@ -970,10 +971,10 @@ static int wait_queue_empty(policy_info_t *policy,
 
             DisplayLog(LVL_DEBUG, tag(policy),
                        "Waiting for the end of current pass: "
-                       "still %u entries pending (%u in queue, %u being processed). "
+                       "still %u entries in flight (%u in queue, %u being processed). "
                        "Last action %us ago.",
-                       nb_action_pending, nb_in_queue,
-                       nb_action_pending - nb_in_queue,
+                       nb_action_in_flight, nb_in_queue,
+                       nb_action_in_flight - nb_in_queue,
                        (unsigned int)(time(NULL) - last_activity));
 
             if (long_sleep)
@@ -983,7 +984,7 @@ static int wait_queue_empty(policy_info_t *policy,
         } else
             DisplayLog(LVL_DEBUG, tag(policy), "End of current pass");
 
-    } while ((nb_in_queue != 0) || (nb_action_pending != 0));
+    } while ((nb_in_queue != 0) || (nb_action_in_flight != 0));
 
     return 0;
 }
