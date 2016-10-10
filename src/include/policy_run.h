@@ -308,6 +308,18 @@ typedef int (*sched_action_cb_t)(void *udata);
  */
 typedef int (*sched_init_func_t)(void *config, void **p_sched_data);
 
+typedef enum {
+    SCHED_OK = 0,               /**< Entry taken into account by scheduler */
+    SCHED_DELAY_ALL     = 1,    /**< Wait before submitting any new entry */
+    SCHED_DELAY_ENTRY   = 2,    /**< Wait before resubmitting this entry */
+    SCHED_SKIP_ENTRY    = 3,    /**< Skip the entry for the  current run */
+    SCHED_STOP_RUN      = 4,    /**< Stop submitting entry for the current
+                                 *   policy run. In-flight tasks keeps running.
+                                 */
+    SCHED_KILL_RUN      = 5,    /**< Abort the policy run and cancel in-flight
+                                     tasks. */
+} sched_status_e;
+
 /**
  * Scheduler function prototype.
  * @param[in,out] sched_data   Scheduler private context created by
@@ -317,6 +329,9 @@ typedef int (*sched_init_func_t)(void *config, void **p_sched_data);
  * @param[in]     cb           Function to be called by the scheduler to trigger
  *                             an action.
  * @param[in]     udata        Argument to be passed to cb function.
+ *
+ * @return  A positive code (sched_status_e) for policy workflow control.
+ *          A negative value (-errno) on error.
  */
 typedef int (*sched_func_t)(void *sched_data,
                             const entry_id_t *id,
