@@ -1,0 +1,55 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_717f6217",
+        "filename": "src/common/rbh_modules.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 87,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-10-13T09:36:21Z",
+      "side": 1,
+      "message": "Remove and use the ARRAY_SIZE() macro (sizeof(array) / sizeof(array[0]))",
+      "revId": "80709225bc8e151f64d490729b0e50c58d6b2d46",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_51b0dedb",
+        "filename": "src/common/rbh_modules.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 102,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-10-13T09:36:21Z",
+      "side": 1,
+      "message": "This is difficult to read. Also the whole thing assumes that the structure field have the exact same names as the symbols loaded.\n\nHere receive a handle, name and void address to do the dlsym(). See below for how to pass them in.",
+      "revId": "80709225bc8e151f64d490729b0e50c58d6b2d46",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_912f86f5",
+        "filename": "src/common/rbh_modules.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 132,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-10-13T09:36:21Z",
+      "side": 1,
+      "message": "Here local table:\n\nstruct ext_symbol {\n  const char *sym_name; /* Exposed symbol name */\n  void       *sym_addr; /* Destination address */\n  bool        sym_reqd; /* Globally fail if missing */\n} mod_symbols[] \u003d {\n  {MOD_NAME,    \u0026sym-\u003emod_sym.mod_name, true},\n  {MOD_VERSION, \u0026sym-\u003emod_sym.mod_version, true},\n  ...\n};\n\nfor (i \u003d 0; i \u003c ARRAY_SIZE(mod_symbols); i++) {\n  // load symbol\n}",
+      "revId": "80709225bc8e151f64d490729b0e50c58d6b2d46",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
