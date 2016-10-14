@@ -143,6 +143,7 @@ static void set_addl_params(const char *addl_params[], unsigned int size,
 
 /** maintain policy run information about a given entry */
 typedef struct entry_policy_info {
+    policy_info_t  *policy;         /**< The running policy information */
     queue_item_t   *item;           /**< entry information (id and attrs
                                          from DB) */
     rule_item_t    *rule;           /**< matched rule */
@@ -165,17 +166,17 @@ typedef struct entry_policy_info {
  * @param(in)   fileset the matched fileset for the policy rule
  * @return  0 on success, a negative value on error.
  */
-static int build_action_params(const policy_info_t *policy,
-                               entry_policy_info_t *epi)
+static int build_action_params(entry_policy_info_t *epi)
 {
     int rc = 0;
+    policy_info_t *pol = epi->policy;
     char const *addl_params[5]; /* 5 max: "fileclass" + its name,
                                   "rule" + its name, NULL */
     subst_args_t subst_param_args = {
         .params = &epi->params,
         .id     = &epi->item->entry_id,
         .attrs  = &epi->fresh_attrs,
-        .smi    = policy->descr->status_mgr
+        .smi    = pol->descr->status_mgr
     };
 
     /* Merging parameters from:
@@ -185,15 +186,15 @@ static int build_action_params(const policy_info_t *policy,
      * 3) fileclass
      */
     /* params from policy */
-    if (likely(policy->config != NULL)) {
-        rc = rbh_params_copy(&epi->params, &policy->config->action_params);
+    if (likely(pol->config != NULL)) {
+        rc = rbh_params_copy(&epi->params, &pol->config->action_params);
         if (rc)
             goto err;
     }
 
     /* add params from trigger (possibly override previous params) */
-    if (policy->trigger_action_params != NULL) {
-        rc = rbh_params_copy(&epi->params, policy->trigger_action_params);
+    if (pol->trigger_action_params != NULL) {
+        rc = rbh_params_copy(&epi->params, pol->trigger_action_params);
         if (rc)
             goto err;
     }
@@ -211,7 +212,7 @@ static int build_action_params(const policy_info_t *policy,
 
         /* check if there are parameters for the given policy */
         fileset_params = get_fileset_policy_params(epi->fileset,
-                                                   policy->descr->name);
+                                                   pol->descr->name);
         if (fileset_params != NULL) {
             rc = rbh_params_copy(&epi->params, fileset_params);
             if (rc)
@@ -236,11 +237,12 @@ static int build_action_params(const policy_info_t *policy,
 }
 
 /** Execute a policy action. */
-static int policy_action(policy_info_t *policy, entry_policy_info_t *epi)
+static int policy_action(entry_policy_info_t *epi)
 {
     int rc = 0;
+    policy_info_t         *pol = epi->policy;
     const entry_id_t      *id  = &epi->item->entry_id;
-    sm_instance_t         *smi = policy->descr->status_mgr;
+    sm_instance_t         *smi = pol->descr->status_mgr;
     const policy_action_t *actionp = NULL;
 
     /* Get the action from policy rule, if defined.
@@ -249,13 +251,13 @@ static int policy_action(policy_info_t *policy, entry_policy_info_t *epi)
         actionp = &epi->rule->action;
     else
         /* defaults to default_action from */
-        actionp = &policy->config->action;
+        actionp = &pol->config->action;
 
     /* log as DEBUG level if 'report_actions' is disabled */
-    DisplayLog(policy->config->report_actions ? LVL_EVENT : LVL_DEBUG,
-               tag(policy),
+    DisplayLog(pol->config->report_actions ? LVL_EVENT : LVL_DEBUG,
+               tag(pol),
                "%sExecuting policy action on: " DFID_NOBRACE " (%s)",
-               dry_run(policy) ? "(dry-run) " : "", PFID(id),
+               dry_run(pol) ? "(dry-run) " : "", PFID(id),
                ATTR(&epi->fresh_attrs, fullpath));
 
     if (log_config.debug_level >= LVL_DEBUG) {
@@ -263,26 +265,26 @@ static int policy_action(policy_info_t *policy, entry_policy_info_t *epi)
 
         rc = rbh_params_serialize(&epi->params, str, NULL, RBH_PARAM_CSV);
         if (rc == 0)
-            DisplayLog(LVL_DEBUG, tag(policy), DFID ": action_params: %s",
+            DisplayLog(LVL_DEBUG, tag(pol), DFID ": action_params: %s",
                        PFID(id), str->str);
         g_string_free(str, TRUE);
     }
 
-    if (dry_run(policy))
+    if (dry_run(pol))
         return 0;
 
     /* If the status manager has an 'executor', make it run the action.
      * Else, run directly the action function. */
     if (smi != NULL && smi->sm->executor != NULL) {
         /* @TODO provide a DB callback */
-        rc = smi->sm->executor(smi, policy->descr->implements, actionp,
+        rc = smi->sm->executor(smi, pol->descr->implements, actionp,
                                id, &epi->fresh_attrs, &epi->params,
                                &epi->after_action, NULL, NULL);
     } else {
         switch (actionp->type) {
         case ACTION_FUNCTION:
             /* @TODO provide a DB callback */
-            DisplayLog(LVL_DEBUG, tag(policy), DFID ": action: %s",
+            DisplayLog(LVL_DEBUG, tag(pol), DFID ": action: %s",
                        PFID(id), actionp->action_u.func.name);
             rc = actionp->action_u.func.call(id, &epi->fresh_attrs,
                                              &epi->params, &epi->after_action,
@@ -310,7 +312,7 @@ static int policy_action(policy_info_t *policy, entry_policy_info_t *epi)
                     /* call custom command */
                     if (log_config.debug_level >= LVL_DEBUG) {
                         char *log_cmd = concat_cmd(cmd);
-                        DisplayLog(LVL_DEBUG, tag(policy),
+                        DisplayLog(LVL_DEBUG, tag(pol),
                                    DFID ": action: cmd(%s)", PFID(id), log_cmd);
                         free(log_cmd);
                     }
@@ -335,14 +337,14 @@ static int policy_action(policy_info_t *policy, entry_policy_info_t *epi)
         /* call action callback if there is no status manager executor to wrap
          * actions */
         if (smi != NULL && smi->sm->action_cb != NULL) {
-            int tmp_rc = smi->sm->action_cb(smi, policy->descr->implements, rc,
-                                            id, &epi->fresh_attrs,
+            int tmp_rc = smi->sm->action_cb(smi, pol->descr->implements,
+                                            rc, id, &epi->fresh_attrs,
                                             &epi->after_action);
             if (tmp_rc)
-                DisplayLog(LVL_MAJOR, tag(policy),
+                DisplayLog(LVL_MAJOR, tag(pol),
                            "Action callback failed for action '%s': rc=%d",
-                           policy->descr->implements ? policy->descr->
-                           implements : "<null>", tmp_rc);
+                           pol->descr->implements ?  pol->descr->implements
+                                : "<null>", tmp_rc);
         }
     }
 
@@ -2141,9 +2143,11 @@ static void log_action_success(const policy_info_t *pol,
  * Callback after an action has been executed.
  * Update entry status in DB and release resources.
  */
-static void post_action_cb(int action_rc, lmgr_t *lmgr, policy_info_t *pol,
+static void post_action_cb(int action_rc, lmgr_t *lmgr,
                            entry_policy_info_t *epi, bool free_item)
 {
+    policy_info_t *pol = epi->policy;
+
     /* params are no longer needed */
     rbh_params_free(&epi->params);
 
@@ -2225,11 +2229,11 @@ static void post_action_cb(int action_rc, lmgr_t *lmgr, policy_info_t *pol,
 /**
  * Refresh entry attributes and match policy rules.
  */
-static int refresh_match_entry(policy_info_t *pol, lmgr_t *lmgr,
-                               entry_policy_info_t *epi)
+static int refresh_match_entry(lmgr_t *lmgr, entry_policy_info_t *epi)
 {
     policy_match_t  match;
     int             rc;
+    policy_info_t  *pol = epi->policy;
 
     DisplayLog(LVL_FULL, tag(pol),
                "Checking if entry %s matches policy rules",
@@ -2397,6 +2401,7 @@ static void process_entry(policy_info_t *pol, lmgr_t *lmgr,
     entry_policy_info_t epi = {0};
     int                 rc;
 
+    epi.policy = pol;
     epi.item = p_item;
 
     if (aborted(pol)) {
@@ -2410,7 +2415,7 @@ static void process_entry(policy_info_t *pol, lmgr_t *lmgr,
     }
 
     /* refresh entry info and match policy rules */
-    rc = refresh_match_entry(pol, lmgr, &epi);
+    rc = refresh_match_entry(lmgr, &epi);
     if (rc != AS_OK) {
         policy_ack(&pol->queue, rc, &p_item->entry_attr,
                    p_item->targeted);
@@ -2425,7 +2430,7 @@ static void process_entry(policy_info_t *pol, lmgr_t *lmgr,
     epi.time_save = rc;
 
     /* build action parameters */
-    rc = build_action_params(pol, &epi);
+    rc = build_action_params(&epi);
     if (rc) {
         if (!pol->descr->manage_deleted)
             update_entry(lmgr, &p_item->entry_id, &epi.fresh_attrs);
@@ -2440,9 +2445,9 @@ static void process_entry(policy_info_t *pol, lmgr_t *lmgr,
     epi.prev_attrs = epi.fresh_attrs;
 
     /* apply action to the entry! */
-    rc = policy_action(pol, &epi);
+    rc = policy_action(&epi);
 
-    post_action_cb(rc, lmgr, pol, &epi, free_item);
+    post_action_cb(rc, lmgr, &epi, free_item);
 
     return;
 
@@ -2586,7 +2591,8 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr,
     if (it == NULL) {
         lmgr_simple_filter_free(&filter);
         DisplayLog(LVL_CRIT, tag(pol),
-                   "Error retrieving the list of current actions. Recovery cancelled.");
+                   "Error retrieving the list of current actions."
+                   "Recovery cancelled.");
         return -1;
     }
 
