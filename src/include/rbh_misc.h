@@ -29,6 +29,7 @@
 #include <stdbool.h>
 #include <glib.h>
 #include <semaphore.h>
+#include <unistd.h>
 #include "rbh_logs.h"
 
 /* displaying FID */

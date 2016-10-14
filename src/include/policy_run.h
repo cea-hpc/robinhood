@@ -298,9 +298,6 @@ typedef struct policy_info_t {
                                                join the trigger thread */
 } policy_info_t;
 
-/** function to be called by an action scheduler to trigger an action */
-typedef int (*sched_action_cb_t)(void *udata);
-
 /**
  * Scheduler init function prototype.
  * @param[in]   config          Scheduler configuration created by its config handlers.
@@ -321,13 +318,22 @@ typedef enum {
 } sched_status_e;
 
 /**
+ * Function to be called by an action scheduler to trigger an action,
+ * or skip an entry.
+ * @param st    SCHED_OK if the action is to be performed.
+ *              Another status in other cases (stop run, etc.)
+ */
+typedef int (*sched_cb_t)(void *udata, sched_status_e st);
+
+
+/**
  * Scheduler function prototype.
  * @param[in,out] sched_data   Scheduler private context created by
  *                             sched_init.
  * @param[in]     id           Entry id for the action to be scheduled.
  * @param[in]     attrs        Entry attributes for the action to be scheduled.
  * @param[in]     cb           Function to be called by the scheduler to trigger
- *                             an action.
+ *                             an action, or skip an entry.
  * @param[in]     udata        Argument to be passed to cb function.
  *
  * @return  A positive code (sched_status_e) for policy workflow control.
@@ -336,7 +342,7 @@ typedef enum {
 typedef int (*sched_func_t)(void *sched_data,
                             const entry_id_t *id,
                             const attr_set_t *attrs,
-                            sched_action_cb_t cb,
+                            sched_cb_t cb,
                             void *udata);
 
 /** Action scheduler (implemented by plugins) */
