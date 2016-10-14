@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "baa041b7_323c352e",
+        "filename": "src/common/rbh_modules.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 87,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-10-14T13:19:59Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "baa041b7_717f6217",
+      "revId": "80709225bc8e151f64d490729b0e50c58d6b2d46",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "baa041b7_51b0dedb",
         "filename": "src/common/rbh_modules.c",
         "patchSetId": 1
@@ -30,6 +48,24 @@
       "writtenOn": "2016-10-13T09:36:21Z",
       "side": 1,
       "message": "This is difficult to read. Also the whole thing assumes that the structure field have the exact same names as the symbols loaded.\n\nHere receive a handle, name and void address to do the dlsym(). See below for how to pass them in.",
+      "revId": "80709225bc8e151f64d490729b0e50c58d6b2d46",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_1247f1bc",
+        "filename": "src/common/rbh_modules.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 102,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2016-10-14T13:19:59Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "baa041b7_51b0dedb",
       "revId": "80709225bc8e151f64d490729b0e50c58d6b2d46",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
