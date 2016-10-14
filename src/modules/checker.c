@@ -172,7 +172,7 @@ status_manager_t *mod_get_status_manager(void)
     return &checker_sm;
 }
 
-action_func_t mod_get_action_by_name(const char *action_name)
+action_func_t mod_get_action(const char *action_name)
 {
     /* no specific action implemented */
     return NULL;

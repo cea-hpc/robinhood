@@ -1096,7 +1096,7 @@ static status_manager_t lhsm_sm = {
 
 const char *mod_get_name(void)
 {
-    return "lhsm";
+    return lhsm_sm.name;
 }
 
 status_manager_t *mod_get_status_manager(void)
@@ -1104,7 +1104,7 @@ status_manager_t *mod_get_status_manager(void)
     return &lhsm_sm;
 }
 
-action_func_t mod_get_action_by_name(const char *action_name)
+action_func_t mod_get_action(const char *action_name)
 {
     if (strcmp(action_name, "lhsm.archive") == 0)
         return lhsm_archive;

@@ -193,7 +193,7 @@ status_manager_t *mod_get_status_manager(void)
     return &alerter_sm;
 }
 
-action_func_t mod_get_action_by_name(const char *action_name)
+action_func_t mod_get_action(const char *action_name)
 {
     if (strcmp(action_name, "alerter.alert") == 0)
         return alerter_alert;
