@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_749cdebf",
+        "filename": "src/common/lustre_tools.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 790,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-10-18T13:20:28Z",
+      "side": 1,
+      "message": "I\u0027d even suggest:\n\nrc \u003d ioctl();\nrc \u003d rc \u003c 0 ?: errno; /* I do dirty GNU voodoo in the dark */\n\nswitch (rc) {\n    case 0:\n        *inode \u003d lmd-\u003elmd_st;\n        break;\n    case ENOTTY:\n        [...]\n}\n\nreturn rc;",
+      "revId": "627656df0ee350e2fdc7a6d3f25154b44a495d90",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
