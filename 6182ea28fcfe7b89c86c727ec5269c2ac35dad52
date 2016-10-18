@@ -1,0 +1,50 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baa041b7_d4c04a7e",
+        "filename": "src/include/policy_run.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 316,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-10-18T13:24:38Z",
+      "side": 1,
+      "message": "(typo) entries",
+      "range": {
+        "startLine": 316,
+        "startChar": 53,
+        "endLine": 316,
+        "endChar": 58
+      },
+      "revId": "6182ea28fcfe7b89c86c727ec5269c2ac35dad52",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "baa041b7_34c77699",
+        "filename": "src/include/policy_run.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 317,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2016-10-18T13:24:38Z",
+      "side": 1,
+      "message": "(typo) keep",
+      "range": {
+        "startLine": 317,
+        "startChar": 65,
+        "endLine": 317,
+        "endChar": 70
+      },
+      "revId": "6182ea28fcfe7b89c86c727ec5269c2ac35dad52",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
