@@ -35,7 +35,7 @@ include "common.php";
 <script src="js/jquery.dataTables.js"></script>
 <script src="js/filesize.dataTables.js"></script>
 <script src="customjs/newgui.js"></script>
-
+<script src="customjs/gsihpc.js"></script>
 </head>
 
 <?php
@@ -145,4 +145,3 @@ if ($DB_LASTERROR!="") {
 
 </body>
 </html>
-
