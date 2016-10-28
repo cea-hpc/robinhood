@@ -7,5 +7,13 @@ $(document).ready(function() {
       GetGraph(lastGet);
     }
   });
+  $('#myStateButton').on('click', function () {
+    var $btn = $(this).button('loading');
+    GetGraph(lastGet);
 
+    window.setTimeout( function(){
+      $btn.button('reset')
+    }, 500 );
+
+  })
 });
