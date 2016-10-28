@@ -159,7 +159,7 @@ function GetGraph(item){
                 var options = {
                         responsive : true,
                 animation : false,
-                showAllTooltips: true,
+                showAllTooltips: false,
                 defaultFontSize: 14,
                 tooltips: {
                         enabled: true,
@@ -219,7 +219,7 @@ function GetGraph(item){
                            clear: true,
                            data: data.datasets,
                            columns: data.columns,
-                           columnDefs: data.columnsDefs 
+                           columnDefs: data.columnsDefs
                 } );
 
         });
