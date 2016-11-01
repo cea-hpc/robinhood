@@ -100,5 +100,4 @@ cscope.*
 /TODO
 /src/include/db_schema.h
 /scripts/make_mans.sh
-/web_gui/gui_v3/config.php
 

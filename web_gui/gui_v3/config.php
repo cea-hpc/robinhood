@@ -100,5 +100,3 @@ include_once 'lang/sys.php';
 include_once 'lang/'.$lang_file;
 
 ?>
-
-
