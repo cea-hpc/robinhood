@@ -167,7 +167,11 @@ function GetGraph(item){
                         callbacks: {
                                 title: function(tooltipItems, data) {
                                   val = data.labels[tooltipItems[0].index]
-                                  return val
+                                  type = data.datasets[tooltipItems[0].datasetIndex].unit
+                                  if (type=="size" || type=="count") {
+                                          return val
+                                  }
+                                  return ""
                                 },
                                 label: function(tooltipItems, data) {
                                         val = data.datasets[tooltipItems.datasetIndex].data[tooltipItems.index]
