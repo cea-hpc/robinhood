@@ -217,6 +217,7 @@ function GetGraph(item){
         $.ajax({
                 url: "api/index.php?request=data/" + item + "/" +queryString
         }).then(function(data) {
+          $('#myStateButton').button('reset');
                 if (TableState!="empty"){
                         TableState.destroy();
                         $('#datalist').empty();
@@ -229,7 +230,6 @@ function GetGraph(item){
                            columns: data.columns,
                            columnDefs: data.columnsDefs
                 } );
-                $('#myStateButton').button('reset');
         });
 
 
