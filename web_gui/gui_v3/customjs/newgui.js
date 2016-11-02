@@ -169,6 +169,8 @@ function GetGraph(item){
                                         val = data.datasets[tooltipItems.datasetIndex].data[tooltipItems.index]
                                                 type = data.datasets[tooltipItems.datasetIndex].unit
                                                 lab = data.labels[tooltipItems.index];
+                                                if (typeof lab === 'object')
+                                                  lab="";
                                                 if (type=="size") {
                                                         return lab.toUpperCase()+' [size]: '+formatBytes(val,0);
                                                 } else if (type=="count") {
