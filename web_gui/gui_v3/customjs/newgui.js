@@ -165,16 +165,17 @@ function GetGraph(item){
                         enabled: true,
                         mode: 'single',
                         callbacks: {
+                                title: function(tooltipItems, data) {
+                                  val = data.labels[tooltipItems.index];
+                                  return typeof val === 'object' ? val : "";
+                                }
                                 label: function(tooltipItems, data) {
                                         val = data.datasets[tooltipItems.datasetIndex].data[tooltipItems.index]
                                                 type = data.datasets[tooltipItems.datasetIndex].unit
-                                                lab = data.labels[tooltipItems.index];
-                                                if (typeof lab === 'object')
-                                                  lab="";
                                                 if (type=="size") {
-                                                        return lab.toUpperCase()+' [size]: '+formatBytes(val,0);
+                                                        return ' [size]: '+formatBytes(val,0);
                                                 } else if (type=="count") {
-                                                        return lab.toUpperCase()+' [file count]: '+formatCount(val,0);
+                                                        return ' [file count]: '+formatCount(val,0);
                                                 } else if (type=="date") {
                                                         return (new Date(val*1000));
                                                 }
