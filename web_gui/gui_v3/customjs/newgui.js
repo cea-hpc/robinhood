@@ -183,6 +183,7 @@ function GetGraph(item){
                                                 } else if (type=="date") {
                                                         return (new Date(val*1000))
                                                 }
+                                        console.log(val)
                                         return val
                                 }
                         }}
