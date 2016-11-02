@@ -168,7 +168,7 @@ function GetGraph(item){
                                 title: function(tooltipItems, data) {
                                   val = data.labels[tooltipItems.index];
                                   return typeof val === 'object' ? val : "";
-                                }
+                                },
                                 label: function(tooltipItems, data) {
                                         val = data.datasets[tooltipItems.datasetIndex].data[tooltipItems.index]
                                                 type = data.datasets[tooltipItems.datasetIndex].unit
