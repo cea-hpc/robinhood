@@ -176,7 +176,7 @@ function GetGraph(item){
                                 label: function(tooltipItems, data) {
                                         val = data.datasets[tooltipItems.datasetIndex].data[tooltipItems.index]
                                                 type = data.datasets[tooltipItems.datasetIndex].unit
-                                                console.log(type)
+                                                console.log(data)
                                                 if (type=="size") {
                                                         return 'size: '+formatBytes(val,0)
                                                 } else if (type=="count") {
