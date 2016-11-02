@@ -285,7 +285,7 @@ class MyAPI extends API
                                 global $MAX_ROWS;
                                 $fullfilter = build_filter($this->args, array('filename'=>'name', 'uid'=>'uid', 'gid'=>'gid'));
                                 $sqlfilter=$fullfilter[0];
-                                $req = $db->prepare("SELECT uid, gid, size, blocks, name, from_unixtime(creation_time) AS creation_time".
+                                $req = $db->prepare("SELECT uid, gid, size, blocks, name, type, from_unixtime(creation_time) AS creation_time".
                                                     ", from_unixtime(last_access) AS last_access, from_unixtime(last_mod) AS last_mod".
                                                     " FROM NAMES INNER JOIN ENTRIES ON ENTRIES.id = NAMES.id $sqlfilter LIMIT $MAX_ROWS");
                                 $req->execute($fullfilter[1]);
