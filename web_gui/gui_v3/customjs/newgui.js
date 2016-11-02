@@ -229,7 +229,7 @@ function GetGraph(item){
                            columns: data.columns,
                            columnDefs: data.columnsDefs
                 } );
-
+                $('#myStateButton').button('reset');
         });
 
 
@@ -256,7 +256,7 @@ $(document).ready(function() {
       GetGraph(lastGet);
       window.setTimeout( function(){
         $btn.button('reset')
-      }, 500 );
+      }, 60000 );
     }
   });
   $('#myStateButton').on('click', function () {
@@ -264,7 +264,7 @@ $(document).ready(function() {
     GetGraph(lastGet);
     window.setTimeout( function(){
       $btn.button('reset')
-    }, 500 );
+    }, 60000 );
 
   })
 });
