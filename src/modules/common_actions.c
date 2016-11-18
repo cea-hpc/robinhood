@@ -2,7 +2,7 @@
  * vim:expandtab:shiftwidth=4:tabstop=4:
  */
 /*
- * Copyright (C) 2014 CEA/DAM
+ * Copyright (C) 2014-2016 CEA/DAM
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the CeCILL License.
@@ -199,3 +199,4 @@ action_func_t mod_get_action(const char *action_name)
     else
         return NULL;
 }
+

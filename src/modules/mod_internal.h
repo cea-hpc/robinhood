@@ -128,4 +128,6 @@ int mod_get_version(void);
 status_manager_t *mod_get_status_manager(void);
 
 action_func_t mod_get_action(const char *action_name);
+
+action_scheduler_t *mod_get_scheduler(const char *sched_name);
 #endif

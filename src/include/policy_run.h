@@ -305,16 +305,24 @@ typedef struct policy_info_t {
  */
 typedef int (*sched_init_func_t)(void *config, void **p_sched_data);
 
+/**
+ *  Reset a scheduler.
+ *  Empty all its internal queues and reset its state for a new policy run.
+ */
+typedef int (*sched_reset_func_t)(void *sched_data);
+
 typedef enum {
     SCHED_OK = 0,               /**< Entry taken into account by scheduler */
     SCHED_DELAY_ALL     = 1,    /**< Wait before submitting any new entry */
     SCHED_DELAY_ENTRY   = 2,    /**< Wait before resubmitting this entry */
     SCHED_SKIP_ENTRY    = 3,    /**< Skip the entry for the  current run */
     SCHED_STOP_RUN      = 4,    /**< Stop submitting entries for the current
-                                 *   policy run. In-flight tasks keep running.
+                                 *   policy run. Already submitted tasks
+                                 *   keep running. Queued entries in previous
+                                 *   schedulers are canceled.
                                  */
     SCHED_KILL_RUN      = 5,    /**< Abort the policy run and cancel in-flight
-                                     tasks. */
+                                     tasks in next schedulers. */
 } sched_status_e;
 
 /**
@@ -347,12 +355,14 @@ typedef int (*sched_func_t)(void *sched_data,
 
 /** Action scheduler (implemented by plugins) */
 typedef struct action_scheduler {
-    ctx_cfg_funcs_t     shed_cfg_hdlr;   /**< Configuration handlers */
-    sched_init_func_t   sched_init_func; /**< Scheduler initialization
+    const char            *sched_name;      /**< Scheduler name */
+    const ctx_cfg_funcs_t *sched_cfg_funcs; /**< Configuration handlers */
+    sched_init_func_t      sched_init_func; /**< Scheduler initialization
                                               function */
-    attr_mask_t         sched_attr_mask; /**< Needed attributes to make the
+    sched_reset_func_t     sched_reset_func;/**< Scheduler reset function */
+    attr_mask_t            sched_attr_mask; /**< Needed attributes to make the
                                               scheduling decision */
-    sched_func_t        sched_schedule;  /**< Function to invoke the
+    sched_func_t           sched_schedule;  /**< Function to invoke the
                                               scheduler */
 } action_scheduler_t;
 

@@ -68,8 +68,9 @@ typedef struct ctx_cfg_funcs {
     /** Read parameters from a given block */
     int         (*read_from_block)(config_item_t block, void *cfg,
                                    char *msg_out);
-    /** Set the module config (ctx is context dependant) */
-    int         (*set_config)(void *ctx, void *cfg, bool reload);
+    /** Update the module config when reloading the configuration
+     * (ctx is context dependant) */
+    int         (*update)(void *ctx, void *cfg);
 
     void        (*write_default)(int indent, FILE *output);  /**< write defaults */
     void        (*write_template)(int indent, FILE *output); /**< write a template */
