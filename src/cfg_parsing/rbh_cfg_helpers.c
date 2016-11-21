@@ -819,15 +819,18 @@ int read_scalar_params(config_item_t block, const char *block_name,
     return 0;
 }
 
-
-int get_cfg_block(config_file_t config, const char *name, config_item_t *item, char *msg_out)
+/**
+ * Common helper for get_cfg_block and get_cfg_subblock.
+ * check the returned item is a block and set the
+ * returned value
+ */
+static int _check_and_set_return_block(config_item_t check_item,
+                                       config_item_t *return_item,
+                                       const char *name, bool unique,
+                                       char *msg_out)
 {
-    bool unique = true;
-    config_item_t block = rh_config_FindItemByName(config, name, &unique);
-
-    *item = NULL;
-
-    if (block == NULL)
+    *return_item = NULL;
+    if (check_item == NULL)
     {
         sprintf(msg_out, "Missing configuration block '%s'", name);
         return ENOENT;
@@ -835,16 +838,34 @@ int get_cfg_block(config_file_t config, const char *name, config_item_t *item, c
     else if (!unique)
     {
         sprintf(msg_out, "Found duplicate of block '%s' line %d.", name,
-                rh_config_GetItemLine(block));
+                rh_config_GetItemLine(check_item));
         return EEXIST;
     }
 
-    if (rh_config_ItemType(block) != CONFIG_ITEM_BLOCK)
+    if (rh_config_ItemType(check_item) != CONFIG_ITEM_BLOCK)
     {
         sprintf(msg_out, "A block is expected for '%s' item, line %d",
-                name, rh_config_GetItemLine(block));
+                name, rh_config_GetItemLine(check_item));
         return EINVAL;
     }
-    *item = block;
+    *return_item = check_item;
     return 0;
+}
+
+
+int get_cfg_block(config_file_t config, const char *name, config_item_t *item, char *msg_out)
+{
+    bool unique = true;
+    config_item_t block = rh_config_FindItemByName(config, name, &unique);
+
+    return _check_and_set_return_block(block, item, name, unique, msg_out);
+}
+
+int get_cfg_subblock(config_item_t block, const char *name,
+                     config_item_t *returnblock, char *msg_out)
+{
+    bool unique = true;
+    config_item_t subblock = rh_config_GetItemByName(block, name, &unique);
+
+    return _check_and_set_return_block(subblock, returnblock, name, unique, msg_out);
 }

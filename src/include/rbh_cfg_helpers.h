@@ -139,6 +139,13 @@ int get_cfg_block(config_file_t config, const char *name, config_item_t *item,
                   char *msg_out);
 
 /**
+ * Get a config sub-block and check it is unique.
+ */
+int get_cfg_subblock(config_item_t block, const char *name,
+                     config_item_t *subblock, char *msg_out);
+
+
+/**
  * Types and function to parse a list of simple scalar configuration variables (with no extra args).
  */
 typedef enum {
