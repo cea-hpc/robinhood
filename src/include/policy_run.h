@@ -191,6 +191,13 @@ typedef struct policy_run_config_t {
     /** report policy actions in report file? */
     bool                report_actions;
 
+    /** number of action schedulers */
+    int                      sched_count;
+    /** list of actions schedulers */
+    const struct action_scheduler **schedulers;
+    /** configuration of action schedulers */
+    void                   **sched_cfg;
+
 } policy_run_config_t;
 
 typedef struct counters_t {

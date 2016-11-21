@@ -348,9 +348,18 @@ status_manager_t *module_get_status_manager(const char *name)
 
 action_scheduler_t *module_get_scheduler(const char *name)
 {
+    char             mod_name[MAX_MOD_NAMELEN];
+    char            *prefix;
     rbh_module_t    *mod;
 
-    mod = module_get(name);
+    prefix = strchr(name, '.');
+    if (prefix == NULL)
+        return NULL;
+
+    memcpy(mod_name, name, prefix - name);
+    mod_name[prefix - name] = '\0';
+
+    mod = module_get(mod_name);
     if (mod == NULL || mod->mod_ops.mod_get_scheduler == NULL)
         return NULL;
 

@@ -20,7 +20,9 @@
 #include "run_policies.h"
 #include "rbh_misc.h"
 #include "Memory.h"
+#include "rbh_modules.h"
 #include <errno.h>
+#include <ctype.h>
 
 #define PARAM_SUFFIX   "_parameters"
 #define TRIGGER_SUFFIX       "_trigger"
@@ -410,6 +412,7 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
     char **arg_tab;
     unsigned int arg_count;
     config_item_t params_block;
+    bool unique;
 
     const struct trig_target_def *def;
 
@@ -490,9 +493,9 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
         return rc;
 
     /* get action_params subblock */
-    bool unique = true;
-    params_block =
-        rh_config_GetItemByName(config_blk, "action_params", &unique);
+    unique = true;
+    params_block = rh_config_GetItemByName(config_blk, "action_params",
+                                           &unique);
 
     if (params_block != NULL) {
         if (!unique) {
@@ -518,6 +521,103 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
 
     CheckUnknownParameters(config_blk, block_name, trigger_expect);
 
+    return 0;
+}
+
+#define SCHED_PARAM_NAME "schedulers"
+
+static void skip_spaces(const char **c)
+{
+    while (isspace(**c)) {
+        (*c)++;
+    }
+}
+
+/**
+ * Load configuration of a scheduler.
+ * @param[in]  funcs  Configuration helpers provided by the scheduler.
+ * @param[out] pcfg   Points to the address of the configuration struture.
+ */
+static int load_sched_cfg(const ctx_cfg_funcs_t *funcs,
+                          config_item_t parent_block,
+                          void **pcfg, char *msg_out)
+{
+    void *cfg;
+    int rc;
+
+    /* scheduler has no configuration */
+    if (funcs == NULL) {
+        *pcfg = NULL;
+        return 0;
+    }
+
+    cfg = funcs->new();
+    if (cfg == NULL) {
+        sprintf(msg_out,
+                "Not enough memory to allocate configuration for %s",
+                funcs->module_name);
+        return -ENOMEM;
+    }
+
+    funcs->set_default(cfg);
+
+    DisplayLog(LVL_DEBUG, "CfgLoader", "Loading %s config", funcs->module_name);
+
+    rc = funcs->read_from_block(parent_block, cfg, msg_out);
+    if (rc)
+        goto err_free;
+
+    *pcfg = cfg;
+    return 0;
+
+err_free:
+    funcs->free(cfg);
+    return rc;
+}
+
+/** parse scheduler config and load their configuration */
+static int parse_schedulers(config_item_t cfg_block, char *param_value,
+                            policy_run_config_t *conf, char *msg_out)
+{
+    const char *curr;
+    char *ptr = NULL;
+    int i;
+
+    for (curr = strtok_r(param_value, ",", &ptr);
+         curr != NULL;
+         curr = strtok_r(NULL, ",", &ptr)) {
+
+        skip_spaces(&curr);
+        if (*curr == '\0')
+            break;
+
+        /* extend scheduler arrays */
+        conf->sched_count++;
+        conf->schedulers = realloc(conf->schedulers, conf->sched_count *
+                                        sizeof(action_scheduler_t));
+        conf->sched_cfg = realloc(conf->sched_cfg, conf->sched_count *
+                                        sizeof(void *));
+        if (conf->sched_cfg == NULL || conf->schedulers == NULL)
+            return ENOMEM;
+
+        i = conf->sched_count - 1;
+        /* load the related scheduler */
+        DisplayLog(LVL_DEBUG, TAG, "Loading scheduler '%s'", curr);
+
+        conf->schedulers[i] = module_get_scheduler(curr);
+        if (conf->schedulers[i] == NULL) {
+            DisplayLog(LVL_CRIT, TAG, "Failed to load scheduler '%s'",
+                       curr);
+            return EINVAL;
+        }
+
+        /* now load its configuration */
+        /** TODO manage/check reload case */
+        if (load_sched_cfg(conf->schedulers[i]->sched_cfg_funcs,
+                           cfg_block, &conf->sched_cfg[i],
+                           msg_out) != 0)
+            return EINVAL;
+    }
     return 0;
 }
 
@@ -547,7 +647,7 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
         "check_actions_interval", "check_actions_on_startup",
         "recheck_ignored_entries", "report_actions",
         "pre_maintenance_window", "maint_min_apply_delay", "queue_size",
-        "db_result_size_max", "action_params", "action",
+        "db_result_size_max", "action_params", "action", SCHED_PARAM_NAME,
         "recheck_ignored_classes",  /* for compat */
         NULL
     };
@@ -633,6 +733,18 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
     else if (rc != ENOENT) {
         rc = parse_policy_action("action", tmp, extra, extra_cnt,
                                  &conf->action, &conf->run_attr_mask, msg_out);
+        if (rc)
+            return rc;
+    }
+
+    /* get the list of schedulers */
+    rc = GetStringParam(param_block, block_name, SCHED_PARAM_NAME,
+                        PFLG_NO_WILDCARDS, tmp, sizeof(tmp), NULL, NULL,
+                        msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+    else if (rc != ENOENT) {
+        rc = parse_schedulers(param_block, tmp, conf, msg_out);
         if (rc)
             return rc;
     }
