@@ -440,7 +440,8 @@ static const char *cfg_item_name(generic_item *item)
     }
 }
 
-/* get an item from a list with the given name */
+/* Get an item from a list with the given name,
+ * and mark the item as read. */
 static generic_item *GetItemFromList(generic_item *list, const char *name,
                                      bool *ensure_unique)
 {
@@ -454,18 +455,23 @@ static generic_item *GetItemFromList(generic_item *list, const char *name,
             continue;
 
         if (!STRNCMP(item_name, name, MAXSTRLEN)) {
-            if (!(*ensure_unique))
+            if (!(*ensure_unique)) {
+                curr->is_read = true;
                 /* return first match */
                 return curr;
+            }
 
             /* must check unicity */
             if (save != NULL) {
                 *ensure_unique = false;
+                curr->is_read = true;
                 return curr;    /* return conflicting item */
             } else
                 save = curr;
         }
     }
+    if (save != NULL)
+        save->is_read = true;
     return save;
 }
 
@@ -614,7 +620,6 @@ char *rh_config_GetKeyValueByName(config_item_t block, const char *key_name,
     }
 
     return var->item.affect.varvalue;
-
 }
 
 /* Get item line */
@@ -623,4 +628,12 @@ int rh_config_GetItemLine(config_item_t item)
     generic_item *curr = (generic_item *)item;
 
     return curr->line;
+}
+
+/* Indicate if the item has been read */
+bool rh_config_IsRead(config_item_t item)
+{
+    generic_item *curr = (generic_item *)item;
+
+    return curr->is_read;
 }

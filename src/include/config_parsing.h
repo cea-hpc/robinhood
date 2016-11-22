@@ -183,6 +183,12 @@ char *rh_config_GetKeyValueByName(config_item_t block, const char *key_name,
  */
 int rh_config_GetItemLine(config_item_t item);
 
+/**
+ * Check if the item has been read
+ * (to check for unknown parameters).
+ */
+bool rh_config_IsRead(config_item_t item);
+
 #endif
 
 /**

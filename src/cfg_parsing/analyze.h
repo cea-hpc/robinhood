@@ -27,6 +27,7 @@
 
 #include <stdio.h>
 #include <glib.h>
+#include <stdbool.h>
 
 #ifndef rh_strncpy
 #define rh_strncpy(_s1, _s2, _sz) do { \
@@ -145,6 +146,9 @@ typedef struct _generic_item_ {
 
     /* Line of this item */
     unsigned int line;
+
+    /* was it read? */
+    bool is_read;
 
 } generic_item;
 

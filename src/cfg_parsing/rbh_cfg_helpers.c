@@ -670,64 +670,66 @@ int           GetFloatParam(config_item_t block, const char *block_name,
  * @param param_array NULL terminated array of allowed parameters.
  */
 void CheckUnknownParameters(config_item_t block, const char *block_name,
-                            const char * const *param_array )
+                            const char * const *param_array)
 {
     int            i, j;
 
-    for ( i = 0; i < rh_config_GetNbItems( block ); i++ )
+    for (i = 0; i < rh_config_GetNbItems(block); i++)
     {
-        config_item_t  curr_item = rh_config_GetItemByIndex( block, i );
+        config_item_t  curr_item = rh_config_GetItemByIndex(block, i);
 
-        if ( rh_config_ItemType( curr_item ) == CONFIG_ITEM_VAR )
+        /* no warning if the value or block was queried */
+        if (rh_config_IsRead(curr_item))
+            continue;
+
+        if (rh_config_ItemType(curr_item) == CONFIG_ITEM_VAR)
         {
             char          *name;
             char          *value;
             int            args_flg;
             bool           found = false;
 
-            if ( rh_config_GetKeyValue( curr_item, &name, &value, &args_flg ) == 0 )
+            if (rh_config_GetKeyValue(curr_item, &name, &value, &args_flg) == 0)
             {
-                for ( j = 0; param_array[j] != NULL; j++ )
+                for (j = 0; param_array[j] != NULL; j++)
                 {
-                    if ( !strcasecmp( param_array[j], name ) )
+                    if (!strcasecmp(param_array[j], name))
                     {
                         found = true;
                         break;
                     }
                 }
 
-                if ( !found )
-                    DisplayLog( LVL_CRIT, "Config Check",
+                if (!found)
+                    DisplayLog(LVL_CRIT, "Config Check",
                                 "WARNING: unknown parameter '%s' in block '%s' line %d", name,
-                                block_name, rh_config_GetItemLine( curr_item ) );
+                                block_name, rh_config_GetItemLine(curr_item));
             }
         }
-        else if ( rh_config_ItemType( curr_item ) == CONFIG_ITEM_BLOCK )
+        else if (rh_config_ItemType(curr_item) == CONFIG_ITEM_BLOCK)
         {
             char          *name;
             bool           found = false;
 
-            name = rh_config_GetBlockName( curr_item );
+            name = rh_config_GetBlockName(curr_item);
 
-            if ( name != NULL )
+            if (name != NULL)
             {
-                for ( j = 0; param_array[j] != NULL; j++ )
+                for (j = 0; param_array[j] != NULL; j++)
                 {
-                    if ( !strcasecmp( param_array[j], name ) )
+                    if (!strcasecmp(param_array[j], name))
                     {
                         found = true;
                         break;
                     }
                 }
 
-                if ( !found )
-                    DisplayLog( LVL_CRIT, "Config Check",
-                                "WARNING: unknown block '%s' as sub-block of '%s' line %d", name,
-                                block_name, rh_config_GetItemLine( curr_item ) );
+                if (!found)
+                    DisplayLog(LVL_CRIT, "Config Check",
+                               "WARNING: unknown block '%s' as sub-block of '%s' line %d", name,
+                               block_name, rh_config_GetItemLine(curr_item));
             }
-
         }
-
     }
 }
 
