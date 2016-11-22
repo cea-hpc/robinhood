@@ -82,9 +82,6 @@ typedef enum {
 
 typedef struct policy_param_t {
     policy_target_t target;
-// XXX no not differ from policy_info->flags? */
-//    int             flags;
-//
     target_u optarg_u;
     counters_t target_ctr;
     time_modifier_t *time_mod;
