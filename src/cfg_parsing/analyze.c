@@ -36,7 +36,7 @@ extern int yylineno;
  */
 list_items *rh_config_CreateItemsList(void)
 {
-    list_items *new = (list_items *)malloc(sizeof(list_items));
+    list_items *new = (list_items *)calloc(1, sizeof(list_items));
 
     (*new) = NULL;
     return new;
@@ -48,7 +48,7 @@ list_items *rh_config_CreateItemsList(void)
 generic_item *rh_config_CreateBlock(char *blockname, char *blockid,
                                     list_items *list)
 {
-    generic_item *new = (generic_item *)malloc(sizeof(generic_item));
+    generic_item *new = (generic_item *)calloc(1, sizeof(generic_item));
 
     new->type = TYPE_BLOCK;
     new->line = yylineno;
@@ -94,7 +94,7 @@ generic_item *rh_config_CreateKeyValueExpr(char *varname, operator_t op,
                                            char *varval)
 {
 
-    generic_item *new = (generic_item *)malloc(sizeof(generic_item));
+    generic_item *new = (generic_item *)calloc(1, sizeof(generic_item));
     new->type = TYPE_BOOL_EXPR;
     new->line = yylineno;
     new->next = NULL;
@@ -117,7 +117,7 @@ generic_item *rh_config_CreateKeyValueExpr(char *varname, operator_t op,
 generic_item *rh_config_CreateAffect(char *varname, char *varval)
 {
 
-    generic_item *new = (generic_item *)malloc(sizeof(generic_item));
+    generic_item *new = (generic_item *)calloc(1, sizeof(generic_item));
     new->type = TYPE_AFFECT;
     new->line = yylineno;
     new->next = NULL;
@@ -136,7 +136,7 @@ generic_item *rh_config_CreateAffect(char *varname, char *varval)
 generic_item *rh_config_CreateBoolExpr(char *blockname, char *title,
                                        generic_item *item)
 {
-    generic_item *new = (generic_item *)malloc(sizeof(generic_item));
+    generic_item *new = (generic_item *)calloc(1, sizeof(generic_item));
 
     new->type = TYPE_BLOCK;
     new->line = yylineno;
@@ -176,7 +176,7 @@ generic_item *rh_config_CreateBoolExpr_Unary(bool_operator_t op,
         return NULL;
     }
 
-    generic_item *new = (generic_item *)malloc(sizeof(generic_item));
+    generic_item *new = (generic_item *)calloc(1, sizeof(generic_item));
 
     new->type = TYPE_BOOL_EXPR;
     new->line = yylineno;
@@ -186,7 +186,7 @@ generic_item *rh_config_CreateBoolExpr_Unary(bool_operator_t op,
 
     /* create a bool expr and free the generic item */
     new->item.bool_expr.expr_u.members.expr1 =
-        (type_bool_expr *)malloc(sizeof(type_bool_expr));
+        (type_bool_expr *)calloc(1, sizeof(type_bool_expr));
     *new->item.bool_expr.expr_u.members.expr1 = item->item.bool_expr;
     free(item);
 
@@ -214,7 +214,7 @@ generic_item *rh_config_CreateBoolExpr_Binary(bool_operator_t op,
         return NULL;
     }
 
-    generic_item *new = (generic_item *)malloc(sizeof(generic_item));
+    generic_item *new = (generic_item *)calloc(1, sizeof(generic_item));
 
     new->type = TYPE_BOOL_EXPR;
     new->line = yylineno;
@@ -223,9 +223,9 @@ generic_item *rh_config_CreateBoolExpr_Binary(bool_operator_t op,
     new->item.bool_expr.oper = op;
 
     new->item.bool_expr.expr_u.members.expr1 =
-        (type_bool_expr *)malloc(sizeof(type_bool_expr));
+        (type_bool_expr *)calloc(1, sizeof(type_bool_expr));
     new->item.bool_expr.expr_u.members.expr2 =
-        (type_bool_expr *)malloc(sizeof(type_bool_expr));
+        (type_bool_expr *)calloc(1, sizeof(type_bool_expr));
     *new->item.bool_expr.expr_u.members.expr1 = expr1->item.bool_expr;
     *new->item.bool_expr.expr_u.members.expr2 = expr2->item.bool_expr;
     free(expr1);
@@ -238,7 +238,7 @@ generic_item *rh_config_CreateBoolExpr_Binary(bool_operator_t op,
 generic_item *rh_config_CreateSet(char *blockname, char *label,
                                   generic_item *set)
 {
-    generic_item *new = (generic_item *)malloc(sizeof(generic_item));
+    generic_item *new = (generic_item *)calloc(1, sizeof(generic_item));
 
     new->type = TYPE_BLOCK;
     new->line = yylineno;
@@ -271,7 +271,7 @@ generic_item *rh_config_CreateSet_Unary(set_operator_t op, generic_item *set)
         return NULL;
     }
 
-    generic_item *new = malloc(sizeof(generic_item));
+    generic_item *new = calloc(1, sizeof(generic_item));
     if (!new) {
         fprintf(stderr, "Not enough memory\n");
         return NULL;
@@ -284,7 +284,7 @@ generic_item *rh_config_CreateSet_Unary(set_operator_t op, generic_item *set)
 
     new->item.set.set_u.op.oper = op;
 
-    new->item.set.set_u.op.set1 = (type_set *)malloc(sizeof(type_set));
+    new->item.set.set_u.op.set1 = (type_set *)calloc(1, sizeof(type_set));
     new->item.set.set_u.op.set2 = NULL;
 
     if (new->item.set.set_u.op.set1 == NULL) {
@@ -316,7 +316,7 @@ generic_item *rh_config_CreateSet_Binary(set_operator_t op,
         return NULL;
     }
 
-    generic_item *new = malloc(sizeof(generic_item));
+    generic_item *new = calloc(1, sizeof(generic_item));
     if (!new) {
         fprintf(stderr, "Not enough memory\n");
         return NULL;
@@ -329,8 +329,8 @@ generic_item *rh_config_CreateSet_Binary(set_operator_t op,
 
     new->item.set.set_u.op.oper = op;
 
-    new->item.set.set_u.op.set1 = (type_set *)malloc(sizeof(type_set));
-    new->item.set.set_u.op.set2 = (type_set *)malloc(sizeof(type_set));
+    new->item.set.set_u.op.set1 = (type_set *)calloc(1, sizeof(type_set));
+    new->item.set.set_u.op.set2 = (type_set *)calloc(1, sizeof(type_set));
 
     if ((new->item.set.set_u.op.set1 == NULL) ||
         (new->item.set.set_u.op.set2 == NULL)) {
@@ -350,7 +350,7 @@ generic_item *rh_config_CreateSet_Binary(set_operator_t op,
 
 generic_item *rh_config_CreateSet_Singleton(char *set_name)
 {
-    generic_item *new = (generic_item *)malloc(sizeof(generic_item));
+    generic_item *new = (generic_item *)calloc(1, sizeof(generic_item));
 
     new->type = TYPE_SET;
     new->line = yylineno;
@@ -363,7 +363,7 @@ generic_item *rh_config_CreateSet_Singleton(char *set_name)
 
 arg_list_t *rh_config_CreateArgList(void)
 {
-    arg_list_t *p_list = (arg_list_t *)malloc(sizeof(arg_list_t));
+    arg_list_t *p_list = (arg_list_t *)calloc(1, sizeof(arg_list_t));
     p_list->nb_args = 0;
     p_list->args = NULL;
     return p_list;
@@ -376,7 +376,7 @@ void rh_config_AddArg(arg_list_t *p_list, char *arg)
             (char **)realloc(p_list->args,
                              (p_list->nb_args + 1) * sizeof(char *));
     else
-        p_list->args = (char **)malloc(sizeof(char *));
+        p_list->args = (char **)calloc(1, sizeof(char *));
 
     p_list->nb_args++;
     p_list->args[p_list->nb_args - 1] = (char *)malloc(strlen(arg) + 1);
