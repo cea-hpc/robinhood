@@ -41,6 +41,7 @@ static void *enqueue_thr(void *arg)
             RBH_BUG("Dequeued item is not supposed to be NULL");
 
 retry:
+        DisplayLog(LVL_DEBUG, __func__, "Submitting entry to scheduler");
         /* push to the scheduler */
         rc = sched_res->sched_desc->sched_schedule(sched_res->sched_data,
                                                    item->id, item->attrs,
@@ -50,19 +51,13 @@ retry:
             /* OK, continue enqueuing other entries */
             break;
 
-        case SCHED_DELAY_ALL:
+        case SCHED_DELAY:
             /* Wait a while before submitting any new entry */
-            /* XXX This must be configurable. Globally or per scheduler? */
+            /* TODO This must be configurable. Globally or per scheduler? */
+            DisplayLog(LVL_DEBUG, __func__,
+                       "Waiting before submitting new entries");
             rh_usleep(100000); /* 100ms */
             goto retry;
-
-        case SCHED_DELAY_ENTRY:
-            /* We must delay this entry and continue with others.
-             * In this case, we have to make sure not to loop on these
-             * delayed entries... TODO Think about it.
-             */
-            RBH_BUG("Case not implemented");
-            continue;
 
         case SCHED_SKIP_ENTRY:
             /* skip the entry for the current run */
@@ -144,10 +139,19 @@ err_free:
 /** Reinitialize scheduling for a new policy run */
 int sched_reinit(struct sched_res_t *sched_res)
 {
+    int rc;
+
     /* error if queue is not empty */
     if (g_async_queue_length(sched_res->sched_queue) > 0) {
         DisplayLog(LVL_MAJOR, __func__, "Trying to reinitialize a non-empty queue");
         return -EINVAL;
+    }
+
+    /* reset scheduler */
+    if (sched_res->sched_desc->sched_reset_func != NULL) {
+        rc = sched_res->sched_desc->sched_reset_func(sched_res->sched_data);
+        if (rc)
+            return rc;
     }
 
     sched_res->terminate = false;
@@ -165,13 +169,18 @@ int sched_push(struct sched_res_t *sched_res,
     struct sched_q_item *item;
     int rc;
 
+    if (sched_res->terminate)
+    /* a stop in already pending, so don't trigger one again */
+    /* Simply skip the entry. */
+        return SCHED_SKIP_ENTRY;
+
     /* if the queue is empty, directly push to the scheduler */
     if (g_async_queue_length(sched_res->sched_queue) <= 0) {
         rc = sched_res->sched_desc->sched_schedule(sched_res->sched_data,
                                                    id, attrs, cb, udata);
 
         /* if the entry must be delayed, then we have to push it to the queue */
-        if (rc != SCHED_DELAY_ALL && rc != SCHED_DELAY_ENTRY)
+        if (rc != SCHED_DELAY)
             return rc;
     }
 
@@ -185,7 +194,8 @@ int sched_push(struct sched_res_t *sched_res,
     item->cb = cb;
     item->udata = udata;
 
-    DisplayLog(LVL_DEBUG, __func__, "Waiting to be submit entry to the scheduler");
+    DisplayLog(LVL_DEBUG, __func__, "Entry waiting to be submitted to "
+               "the scheduler");
     g_async_queue_push(sched_res->sched_queue, item);
     return 0;
 }
@@ -198,4 +208,28 @@ int sched_flush(struct sched_res_t *sched_res);
 /**
  * Drop any pending entry from the scheduler and the wait queue.
  */
-int sched_reset(struct sched_res_t *sched_res);
+int sched_flush(struct sched_res_t *sched_res)
+{
+    struct sched_q_item *item;
+    int rc;
+
+    /* no more push */
+    sched_res->terminate = true;
+
+    /* unqueue and acknowledge all */
+    while ((item = g_async_queue_try_pop(sched_res->sched_queue)) != NULL) {
+        /* If we are called, a stopping process is already pending.
+         * don't trigger more of them. */
+        item->cb(item->udata, SCHED_SKIP_ENTRY);
+        free(item);
+    }
+
+    /* reset items in scheduler */
+    if (sched_res->sched_desc->sched_reset_func != NULL) {
+        rc = sched_res->sched_desc->sched_reset_func(sched_res->sched_data);
+        if (rc)
+            return rc;
+    }
+
+    return 0;
+}

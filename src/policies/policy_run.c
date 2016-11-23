@@ -25,6 +25,7 @@
 #include "xplatform_print.h"
 #include "update_params.h"
 #include "status_manager.h"
+#include "policy_sched.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -37,6 +38,7 @@
 #define ignore_policies(_p) ((_p)->flags & RUNFLG_IGNORE_POL)
 #define dry_run(_p)         ((_p)->flags & RUNFLG_DRY_RUN)
 #define aborted(_p)         ((_p)->aborted)
+#define stopping(_p)        ((_p)->stopping)
 #define no_limit(_p)        ((_p)->flags & RUNFLG_NO_LIMIT)
 #define force_run(_p)       ((_p)->flags & RUNFLG_FORCE_RUN)
 #define tag(_p)             ((_p)->descr->name)
@@ -142,10 +144,11 @@ static void set_addl_params(const char *addl_params[], unsigned int size,
 }
 
 /** maintain policy run information about a given entry */
-typedef struct entry_policy_info {
+typedef struct entry_context {
     policy_info_t  *policy;         /**< The running policy information */
     queue_item_t   *item;           /**< entry information (id and attrs
                                          from DB) */
+    bool            free_item;      /**< true if item pointer must be freed */
     rule_item_t    *rule;           /**< matched rule */
     fileset_item_t *fileset;        /**< matched fileset */
     attr_set_t      fresh_attrs;    /**< updated attrs */
@@ -153,7 +156,8 @@ typedef struct entry_policy_info {
     action_params_t params;         /**< action parameters */
     post_action_e   after_action;   /**< what to do after action */
     int             time_save;      /**< reference time for LRU */
-} entry_policy_info_t;
+    int             curr_sched;     /**< current scheduler */
+} entry_context_t;
 
 /**
  * Build action parameters according to: (in growing priority)
@@ -166,16 +170,16 @@ typedef struct entry_policy_info {
  * @param(in)   fileset the matched fileset for the policy rule
  * @return  0 on success, a negative value on error.
  */
-static int build_action_params(entry_policy_info_t *epi)
+static int build_action_params(entry_context_t *ectx)
 {
     int rc = 0;
-    policy_info_t *pol = epi->policy;
+    policy_info_t *pol = ectx->policy;
     char const *addl_params[5]; /* 5 max: "fileclass" + its name,
                                   "rule" + its name, NULL */
     subst_args_t subst_param_args = {
-        .params = &epi->params,
-        .id     = &epi->item->entry_id,
-        .attrs  = &epi->fresh_attrs,
+        .params = &ectx->params,
+        .id     = &ectx->item->entry_id,
+        .attrs  = &ectx->fresh_attrs,
         .smi    = pol->descr->status_mgr
     };
 
@@ -187,68 +191,68 @@ static int build_action_params(entry_policy_info_t *epi)
      */
     /* params from policy */
     if (likely(pol->config != NULL)) {
-        rc = rbh_params_copy(&epi->params, &pol->config->action_params);
+        rc = rbh_params_copy(&ectx->params, &pol->config->action_params);
         if (rc)
             goto err;
     }
 
     /* add params from trigger (possibly override previous params) */
     if (pol->trigger_action_params != NULL) {
-        rc = rbh_params_copy(&epi->params, pol->trigger_action_params);
+        rc = rbh_params_copy(&ectx->params, pol->trigger_action_params);
         if (rc)
             goto err;
     }
 
     /* add params from rule (possibly override previous params) */
-    if (epi->rule != NULL) {
-        rc = rbh_params_copy(&epi->params, &epi->rule->action_params);
+    if (ectx->rule != NULL) {
+        rc = rbh_params_copy(&ectx->params, &ectx->rule->action_params);
         if (rc)
             goto err;
     }
 
     /* add params from fileclass (possibly override previous params) */
-    if (epi->fileset != NULL) {
+    if (ectx->fileset != NULL) {
         const action_params_t *fileset_params;
 
         /* check if there are parameters for the given policy */
-        fileset_params = get_fileset_policy_params(epi->fileset,
+        fileset_params = get_fileset_policy_params(ectx->fileset,
                                                    pol->descr->name);
         if (fileset_params != NULL) {
-            rc = rbh_params_copy(&epi->params, fileset_params);
+            rc = rbh_params_copy(&ectx->params, fileset_params);
             if (rc)
                 goto err;
         }
     }
 
     set_addl_params(addl_params, sizeof(addl_params) / sizeof(char *),
-                    epi->rule, epi->fileset);
+                    ectx->rule, ectx->fileset);
     subst_param_args.subst_array = addl_params;
 
     /* replace placeholders in action params */
-    rc = rbh_params_foreach(&epi->params, subst_one_param, &subst_param_args);
+    rc = rbh_params_foreach(&ectx->params, subst_one_param, &subst_param_args);
     if (rc)
         goto err;
 
     return 0;
 
  err:
-    rbh_params_free(&epi->params);
+    rbh_params_free(&ectx->params);
     return rc;
 }
 
 /** Execute a policy action. */
-static int policy_action(entry_policy_info_t *epi)
+static int policy_action(entry_context_t *ectx)
 {
     int rc = 0;
-    policy_info_t         *pol = epi->policy;
-    const entry_id_t      *id  = &epi->item->entry_id;
+    policy_info_t         *pol = ectx->policy;
+    const entry_id_t      *id  = &ectx->item->entry_id;
     sm_instance_t         *smi = pol->descr->status_mgr;
     const policy_action_t *actionp = NULL;
 
     /* Get the action from policy rule, if defined.
      * Else, get the default action for the policy. */
-    if (epi->rule != NULL && epi->rule->action.type != ACTION_UNSET)
-        actionp = &epi->rule->action;
+    if (ectx->rule != NULL && ectx->rule->action.type != ACTION_UNSET)
+        actionp = &ectx->rule->action;
     else
         /* defaults to default_action from */
         actionp = &pol->config->action;
@@ -258,12 +262,12 @@ static int policy_action(entry_policy_info_t *epi)
                tag(pol),
                "%sExecuting policy action on: " DFID_NOBRACE " (%s)",
                dry_run(pol) ? "(dry-run) " : "", PFID(id),
-               ATTR(&epi->fresh_attrs, fullpath));
+               ATTR(&ectx->fresh_attrs, fullpath));
 
     if (log_config.debug_level >= LVL_DEBUG) {
         GString *str = g_string_new("");
 
-        rc = rbh_params_serialize(&epi->params, str, NULL, RBH_PARAM_CSV);
+        rc = rbh_params_serialize(&ectx->params, str, NULL, RBH_PARAM_CSV);
         if (rc == 0)
             DisplayLog(LVL_DEBUG, tag(pol), DFID ": action_params: %s",
                        PFID(id), str->str);
@@ -278,16 +282,16 @@ static int policy_action(entry_policy_info_t *epi)
     if (smi != NULL && smi->sm->executor != NULL) {
         /* @TODO provide a DB callback */
         rc = smi->sm->executor(smi, pol->descr->implements, actionp,
-                               id, &epi->fresh_attrs, &epi->params,
-                               &epi->after_action, NULL, NULL);
+                               id, &ectx->fresh_attrs, &ectx->params,
+                               &ectx->after_action, NULL, NULL);
     } else {
         switch (actionp->type) {
         case ACTION_FUNCTION:
             /* @TODO provide a DB callback */
             DisplayLog(LVL_DEBUG, tag(pol), DFID ": action: %s",
                        PFID(id), actionp->action_u.func.name);
-            rc = actionp->action_u.func.call(id, &epi->fresh_attrs,
-                                             &epi->params, &epi->after_action,
+            rc = actionp->action_u.func.call(id, &ectx->fresh_attrs,
+                                             &ectx->params, &ectx->after_action,
                                              NULL, NULL);
             break;
         case ACTION_COMMAND:   /* execute custom action */
@@ -298,14 +302,14 @@ static int policy_action(entry_policy_info_t *epi)
 
                 set_addl_params(addl_params,
                                 sizeof(addl_params) / sizeof(char *),
-                                epi->rule, epi->fileset);
+                                ectx->rule, ectx->fileset);
 
                 asprintf(&descr, "action command '%s'",
                          actionp->action_u.command[0]);
 
                 /* replaces placeholders in command */
                 rc = subst_shell_params(actionp->action_u.command, descr,
-                                        id, &epi->fresh_attrs, &epi->params,
+                                        id, &ectx->fresh_attrs, &ectx->params,
                                         addl_params, smi, true, &cmd);
                 free(descr);
                 if (rc == 0) {
@@ -324,7 +328,7 @@ static int policy_action(entry_policy_info_t *epi)
                 }
 
                 /* external commands can't set 'after': default to update */
-                epi->after_action = PA_UPDATE;
+                ectx->after_action = PA_UPDATE;
 
                 break;
             }
@@ -338,8 +342,8 @@ static int policy_action(entry_policy_info_t *epi)
          * actions */
         if (smi != NULL && smi->sm->action_cb != NULL) {
             int tmp_rc = smi->sm->action_cb(smi, pol->descr->implements,
-                                            rc, id, &epi->fresh_attrs,
-                                            &epi->after_action);
+                                            rc, id, &ectx->fresh_attrs,
+                                            &ectx->after_action);
             if (tmp_rc)
                 DisplayLog(LVL_MAJOR, tag(pol),
                            "Action callback failed for action '%s': rc=%d",
@@ -727,7 +731,7 @@ static unsigned long adaptive_check_delay_us(time_t policy_start,
  * \retval true if policy run must stop
  * \retval false if policy run can continue
  */
-/* @TODO Implement over-provisioning + action cut */
+/* @TODO Implement over-provisioning? */
 static bool check_queue_limit(policy_info_t *pol,
                               const counters_t *pushed,
                               const unsigned long long *feedback_before,
@@ -766,8 +770,7 @@ static bool check_queue_limit(policy_info_t *pol,
 
         /* 2) queue is empty and limit is not reached */
         if (ctr_in_flight.count == 0) {
-            DisplayLog(LVL_FULL, tag(pol),
-                       "queue is empty => continue enqueuing");
+            DisplayLog(LVL_FULL, tag(pol), "queue is empty");
             return false;
         }
 
@@ -1402,14 +1405,15 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
 
         rc = iter_next(it, &entry_id, &attr_set);
 
-        if (aborted(pol)) {
+        if (aborted(pol) || stopping(pol)) {
             /* free the last returned entry */
             if (rc == 0)
                 ListMgr_FreeAttrs(&attr_set);
 
             DisplayLog(LVL_MAJOR, tag(pol),
-                       "Policy run aborted, stop enqueuing requests.");
-            st = PASS_ABORTED;
+                       "Policy run %s, stop enqueuing requests.",
+                       pol->aborted ? "aborted" : "stopping");
+            st = pol->aborted ? PASS_ABORTED : PASS_EOL;
             break;
         } else if (rc == DB_END_OF_LIST) {
             *db_total_list_count += *db_current_list_count;
@@ -1620,6 +1624,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     /* XXX first_request_start = policy_start */
     attr_mask_t attr_mask;
     unsigned int nb_returned, total_returned;
+    int i;
 
     lmgr_iter_opt_t opt = LMGR_ITER_OPT_INIT;
 
@@ -1630,6 +1635,8 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
 
     p_pol_info->time_modifier = p_param->time_mod;
     p_pol_info->trigger_action_params = p_param->action_params;
+    p_pol_info->aborted = false;
+    p_pol_info->stopping = false;
 
     memset(&p_pol_info->progress, 0, sizeof(p_pol_info->progress));
     if (p_summary)
@@ -1716,6 +1723,16 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
 
     /* start alert batching in case the policy trigger alerts */
     Alert_StartBatching();
+
+    /* reinit schedulers */
+    for (i = 0; i < p_pol_info->config->sched_count; i++) {
+        rc = sched_reinit(&p_pol_info->sched_res[i]);
+        if (rc) {
+            DisplayLog(LVL_CRIT, tag(p_pol_info),
+                       "Failed to reinitialize scheduler #%d", i);
+            return rc;
+        }
+    }
 
     /* loop on all policy passes */
     do {
@@ -2139,17 +2156,26 @@ static void log_action_success(const policy_info_t *pol,
             Queue_Acknowledge(_q, _status, feedback, AF_ENUM_COUNT); \
        } while (0)
 
+static void free_entry_context(entry_context_t *ectx)
+{
+    rbh_params_free(&ectx->params);
+
+    ListMgr_FreeAttrs(&ectx->fresh_attrs);
+
+    if (ectx->free_item)
+        free_queue_item(ectx->item);
+
+    free(ectx);
+}
+
 /**
- * Callback after an action has been executed.
+ * Finilize action processing after an action has been executed.
  * Update entry status in DB and release resources.
  */
-static void post_action_cb(int action_rc, lmgr_t *lmgr,
-                           entry_policy_info_t *epi, bool free_item)
+static void action_fini(int action_rc, lmgr_t *lmgr,
+                        entry_context_t *ectx)
 {
-    policy_info_t *pol = epi->policy;
-
-    /* params are no longer needed */
-    rbh_params_free(&epi->params);
+    policy_info_t *pol = ectx->policy;
 
     if (action_rc != 0) {
         const char *err_str;
@@ -2160,53 +2186,53 @@ static void post_action_cb(int action_rc, lmgr_t *lmgr,
             err_str = "command execution failed";
 
         DisplayLog(LVL_DEBUG, tag(pol), "Error applying action on entry %s: %s",
-                   ATTR(&epi->fresh_attrs, fullpath), err_str);
+                   ATTR(&ectx->fresh_attrs, fullpath), err_str);
 
         /* no update for deleted entries */
         if (!pol->descr->manage_deleted)
-            update_entry(lmgr, &epi->item->entry_id, &epi->fresh_attrs);
+            update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
 
-        policy_ack(&pol->queue, AS_ERROR, &epi->item->entry_attr,
-                   epi->item->targeted);
+        policy_ack(&pol->queue, AS_ERROR, &ectx->item->entry_attr,
+                   ectx->item->targeted);
     } else {
         bool lastrm;
         int  rc;
 
-        log_action_success(pol, &epi->prev_attrs, epi->rule, epi->fileset,
-                           epi->time_save);
+        log_action_success(pol, &ectx->prev_attrs, ectx->rule, ectx->fileset,
+                           ectx->time_save);
 
-        if (pol->descr->manage_deleted && (epi->after_action == PA_RM_ONE
-                                           || epi->after_action == PA_RM_ALL)) {
-            rc = ListMgr_SoftRemove_Discard(lmgr, &epi->item->entry_id);
+        if (pol->descr->manage_deleted && (ectx->after_action == PA_RM_ONE
+                                           || ectx->after_action == PA_RM_ALL)) {
+            rc = ListMgr_SoftRemove_Discard(lmgr, &ectx->item->entry_id);
             if (rc)
                 DisplayLog(LVL_CRIT, tag(pol),
                            "Error %d removing entry from database.", rc);
         } else {
 
-            switch (epi->after_action) {
+            switch (ectx->after_action) {
             case PA_NONE:
                 break;
             case PA_UPDATE:
                 if (!pol->descr->manage_deleted)
-                    update_entry(lmgr, &epi->item->entry_id, &epi->fresh_attrs);
+                    update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
                 break;
 
             case PA_RM_ONE:
-                lastrm = ATTR_MASK_TEST(&epi->prev_attrs, nlink) ?
-                         (ATTR(&epi->prev_attrs, nlink) <= 1) : 0;
+                lastrm = ATTR_MASK_TEST(&ectx->prev_attrs, nlink) ?
+                         (ATTR(&ectx->prev_attrs, nlink) <= 1) : 0;
 
-                rc = ListMgr_Remove(lmgr, &epi->item->entry_id,
+                rc = ListMgr_Remove(lmgr, &ectx->item->entry_id,
                     /* must be based on the DB content = old attrs */
-                                    &epi->item->entry_attr, lastrm);
+                                    &ectx->item->entry_attr, lastrm);
                 if (rc)
                     DisplayLog(LVL_CRIT, tag(pol),
                                "Error %d removing entry from database.", rc);
                 break;
 
             case PA_RM_ALL:
-                rc = ListMgr_Remove(lmgr, &epi->item->entry_id,
+                rc = ListMgr_Remove(lmgr, &ectx->item->entry_id,
                      /* must be based on the DB content = old attrs */
-                                    &epi->item->entry_attr, 1);
+                                    &ectx->item->entry_attr, 1);
                 if (rc)
                     DisplayLog(LVL_CRIT, tag(pol),
                                "Error %d removing entry from database.", rc);
@@ -2216,45 +2242,42 @@ static void post_action_cb(int action_rc, lmgr_t *lmgr,
         }
 
         /* TODO update targeted info */
-        policy_ack(&pol->queue, AS_OK, &epi->fresh_attrs,
-                   epi->item->targeted);
+        policy_ack(&pol->queue, AS_OK, &ectx->fresh_attrs,
+                   ectx->item->targeted);
     }
 
-    ListMgr_FreeAttrs(&epi->fresh_attrs);
-
-    if (free_item)
-        free_queue_item(epi->item);
+    free_entry_context(ectx);
 }
 
 /**
  * Refresh entry attributes and match policy rules.
  */
-static int refresh_match_entry(lmgr_t *lmgr, entry_policy_info_t *epi)
+static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx)
 {
     policy_match_t  match;
     int             rc;
-    policy_info_t  *pol = epi->policy;
+    policy_info_t  *pol = ectx->policy;
 
     DisplayLog(LVL_FULL, tag(pol),
                "Checking if entry %s matches policy rules",
-               ATTR(&epi->item->entry_attr, fullpath));
+               ATTR(&ectx->item->entry_attr, fullpath));
 
     if (!pol->descr->manage_deleted) {
-        rc = check_entry(pol, lmgr, epi->item, &epi->fresh_attrs);
+        rc = check_entry(pol, lmgr, ectx->item, &ectx->fresh_attrs);
         if (rc != AS_OK)
             return rc;
     }
     /* In any case, complete with missing attrs from database */
-    ListMgr_MergeAttrSets(&epi->fresh_attrs, &epi->item->entry_attr, false);
+    ListMgr_MergeAttrSets(&ectx->fresh_attrs, &ectx->item->entry_attr, false);
 
 #ifdef ATTR_INDEX_invalid
     /* From here, assume that entry is valid */
-    ATTR_MASK_SET(&epi->fresh_attrs, invalid);
-    ATTR(&epi->fresh_attrs, invalid) = false;
+    ATTR_MASK_SET(&ectx->fresh_attrs, invalid);
+    ATTR(&ectx->fresh_attrs, invalid) = false;
 #endif
 
     /* check the entry still matches the policy scope */
-    switch (match_scope(pol->descr, &epi->item->entry_id, &epi->fresh_attrs,
+    switch (match_scope(pol->descr, &ectx->item->entry_id, &ectx->fresh_attrs,
                         !pol->descr->manage_deleted)) {
     case POLICY_MATCH:
         /* OK */
@@ -2263,9 +2286,9 @@ static int refresh_match_entry(lmgr_t *lmgr, entry_policy_info_t *epi)
     case POLICY_NO_MATCH:
         DisplayLog(LVL_DEBUG, tag(pol),
                    "Entry %s doesn't match scope of policy '%s'.",
-                   ATTR(&epi->fresh_attrs, fullpath), tag(pol));
+                   ATTR(&ectx->fresh_attrs, fullpath), tag(pol));
         if (!pol->descr->manage_deleted)
-            update_entry(lmgr, &epi->item->entry_id, &epi->fresh_attrs);
+            update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
 
         return AS_OUT_OF_SCOPE;
 
@@ -2274,9 +2297,9 @@ static int refresh_match_entry(lmgr_t *lmgr, entry_policy_info_t *epi)
             DisplayLog(LVL_MAJOR, tag(pol),
                        "Warning: cannot determine if entry %s matches the "
                        "scope of policy '%s': skipping it.",
-                       ATTR(&epi->fresh_attrs, fullpath), tag(pol));
+                       ATTR(&ectx->fresh_attrs, fullpath), tag(pol));
 
-            update_entry(lmgr, &epi->item->entry_id, &epi->fresh_attrs);
+            update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
             return AS_MISSING_MD;
         } else {
             /* For deleted entries, we expect missing attributes.
@@ -2284,7 +2307,7 @@ static int refresh_match_entry(lmgr_t *lmgr, entry_policy_info_t *epi)
             DisplayLog(LVL_DEBUG, tag(pol),
                        "Cannot determine if entry %s matches the "
                        "scope of policy '%s'. Continuing anyway.",
-                       ATTR(&epi->fresh_attrs, fullpath), tag(pol));
+                       ATTR(&ectx->fresh_attrs, fullpath), tag(pol));
         }
     }
 
@@ -2294,18 +2317,18 @@ static int refresh_match_entry(lmgr_t *lmgr, entry_policy_info_t *epi)
      */
     if (!ignore_policies(pol)) {
         /* 4) check whitelist rules */
-        match = is_whitelisted(pol->descr, &epi->item->entry_id,
-                               &epi->fresh_attrs, &epi->fileset);
+        match = is_whitelisted(pol->descr, &ectx->item->entry_id,
+                               &ectx->fresh_attrs, &ectx->fileset);
 
         if (match == POLICY_MATCH) {
             DisplayLog(LVL_DEBUG, tag(pol),
                        "Entry %s matches ignored target %s.",
-                       ATTR(&epi->item->entry_attr, fullpath),
-                       epi->fileset ? epi->fileset->fileset_id :
+                       ATTR(&ectx->item->entry_attr, fullpath),
+                       ectx->fileset ? ectx->fileset->fileset_id :
                            "(ignore rule)");
 
             if (!pol->descr->manage_deleted)
-                update_entry(lmgr, &epi->item->entry_id, &epi->fresh_attrs);
+                update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
 
             return AS_WHITELISTED;
         } else if (match != POLICY_NO_MATCH) {
@@ -2314,18 +2337,18 @@ static int refresh_match_entry(lmgr_t *lmgr, entry_policy_info_t *epi)
             DisplayLog(LVL_MAJOR, tag(pol),
                        "Warning: cannot determine if entry %s is whitelisted: "
                        "skipping it.",
-                       ATTR(&epi->item->entry_attr, fullpath));
+                       ATTR(&ectx->item->entry_attr, fullpath));
 
             if (!pol->descr->manage_deleted)
-                update_entry(lmgr, &epi->item->entry_id, &epi->fresh_attrs);
+                update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
 
             return AS_MISSING_MD;
         }
 
         /* check that time ordering did not change and that time attributes
          * are consistent. */
-        rc = check_entry_times(pol, lmgr, &epi->item->entry_id,
-                               &epi->item->entry_attr, &epi->fresh_attrs);
+        rc = check_entry_times(pol, lmgr, &ectx->item->entry_id,
+                               &ectx->item->entry_attr, &ectx->fresh_attrs);
         if (rc != AS_OK)
             /* check_entry_times already updates the entry */
             return rc;
@@ -2333,14 +2356,14 @@ static int refresh_match_entry(lmgr_t *lmgr, entry_policy_info_t *epi)
 
     /* end if 'don't ignore policies' */
     /* get policy rule for the entry */
-    epi->rule = policy_case(pol->descr, &epi->item->entry_id, &epi->fresh_attrs,
-                            &epi->fileset);
-    if (!epi->rule) {
+    ectx->rule = policy_case(pol->descr, &ectx->item->entry_id, &ectx->fresh_attrs,
+                            &ectx->fileset);
+    if (!ectx->rule) {
         DisplayLog(LVL_DEBUG, tag(pol), "Entry %s matches no policy rule",
-                   ATTR(&epi->item->entry_attr, fullpath));
+                   ATTR(&ectx->item->entry_attr, fullpath));
 
         if (!pol->descr->manage_deleted)
-            update_entry(lmgr, &epi->item->entry_id, &epi->fresh_attrs);
+            update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
 
         return AS_NO_POLICY;
     }
@@ -2351,8 +2374,8 @@ static int refresh_match_entry(lmgr_t *lmgr, entry_policy_info_t *epi)
         return AS_OK;
 
     /* check if the entry matches the policy condition */
-    match = entry_matches(&epi->item->entry_id, &epi->fresh_attrs,
-                          &epi->rule->condition, pol->time_modifier,
+    match = entry_matches(&ectx->item->entry_id, &ectx->fresh_attrs,
+                          &ectx->rule->condition, pol->time_modifier,
                           pol->descr->status_mgr);
 
     switch (match) {
@@ -2360,18 +2383,18 @@ static int refresh_match_entry(lmgr_t *lmgr, entry_policy_info_t *epi)
         /* OK, entry matches */
         DisplayLog(LVL_DEBUG, tag(pol),
                    "Entry %s matches the condition for policy rule '%s'.",
-                   ATTR(&epi->item->entry_attr, fullpath), epi->rule->rule_id);
+                   ATTR(&ectx->item->entry_attr, fullpath), ectx->rule->rule_id);
         break;
 
     case POLICY_NO_MATCH:
         /* entry is not eligible now */
         DisplayLog(LVL_DEBUG, tag(pol),
                    "Entry %s doesn't match condition for policy rule '%s'",
-                   ATTR(&epi->item->entry_attr, fullpath),
-                   epi->rule->rule_id);
+                   ATTR(&ectx->item->entry_attr, fullpath),
+                   ectx->rule->rule_id);
 
         if (!pol->descr->manage_deleted)
-            update_entry(lmgr, &epi->item->entry_id, &epi->fresh_attrs);
+            update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
 
         return AS_WHITELISTED;
 
@@ -2380,10 +2403,10 @@ static int refresh_match_entry(lmgr_t *lmgr, entry_policy_info_t *epi)
         DisplayLog(LVL_MAJOR, tag(pol),
                    "Warning: cannot determine if entry %s matches the "
                    "condition for policy rule '%s': skipping it.",
-                   ATTR(&epi->item->entry_attr, fullpath), epi->rule->rule_id);
+                   ATTR(&ectx->item->entry_attr, fullpath), ectx->rule->rule_id);
 
         if (!pol->descr->manage_deleted)
-            update_entry(lmgr, &epi->item->entry_id, &epi->fresh_attrs);
+            update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
 
         return AS_MISSING_MD;
     }
@@ -2391,6 +2414,120 @@ static int refresh_match_entry(lmgr_t *lmgr, entry_policy_info_t *epi)
     return AS_OK;
 }
 
+static __thread lmgr_t *sched_db_conn = NULL;
+
+static int init_sched_thread_conn(void)
+{
+    int rc;
+
+    if (sched_db_conn != NULL)
+        return 0;
+
+    sched_db_conn = calloc(1, sizeof(*sched_db_conn));
+    if (!sched_db_conn)
+        return -ENOMEM;
+
+    rc = ListMgr_InitAccess(sched_db_conn);
+    if (rc)
+        DisplayLog(LVL_CRIT, __func__,
+                   "Could not connect to database (error %d).",
+                   rc);
+    else
+        DisplayLog(LVL_FULL, __func__, "Initialized DB connection for "
+                   "thread %Lx", (ull_t)pthread_self());
+
+    return rc;
+}
+
+/**
+ * This function is called by schedulers, when then schedule
+ * the processing of an entry, or skip them, etc...
+ * In case multiple schedulers are defined, it passes
+ * the entry from one scheduler to the next one.
+ */
+static void run_sched_cb(void *udata, sched_status_e st)
+{
+    entry_context_t *ectx = udata;
+    policy_info_t *pol = ectx->policy;
+    int last_stop_sched = -1; /* not set */
+    int rc;
+    int i;
+
+    DisplayLog(LVL_DEBUG, tag(pol), "Received callback from scheduler %d,"
+               " status = %d", ectx->curr_sched, st);
+
+    init_sched_thread_conn();
+
+    rc = st;
+    if (rc == SCHED_OK) {
+        /* push to the next scheduler or run the action */
+        ectx->curr_sched++;
+
+        /* if this was the last scheduler, now run the action */
+        if (pol->config->sched_count == ectx->curr_sched) {
+            rc = policy_action(ectx);
+            action_fini(rc, sched_db_conn, ectx);
+            return;
+        }
+        /* else, call the next scheduler */
+        rc = sched_push(&pol->sched_res[ectx->curr_sched],
+                        &ectx->item->entry_id, &ectx->fresh_attrs,
+                        run_sched_cb, ectx);
+    }
+
+    switch (rc) {
+    case SCHED_OK:
+        /* OK, submitted to scheduler: nothing more to do here */
+        return;
+
+    case SCHED_SKIP_ENTRY:
+        /* no particular processing */
+        break;
+
+    case SCHED_STOP_RUN:
+        pol->stopping = true;
+        /* kill previous schedulers only */
+        last_stop_sched = ectx->curr_sched - 1;
+        break;
+
+    case SCHED_KILL_RUN:
+        pol->stopping = true;
+        /* kill all schedulers */
+        last_stop_sched = pol->config->sched_count - 1;
+        break;
+
+    case SCHED_DELAY:
+        /* The scheduling layer is not supposed to return that to the policy
+         * run. These return codes are supposed to be handled in policy_sched.c
+         */
+        RBH_BUG("Scheduling layer is not supposed to return DELAY");
+        break;
+    }
+
+    /* finalize current entry processing */
+    if (!pol->descr->manage_deleted)
+        update_entry(sched_db_conn, &ectx->item->entry_id,
+                     &ectx->fresh_attrs);
+    policy_ack(&pol->queue, AS_NOT_SCHEDULED, &ectx->item->entry_attr,
+               ectx->item->targeted);
+
+    free_entry_context(ectx);
+
+    /* nothing more to do */
+    if (last_stop_sched < 0)
+        return;
+
+    DisplayLog(LVL_DEBUG, tag(pol),
+               "Flushing schedulers up to #%d\n", last_stop_sched);
+    for (i = 0 ; i <= last_stop_sched; i++) {
+        rc = sched_flush(&pol->sched_res[i]);
+        if (rc) {
+            DisplayLog(LVL_MAJOR, tag(pol),
+                       "Failed to flush queues of scheduler #%d (error %d)",
+                       i, rc);
+        }
+    }
+}
 
 /**
 * Manage an entry by path or by fid, depending on FS
@@ -2398,24 +2535,32 @@ static int refresh_match_entry(lmgr_t *lmgr, entry_policy_info_t *epi)
 static void process_entry(policy_info_t *pol, lmgr_t *lmgr,
                           queue_item_t *p_item, bool free_item)
 {
-    entry_policy_info_t epi = {0};
+    entry_context_t *ectx;
     int                 rc;
 
-    epi.policy = pol;
-    epi.item = p_item;
+    ectx = calloc(1, sizeof(entry_context_t));
+    if (!ectx) {
+        rc = AS_ERROR;
+        goto out_free;
+    }
 
-    if (aborted(pol)) {
-        /* migration aborted by a signal, doesn't submit new migrations */
+    ectx->policy = pol;
+    ectx->item = p_item;
+    ectx->free_item = free_item;
+
+    if (aborted(pol) || stopping(pol)) {
+        /* policy run has to stop, doesn't submit new migrations */
         DisplayLog(LVL_FULL, tag(pol),
-                   "Policy run aborted: skipping pending requests");
-        policy_ack(&pol->queue, AS_ABORT, &p_item->entry_attr,
-                   p_item->targeted);
+                   "Policy run %s: skipping pending requests",
+                   pol->aborted ? "aborted" : "stopping");
+        policy_ack(&pol->queue, pol->aborted ? AS_ABORT : AS_NOT_SCHEDULED,
+                   &p_item->entry_attr, p_item->targeted);
         rc = AS_ABORT;
         goto out_free;
     }
 
     /* refresh entry info and match policy rules */
-    rc = refresh_match_entry(lmgr, &epi);
+    rc = refresh_and_match_entry(lmgr, ectx);
     if (rc != AS_OK) {
         policy_ack(&pol->queue, rc, &p_item->entry_attr,
                    p_item->targeted);
@@ -2427,13 +2572,13 @@ static void process_entry(policy_info_t *pol, lmgr_t *lmgr,
     if (rc != -1 && (!pol->first_eligible || (rc < pol->first_eligible)))
         pol->first_eligible = rc;
 
-    epi.time_save = rc;
+    ectx->time_save = rc;
 
     /* build action parameters */
-    rc = build_action_params(&epi);
+    rc = build_action_params(ectx);
     if (rc) {
         if (!pol->descr->manage_deleted)
-            update_entry(lmgr, &p_item->entry_id, &epi.fresh_attrs);
+            update_entry(lmgr, &p_item->entry_id, &ectx->fresh_attrs);
 
         policy_ack(&pol->queue, AS_ERROR, &p_item->entry_attr,
                    p_item->targeted);
@@ -2442,20 +2587,28 @@ static void process_entry(policy_info_t *pol, lmgr_t *lmgr,
 
     /* save attributes before doing the action */
     /* @FIXME this only save scalar value, not values in allocated structures */
-    epi.prev_attrs = epi.fresh_attrs;
+    ectx->prev_attrs = ectx->fresh_attrs;
 
-    /* apply action to the entry! */
-    rc = policy_action(&epi);
+    /* if there is no scheduler, run the action directly */
+    if (pol->config->sched_count == 0) {
 
-    post_action_cb(rc, lmgr, &epi, free_item);
+        /* apply action to the entry! */
+        rc = policy_action(ectx);
 
+        action_fini(rc, lmgr, ectx);
+        return;
+    }
+
+    /* push entry to the first scheduler of the stack */
+    ectx->curr_sched = 0;
+    rc = sched_push(pol->sched_res, &ectx->item->entry_id, &ectx->fresh_attrs,
+                    run_sched_cb, ectx);
+    if (rc)
+        run_sched_cb(ectx, rc);
     return;
 
 out_free:
-    ListMgr_FreeAttrs(&epi.fresh_attrs);
-
-    if (free_item)
-        free_queue_item(p_item);
+    free_entry_context(ectx);
 }
 
 /**

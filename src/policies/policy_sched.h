@@ -50,11 +50,6 @@ int sched_push(struct sched_res_t *sched_res,
                sched_cb_t cb, void *udata);
 
 /**
- * Flush all waiting enties (blocking).
- */
-int sched_flush(struct sched_res_t *sched_res);
-
-/**
  * Drop any entry from the scheduler and the wait queue.
  */
-int sched_reset(struct sched_res_t *sched_res);
+int sched_flush(struct sched_res_t *sched_res);

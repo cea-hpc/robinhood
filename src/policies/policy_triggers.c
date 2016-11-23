@@ -23,6 +23,7 @@
 #include "rbh_misc.h"
 #include "policy_run.h"
 #include "run_policies.h"
+#include "policy_sched.h"
 #include "queue.h"
 #include "Memory.h"
 #include "xplatform_print.h"
@@ -1809,6 +1810,25 @@ int policy_module_start(policy_info_t *policy, /* out */
     policy->fs_dev = get_fsdev();
     policy->flags = options->flags;
 
+    /* initialize schedulers */
+    policy->sched_res = calloc(p_config->sched_count,
+                               sizeof(struct sched_res_t));
+    if (policy->sched_res == NULL)
+        return ENOMEM;
+
+    for (i = 0; i < p_config->sched_count; i++) {
+        const char *sched_name = policy->config->schedulers[i]->sched_name;
+        DisplayLog(LVL_DEBUG, tag(policy), "Initializing scheduler '%s'",
+                   sched_name);
+        rc = sched_init(&policy->sched_res[i], p_config->schedulers[i],
+                        p_config->sched_cfg[i]);
+        if (rc) {
+            DisplayLog(LVL_CRIT, tag(policy),
+                       "Failed to initialize scheduler '%s'", sched_name);
+            return rc;
+        }
+    }
+
     /* policy-> progress, first_eligible, time_modifier, threads
      * are initialized in policy_run (for internal use in policy_run).
      */
@@ -1902,8 +1922,8 @@ int policy_module_start(policy_info_t *policy, /* out */
 
 int policy_module_stop(policy_info_t *policy)
 {
-    policy->aborted = 1;    /* seen by all components, from triggers to worker
-                             * threads in policy_run */
+    policy->aborted = true;    /* seen by all components, from triggers to worker
+                                * threads in policy_run */
     return 0;
 }
 
@@ -1920,14 +1940,14 @@ int policy_module_wait(policy_info_t *policy)
     if (!policy->waiting) {
         /* Ensure SIGTERM is not simultaneous with module start */
         if (policy->trigger_thr != 0) {
-            policy->waiting = 1;
+            policy->waiting = true;
             rc = pthread_join(policy->trigger_thr, &returned);
             if (rc != 0)
                 DisplayLog(LVL_MAJOR, tag(policy),
                            "pthread_join() returned error %d: %s", rc,
                            strerror(rc));
             else
-                policy->waiting = 0;
+                policy->waiting = false;
         }
     } else {
         /* the second thread that needs to join polls the 'waiting' variable */

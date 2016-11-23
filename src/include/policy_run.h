@@ -294,14 +294,17 @@ typedef struct policy_info_t {
     trigger_info_t         *trigger_info; /**< stats about policy triggers */
     dev_t                   fs_dev;       /**< to check if filesystem is
                                                unmounted */
+    struct sched_res_t     *sched_res;    /**< internal state of schedulers
+                                           *   (see config to known their count) */
     action_summary_t        progress;
     time_t                  first_eligible;
     time_modifier_t        *time_modifier;
     time_t                  gcd_interval; /**< gcd of check intervals
                                                (gcd(policy triggers)) */
     run_flags_t             flags;        /**< from policy_opt */
-    unsigned int            aborted:1;    /**< abort status */
-    volatile unsigned int   waiting:1;    /**< a thread is already trying to
+    bool                    aborted;      /**< abort status */
+    bool                    stopping;     /**< current run is stopping */
+    volatile bool           waiting;      /**< a thread is already trying to
                                                join the trigger thread */
 } policy_info_t;
 
@@ -319,16 +322,15 @@ typedef int (*sched_init_func_t)(void *config, void **p_sched_data);
 typedef int (*sched_reset_func_t)(void *sched_data);
 
 typedef enum {
-    SCHED_OK = 0,               /**< Entry taken into account by scheduler */
-    SCHED_DELAY_ALL     = 1,    /**< Wait before submitting any new entry */
-    SCHED_DELAY_ENTRY   = 2,    /**< Wait before resubmitting this entry */
-    SCHED_SKIP_ENTRY    = 3,    /**< Skip the entry for the  current run */
-    SCHED_STOP_RUN      = 4,    /**< Stop submitting entries for the current
+    SCHED_OK            = 0,    /**< Entry taken into account by scheduler */
+    SCHED_DELAY         = 1,    /**< Wait before submitting new entries */
+    SCHED_SKIP_ENTRY    = 2,    /**< Skip the entry for the  current run */
+    SCHED_STOP_RUN      = 3,    /**< Stop submitting entries for the current
                                  *   policy run. Already submitted tasks
                                  *   keep running. Queued entries in previous
                                  *   schedulers are canceled.
                                  */
-    SCHED_KILL_RUN      = 5,    /**< Abort the policy run and cancel in-flight
+    SCHED_KILL_RUN      = 4,    /**< Abort the policy run and cancel in-flight
                                      tasks in next schedulers. */
 } sched_status_e;
 
@@ -338,7 +340,7 @@ typedef enum {
  * @param st    SCHED_OK if the action is to be performed.
  *              Another status in other cases (stop run, etc.)
  */
-typedef int (*sched_cb_t)(void *udata, sched_status_e st);
+typedef void (*sched_cb_t)(void *udata, sched_status_e st);
 
 
 /**
