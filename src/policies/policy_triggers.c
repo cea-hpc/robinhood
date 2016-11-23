@@ -2037,7 +2037,7 @@ void policy_module_dump_stats(policy_info_t *policy)
     DisplayLog(LVL_MAJOR, "STATS", "======= %s policy: action stats ======",
                tag(policy));
     DisplayLog(LVL_MAJOR, "STATS", "idle threads       = %u", nb_waiting);
-    DisplayLog(LVL_MAJOR, "STATS", "queued actions     = %u", nb_items);
+    DisplayLog(LVL_MAJOR, "STATS", "queued entries     = %u", nb_items);
     DisplayLog(LVL_MAJOR, "STATS", "action status:");
 
     for (i = 0; i < AS_ENUM_COUNT; i++) {
