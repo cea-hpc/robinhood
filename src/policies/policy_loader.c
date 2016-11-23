@@ -1440,8 +1440,12 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
             /* read fileclass block contents */
             rc = read_fileclass_block(root_block, p_policies, curr_idx,
                                       msg_out);
-            if (rc)
+            if (rc) {
+                /* don't try to clean the last one as it is failed/incomplete
+                 * and likely already freed */
+                p_policies->fileset_count--;
                 goto clean_filesets;
+            }
         } else if (!strcasecmp(block_name, FILESETS_SECTION)) {
             int nb_sub_items; /**< nbr of fileclasses in the block */
 
