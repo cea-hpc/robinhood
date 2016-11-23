@@ -2367,9 +2367,6 @@ int main(int argc, char **argv)
 
     char config_file[MAX_OPT_LEN] = "";
 
-    bool force_log_level = false;
-    int log_level = 0;
-
     bool activity = false;
     bool fs_info = false;
 
@@ -2648,17 +2645,18 @@ int main(int argc, char **argv)
             rh_strncpy(config_file, optarg, MAX_OPT_LEN);
             break;
         case 'l':
-            force_log_level = true;
-            log_level = str2debuglevel(optarg);
+        {
+            int log_level = str2debuglevel(optarg);
+
             if (log_level == -1) {
                 fprintf(stderr,
                         "Unsupported log level '%s'. CRIT, MAJOR, EVENT, VERB, DEBUG or FULL expected.\n",
                         optarg);
                 exit(1);
             }
-            log_config.debug_level = log_level;
+            force_debug_level(log_level);
             break;
-
+        }
         case 'r':
             flags |= OPT_FLAG_REVERSE;
             break;
@@ -2759,9 +2757,7 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    if (force_log_level)
-        log_config.debug_level = log_level;
-    else
+    if (!log_config.force_debug_level)
         log_config.debug_level = LVL_MAJOR; /* no event message */
 
     /* Initialize logging */

@@ -506,8 +506,6 @@ int main(int argc, char **argv)
     char config_file[MAX_OPT_LEN] = "";
 
     enum { ACTION_NONE, ACTION_LIST, ACTION_RESTORE } action = ACTION_NONE;
-    bool force_log_level = false;
-    int log_level = 0;
 
     int rc;
     char err_msg[4096];
@@ -550,16 +548,18 @@ int main(int argc, char **argv)
             rh_strncpy(config_file, optarg, MAX_OPT_LEN);
             break;
         case 'l':
-            force_log_level = true;
-            log_level = str2debuglevel(optarg);
+        {
+            int log_level = str2debuglevel(optarg);
+
             if (log_level == -1) {
                 fprintf(stderr,
                         "Unsupported log level '%s'. CRIT, MAJOR, EVENT, VERB, DEBUG or FULL expected.\n",
                         optarg);
                 exit(1);
             }
-            log_config.debug_level = log_level;
+            force_debug_level(log_level);
             break;
+        }
         case 'h':
             display_help(bin);
             exit(0);
@@ -605,9 +605,6 @@ int main(int argc, char **argv)
                 config_file, err_msg);
         exit(1);
     }
-
-    if (force_log_level)
-        log_config.debug_level = log_level;
 
     /* XXX HOOK: Set logging to stderr */
     strcpy(log_config.log_file, "stderr");

@@ -211,9 +211,6 @@ int main(int argc, char **argv)
     const char *bin;
     char config_file[MAX_OPT_LEN] = "";
 
-    bool force_log_level = false;
-    int log_level = 0;
-
     int rc;
     char err_msg[4096];
     robinhood_config_t config;
@@ -230,16 +227,18 @@ int main(int argc, char **argv)
             rh_strncpy(config_file, optarg, MAX_OPT_LEN);
             break;
         case 'l':
-            force_log_level = true;
-            log_level = str2debuglevel(optarg);
+        {
+            int log_level = str2debuglevel(optarg);
+
             if (log_level == -1) {
                 fprintf(stderr,
                         "Unsupported log level '%s'. CRIT, MAJOR, EVENT, VERB, DEBUG or FULL expected.\n",
                         optarg);
                 exit(1);
             }
-            log_config.debug_level = log_level;
+            force_debug_level(log_level);
             break;
+        }
         case 'h':
             display_help(bin);
             exit(0);
@@ -288,9 +287,6 @@ int main(int argc, char **argv)
                 config_file, err_msg);
         exit(1);
     }
-
-    if (force_log_level)
-        config.log_config.debug_level = log_level;
 
     /* XXX HOOK: Set logging to stderr */
     strcpy(config.log_config.log_file, "stderr");

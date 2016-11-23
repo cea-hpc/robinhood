@@ -38,7 +38,11 @@ typedef enum {
 
 typedef struct log_config__ {
     log_level   debug_level;
+    bool        force_debug_level; /**< do not take the configuration into
+                                    *   account, use a value from cmd line */
     char        log_file[RBH_PATH_MAX];
+    bool        force_log_file; /**< do not take the configuration into
+                                 * account, use a path from cmd line */
     char        report_file[RBH_PATH_MAX];
 
     char        alert_mail[256];
@@ -75,6 +79,18 @@ extern mod_cfg_funcs_t log_cfg_hdlr;
  * Returns (log_level)-1 in case of an error.
  */
 log_level str2debuglevel(char *str);
+
+/**
+ * Force debug level.
+ * Won't be overridden by configuration.
+ */
+void force_debug_level(log_level level);
+
+/**
+ * Force log file.
+ * Won't be overridden by configuration.
+ */
+void force_log_file(const char *file);
 
 /**
  * Indicates if traces of the given level are to be displayed.

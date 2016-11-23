@@ -1257,8 +1257,6 @@ int main(int argc, char **argv)
     int c, option_index = 0;
     const char *bin;
     char config_file[MAX_OPT_LEN] = "";
-    bool force_log_level = false;
-    int log_level = 0;
     int rc;
     char err_msg[4096];
     bool chgd = false;
@@ -1551,8 +1549,9 @@ int main(int argc, char **argv)
             break;
 
         case 'd':
-            force_log_level = true;
-            log_level = str2debuglevel(optarg);
+        {
+            int log_level = str2debuglevel(optarg);
+
             if (log_level == -1) {
                 fprintf(stderr,
                         "Unsupported log level '%s'. CRIT, MAJOR, EVENT, VERB, DEBUG or FULL expected.\n",
@@ -1563,9 +1562,9 @@ int main(int argc, char **argv)
                 fprintf(stderr, "! (-not) unexpected before -d option\n");
                 exit(1);
             }
-            log_config.debug_level = log_level;
+            force_debug_level(log_level);
             break;
-
+        }
         case 'b':
             prog_options.bulk = force_nobulk;
             break;
@@ -1610,9 +1609,7 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    if (force_log_level)
-        log_config.debug_level = log_level;
-    else
+    if (!log_config.force_debug_level)
         log_config.debug_level = LVL_MAJOR; /* no event message */
 
     /* Set logging to stderr */

@@ -1135,23 +1135,35 @@ static int log_cfg_read(config_file_t config, void *module_config,
 static int log_cfg_reload(log_config_t *conf)
 {
     if (conf->debug_level != log_config.debug_level) {
-        DisplayLog(LVL_MAJOR, "LogConfig",
-                   RBH_LOG_CONFIG_BLOCK "::debug_level modified: '%d'->'%d'",
-                   log_config.debug_level, conf->debug_level);
-        log_config.debug_level = conf->debug_level;
+        if (!log_config.force_debug_level) {
+            DisplayLog(LVL_MAJOR, "LogConfig",
+                       RBH_LOG_CONFIG_BLOCK "::debug_level modified: '%d'->'%d'",
+                       log_config.debug_level, conf->debug_level);
+            log_config.debug_level = conf->debug_level;
+        } else {
+            DisplayLog(LVL_EVENT, "LogConfig", "Log level is forced by command "
+                       "line. Not taking configuration parameter "
+                       RBH_LOG_CONFIG_BLOCK "::debug_level into account.");
+        }
     }
 
     /* log files can be changed dynamically: this will just be considered as if
      * it was renamed */
     if (strcmp(conf->log_file, log_config.log_file)) {
-        DisplayLog(LVL_MAJOR, "LogConfig",
-                   RBH_LOG_CONFIG_BLOCK "::log_file modified: '%s'->'%s'",
-                   log_config.log_file, conf->log_file);
+        if (!log_config.force_log_file) {
+            DisplayLog(LVL_MAJOR, "LogConfig",
+                       RBH_LOG_CONFIG_BLOCK "::log_file modified: '%s'->'%s'",
+                       log_config.log_file, conf->log_file);
 
-        /* lock file name to avoid reading inconsistent filenames */
-        pthread_rwlock_wrlock(&log.f_lock);
-        strcpy(log_config.log_file, conf->log_file);
-        pthread_rwlock_wrlock(&log.f_lock);
+            /* lock file name to avoid reading inconsistent filenames */
+            pthread_rwlock_wrlock(&log.f_lock);
+            strcpy(log_config.log_file, conf->log_file);
+            pthread_rwlock_wrlock(&log.f_lock);
+        } else {
+            DisplayLog(LVL_EVENT, "LogConfig", "Log file is forced by command "
+                       "line. Not taking configuration parameter "
+                       RBH_LOG_CONFIG_BLOCK "::log_file into account.");
+        }
     }
 
     if (strcmp(conf->report_file, log_config.report_file)) {
@@ -1239,14 +1251,52 @@ static int log_cfg_reload(log_config_t *conf)
     return 0;
 }
 
+void force_debug_level(log_level level)
+{
+    log_config.debug_level = level;
+    log_config.force_debug_level = true;
+}
+
+/**
+ * Force log file.
+ * Won't be overridden by configuration.
+ */
+void force_log_file(const char *file)
+{
+    rh_strncpy(log_config.log_file, file, sizeof(log_config.log_file));
+    log_config.force_log_file = true;
+}
+
+
 static int log_cfg_set(void *cfg, bool reload)
 {
     log_config_t *config = (log_config_t *) cfg;
+    char old_log_file[RBH_PATH_MAX] = "";
+    int old_level = -1;
 
     if (reload)
         return log_cfg_reload(config);
 
+    /* keep previous values in case log level is forced */
+    if (log_config.force_debug_level)
+        old_level = log_config.debug_level;
+
+    if (log_config.force_log_file)
+        rh_strncpy(old_log_file, log_config.log_file, sizeof(old_log_file));
+
     log_config = *config;
+
+    /* restore previous values */
+    if (old_level != -1) {
+        log_config.force_debug_level = true;
+        log_config.debug_level = old_level;
+    }
+    if (!EMPTY_STRING(old_log_file)) {
+        log_config.force_log_file = true;
+        rh_strncpy(log_config.log_file, old_log_file,
+                   sizeof(log_config.log_file));
+    }
+
     return 0;
 }
 

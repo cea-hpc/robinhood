@@ -581,10 +581,8 @@ int main(int argc, char **argv)
     bool           do_resume = false;
     bool           do_complete = false;
     bool           do_status = false;
-    bool           force_log_level = false;
 
     int            list_state = -1;
-    int            log_level = 0;
     int            local_flags = 0;
 
     int            rc;
@@ -680,16 +678,18 @@ int main(int argc, char **argv)
             }
             break;
         case 'l':
-            force_log_level = true;
-            log_level = str2debuglevel(optarg);
+        {
+            int log_level = str2debuglevel(optarg);
+
             if (log_level == -1) {
                 fprintf(stderr,
                         "Unsupported log level '%s'. CRIT, MAJOR, EVENT, VERB, DEBUG or FULL expected.\n",
                         optarg);
                 exit(1);
             }
-            log_config.debug_level = log_level;
+            force_debug_level(log_level);
             break;
+        }
         case 'h':
             display_help(bin);
             exit(0);
@@ -735,9 +735,6 @@ int main(int argc, char **argv)
                 config_file, err_msg);
         exit(1);
     }
-
-    if (force_log_level)
-        config.log_config.debug_level = log_level;
 
     /* XXX HOOK: Set logging to stderr */
     strcpy(config.log_config.log_file, "stderr");

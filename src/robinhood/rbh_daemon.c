@@ -203,10 +203,6 @@ typedef struct rbh_options {
     char           template_file[MAX_OPT_LEN];
     bool           write_template;
     bool           write_defaults;
-    bool           force_log;
-    char           log[MAX_OPT_LEN];
-    bool           force_log_level;
-    int            log_level;
     bool           pid_file;
     char           pid_filepath[MAX_OPT_LEN];
     bool           test_syntax;
@@ -750,23 +746,6 @@ static void *signal_handler_thr(void *arg)
             DisplayLog(LVL_EVENT, RELOAD_TAG,
                        "Reloading configuration from '%s'", config_file_path());
 
-            if (rbh_cfg_reload(parsing_mask) == 0) {
-                if (options.force_log
-                    && strcmp(options.log, log_config.log_file)) {
-                    DisplayLog(LVL_EVENT, RELOAD_TAG,
-                               "Restoring log file option (forced on command line): %s)",
-                               options.log);
-                    strcpy(log_config.log_file, options.log);
-                }
-                if (options.force_log_level
-                    && (options.log_level != log_config.debug_level)) {
-                    DisplayLog(LVL_EVENT, RELOAD_TAG,
-                               "Restoring log level option (forced on command line): %d)",
-                               options.log_level);
-                    log_config.debug_level = options.log_level;
-                }
-            }
-
             reload_sig = false;
             FlushLogs();
         } else if (dump_sig) {
@@ -1091,20 +1070,22 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
             opt->write_defaults = true;
             break;
         case 'L':
-            opt->force_log = true;
-            rh_strncpy(opt->log, optarg, MAX_OPT_LEN);
+            force_log_file(optarg);
             break;
         case 'l':
-            opt->force_log_level = true;
-            opt->log_level = str2debuglevel(optarg);
-            if (opt->log_level == -1) {
+        {
+            int log_level = str2debuglevel(optarg);
+
+            if (log_level == -1) {
                 fprintf(stderr,
                         "Unsupported log level '%s'. CRIT, MAJOR, EVENT, VERB, DEBUG or FULL expected.\n",
                         optarg);
                 return EINVAL;
             }
-            log_config.debug_level = options.log_level;
+            /* mark it forced, so it is not overridden later by config */
+            force_debug_level(log_level);
             break;
+        }
         case 'p':
             opt->pid_file = true;
             rh_strncpy(opt->pid_filepath, optarg, MAX_OPT_LEN);
@@ -1644,15 +1625,11 @@ int main(int argc, char **argv)
         exit(0);
     }
 
-    /* override config file options with command line parameters */
-    if (options.force_log)
-        strcpy(log_config.log_file, options.log);
-    else if (isatty(fileno(stderr)) && !options.detach) {
-        options.force_log = true;
-        strcpy(log_config.log_file, "stderr");
+    /* log to stderr if the command runs in a tty */
+    if (!log_config.force_log_file
+        && isatty(fileno(stderr)) && !options.detach) {
+        force_log_file("stderr");
     }
-    if (options.force_log_level)
-        log_config.debug_level = options.log_level;
 
     if (action_mask & ACTION_MASK_RUN_POLICIES) {
         /* Parse 'target' option, if any.

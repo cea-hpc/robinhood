@@ -98,13 +98,11 @@ static struct option option_tab[] = {
 typedef struct diff_options {
     run_flags_t    flags;
     char           config_file[MAX_OPT_LEN];
-    int            log_level;
     char           partial_scan_path[RBH_PATH_MAX];
     diff_arg_t     diff_arg;
     char           output_dir[MAX_OPT_LEN];
 
     /* bit field */
-    unsigned int   force_log_level:1;
     unsigned int   partial_scan:1;
 } diff_options;
 
@@ -460,16 +458,18 @@ int main(int argc, char **argv)
             break;
 #endif
         case 'l':
-            options.force_log_level = 1;
-            options.log_level = str2debuglevel(optarg);
-            if (options.log_level == -1) {
+        {
+            int log_level = str2debuglevel(optarg);
+
+            if (log_level == -1) {
                 fprintf(stderr,
                         "Unsupported log level '%s'. CRIT, MAJOR, EVENT, VERB, DEBUG or FULL expected.\n",
                         optarg);
                 exit(1);
             }
-            log_config.debug_level = options.log_level;
+            force_debug_level(log_level);
             break;
+        }
         case 'h':
             display_help(bin);
             exit(0);
@@ -516,9 +516,7 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    if (options.force_log_level)
-        log_config.debug_level = options.log_level;
-    else
+    if (!log_config.force_debug_level)
         log_config.debug_level = LVL_CRIT;  /* least messages as possible */
 
     /* Set logging to stderr */
