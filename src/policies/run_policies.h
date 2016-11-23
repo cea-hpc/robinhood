@@ -42,12 +42,12 @@ typedef enum {
     AS_BAD_TYPE,    /* policy does not apply to this type of entry */
     AS_BUSY,    /* entry is is use */
     AS_ALREADY, /* action is already running */
+    AS_NOT_SCHEDULED, /* skipped by scheduler */
 
 /* errors */
     AS_MISSING_MD,  /* entry metadata is incomplete */
     AS_STAT_FAILURE,  /* stat failure */
     AS_ERROR,   /* action failed */
-
     AS_ABORT,   /* action aborted by termination signal */
 
     AS_ENUM_COUNT   /* last status index + 1 */
@@ -60,6 +60,7 @@ static const char __attribute__ ((__unused__))
         "moved or deleted since last update", "whitelisted/ignored",
         "out of scope", "no matching rule", "entry type out of scope",
         "entry is in use/busy", "action already running",
+        "skipped by scheduler",
         "incomplete metadata", "stat failure", "action error",
         "action aborted"};
 

@@ -89,7 +89,9 @@ static int sched_mpr_schedule(void *sched_data, const entry_id_t *id,
     /* if the limits are not reached, directly call the action calback */
     DisplayLog(LVL_DEBUG, "max_per_run", "Scheduling next step "
                "(curr counters: count=%Lu, vol=%Lu)", state->count, state->vol);
-    return cb(udata, SCHED_OK);
+    cb(udata, SCHED_OK);
+
+    return 0;
 }
 
 /* ------------- configuration management functions ---------- */
