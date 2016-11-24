@@ -1316,6 +1316,12 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
                         g_string_append(str, " AND ");
                 }
 
+                /* NOT_BEGIN is for expressions like: NOT ( <x> ...
+                 * and is to be terminated by END.
+                 * whereas BEGIN + NOT will result in (NOT (<x>) ...
+                 */
+                if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT_BEGIN)
+                    g_string_append(str, "NOT (");
                 if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_BEGIN)
                     g_string_append(str, "(");
 
@@ -1464,6 +1470,8 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
                 }
 
                 if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_END)
+                    g_string_append(str, ")");
+                if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT_END)
                     g_string_append(str, ")");
             }
         } /* end for */

@@ -154,9 +154,9 @@ static void lmgr_simple_filter_free_buffers(lmgr_filter_t * p_filter, unsigned i
 
 
 
-int lmgr_simple_filter_add( lmgr_filter_t * p_filter, unsigned int attr_index,
-                            filter_comparator_t comparator, filter_value_t value,
-                            int flag )
+int lmgr_simple_filter_add(lmgr_filter_t * p_filter, unsigned int attr_index,
+                           filter_comparator_t comparator, filter_value_t value,
+                           enum filter_flags flag)
 {
     int rc;
 
@@ -222,8 +222,9 @@ int lmgr_filter_check_field(const lmgr_filter_t *p_filter, unsigned int attr_ind
 
 int lmgr_simple_filter_add_or_replace( lmgr_filter_t * p_filter,
                                        unsigned int attr_index,
-                                       filter_comparator_t comparator, filter_value_t value,
-                                       int flag )
+                                       filter_comparator_t comparator,
+                                       filter_value_t value,
+                                       enum filter_flags flag )
 {
     unsigned int  i;
     int rc;
@@ -261,10 +262,11 @@ int lmgr_simple_filter_add_or_replace( lmgr_filter_t * p_filter,
     return lmgr_simple_filter_add( p_filter, attr_index, comparator, value, flag );
 }
 
-int lmgr_simple_filter_add_if_not_exist( lmgr_filter_t * p_filter,
-                                         unsigned int attr_index,
-                                         filter_comparator_t comparator, filter_value_t value,
-                                         int flag )
+int lmgr_simple_filter_add_if_not_exist(lmgr_filter_t *p_filter,
+                                        unsigned int attr_index,
+                                        filter_comparator_t comparator,
+                                        filter_value_t value,
+                                        enum filter_flags flag)
 {
     unsigned int   i;
 
@@ -420,8 +422,23 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
                 return DB_INVALID_ARG;
             }
 
+            return append_simple_expr(boolexpr->content_u.bool_expr.expr1,
+                               filter, smi, time_mod,
+                               expr_flag | FILTER_FLAG_NOT_BEGIN
+                               | FILTER_FLAG_NOT_END, depth + 1, op_ctx);
+#if 0
             /* XXX is it possible to append a binary expr with parenthesing? e.g. NOT (x AND y) */
-            if (boolexpr->content_u.bool_expr.expr1->node_type != NODE_CONDITION)
+            if (boolexpr->content_u.bool_expr.expr1->node_type == NODE_BINARY_EXPR)
+            {
+                append_simple_expr(boolexpr->content_u.bool_expr.expr1,
+                                   filter, smi, time_mod,
+                                   flag | FILTER_FLAG_NOT_BEGIN
+                                        | FILTER_FLAG_NOT_END,
+                                   depth + 1, BOOL_AND);
+                /* in case of error, do nothing (equivalent to 'AND TRUE') */
+                return 0;
+            }
+            else if (boolexpr->content_u.bool_expr.expr1->node_type != NODE_CONDITION)
                 /* do nothing (equivalent to 'AND TRUE') */
                 return 0;
 
@@ -451,6 +468,7 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
                        field_name(index), flag);
 
             return lmgr_simple_filter_add(filter, index, comp, val, flag);
+#endif
 
          case NODE_CONDITION:
             /* If attribute is in DB, it can be filtered
@@ -481,7 +499,8 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
 
             /* propagate parenthesing flag + OR (NOT?) */
             flag |= (expr_flag & (FILTER_FLAG_BEGIN | FILTER_FLAG_END
-                                  | FILTER_FLAG_OR));
+                                  | FILTER_FLAG_NOT_BEGIN | FILTER_FLAG_OR
+                                  | FILTER_FLAG_NOT_END));
 
             /* @TODO support FILTER_FLAG_ALLOC_LIST */
 
@@ -495,7 +514,7 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
         {
             int flag1, flag2;
 
-            /* ensures there are no 2 levels of perenthesing */
+            /* ensures there are no 2 levels of parenthesing */
             if (depth > 1)
                 return DB_INVALID_ARG;
             else if (boolexpr->content_u.bool_expr.bool_op != BOOL_AND
@@ -510,15 +529,18 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
             {
                 new_depth = depth;
                 /* propagate BEGIN/END flags */
-                flag1 |= expr_flag & FILTER_FLAG_BEGIN;
-                flag2 |= expr_flag & FILTER_FLAG_END;
+                flag1 |= expr_flag & (FILTER_FLAG_BEGIN
+                                      | FILTER_FLAG_NOT_BEGIN);
+                flag2 |= expr_flag & (FILTER_FLAG_END
+                                      | FILTER_FLAG_NOT_END);
             }
             else
             {
                 new_depth = depth + 1;
                 /* new level of parenthesing */
-                flag1 |= FILTER_FLAG_BEGIN;
-                flag2 |= FILTER_FLAG_END;
+                /* propagate NOT_BEGIN/NOT_END flags */
+                flag1 |= FILTER_FLAG_BEGIN | (expr_flag & FILTER_FLAG_NOT_BEGIN);
+                flag2 |= FILTER_FLAG_END | (expr_flag & FILTER_FLAG_NOT_END);
             }
 
             rc = append_simple_expr(boolexpr->content_u.bool_expr.expr1,
@@ -554,7 +576,7 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
 int convert_boolexpr_to_simple_filter(bool_node_t *boolexpr, lmgr_filter_t *filter,
                                       const sm_instance_t *smi,
                                       const time_modifier_t *time_mod,
-                                      int flags)
+                                      enum filter_flags flags)
 {
     if (!is_simple_expr(boolexpr, 0, BOOL_AND))
         return DB_INVALID_ARG;
@@ -563,15 +585,22 @@ int convert_boolexpr_to_simple_filter(bool_node_t *boolexpr, lmgr_filter_t *filt
     if (flags & FILTER_FLAG_NOT)
     {
         bool_node_t notexpr;
+        int prev_nb, rc;
 
         notexpr.node_type = NODE_UNARY_EXPR;
         notexpr.content_u.bool_expr.bool_op = BOOL_NOT;
         notexpr.content_u.bool_expr.expr1 = boolexpr;
         notexpr.content_u.bool_expr.owner = 0;
 
+        /* add all or nothing => save filter count before */
+        prev_nb = filter->filter_simple.filter_count;
+
         /* default filter context is AND */
-        return append_simple_expr(&notexpr, filter, smi, time_mod,
-                                  flags & ~FILTER_FLAG_NOT, 0, BOOL_AND);
+        rc = append_simple_expr(&notexpr, filter, smi, time_mod,
+                                flags & ~FILTER_FLAG_NOT, 0, BOOL_AND);
+        if (rc)
+            filter->filter_simple.filter_count = prev_nb;
+        return rc;
     }
 
     /* default filter context is AND */

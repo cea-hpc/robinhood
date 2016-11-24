@@ -1126,26 +1126,33 @@ int ListMgr_SetVar(lmgr_t *p_mgr, const char *varname, const char *value);
 /** Initialize a simple filter structure */
 int lmgr_simple_filter_init(lmgr_filter_t *p_filter);
 
-#define FILTER_FLAG_NOT           0x00000001 /* negation of the test */
-#define FILTER_FLAG_OR            0x00000002 /* use OR instead of AND
-                                                (which is default) */
-#define FILTER_FLAG_BEGIN         0x00000004 /* start a section with
-                                                parenthesis */
-#define FILTER_FLAG_END           0x00000008 /* ends a section with
-                                                parenthesis */
-#define FILTER_FLAG_ALLOW_NULL    0x00000010 /* null value is allowed to
-                                                match the condition */
+enum filter_flags {
+    FILTER_FLAG_NOT     = (1 << 0), /**< negation of the current test */
+    FILTER_FLAG_OR      = (1 << 1), /**< use OR instead of AND
+                                         (which is the default) */
+    FILTER_FLAG_BEGIN   = (1 << 2), /**<  start a section with parenthesis */
+    FILTER_FLAG_END     = (1 << 3), /**< ends a section with parenthesis */
+    FILTER_FLAG_NOT_BEGIN = (1 << 4), /**< negate the whole expression until
+                                           NOT_END.
+                     * NOT_BEGIN is for expressions like: NOT ( <x> ...
+                     * and is to be terminated by NOT_END.
+                     * whereas BEGIN + NOT will result in (NOT (<x>) ...
+                     */
+    FILTER_FLAG_NOT_END    = (1 << 5), /**< terminates a NOT_BEGIN */
+    FILTER_FLAG_ALLOW_NULL = (1 << 6), /** null value is allowed to match
+                                           the condition */
 
-#define FILTER_FLAG_ALLOC_STR     0x10000000 /* for internal usage:
-                                                string in filter is allocated */
-#define FILTER_FLAG_ALLOC_LIST    0x20000000 /* for internal usage: list in
-                                                filter is allocated */
+    FILTER_FLAG_ALLOC_STR  = (1 << 7), /** for internal usage: string in filter
+                                           is allocated */
+    FILTER_FLAG_ALLOC_LIST = (1 << 8), /** for internal usage: list in filter
+                                           is allocated */
+};
 
 /** Add a criteria to a simple filter */
 int lmgr_simple_filter_add(lmgr_filter_t *p_filter,
                            unsigned int attr_index,
                            filter_comparator_t comparator,
-                           filter_value_t value, int flag);
+                           filter_value_t value, enum filter_flags flag);
 
 /* check if the given attribute is part of a filter */
 int lmgr_filter_check_field(const lmgr_filter_t *p_filter,
@@ -1158,7 +1165,8 @@ int lmgr_filter_check_field(const lmgr_filter_t *p_filter,
 int lmgr_simple_filter_add_or_replace(lmgr_filter_t *p_filter,
                                       unsigned int attr_index,
                                       filter_comparator_t comparator,
-                                      filter_value_t value, int flag);
+                                      filter_value_t value,
+                                      enum filter_flags flag);
 
 /**
  * Add a criteria to a simple filter if it does not already exist in the filter
@@ -1166,7 +1174,8 @@ int lmgr_simple_filter_add_or_replace(lmgr_filter_t *p_filter,
 int lmgr_simple_filter_add_if_not_exist(lmgr_filter_t *p_filter,
                                         unsigned int attr_index,
                                         filter_comparator_t comparator,
-                                        filter_value_t value, int flag);
+                                        filter_value_t value,
+                                        enum filter_flags flag);
 
 /** release a filter structure */
 int lmgr_simple_filter_free(lmgr_filter_t *p_filter);
@@ -1190,7 +1199,7 @@ int convert_boolexpr_to_simple_filter(struct bool_node_t *boolexpr,
                                       lmgr_filter_t *filter,
                                       const struct sm_instance *smi,
                                       const struct time_modifier *time_mod,
-                                      int flags);
+                                      enum filter_flags flags);
 
 /** Set a complex filter structure */
 int lmgr_set_filter_expression(lmgr_filter_t *p_filter,
