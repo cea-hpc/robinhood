@@ -813,7 +813,7 @@ static int set_optimization_filters(policy_info_t *policy,
              policy->descr->status_mgr, policy->time_modifier,
              policy->descr->manage_deleted ? FILTER_FLAG_ALLOW_NULL : 0)) {
             DisplayLog(LVL_FULL, tag(policy),
-                       "Could not convert purge rule '%s' to simple filter.",
+                       "Could not convert rule '%s' to simple filter.",
                        rules->rules[0].rule_id);
         }
     }
@@ -933,7 +933,7 @@ static int wait_queue_empty(policy_info_t *policy,
 {
     unsigned int nb_in_queue, nb_action_pending;
 
-    /* Wait for end of purge pass */
+    /* Wait for end of policy pass */
     do {
         time_t last_push, last_pop, last_ack, last_activity;
 
@@ -2473,7 +2473,7 @@ static void *thr_policy_run(void *arg)
     while (Queue_Get(&pol->queue, &p_queue_entry) == 0)
         process_entry(pol, &lmgr, (queue_item_t *) p_queue_entry, true);
 
-    /* Error occurred in purge queue management... */
+    /* Error occurred in queue management... */
     DisplayLog(LVL_CRIT, tag(pol),
                "An error occurred in policy run queue management. Exiting.");
     exit(-1);
@@ -2507,8 +2507,8 @@ int start_worker_threads(policy_info_t *pol)
 /**
 * Update the status of outstanding actions
 * \param lmgr          [IN] connexion to database
-* \param p_nb_reset    [OUT] number of purge reset
-* \param p_nb_total    [OUT] total number of purge checked
+* \param p_nb_reset    [OUT] number of actions reset
+* \param p_nb_total    [OUT] total number of actions checked
 *
 * Note:   the timeout is in pol->config
 */
