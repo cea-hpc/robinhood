@@ -1311,9 +1311,14 @@ static int process_one_task(robinhood_task_t *p_task,
 #ifdef _BENCH_DB
             /* generate cyclic owner, group, type, size, ... */
             unsigned int u = (i + 17) % 137;
-            sprintf(ATTR(&op->fs_attrs, owner), "user%u", u);
-            /* 8 user per group */
-            sprintf(ATTR(&op->fs_attrs, gr_name), "group%u", u / 8);
+            if (global_config.uid_gid_as_numbers) {
+                ATTR(&op->fs_attrs, uid).num = u;
+                ATTR(&op->fs_attrs, gid).num = u/8;
+            } else {
+                sprintf(ATTR(&op->fs_attrs, uid).txt, "user%u", u);
+                /* 8 user per group */
+                sprintf(ATTR(&op->fs_attrs, gid).txt, "group%u", u/8);
+            }
             switch (i % 2) {
             case 0:
                 strcpy(ATTR(&op->fs_attrs, type), STR_TYPE_DIR);
