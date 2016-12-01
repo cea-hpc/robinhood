@@ -4231,12 +4231,21 @@ function test_ost_trigger
 		(( $arch_count == $count )) || error "File count $count != archived count $arch_count"
 	fi
 
-	full_vol=`$LFS df  $RH_ROOT | grep OST0000 | awk '{print $3}'`
+    # sometimes there are orphan objects on some OSTs which may make the
+    # OST0001 a little more filled with data, and make the test fail.
+    # get the fillest OST:
+    idx=$(lfs df "$RH_ROOT" | grep OST00 | sort -k 3nr | head -n 1 | cut -d ':' -f 2 | tr -d ']')
+    [ "$DEBUG" = "1" ] && lfs df "$RH_ROOT" | grep OST00
+    [ "$DEBUG" = "1" ] && echo "=> MAX OST is OST#$idx"
+    # 0 or 1 expected
+    [[ $idx == "0" ]] || [[ $idx == "1" ]] || error "fullest OST should be 0 or 1 (actual: $idx)"
+
+	full_vol=`$LFS df  $RH_ROOT | grep OST000$idx | awk '{print $3}'`
 	full_vol=$(($full_vol/1024))
 	delta=$(($full_vol-$empty_vol))
-	echo "OST#0 usage increased of $delta MB (total usage = $full_vol MB)"
+	echo "OST#$idx usage increased of $delta MB (total usage = $full_vol MB)"
 	((need_purge=$full_vol-$mb_l_threshold))
-	echo "Need to purge $need_purge MB on OST#0"
+	echo "Need to purge $need_purge MB on OST#$idx"
 
 	# scan
 	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log
@@ -4252,7 +4261,7 @@ function test_ost_trigger
 
     # Retrieve the size purged
     # "2015/02/18 12:09:03 [5536/4] purge | Policy run summary: time=01s; target=OST#0; 42 successful actions (42.00/sec); volume: 84.00 MB (84.00 MB/sec); 0 entries skipped; 0 errors."
-    purged_total=`grep summary rh_purge.log | grep "OST#0;" | awk '{print $(NF-8)}' | sed -e "s/\.[0-9]\+//g"`
+    purged_total=`grep summary rh_purge.log | grep "OST#$idx;" | awk '{print $(NF-8)}' | sed -e "s/\.[0-9]\+//g"`
 
     [ "$DEBUG" = "1" ] && echo "total_purged=$purged_total"
 
@@ -4268,14 +4277,16 @@ function test_ost_trigger
 
 	full_vol1=`$LFS df $RH_ROOT | grep OST0001 | awk '{print $3}'`
 	full_vol1=$(($full_vol1/1024))
-	purge_ost1=`grep summary rh_purge.log | grep "OST#1" | wc -l`
+    # 1-idx => 0 or 1
+    altidx=$((1-$idx))
+	purge_ost1=`grep summary rh_purge.log | grep "OST#$altidx" | wc -l`
 
 	if (($full_vol1 > $mb_h_threshold )); then
-		error ": OST#1 is not expected to exceed high threshold!"
+		error ": OST#$altidx is not expected to exceed high threshold!"
 	elif (($purge_ost1 != 0)); then
-		error ": no purge expected on OST#1"
+		error ": no purge expected on OST#$altidx"
 	else
-		echo "OK: no purge on OST#1 (usage=$full_vol1 MB)"
+		echo "OK: no purge on OST#$altidx (usage=$full_vol1 MB)"
 	fi
 
 	# restore default striping
