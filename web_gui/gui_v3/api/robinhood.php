@@ -164,7 +164,7 @@ class MyAPI extends API
                                 global $MAX_ROWS;
                                 $fullfilter = build_filter($this->args, array('filename'=>'name', 'uid'=>'uid', 'gid'=>'gid'));
                                 $sqlfilter=$fullfilter[0];
-                                $req = $db->prepare("SELECT uid, gid, size, blocks, name, creation_time, last_access, last_mod FROM NAMES INNER JOIN ENTRIES ON ENTRIES.id = NAMES.id $sqlfilter LIMIT $MAX_ROWS");
+                                $req = $db->prepare("SELECT uid, gid, size, blocks, name, type, creation_time, last_access, last_mod FROM NAMES INNER JOIN ENTRIES ON ENTRIES.id = NAMES.id $sqlfilter LIMIT $MAX_ROWS");
                                 $req->execute($fullfilter[1]);
                                 $count = $req->rowCount();
                                 while($sqldata = $req->fetch(PDO::FETCH_ASSOC)) {
@@ -285,7 +285,7 @@ class MyAPI extends API
                                 global $MAX_ROWS;
                                 $fullfilter = build_filter($this->args, array('filename'=>'name', 'uid'=>'uid', 'gid'=>'gid'));
                                 $sqlfilter=$fullfilter[0];
-                                $req = $db->prepare("SELECT uid, gid, size, blocks, name, from_unixtime(creation_time) AS creation_time".
+                                $req = $db->prepare("SELECT uid, gid, size, blocks, name, type, from_unixtime(creation_time) AS creation_time".
                                                     ", from_unixtime(last_access) AS last_access, from_unixtime(last_mod) AS last_mod".
                                                     " FROM NAMES INNER JOIN ENTRIES ON ENTRIES.id = NAMES.id $sqlfilter LIMIT $MAX_ROWS");
                                 $req->execute($fullfilter[1]);
@@ -295,7 +295,8 @@ class MyAPI extends API
                                 $columns[] = array('title' => 'gid');
                                 $columns[] = array('title' => 'size');
                                 $columns[] = array('title' => 'blocks');
-                                $columns[] = array('title' => 'File Name');
+                                $columns[] = array('title' => 'Name');
+                                $columns[] = array('title' => 'Type');
                                 $columns[] = array('title' => 'creation_time');
                                 $columns[] = array('title' => 'last_access');
                                 $columns[] = array('title' => 'last_mod');

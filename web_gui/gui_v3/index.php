@@ -35,7 +35,6 @@ include "common.php";
 <script src="js/jquery.dataTables.js"></script>
 <script src="js/filesize.dataTables.js"></script>
 <script src="customjs/newgui.js"></script>
-
 </head>
 
 <?php
@@ -107,7 +106,7 @@ echo '<li><a href="#"  onclick="GetGraph(\'Files\')">Files</a></li>';
     <fieldset class="form-group">
     <input type="text" class="form-control" id="formFilename" name="filename" placeholder="Filename">
     </fieldset>
-    <button type="button" class="btn btn-primary" onclick="GetGraph(lastGet)">Filter</button>
+    <button type="button" class="btn btn-primary" id="myStateButton" data-loading-text="Loading..." autocomplete="off">Filter</button>
     <button type="button" class="btn btn-primary" onclick="CleanForm();GetGraph(lastGet)">Clean</button>
     </form>
 
@@ -145,4 +144,3 @@ if ($DB_LASTERROR!="") {
 
 </body>
 </html>
-

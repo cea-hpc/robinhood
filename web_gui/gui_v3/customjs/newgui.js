@@ -159,23 +159,31 @@ function GetGraph(item){
                 var options = {
                         responsive : true,
                 animation : false,
-                showAllTooltips: true,
+                showAllTooltips: false,
                 defaultFontSize: 14,
                 tooltips: {
                         enabled: true,
                         mode: 'single',
                         callbacks: {
+                                title: function(tooltipItems, data) {
+                                  val = data.labels[tooltipItems[0].index]
+                                  type = data.datasets[tooltipItems[0].datasetIndex].unit
+                                  if (type=="size" || type=="count") {
+                                          return val
+                                  }
+                                  return ""
+                                },
                                 label: function(tooltipItems, data) {
                                         val = data.datasets[tooltipItems.datasetIndex].data[tooltipItems.index]
                                                 type = data.datasets[tooltipItems.datasetIndex].unit
                                                 if (type=="size") {
-                                                        return formatBytes(val,0);
+                                                        return 'size: '+formatBytes(val,0)
                                                 } else if (type=="count") {
-                                                        return formatCount(val,0);
+                                                        return 'file count: '+formatCount(val,0)
                                                 } else if (type=="date") {
-                                                        return (new Date(val*1000));
+                                                        return (new Date(val*1000))
                                                 }
-                                        return val
+                                        return ""
                                 }
                         }}
                 }
@@ -209,6 +217,7 @@ function GetGraph(item){
         $.ajax({
                 url: "api/index.php?request=data/" + item + "/" +queryString
         }).then(function(data) {
+          $('#myStateButton').button('reset');
                 if (TableState!="empty"){
                         TableState.destroy();
                         $('#datalist').empty();
@@ -219,9 +228,8 @@ function GetGraph(item){
                            clear: true,
                            data: data.datasets,
                            columns: data.columns,
-                           columnDefs: data.columnsDefs 
+                           columnDefs: data.columnsDefs
                 } );
-
         });
 
 
@@ -237,3 +245,26 @@ function CleanForm() {
                 myForm.elements[i].value = ""
         }
 }
+
+
+$(document).ready(function() {
+
+
+  $('#filterform input').on('keypress', function(event){
+    if(event.which==13 && !event.shiftKey){
+      var $btn = $('#myStateButton').button('loading');
+      GetGraph(lastGet);
+      window.setTimeout( function(){
+        $btn.button('reset')
+      }, 60000 );
+    }
+  });
+  $('#myStateButton').on('click', function () {
+    var $btn = $(this).button('loading');
+    GetGraph(lastGet);
+    window.setTimeout( function(){
+      $btn.button('reset')
+    }, 60000 );
+
+  })
+});
