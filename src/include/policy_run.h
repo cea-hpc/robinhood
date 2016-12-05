@@ -191,6 +191,10 @@ typedef struct policy_run_config_t {
     /** report policy actions in report file? */
     bool                report_actions;
 
+    /** Delay (in milliseconds) for resubmitting entries
+     * to a scheduler after it delayed an entry. */
+    unsigned int        reschedule_delay_ms;
+
     /** number of action schedulers */
     int                      sched_count;
     /** list of actions schedulers */

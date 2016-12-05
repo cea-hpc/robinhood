@@ -53,10 +53,12 @@ retry:
 
         case SCHED_DELAY:
             /* Wait a while before submitting any new entry */
-            /* TODO This must be configurable. Globally or per scheduler? */
-            DisplayLog(LVL_DEBUG, __func__,
-                       "Waiting before submitting new entries");
-            rh_usleep(100000); /* 100ms */
+            if (sched_res->run_cfg->reschedule_delay_ms > 0) {
+                DisplayLog(LVL_DEBUG, __func__,
+                           "Waiting %u ms before submitting new entries",
+                           sched_res->run_cfg->reschedule_delay_ms);
+                rh_usleep(1000 * sched_res->run_cfg->reschedule_delay_ms);
+            }
             goto retry;
 
         case SCHED_SKIP_ENTRY:
@@ -101,7 +103,7 @@ retry:
  */
 int sched_init(struct sched_res_t *sched_res,
                const action_scheduler_t *sched_desc,
-               void *sched_cfg)
+               void *sched_cfg, policy_run_config_t *run_cfg)
 {
     int rc;
 
@@ -111,6 +113,7 @@ int sched_init(struct sched_res_t *sched_res,
     sched_res->sched_desc = sched_desc;
     sched_res->sched_data = NULL;
     sched_res->terminate = false;
+    sched_res->run_cfg = run_cfg;
 
     /* initialize the scheduler */
     if (sched_desc->sched_init_func != NULL) {
