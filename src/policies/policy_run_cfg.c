@@ -69,6 +69,12 @@ static int polrun_set_default(const policy_descr_t *pol,
     cfg->recheck_ignored_entries = false;
     cfg->report_actions = true;
 
+    cfg->reschedule_delay_ms = 100; /* 100 ms */
+
+    cfg->sched_count = 0;
+    cfg->schedulers = NULL;
+    cfg->sched_cfg = NULL;
+
     return 0;
 }
 
@@ -105,6 +111,7 @@ static void policy_run_cfg_write_default(FILE *output)
     print_begin_block(output, 0, "<policy>" PARAM_SUFFIX, NULL);
     print_line(output, 1,
                "lru_sort_attr           : default_lru_sort_attr (from 'define_policy' block)");
+    print_line(output, 1, "schedulers              : none");
     print_line(output, 1, "max_action_count        : 0 (unlimited)");
     print_line(output, 1, "max_action_volume       : 0 (unlimited)");
     print_line(output, 1, "suspend_error_pct       : disabled (0)");
@@ -116,6 +123,7 @@ static void policy_run_cfg_write_default(FILE *output)
     print_line(output, 1, "recheck_ignored_entries : no");
     print_line(output, 1, "report_actions          : yes");
     print_line(output, 1, "nb_threads              : 4");
+    print_line(output, 1, "reschedule_delay_ms     : 100");
     print_line(output, 1, "queue_size              : 4096");
     print_line(output, 1, "db_result_size_max      : 100000");
     print_line(output, 1, "pre_maintenance_window  : 0 (disabled)");
@@ -171,6 +179,9 @@ static void policy_run_cfg_write_template(FILE *output)
     print_line(output, 1, "# 0 to disable this feature");
     print_line(output, 1, "#pre_maintenance_window = 24h;");
     print_line(output, 1, "#maint_min_apply_delay = 30min;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# delay for rescheduling a delayed entry");
+    print_line(output, 1, "#reschedule_delay_ms = 100;");
     fprintf(output, "\n");
     print_line(output, 1, "# internal/tuning parameters");
     print_line(output, 1, "#queue_size = 4096;");
@@ -648,7 +659,7 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
         "recheck_ignored_entries", "report_actions",
         "pre_maintenance_window", "maint_min_apply_delay", "queue_size",
         "db_result_size_max", "action_params", "action", SCHED_PARAM_NAME,
-        "recheck_ignored_classes",  /* for compat */
+        "reschedule_delay_ms", "recheck_ignored_classes",  /* for compat */
         NULL
     };
 
@@ -683,6 +694,8 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
          &conf->queue_size, 0},
         {"db_result_size_max", PT_INT, PFLG_POSITIVE,
          &conf->db_request_limit, 0},
+        {"reschedule_delay_ms", PT_INT, PFLG_POSITIVE,
+         &conf->reschedule_delay_ms, 0},
 
         {NULL, 0, 0, NULL, 0}
     };

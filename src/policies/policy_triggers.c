@@ -1821,7 +1821,7 @@ int policy_module_start(policy_info_t *policy, /* out */
         DisplayLog(LVL_DEBUG, tag(policy), "Initializing scheduler '%s'",
                    sched_name);
         rc = sched_init(&policy->sched_res[i], p_config->schedulers[i],
-                        p_config->sched_cfg[i]);
+                        p_config->sched_cfg[i], p_config);
         if (rc) {
             DisplayLog(LVL_CRIT, tag(policy),
                        "Failed to initialize scheduler '%s'", sched_name);

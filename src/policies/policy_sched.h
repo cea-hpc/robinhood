@@ -30,6 +30,8 @@ struct sched_res_t {
     void        *sched_data;
     /** termination state */
     bool         terminate;
+    /** pointer to policy run configuration */
+    policy_run_config_t *run_cfg;
 };
 
 /**
@@ -37,7 +39,7 @@ struct sched_res_t {
  */
 int sched_init(struct sched_res_t *sched_res,
                const action_scheduler_t *sched_desc,
-               void *sched_cfg);
+               void *sched_cfg, policy_run_config_t *run_cfg);
 
 /** Reinitialize scheduling for a new policy run */
 int sched_reinit(struct sched_res_t *sched_res);
