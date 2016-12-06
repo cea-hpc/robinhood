@@ -3922,6 +3922,81 @@ function test_limits
     # policy rules specifies last_mod >= 1
     sleep 1
 
+    # we should get 5 actions / 5MB in all cases
+    $RH -f $RBH_CFG_DIR/$config_file $run_opt -l DEBUG -L rh_migr.log || \
+        error "starting run"
+
+    [ "$DEBUG" = "1" ] && grep "run summary" rh_migr.log
+
+    c=$(grep "run summary" rh_migr.log | cut -d ";" -f 3 | awk '{print $1}')
+
+    (( c == 5 )) || error "5 actions expected (got $c)"
+}
+
+# test limits using max_per_run scheduler
+function test_sched_limits
+{
+    config_file=$1
+    flavor=$2
+
+    if (( $is_lhsm + $is_hsmlite == 0 )); then
+        echo "HSM test only: skipped"
+        set_skipped
+        return 1
+    fi
+
+    clean_logs
+
+    # create test files (2 for each rule)
+    for i in 1 2 3 4 5 11 12 13 14 15 ; do
+        # 1MB each
+        dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=1 2>/dev/null
+    done
+
+    # 0 for no limit
+    export trig_cnt=0
+    export trig_vol=0
+    export param_cnt=0
+    export param_vol=0
+    export sched_max_cnt=0;
+    export sched_max_vol=0;
+
+    case "$flavor" in
+    sched_max_cnt)
+        run_opt="--run=migration --once"
+        export trig_vol="7MB"
+        export param_vol="6MB"
+        export sched_max_cnt="5";
+        ;;
+    sched_max_vol)
+        run_opt="--run=migration(all,max-count=6)"
+        export trig_vol="7MB"
+        export sched_max_vol="5MB";
+        ;;
+    trigger)
+        run_opt="--run=migration --once"
+        export trig_vol="5MB"
+        export param_vol="6MB"
+        export sched_max_cnt=7
+        ;;
+    param)
+        run_opt="--run=migration(all,max-vol=7MB)"
+        export param_cnt="5"
+        export sched_max_vol="6MB";
+        ;;
+    cmd)
+        run_opt="--run=migration(all,max-vol=5MB)"
+        export param_cnt=7
+        export sched_max_cnt=6
+    esac
+
+    # initial scan
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log ||
+        error "scan error"
+    check_db_error rh_scan.log
+
+    # policy rules specifies last_mod >= 1
+    sleep 1
 
     # we should get 5 actions / 5MB in all cases
     $RH -f $RBH_CFG_DIR/$config_file $run_opt -l DEBUG -L rh_migr.log || \
@@ -11697,6 +11772,12 @@ run_test 229h  test_limits test_limits.conf trig_run "test limit on both trigger
 run_test 229i  test_limits test_limits.conf param_run "test limit on both param and run"
 run_test 230   test_checker test_checker.conf "policies based on 'checker' module"
 run_test 231   test_action_check OtherParameters_4.conf "check status of current actions"
+run_test 232a  test_sched_limits test_sched1.conf sched_max_cnt "check max count enforced by scheduler"
+run_test 232b  test_sched_limits test_sched1.conf sched_max_vol "check max vol enforced by scheduler"
+run_test 232c  test_sched_limits test_sched1.conf trigger "check trigger vs. max_per_run scheduler"
+run_test 232d  test_sched_limits test_sched1.conf param "check policy parameter vs. max_per_run scheduler"
+run_test 232e  test_sched_limits test_sched1.conf cmd "check cmd line vs. max_per_run scheduler"
+
 
 #### triggers ####
 
