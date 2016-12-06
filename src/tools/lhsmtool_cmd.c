@@ -53,6 +53,7 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
+#include <ctype.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
@@ -156,6 +157,7 @@ static GAsyncQueue	*mqueue;
 static bool		 stop;
 static GRegex		*fd_regex;
 static GRegex		*fid_regex;
+static GRegex		*ctdata_regex;
 
 
 static inline double ct_now(void)
@@ -354,37 +356,72 @@ static int ct_fini(struct hsm_copyaction_private **phcp,
 	return rc;
 }
 
-static int ct_build_cmd(const enum hsm_copytool_action hsma, char *cmd,
-			size_t cmdlen, const struct hsm_action_item *hai,
-			int fd)
+static bool hai_data_expandable(const struct hsm_action_item *hai)
+{
+	size_t	datalen = hai->hai_len - sizeof(*hai);
+	int	i;
+
+	for (i = 0; i < datalen; i++)
+		if (!isprint(hai->hai_data[i]))
+			return false;
+
+	return true;
+}
+
+static int ct_build_cmd(const enum hsm_copytool_action hsma, gchar **cmd,
+			const struct hsm_action_item *hai, int fd)
 {
 	const char	*cmd_format = ct_commands[hsma];
-	gchar		*res_cmd_fd;
-	gchar		*res_cmd_fid;
-	gchar		*fdstr;
-	char		 fidstr[128];
+	gchar		*res_cmd_fd = NULL;
+	gchar		*res_cmd_fid = NULL;
+	char		 tmpstr[128];
+	GError          *err = NULL;
+	int              rc = 0;
 
 	if (cmd_format == NULL)
 		return -ENOSYS;
 
 	/* replace all {fd} placeholders by fd number */
-	fdstr = g_strdup_printf("%i", fd);
-	res_cmd_fd = g_regex_replace_literal(fd_regex, cmd_format, -1, 0, fdstr,
-					     0, NULL);
+	snprintf(tmpstr, sizeof(tmpstr), "%d", fd);
+	res_cmd_fd = g_regex_replace_literal(fd_regex, cmd_format, -1, 0,
+					     tmpstr, 0, &err);
+	if (err != NULL) {
+	    rc = -EINVAL;
+	    LOG_ERROR(rc, "Cannot apply FD regex: %s", err->message);
+	    goto out_err;
+        }
 
 	/* replace all {fid} placeholders by lustre fid */
-	snprintf(fidstr, sizeof(fidstr), DFID, PFID(&hai->hai_dfid));
+	snprintf(tmpstr, sizeof(tmpstr), DFID, PFID(&hai->hai_dfid));
+
 	res_cmd_fid = g_regex_replace_literal(fid_regex, res_cmd_fd, -1, 0,
-					      fidstr,
-					      0, NULL);
+					      tmpstr, 0, &err);
+	if (err != NULL) {
+	    rc = -EINVAL;
+	    LOG_ERROR(rc, "Cannot apply FID regex: %s", err->message);
+	    goto out_err;
+        }
 
-	strncpy(cmd, res_cmd_fid, cmdlen - 1);
-	cmd[cmdlen - 1] = '\0';
+	/* replace all {ctdata} placeholders by received data blob */
+	if (hai_data_expandable(hai))
+		*cmd = g_regex_replace_literal(ctdata_regex, res_cmd_fid, -1, 0,
+					       hai->hai_data, 0, &err);
+	else
+		*cmd = g_regex_replace_literal(ctdata_regex, res_cmd_fid, -1, 0,
+					       "", 0, &err);
+	if (err != NULL) {
+	    rc = -EINVAL;
+	    LOG_ERROR(rc, "Cannot apply data regex: %s", err->message);
+	    goto out_err;
+        }
 
-	g_free(res_cmd_fd);
+out_err:
+        if (err != NULL)
+            g_error_free(err);
+
 	g_free(res_cmd_fid);
-	g_free(fdstr);
-	return 0;
+	g_free(res_cmd_fd);
+	return rc;
 }
 
 
@@ -503,7 +540,7 @@ static int ct_hsm_io_cmd(const enum hsm_copytool_action hsma, GMainLoop *loop,
 	gchar			**av = NULL;
 	const char		 *hsma_name = hsm_copytool_action2name(hsma);
 	bool			  ok;
-	char			  cmd[PATH_MAX] = "(undef)";
+	gchar			 *cmd = NULL;
 	int			  mdt_idx = -1;
 	int			  rc;
 
@@ -550,7 +587,7 @@ static int ct_hsm_io_cmd(const enum hsm_copytool_action hsma, GMainLoop *loop,
 	cb_args->hai = hai;
 	cb_args->fd = llapi_hsm_action_get_fd(cb_args->hcp);
 
-	rc = ct_build_cmd(hsma, cmd, sizeof(cmd), hai, cb_args->fd);
+	rc = ct_build_cmd(hsma, &cmd, hai, cb_args->fd);
 	LOG_DEBUG("Running %s command: '%s'", hsma_name, cmd);
 	if (opt.o_dry_run || rc == -ENOSYS) {
 		err_major++;
@@ -565,7 +602,7 @@ static int ct_hsm_io_cmd(const enum hsm_copytool_action hsma, GMainLoop *loop,
 		goto out;
 	}
 
-	ok = g_spawn_async(NULL,                /* working directory */
+	ok = g_spawn_async(NULL,		/* working directory */
 			   av,			/* parsed command line */
 			   NULL,		/* environment vars */
 			   CMD_EXEC_FLAGS,	/* execution flags */
@@ -597,6 +634,7 @@ static int ct_hsm_io_cmd(const enum hsm_copytool_action hsma, GMainLoop *loop,
 	g_source_destroy(timer_gsrc);
 
 out:
+	g_free(cmd);
 	g_strfreev(av);
 
 	/* Obscure voodoo forces are summoned in this function in the
@@ -887,6 +925,7 @@ static int ct_setup(void)
 	/* Initialize regular expression patterns for argument substitution */
 	fd_regex  = g_regex_new("{fd}", G_REGEX_OPTIMIZE, 0, NULL);
 	fid_regex = g_regex_new("{fid}", G_REGEX_OPTIMIZE, 0, NULL);
+	ctdata_regex = g_regex_new("{ctdata}", G_REGEX_OPTIMIZE, 0, NULL);
 
 	g_thread_init(NULL);
 
@@ -916,8 +955,9 @@ static int ct_cleanup(void)
 	if (mqueue != NULL)
 		g_async_queue_unref(mqueue);
 
-	g_regex_unref(fd_regex);
+	g_regex_unref(ctdata_regex);
 	g_regex_unref(fid_regex);
+	g_regex_unref(fd_regex);
 
 	g_free(ct_commands[HSMA_ARCHIVE]);
 	g_free(ct_commands[HSMA_RESTORE]);
