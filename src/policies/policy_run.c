@@ -1011,16 +1011,20 @@ static attr_mask_t db_attr_mask(policy_info_t *policy,
     /* needed for posix operations, and for display */
     mask.std |= ATTR_MASK_fullpath;
 
-    /* needed if update params != never */
-    if (updt_params.md.when != UPDT_NEVER &&
-        updt_params.md.when != UPDT_ALWAYS)
-        mask.std |= ATTR_MASK_md_update;
+    /* md_update and path_update are not present in SOFT_RM table */
+    if (!policy->descr->manage_deleted) {
+        /* needed if update params != never */
+        if (updt_params.md.when != UPDT_NEVER &&
+            updt_params.md.when != UPDT_ALWAYS)
+            mask.std |= ATTR_MASK_md_update;
 
 #ifdef _HAVE_FID
-    if (updt_params.path.when != UPDT_NEVER &&
-        updt_params.path.when != UPDT_ALWAYS)
-        mask.std |= ATTR_MASK_path_update;
+        if (updt_params.path.when != UPDT_NEVER &&
+            updt_params.path.when != UPDT_ALWAYS)
+            mask.std |= ATTR_MASK_path_update;
 #endif
+    }
+
     /* needed to check the entry order didn't change */
     if (policy->config->lru_sort_attr != LRU_ATTR_NONE)
         attr_mask_set_index(&mask, policy->config->lru_sort_attr);
@@ -1418,8 +1422,11 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
         } else if (rc == DB_END_OF_LIST) {
             *db_total_list_count += *db_current_list_count;
 
-            /* if limit = inifinite => END OF LIST */
-            if ((*db_current_list_count == 0)
+            if (/* no entries returned => END OF LIST */
+                (*db_current_list_count == 0)
+                /* if limit = inifinite => END OF LIST */
+                || (req_opt->list_count_max == 0)
+                /* if returned count < limit => END OF LIST */
                 || ((req_opt->list_count_max > 0) &&
                     (*db_current_list_count < req_opt->list_count_max))) {
                 DisplayLog(LVL_FULL, tag(pol), "End of list "
@@ -1453,15 +1460,18 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
              * only replace it, do not add a new filter.
              */
 
-            /* don't retrieve just-updated entries
-             * (update>=first_request_time) */
-            fval.value.val_int = pol->progress.policy_start;
-            rc = lmgr_simple_filter_add_or_replace(filter,
-                                                   ATTR_INDEX_md_update,
-                                                   LESSTHAN_STRICT, fval,
-                                                   FILTER_FLAG_ALLOW_NULL);
-            if (rc)
-                return PASS_ERROR;
+            /* no md_update filed in SOFT_RM */
+            if (!pol->descr->manage_deleted) {
+                /* don't retrieve just-updated entries
+                 * (update>=first_request_time) */
+                fval.value.val_int = pol->progress.policy_start;
+                rc = lmgr_simple_filter_add_or_replace(filter,
+                                                       ATTR_INDEX_md_update,
+                                                       LESSTHAN_STRICT, fval,
+                                                       FILTER_FLAG_ALLOW_NULL);
+                if (rc)
+                    return PASS_ERROR;
+            }
 
             /* filter on <sort_time> */
             if (pol->config->lru_sort_attr != LRU_ATTR_NONE) {
@@ -1703,7 +1713,9 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
 
     /* Do not retrieve all entries at once, as the result may exceed
      * the client memory! */
-    opt.list_count_max = p_pol_info->config->db_request_limit;
+    /* Except for SOFT_RM: we can't split the result as it has no md_update field. */
+    if (!p_pol_info->descr->manage_deleted)
+        opt.list_count_max = p_pol_info->config->db_request_limit;
     nb_returned = 0;
     total_returned = 0;
 
@@ -2176,6 +2188,8 @@ static void action_fini(int action_rc, lmgr_t *lmgr,
                         entry_context_t *ectx)
 {
     policy_info_t *pol = ectx->policy;
+    bool lastrm;
+    int  rc;
 
     if (action_rc != 0) {
         const char *err_str;
@@ -2194,58 +2208,56 @@ static void action_fini(int action_rc, lmgr_t *lmgr,
 
         policy_ack(&pol->queue, AS_ERROR, &ectx->item->entry_attr,
                    ectx->item->targeted);
-    } else {
-        bool lastrm;
-        int  rc;
+        goto out_free;
+    }
 
-        log_action_success(pol, &ectx->prev_attrs, ectx->rule, ectx->fileset,
-                           ectx->time_save);
+    log_action_success(pol, &ectx->prev_attrs, ectx->rule, ectx->fileset,
+                       ectx->time_save);
 
-        if (pol->descr->manage_deleted && (ectx->after_action == PA_RM_ONE
-                                           || ectx->after_action == PA_RM_ALL)) {
+    if (pol->descr->manage_deleted) {
+        if  (ectx->after_action == PA_RM_ONE
+             || ectx->after_action == PA_RM_ALL) {
             rc = ListMgr_SoftRemove_Discard(lmgr, &ectx->item->entry_id);
             if (rc)
                 DisplayLog(LVL_CRIT, tag(pol),
                            "Error %d removing entry from database.", rc);
-        } else {
+        } /* else: ignore other actions about removed entries */
+    } else {
+        switch (ectx->after_action) {
+        case PA_NONE:
+            break;
+        case PA_UPDATE:
+            update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
+            break;
 
-            switch (ectx->after_action) {
-            case PA_NONE:
-                break;
-            case PA_UPDATE:
-                if (!pol->descr->manage_deleted)
-                    update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
-                break;
+        case PA_RM_ONE:
+            lastrm = ATTR_MASK_TEST(&ectx->prev_attrs, nlink) ?
+                     (ATTR(&ectx->prev_attrs, nlink) <= 1) : 0;
 
-            case PA_RM_ONE:
-                lastrm = ATTR_MASK_TEST(&ectx->prev_attrs, nlink) ?
-                         (ATTR(&ectx->prev_attrs, nlink) <= 1) : 0;
+            rc = ListMgr_Remove(lmgr, &ectx->item->entry_id,
+                /* must be based on the DB content = old attrs */
+                                &ectx->item->entry_attr, lastrm);
+            if (rc)
+                DisplayLog(LVL_CRIT, tag(pol),
+                           "Error %d removing entry from database.", rc);
+            break;
 
-                rc = ListMgr_Remove(lmgr, &ectx->item->entry_id,
-                    /* must be based on the DB content = old attrs */
-                                    &ectx->item->entry_attr, lastrm);
-                if (rc)
-                    DisplayLog(LVL_CRIT, tag(pol),
-                               "Error %d removing entry from database.", rc);
-                break;
-
-            case PA_RM_ALL:
-                rc = ListMgr_Remove(lmgr, &ectx->item->entry_id,
-                     /* must be based on the DB content = old attrs */
-                                    &ectx->item->entry_attr, 1);
-                if (rc)
-                    DisplayLog(LVL_CRIT, tag(pol),
-                               "Error %d removing entry from database.", rc);
-                break;
-            }
-
+        case PA_RM_ALL:
+            rc = ListMgr_Remove(lmgr, &ectx->item->entry_id,
+                 /* must be based on the DB content = old attrs */
+                                &ectx->item->entry_attr, 1);
+            if (rc)
+                DisplayLog(LVL_CRIT, tag(pol),
+                           "Error %d removing entry from database.", rc);
+            break;
         }
-
-        /* TODO update targeted info */
-        policy_ack(&pol->queue, AS_OK, &ectx->fresh_attrs,
-                   ectx->item->targeted);
     }
 
+    /* TODO update targeted info */
+    policy_ack(&pol->queue, AS_OK, &ectx->fresh_attrs,
+               ectx->item->targeted);
+
+out_free:
     free_entry_context(ectx);
 }
 

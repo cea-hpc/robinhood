@@ -1347,6 +1347,8 @@ function link_unlink_remove_test
 		echo "OK: $nb_rm files removed from archive"
 	fi
 
+    grep "Performing new request with a limit" rh_rm.log && error "No request splitting is expected for SOFT_RM table"
+
 	# kill event handler
 	pkill -9 $PROC
 
@@ -1463,6 +1465,9 @@ function test_hsm_remove
     else
         echo "OK: $nb_rm files removed from archive"
     fi
+
+    grep "Performing new request with a limit" rh_rm.log && error "No request splitting is expected for SOFT_RM table"
+
 }
 
 # test that hsm_remove requests are sent to the right archive
@@ -1580,13 +1585,14 @@ function test_lhsm_remove
         fi
     done
 
-
     nb_rm=`grep "$HSMRM_STR" rh_rm.log | wc -l`
     if (($nb_rm != $nb_archive + 3)); then
         error "********** TEST FAILED: $nb_archive + 3 removals expected, $nb_rm done"
     else
         echo "OK: $nb_rm files removed from archive"
     fi
+
+    grep "Performing new request with a limit" rh_rm.log && error "No request splitting is expected for SOFT_RM table"
 }
 
 function populate
