@@ -391,25 +391,31 @@ static inline void set_max_time_attrs(policy_info_t *p, attr_set_t *p_attrs,
                                       time_t value)
 {
     switch (p->config->lru_sort_attr) {
-    case ATTR_INDEX_last_mod:
-        ATTR_MASK_SET(p_attrs, last_mod);
-        ATTR(p_attrs, last_mod) = value;
-        /* cr_time always <=  last_mod */
-        ATTR_MASK_SET(p_attrs, creation_time);
-        ATTR(p_attrs, creation_time) = value;
-        break;
+
+    case ATTR_INDEX_rm_time:
+        ATTR_MASK_SET(p_attrs, rm_time);
+        ATTR(p_attrs, rm_time) = value;
+
+        /* all times <= rm_time
+         * so, rm_time > x ago => last_access > x ago etc... */
+
+        /* /!\ fall through */
 
     case ATTR_INDEX_last_access:
         ATTR_MASK_SET(p_attrs, last_access);
         ATTR(p_attrs, last_access) = value;
         /* in robinhood, lastmod <= last_access as
          * last_access=MAX(atime,mtime) */
+
+        /* /!\ fall through */
+
+    case ATTR_INDEX_last_mod:
         ATTR_MASK_SET(p_attrs, last_mod);
         ATTR(p_attrs, last_mod) = value;
+
         /* cr_time always <= last_mod */
-        ATTR_MASK_SET(p_attrs, creation_time);
-        ATTR(p_attrs, creation_time) = value;
-        break;
+
+        /* /!\ fall through */
 
     case ATTR_INDEX_creation_time:
         ATTR_MASK_SET(p_attrs, creation_time);
