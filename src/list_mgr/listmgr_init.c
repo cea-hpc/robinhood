@@ -1404,6 +1404,8 @@ static struct name_compat main_name_compat[] = {
 /* Lustre/HSM fields */
     {"no_release",   "lhsm_norels"},
     {"no_archive",   "lhsm_noarch"},
+/* Soft-rm specific fields */
+    {"soft_rm_time", "rm_time"},
 
     {NULL,      NULL},
 };
