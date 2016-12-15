@@ -24,7 +24,7 @@ $DB_PASSWD   = "";
 
 $DB_LASTERROR = "";
 try {
-    $db = new PDO("$DB_TYPE:$DB_HOST;dbname=$DB_NAME", $DB_USER, $DB_PASSWD);
+    $db = new PDO("$DB_TYPE:host=$DB_HOST;dbname=$DB_NAME", $DB_USER, $DB_PASSWD);
     $db->exec("USE $DB_NAME;");
 } catch(Exception $e) {
     $DB_LASTERROR = $e->getMessage();
