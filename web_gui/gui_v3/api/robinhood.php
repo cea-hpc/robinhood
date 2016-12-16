@@ -61,13 +61,19 @@ class MyAPI extends API
 
                 if ($this->method == 'GET') {
 
-                        if (!check_access("native"))
-                                return "Permission denied";
+
 
                         $content_requested = $this->verb;
 
                         switch ($content_requested) {
                         case 'vars':
+                        	$self='$SELF';
+	                        if (!check_access("native_vars")) {
+        	                        $self = check_self_access("native_vars");
+                	                if (!$self)
+                        	            return "Permission denied";
+	                        }
+
                                 $req = $db->prepare("SELECT * from VARS;");
                                 $req->execute();
                                 $data = array();
@@ -76,7 +82,13 @@ class MyAPI extends API
                                 }
                                 break;
                         case 'acct':
-                                $fullfilter = build_advanced_filter($this->args);
+                        	$self='$SELF';
+	                        if (!check_access("native_acct")) {
+        	                        $self = check_self_access("native_acct");
+                	                if (!$self)
+                        	            return "Permission denied";
+	                        }
+                                $fullfilter = build_advanced_filter($this->args, $self);
                                 $req = $db->prepare($fullfilter[0]);
                                 $req->execute($fullfilter[1]);
                                 $data = $req->fetchall(PDO::FETCH_ASSOC);
@@ -98,9 +110,12 @@ class MyAPI extends API
                 global $db;
 
                 if ($this->method == 'GET') {
-
-                        if (!check_access("graphs"))
-                                return "Permission denied";
+                        $self='$SELF';
+                        if (!check_access("graphs")) {
+                                $self = check_self_access("graphs");
+                                if (!$self)
+                                    return "Permission denied";
+                        }
 
                         $content_requested = $this->verb;
                         $data = array();
@@ -112,7 +127,7 @@ class MyAPI extends API
                         switch ($content_requested) {
                         case 'uid':
                         case 'gid':
-                                $fullfilter = build_filter($this->args, array('uid'=>'uid', 'gid'=>'gid'));
+                                $fullfilter = build_filter($this->args, array('uid'=>'uid', 'gid'=>'gid'), $self);
                                 $sqlfilter=$fullfilter[0];
                                 $req = $db->prepare("SELECT $content_requested, SUM(size) AS ssize, SUM(count) AS scount FROM ACCT_STAT $sqlfilter GROUP BY $content_requested");
                                 $req->execute($fullfilter[1]);
@@ -134,7 +149,7 @@ class MyAPI extends API
                                 break;
 
                         case 'Sizes':
-                                $fullfilter = build_filter($this->args, array('uid'=>'uid', 'gid'=>'gid'));
+                                $fullfilter = build_filter($this->args, array('uid'=>'uid', 'gid'=>'gid'), $self);
                                 $sqlfilter=$fullfilter[0];
                                 $ssize = array("sz0","sz1","sz32","sz1K","sz32K","sz1M","sz32M","sz1G","sz32G","sz1T");
                                 $select_str = "SUM(sz0) AS ssz0";
@@ -162,7 +177,7 @@ class MyAPI extends API
 
                         case 'Files':
                                 global $MAX_ROWS;
-                                $fullfilter = build_filter($this->args, array('filename'=>'name', 'uid'=>'uid', 'gid'=>'gid'));
+                                $fullfilter = build_filter($this->args, array('filename'=>'name', 'uid'=>'uid', 'gid'=>'gid'), $self);
                                 $sqlfilter=$fullfilter[0];
                                 $req = $db->prepare("SELECT uid, gid, size, blocks, name, creation_time, last_access, last_mod FROM NAMES INNER JOIN ENTRIES ON ENTRIES.id = NAMES.id $sqlfilter LIMIT $MAX_ROWS");
                                 $req->execute($fullfilter[1]);
@@ -187,7 +202,7 @@ class MyAPI extends API
 
 
                         default:
-                                $fullfilter = build_filter($this->args, array('filename'=>'name', 'uid'=>'uid', 'gid'=>'gid'));
+                                $fullfilter = build_filter($this->args, array('filename'=>'name', 'uid'=>'uid', 'gid'=>'gid'), $self);
                                 $sqlfilter=$fullfilter[0];
 
                                 if (endsWith($content_requested,"_status")) {
@@ -233,8 +248,12 @@ class MyAPI extends API
                 if ($this->method == 'GET') {
                         global $db;
 
-                        if (!check_access("datatables"))
-                                return "Permission denied";
+                        $self='$SELF';
+                        if (!check_access("datatables")) {
+                                $self = check_self_access("datatables");
+                                if (!$self)
+                                    return "Permission denied";
+                        }
 
                         $content_requested = $this->verb;
                         $data = array();
@@ -244,7 +263,7 @@ class MyAPI extends API
                         switch ($content_requested) {
                         case 'uid':
                         case 'gid':
-                                $fullfilter = build_filter($this->args, array('uid'=>'uid', 'gid'=>'gid'));
+                                $fullfilter = build_filter($this->args, array('uid'=>'uid', 'gid'=>'gid'), $self);
                                 $sqlfilter=$fullfilter[0];
 
                                 $columns[] = array('title' => $content_requested);
@@ -259,7 +278,7 @@ class MyAPI extends API
                                 break;
 
                         case 'Sizes':
-                                $fullfilter = build_filter($this->args, array('uid'=>'uid', 'gid'=>'gid'));
+                                $fullfilter = build_filter($this->args, array('uid'=>'uid', 'gid'=>'gid'), $self);
                                 $sqlfilter=$fullfilter[0];
 
                                 $columns[] = array('title' => 'Owner');
@@ -283,7 +302,7 @@ class MyAPI extends API
 
                         case 'Files':
                                 global $MAX_ROWS;
-                                $fullfilter = build_filter($this->args, array('filename'=>'name', 'uid'=>'uid', 'gid'=>'gid'));
+                                $fullfilter = build_filter($this->args, array('filename'=>'name', 'uid'=>'uid', 'gid'=>'gid'), $self);
                                 $sqlfilter=$fullfilter[0];
                                 $req = $db->prepare("SELECT uid, gid, size, blocks, name, from_unixtime(creation_time) AS creation_time".
                                                     ", from_unixtime(last_access) AS last_access, from_unixtime(last_mod) AS last_mod".
@@ -309,7 +328,7 @@ class MyAPI extends API
 
                         default:
                                 if (endsWith($content_requested,"_status")) {
-                                        $fullfilter = build_filter($this->args, array('filename'=>'name', 'uid'=>'uid', 'gid'=>'gid'));
+                                        $fullfilter = build_filter($this->args, array('filename'=>'name', 'uid'=>'uid', 'gid'=>'gid'), $self);
                                         $sqlfilter=$fullfilter[0];
 
                                         $columns[] = array('title' => 'Status');

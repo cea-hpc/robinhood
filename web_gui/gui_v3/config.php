@@ -39,6 +39,8 @@ $ACCESS_LIST['webgui'] = array();
 $ACCESS_LIST['api-ro'] = array();
 $ACCESS_LIST['datatables'] = array();
 $ACCESS_LIST['graphs'] = array();
+$ACCESS_LIST['native_vars'] = array();
+$ACCESS_LIST['native_accts'] = array();
 
 #Web GUI with graphs and lists
 $ACCESS_LIST['webgui'][] = '*';
@@ -49,7 +51,8 @@ $ACCESS_LIST['datatables'][] = '*';
 #Graphs
 $ACCESS_LIST['graphs'][] = '*';
 #Native (raw data)
-$ACCESS_LIST['native'][] = '*';
+$ACCESS_LIST['native_vars'][] = '*';
+$ACCESS_LIST['native_accts'][] = '*';
 /*****************************
 *        General parameters  *
 *****************************/

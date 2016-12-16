@@ -127,9 +127,30 @@ $(function() {
                 $('#main_title').append(": "+data.FS_Path);
                 document.title = document.title + ": "+data.FS_Path;
         });
+        $.ajax({
+                url: "api/index.php?request=current_auth"
+        }).then(function(data) {
+		if (data!='$NOAUTH') {
+	                $('#loggedas').html("Logged as "+data);
+		} else {
+			$('#loggedas').html("Logged as Nobody");
+		}
+        });
+
 
 
 });
+
+
+
+/****************************************
+ * Logout from apache auth
+ **************************************/
+function logout() {
+    var out = window.location.href.replace(/:\/\//, '://log:out@');
+
+    jQuery.get(out);
+}
 
 /****************************************
  * Async. function which request graph
@@ -158,6 +179,7 @@ function GetGraph(item){
 
                 var options = {
                         responsive : true,
+                        maintainAspectRatio: false,
                 animation : false,
                 showAllTooltips: true,
                 defaultFontSize: 14,

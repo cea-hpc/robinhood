@@ -59,6 +59,7 @@ include "common.php";
         </div>
         <div id="navbar" class="navbar-collapse collapse">
           <ul class="nav navbar-nav navbar-right">
+        <li><a id="loggedas" onclick="logout()"  href=""></a></li>
             <li><a href="https://github.com/cea-hpc/robinhood/wiki/Documentation">Help</a></li>
           </ul>
     <i><p id="quote" class="navbar-text"></p></i>
@@ -73,7 +74,8 @@ include "common.php";
      <div class="nav nav-sidebar">
       <a class="navbar-brand" href="http://robinhood.sf.net"><img src="images/logo_rh_sf.gif" ></a>
       <a class="navbar-brand" href="http://www-hpc.cea.fr/index-en.htm"><img src="images/logoCEA20.jpg" height="64"></a>
-    </div><br><br>
+    </div>
+<br><br>
           <ul class="nav nav-sidebar">
 <?php
 
@@ -97,32 +99,29 @@ echo '<li><a href="#"  onclick="GetGraph(\'Files\')">Files</a></li>';
 ?>
 
     <form id="filterform" name="filterform">
-    <fieldset class="form-group">
-    <label for="formUID">Filter</label>
-    <input type="text" class="form-control" id="formUID" name="uid" placeholder="UID">
-    </fieldset>
-    <fieldset class="form-group">
-    <input type="text" class="form-control" id="formGID" name="gid" placeholder="GID">
-    </fieldset>
-    <fieldset class="form-group">
-    <input type="text" class="form-control" id="formFilename" name="filename" placeholder="Filename">
-    </fieldset>
-    <button type="button" class="btn btn-primary" onclick="GetGraph(lastGet)">Filter</button>
-    <button type="button" class="btn btn-primary" onclick="CleanForm();GetGraph(lastGet)">Clean</button>
+            <fieldset class="form-group">
+                <label for="formUID">Filter</label>
+                <input type="text" class="form-control" id="formUID" name="uid" placeholder="UID">
+            </fieldset>
+            <fieldset class="form-group">
+                <input type="text" class="form-control" id="formGID" name="gid" placeholder="GID">
+            </fieldset>
+            <fieldset class="form-group">
+                <input type="text" class="form-control" id="formFilename" name="filename" placeholder="Filename">
+            </fieldset>
+            <button type="button" class="btn btn-primary" onclick="GetGraph(lastGet)">Filter</button>
+            <button type="button" class="btn btn-primary" onclick="CleanForm();GetGraph(lastGet)">Clean</button>
     </form>
 
-        </div>
-        <div class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main">
-       <div id="messagebox"></div>
-        <canvas id="ctx"></canvas>
-        <table id="datalist" class="table table-striped table-bordered" width="100%"></table>
+</div>
 
-      </div>
-
-        </div>
-      </div>
-    </div>
-
+<div class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main"> <!-- Graph/Data Div-->
+    <div id="messagebox"></div> <!-- MessageBox Div-->
+    <canvas style="max-height:640px" id="ctx"></canvas> <!-- Canvas for Graph -->
+    <table id="datalist" class="table table-striped table-bordered" width="100%"></table> <!-- Datalist-->
+</div> <!-- Graph Div end-->
+</div>
+</div>
 
 
 <?php
