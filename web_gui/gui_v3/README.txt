@@ -1,4 +1,4 @@
-Robinhood new web interface
+Robinhood new web interface (gui_v3)
 
 I - License
 ===========
@@ -17,6 +17,7 @@ jquery: MIT
 Datatables.js: MIT
 graphjs: MIT
 bootstrap: MIT
+
 II - Installation
 =================
 
@@ -51,10 +52,24 @@ You need to authenticate the user with your web server (apache: basic auth, ...)
 Access list:
 In "config.php" add permission to $ACCESS_LIST array
 
-"*" is Everyone, "$AUTH" is Authenticated user and "username" match the authentified user username
+"*" is Everyone,
+"$AUTH" is Authenticated user only
+"username" Allow to give access to a specific person
+"$SELF" Allow user to access to his own data (match the remote username to uid)
+
 ex:
 $ACCESS_LIST['api-ro'][] = '*'; // Give every access to the api in read only
 $ACCESS_LIST['webgui'][] = 'marian'; // Give marian access to the webgui
+$ACCESS_LIST['graphs'][] = '$SELF'; // Allow all users to see their own data as graphs
+
+Example of permissions for a self service dashboard (with apache auth):
+$ACCESS_LIST['webgui'][] = '*';
+$ACCESS_LIST['api-ro'][] = '*';
+$ACCESS_LIST['datatables'][] = '$SELF';
+$ACCESS_LIST['graphs'][] = '$SELF';
+$ACCESS_LIST['native_vars'][] = '$AUTH';
+$ACCESS_LIST['native_accts'][] = '$SELF';
+
 
 Misc:
 MAX_ROWS: SQL max results

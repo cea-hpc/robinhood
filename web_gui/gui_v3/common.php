@@ -114,6 +114,29 @@ function check_access($part)
 
 /**
  *
+ * check user self access
+ *
+ * Allow user to access to his own data
+ *
+ * @param string $part Name of the access to be check
+ * @return bool
+ */
+function check_self_access($part)
+{
+        GLOBAl $ACCESS_LIST;
+        $user='';
+        if (isset($_SERVER['PHP_AUTH_USER'])) {
+                $user = $_SERVER['PHP_AUTH_USER'];
+        } else {
+                return False;
+        }
+        if (in_array('$SELF', $ACCESS_LIST[$part]))
+                return $user;
+        return False;
+}
+
+/**
+ *
  * generate HEX color
  *
  * @return string "#RRGGBB"
@@ -148,9 +171,22 @@ function get_filter_from_list($datalist, $term)
         return false;
 }
 
-function build_filter($args, $filter) {
+/**
+ *
+ * Build SQLRequest/Table from REST Args
+ *
+ * @param array $args REST args as key/val/key/val/... list
+ * @param self Filter to show only user data (for self service)
+ * @return array String,Array with sql request and array of filter
+ */
+function build_filter($args, $filter, $self='$SELF') {
         $sqlfilter = "";
         $values = array();
+
+        //Ensure uid if present for self usage
+        if ($self!='$SELF')
+                $filter['uid']='uid';
+
         foreach ($filter as $k => $v) {
                 if(get_filter_from_list($args,$k)) {
                         $val = get_filter_from_list($args,$k);
@@ -158,10 +194,16 @@ function build_filter($args, $filter) {
                                 $sqlfilter = $sqlfilter." AND ";
                         $sqlfilter = $sqlfilter."$v LIKE :k_$v ";
                         $values["k_$v"] = $val;
+                } elseif ($self!='$SELF' && $k=='uid') {
+                        if ($sqlfilter!="")
+                                $sqlfilter = $sqlfilter." AND ";
+                        $sqlfilter = $sqlfilter."$v LIKE :k_$v ";
+                        $values["k_$v"] = $self;
                 }
         }
         if ($sqlfilter != "")
                 $sqlfilter = " WHERE ".$sqlfilter;
+
         return array($sqlfilter, $values);
 }
 
@@ -172,7 +214,7 @@ function build_filter($args, $filter) {
  * @param array $args REST args (=>README.txt)
  * @return array String,Array with sql request and array of filter
  */
-function build_advanced_filter($args) {
+function build_advanced_filter($args, $self='$SELF') {
         global $db;
         global $DB_LASTERROR;
         global $DB_NAME;
@@ -240,6 +282,10 @@ function build_advanced_filter($args) {
                         }
                         $i++;
                 }
+
+                //Allow user to see only his own data
+                if ($self!='$SELF')
+                        $filter['uid'] = $self;
 
                 //build select
                 if (sizeof($group)!=0)

@@ -16,13 +16,12 @@ require_once("../common.php");
 if (!check_access("api-ro"))
         return "Permission denied";
 
-
-if (!array_key_exists('HTTP_ORIGIN', $_SERVER)) {
-        $_SERVER['HTTP_ORIGIN'] = $_SERVER['SERVER_NAME'];
+if (!array_key_exists('request', $_REQUEST)) {
+    $_REQUEST['request']="";
 }
 
 try {
-        $API = new MyAPI($_REQUEST['request'], $_SERVER['HTTP_ORIGIN']);
+        $API = new MyAPI($_REQUEST['request']);
         echo $API->processAPI();
 } catch (Exception $e) {
         echo json_encode(Array('error' => $e->getMessage()));
