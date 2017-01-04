@@ -1,0 +1,50 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "fabf19d9_cf3cec31",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 2
+      },
+      "lineNbr": 57,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-01-04T11:34:44Z",
+      "side": 1,
+      "message": "user",
+      "range": {
+        "startLine": 57,
+        "startChar": 46,
+        "endLine": 57,
+        "endChar": 52
+      },
+      "revId": "352a36a409fc93232e09a76fb7ab2c5c0070668d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fabf19d9_8f46f4bd",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 2
+      },
+      "lineNbr": 58,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-01-04T11:34:44Z",
+      "side": 1,
+      "message": "to access only his own information",
+      "range": {
+        "startLine": 58,
+        "startChar": 19,
+        "endLine": 58,
+        "endChar": 44
+      },
+      "revId": "352a36a409fc93232e09a76fb7ab2c5c0070668d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
