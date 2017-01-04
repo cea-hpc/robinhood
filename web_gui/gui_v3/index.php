@@ -70,8 +70,8 @@ include "common.php";
       <div  class="row">
         <div class="col-sm-3 col-md-2 sidebar">
      <div class="nav nav-sidebar">
+      <a class="navbar-brand" href="http://www.gsi.de"><img src="images/logo_gsigc.png" height="56"></a>
       <a class="navbar-brand" href="http://robinhood.sf.net"><img src="images/logo_rh_sf.gif" ></a>
-      <a class="navbar-brand" href="http://www-hpc.cea.fr/index-en.htm"><img src="images/logoCEA20.jpg" height="64"></a>
     </div><br><br>
           <ul class="nav nav-sidebar">
 <?php
