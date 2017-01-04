@@ -34,6 +34,7 @@ include "common.php";
 <script src="js/Chart.bundle.js"></script>
 <script src="js/jquery.dataTables.js"></script>
 <script src="js/filesize.dataTables.js"></script>
+<script src="customjs/param.php"></script>
 <script src="customjs/newgui.js"></script>
 
 </head>
