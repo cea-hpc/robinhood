@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 CEA/DAM
+ * Copyright (C) 2016-2017 CEA/DAM
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the CeCILL License.
@@ -19,8 +19,6 @@ var GraphCTX;
 var lastGet="empty";
 //Global Graph
 //Chart.defaults.global.responsive = true;
-Chart.defaults.global.title.display = true;
-Chart.defaults.global.defaultFontSize = 13;
 
 Chart.pluginService.register({
     beforeRender: function (chart) {
@@ -183,11 +181,10 @@ function GetGraph(item){
     }).then(function(data) {
 
         var options = {
-            responsive : true,
+            responsive : responsiveChart,
             maintainAspectRatio: false,
-            animation : false,
-            showAllTooltips: true,
-            defaultFontSize: 14,
+            animation : animationChart,
+            showAllTooltips: showAllTooltipsChart,
             tooltips: {
                 enabled: true,
                 mode: 'single',
@@ -249,7 +246,6 @@ function GetGraph(item){
                    columns: data.columns,
                    columnDefs: data.columnsDefs
         } );
-
     });
 
 

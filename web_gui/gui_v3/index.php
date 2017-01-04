@@ -34,6 +34,7 @@ include "common.php";
 <script src="js/Chart.bundle.js"></script>
 <script src="js/jquery.dataTables.js"></script>
 <script src="js/filesize.dataTables.js"></script>
+<script src="customjs/param.php"></script>
 <script src="customjs/newgui.js"></script>
 
 </head>
@@ -73,7 +74,7 @@ include "common.php";
         <div class="col-sm-3 col-md-2 sidebar">
      <div class="nav nav-sidebar">
       <a class="navbar-brand" href="http://robinhood.sf.net"><img src="images/logo_rh_sf.gif" ></a>
-      <a class="navbar-brand" href="http://www-hpc.cea.fr/index-en.htm"><img src="images/logoCEA20.jpg" height="64"></a>
+      <a class="navbar-brand" href="<?php echo $CUSTOM['vendor_url']; ?>"><img src="<?php echo $CUSTOM['vendor_logo']; ?>" height="64"></a>
     </div>
 <br><br>
           <ul class="nav nav-sidebar">

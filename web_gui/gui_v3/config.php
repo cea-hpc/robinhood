@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (C) 2016 CEA/DAM
+ * Copyright (C) 2016-2017 CEA/DAM
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the CeCILL License.
@@ -14,21 +14,12 @@
 /*****************************
 *        Database            *
 *****************************/
-
 //Support at least mysql/pgsql/sqlite
 $DB_TYPE     = "mysql";
 $DB_HOST     = "localhost";
 $DB_NAME     = "";
 $DB_USER     = "";
 $DB_PASSWD   = "";
-
-$DB_LASTERROR = "";
-try {
-    $db = new PDO("$DB_TYPE:host=$DB_HOST;dbname=$DB_NAME", $DB_USER, $DB_PASSWD);
-    $db->exec("USE $DB_NAME;");
-} catch(Exception $e) {
-    $DB_LASTERROR = $e->getMessage();
-}
 
 /*****************************
 *        Access              *
@@ -40,19 +31,20 @@ $ACCESS_LIST['api-ro'] = array();
 $ACCESS_LIST['datatables'] = array();
 $ACCESS_LIST['graphs'] = array();
 $ACCESS_LIST['native_vars'] = array();
-$ACCESS_LIST['native_accts'] = array();
+$ACCESS_LIST['native_acct'] = array();
 
-#Web GUI with graphs and lists
+//Web GUI with graphs and lists
 $ACCESS_LIST['webgui'][] = '*';
-#Read Only API, required for webgui
+//Read Only API, required for webgui
 $ACCESS_LIST['api-ro'][] = '*';
-#Datatables
+//Datatables
 $ACCESS_LIST['datatables'][] = '*';
-#Graphs
+//Graphs
 $ACCESS_LIST['graphs'][] = '*';
-#Native (raw data)
+//Native (raw data)
 $ACCESS_LIST['native_vars'][] = '*';
-$ACCESS_LIST['native_accts'][] = '*';
+$ACCESS_LIST['native_acct'][] = '*';
+
 /*****************************
 *        General parameters  *
 *****************************/
@@ -62,6 +54,22 @@ $MAX_ROWS = 1000;
 $JSON_OPTIONS = null;
 if (version_compare(phpversion(), '5.4.0', '>='))
     $JSON_OPTIONS |= JSON_PRETTY_PRINT;
+
+/*****************************
+*           ChartJS          *
+*****************************/
+$CHARTJS = array();
+$CHARTJS['Chart.defaults.global.title.display'] = "true";
+$CHARTJS['Chart.defaults.global.defaultFontSize'] = 13;
+$CHARTJS['responsiveChart'] = "true";
+$CHARTJS['animationChart'] = "false";
+$CHARTJS['showAllTooltipsChart'] = "true";
+
+/*****************************
+*        Customization       *
+*****************************/
+$CUSTOM['vendor_logo'] = 'images/logoCEA20.jpg';
+$CUSTOM['vendor_url'] = 'http://www-hpc.cea.fr/index-en.htm';
 
 /*****************************
 *        Dynamic Fields      *
@@ -85,7 +93,6 @@ $FIELD_LIST['count'] = null;
 /*****************************
  *        Language            *
  *****************************/
-
 if (array_key_exists('HTTP_ACCEPT_LANGUAGE', $_SERVER))
     $lang = substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2);
 else
@@ -101,5 +108,29 @@ default:
 
 include_once 'lang/sys.php';
 include_once 'lang/'.$lang_file;
+
+
+/*****************************
+*        Local config        *
+*****************************/
+//Allow to override config with local file
+try {
+    //dirty...
+    @include "config_local.php";
+} catch (Exception $e) {
+    //nice try...
+}
+
+/****************************
+*        DB Connection       *
+*****************************/
+$DB_LASTERROR = "";
+try {
+    $db = new PDO("$DB_TYPE:host=$DB_HOST;dbname=$DB_NAME", $DB_USER, $DB_PASSWD);
+    $db->exec("USE $DB_NAME;");
+} catch(Exception $e) {
+    $DB_LASTERROR = $e->getMessage();
+}
+
 
 ?>

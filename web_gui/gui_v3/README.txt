@@ -37,6 +37,10 @@ yum install robinhood-webgui
 III - Configuration
 ===================
 
+Local configuration:
+You can setup a local config_local.php.template file instead of the config.php with default settings
+Rename the config_local.php.template in config_local.php and use it instead of config.php
+
 Database:
 In "config.php" change the following fields with your db settings
 $DB_HOST     = "";
