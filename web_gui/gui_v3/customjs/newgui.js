@@ -141,6 +141,12 @@ $(function() {
         }
     });
 
+    //Add keypress event for filter form
+    $('#filterform input').on('keypress', function(event){
+        if(event.which==13 && !event.shiftKey){
+            GetGraph(lastGet);
+       }
+    });
 
 
 });
@@ -161,7 +167,7 @@ function logout() {
  **************************************/
 //GetGraph and Table Data async
 function GetGraph(item){
-
+    $('#filter').button('loading');
     lastGet=item;
     $('#messagebox').html("");
     //Get filter
@@ -179,7 +185,6 @@ function GetGraph(item){
     $.ajax({
         url: "api/index.php?request=graph/" + item + "/" + queryString
     }).then(function(data) {
-
         var options = {
             responsive : responsiveChart,
             maintainAspectRatio: false,
@@ -218,7 +223,6 @@ function GetGraph(item){
 
         GraphCTX = document.getElementById("ctx").getContext("2d");
 
-
         //Create the new graph
         myChart = new Chart(GraphCTX,{
             type: data.default_graph,
@@ -227,7 +231,7 @@ function GetGraph(item){
         });
 
         GraphState=data.default_graph;
-
+        $('#filter').button('reset')
     });
 
 
