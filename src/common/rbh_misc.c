@@ -2134,7 +2134,7 @@ int mkdir_recurse(const char *full_path, mode_t mode, entry_id_t *dir_id)
         int path_len = curr - full_path;
 
         /* extract directory name */
-        rh_strncpy(path_copy, full_path, path_len);
+        rh_strncpy(path_copy, full_path, path_len+1);
         path_copy[path_len] = '\0';
 
         DisplayLog(LVL_FULL, MKDIR_TAG, "mkdir(%s)", path_copy);
