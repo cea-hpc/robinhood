@@ -1,0 +1,55 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "fabf19d9_1d2b3032",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 2
+      },
+      "lineNbr": 41,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-01-09T14:54:10Z",
+      "side": 1,
+      "message": "(style) space at end of line",
+      "revId": "5ea6e175eb9b15e931be7e6ee171741c9ff7ee58",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fabf19d9_3d26f468",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 2
+      },
+      "lineNbr": 42,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-01-09T14:54:10Z",
+      "side": 1,
+      "message": "I suggest you name it \"config_local.php.template\" so the name of the experted target file is obvious. Also it prevents from accessing it directly by its URL(?)",
+      "revId": "5ea6e175eb9b15e931be7e6ee171741c9ff7ee58",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fabf19d9_1de21004",
+        "filename": "web_gui/gui_v3/config_local_sample.php",
+        "patchSetId": 2
+      },
+      "lineNbr": 12,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-01-09T14:54:10Z",
+      "side": 1,
+      "message": "I suggest you rename this file \"config_local.php.template\" to make the target file name obvious.\n\nAlso, you could add an help comment in the file itself like \"complete parameters below and rename this file to config_local.php ...\"",
+      "revId": "5ea6e175eb9b15e931be7e6ee171741c9ff7ee58",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
