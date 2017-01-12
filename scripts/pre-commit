@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Run nonreg script if a file from the webgui is modified
+
+SRC_PATTERN="web_gui"
+if git diff --cached --name-only | grep --quiet "$SRC_PATTERN"
+then
+  cd $GIT_DIR/../web_gui/tests/
+  ./nonreg.bash
+  exit $?
+fi

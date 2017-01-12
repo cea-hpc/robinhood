@@ -111,14 +111,19 @@ include_once 'lang/'.$lang_file;
 
 
 /*****************************
-*        Local config        *
-*****************************/
+ *        Local config        *
+ *****************************/
 //Allow to override config with local file
-try {
-    //dirty...
-    @include "config_local.php";
-} catch (Exception $e) {
-    //nice try...
+if (!@include "config_local.php") {
+        $err=error_get_last();
+        if ($err["type"]==2){
+                //Clear the last error if the file is not found
+                if (version_compare(phpversion(), '7.0.0', '>='))
+                    error_clear_last();
+        } else {
+                //something get wrong in the file, notify !
+                print_r(get_last_error());
+        }
 }
 
 /****************************
