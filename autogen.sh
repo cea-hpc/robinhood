@@ -9,3 +9,9 @@ if [ -f "$wdir/.git/hooks/prepare-commit-msg" ]; then
     mv -f "$wdir/.git/hooks/prepare-commit-msg" "$wdir/.git/hooks/prepare-commit-msg.save" || exit 1
     ln -s '../../scripts/git_prepare_hook' "$wdir/.git/hooks/prepare-commit-msg" || exit 1
 fi
+
+if [ -f "$wdir/.git/hooks/pre-commit" ]; then
+    echo "installing git pre-commit hook"
+    mv -f "$wdir/.git/hooks/pre-commit" "$wdir/.git/hooks/pre-commit.save" || exit 1
+    ln -s '../../scripts/pre-commit' "$wdir/.git/hooks/pre-commit" || exit 1
+fi
