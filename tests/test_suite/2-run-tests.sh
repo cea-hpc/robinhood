@@ -1988,94 +1988,99 @@ function test_default
 
 function test_undelete
 {
-	config_file=$1
-	policy_str="$2"
+    local config_file="$1"
+    local policy_str="$2"
 
-	clean_logs
+    clean_logs
 
-	if (( $is_hsmlite + $is_lhsm == 0 )); then
-		echo "No undelete for this flavor"
-		set_skipped
-		return 1
+    if (( $is_hsmlite + $is_lhsm == 0 )); then
+        echo "No undelete for this flavor"
+        set_skipped
+        return 1
     fi
 
-    FILES="$RH_ROOT/dir1/file1 $RH_ROOT/dir1/file2 $RH_ROOT/dir2/file1 $RH_ROOT/dir2/file2"
+    # Using two level of directories allows to fully test the mkdir_recurse()
+    # function defined in src
+    local files=()
+    for path in dir0/dir{1,2}/file{1,2}; do
+        files+=( "$RH_ROOT/$path" )
+    done
 
-    mkdir -p $RH_ROOT/dir1 || error "mkdir"
-    mkdir -p $RH_ROOT/dir2 || error "mkdir"
-    for f in $FILES ; do echo 123 > $f || error "write"; done
-    sz1=$(stat -c '%s' $RH_ROOT/dir2/file1)
+    mkdir -p "$RH_ROOT"/dir0/dir{1,2} || error "mkdir"
+    for f in "${files[@]}"; do
+        echo 123 > "$f" || error "write"
+    done
+    local sz1=$(stat -c '%s' "${files[0]}")
 
     # initial scan + archive all
-    $RH -f $RBH_CFG_DIR/$config_file --scan --once $SYNC_OPT -l DEBUG -L rh_chglogs.log || error "Initial scan and sync"
+    $RH -f "$RBH_CFG_DIR/$config_file" --scan --once $SYNC_OPT -l DEBUG -L rh_chglogs.log || error "Initial scan and sync"
     check_db_error rh_chglogs.log
 
-	if (( $is_lhsm != 0 )); then
-		wait_done 60 || error "Copy timeout"
+    if (( $is_lhsm != 0 )); then
+        wait_done 60 || error "Copy timeout"
 
         # archive is asynchronous: read the changelog to get archive completion status
-        $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "Reading changelog"
-	fi
+        $RH -f "$RBH_CFG_DIR/$config_file" --readlog --once -l DEBUG -L rh_chglogs.log || error "Reading changelog"
+    fi
 
     # remove all and read the changelog
-    rm -rf $RH_ROOT/dir1 $RH_ROOT/dir2
-    start=$(date +%s)
-    $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "Reading changelog"
+    rm -rf "$RH_ROOT/dir0"
+    $RH -f "$RBH_CFG_DIR/$config_file" --readlog --once -l DEBUG -L rh_chglogs.log || error "Reading changelog"
     check_db_error rh_chglogs.log
 
     # list all deleted entries
     # details about output format:
     #   - last field of each line is last entry path in filesystem
     #   - test suite uses a single status manager at once: '-s' option not needed
-	$UNDELETE -f $RBH_CFG_DIR/$config_file -L | grep 'file' | awk '{print $(NF)}' > rh_report.log
+    $UNDELETE -f "$RBH_CFG_DIR/$config_file" -L | grep 'file' | awk '{print $(NF)}' > rh_report.log
     [ "$DEBUG" = "1" ] && cat rh_report.log
-    c=$(wc -l rh_report.log | awk '{print $1}')
-    (( $c == 4 )) || error "invalid file count in undelete list: $c/4"
-    for f in $FILES; do grep $f rh_report.log || error "missing $f in undelete list"; done
+    diff <(sort rh_report.log) <(printf '%s\n' "${files[@]}" | sort) ||
+        error "undelete list does not match the expected output"
 
     # list all deleted entried from dir1
-	$UNDELETE -f $RBH_CFG_DIR/$config_file -L $RH_ROOT/dir1 | grep "file" | awk '{print $(NF)}' > rh_report.log
-    c=$(wc -l rh_report.log | awk '{print $1}')
-    (( $c == 2 )) || error "invalid file count in undelete list: $c/2"
-    for f in dir1/file1 dir1/file2; do grep $f rh_report.log || error "missing $f in undelete list"; done
+    $UNDELETE -f "$RBH_CFG_DIR/$config_file" -L "$RH_ROOT/dir0/dir1" | grep "file" | awk '{print $(NF)}' > rh_report.log
+    diff <(sort rh_report.log) <(printf '%s\n' "${files[@]:0:2}" | sort) ||
+        error "undelete list does not match the expected output"
 
     # recover all deleted entries from dir2
-	$UNDELETE -f $RBH_CFG_DIR/$config_file -R $RH_ROOT/dir2 | grep Restoring | cut -d "'" -f 2 > rh_report.log
-    c=$(wc -l rh_report.log | awk '{print $1}')
-    (( $c == 2 )) || error "invalid file count in undelete list: $c/2"
+    local undeleted_files=( "${files[@]:2}" )
+    $UNDELETE -f "$RBH_CFG_DIR/$config_file" -R "$RH_ROOT/dir0/dir2" | grep Restoring | cut -d "'" -f 2 > rh_report.log
+    diff <(sort rh_report.log) \
+        <(printf '%s\n' "${undeleted_files[@]}" | sort) ||
+        error "list of undeleted file does not match the expected output"
 
-    DIR2_LIST="$RH_ROOT/dir2/file1 $RH_ROOT/dir2/file2"
-
-    for f in $DIR2_LIST; do
-        grep $f rh_report.log || error "missing $f in undelete list"
-        [  ! -f $f  ] && error "Missing $f in FS after undelete"
+    for f in "${undeleted_files[@]}"; do
+        [ -f "$f"  ] || error "Missing $f in FS after undelete"
     done
 
     # check final size
-    sz2=$(stat -c '%s' $RH_ROOT/dir2/file1)
+    local sz2=$(stat -c '%s' "${undeleted_files[0]}")
     (( $sz1 == $sz2 )) || error "final size $sz2 doesn't match $sz1"
 
     # Lustre/HSM specific checks
-	if (( $is_lhsm != 0 )); then
+    if (( $is_lhsm != 0 )); then
         # files must be imported as 'released'
-        for f in $DIR2_LIST ; do $LFS hsm_state $f | grep released || error "$f should be released"; done
+        for f in "${undeleted_files[@]}"; do
+            $LFS hsm_state "$f" | grep released ||
+                error "$f should be released"
+        done
 
         # check if restore command succeeds
-        for f in $DIR2_LIST ; do $LFS hsm_restore $f || error "hsm_restore"; done
+        for f in "${undeleted_files[@]}"; do
+            $LFS hsm_restore "$f" || error "hsm_restore"
+        done
         wait_done 60 || error "Restore timeout"
 
         # check final size
-        sz2=$(stat -c '%s' $RH_ROOT/dir2/file1)
+        sz2=$(stat -c '%s' "${undeleted_files[0]}")
         (( $sz1 == $sz2 )) || error "final size $sz2 doesn't match $sz1"
 
         # files must be online now
-        for f in $DIR2_LIST ; do $LFS hsm_state $f | grep released && error "$f should be online"; done
+        for f in "${undeleted_files[@]}"; do
+            $LFS hsm_state "$f" | grep released && error "$f should be online"
+        done
     fi
-
 }
-
-
-
 
 function purge_size_filesets
 {
