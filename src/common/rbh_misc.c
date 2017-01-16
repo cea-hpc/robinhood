@@ -2131,11 +2131,10 @@ int mkdir_recurse(const char *full_path, mode_t mode, entry_id_t *dir_id)
          * so, copy 2 chars to get '/a'.
          * and set fullpath[2] = '\0'
          */
-        int path_len = curr - full_path;
+        int path_len = curr - full_path + 1;
 
         /* extract directory name */
         rh_strncpy(path_copy, full_path, path_len);
-        path_copy[path_len] = '\0';
 
         DisplayLog(LVL_FULL, MKDIR_TAG, "mkdir(%s)", path_copy);
         if ((mkdir(path_copy, mode) != 0) && (errno != EEXIST)) {
