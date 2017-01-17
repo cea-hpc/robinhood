@@ -1531,6 +1531,7 @@ static int parse_policy_runs(run_item_t **runs, unsigned int *count,
         for (i = 0; i < *count; i++) {
             (*runs)[i].policy_index = i;
             (*runs)[i].run_opt = *default_opt;
+            (*runs)[i].run_opt.flags = options.flags;
         }
         return 0;
     }
