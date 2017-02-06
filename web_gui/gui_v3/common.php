@@ -160,8 +160,9 @@ function string_color($str){
 function get_filter_from_list($datalist, $term)
 {
         $i = array_search($term, $datalist);
-        if ($i==-1)
+        if ($i==false) {
                 return false;
+        }
         if ($i+1<count($datalist)) {
                 if ($datalist[$i+1]=='')
                         return False;
@@ -188,17 +189,26 @@ function build_filter($args, $filter, $self='$SELF') {
                 $filter['uid']='uid';
 
         foreach ($filter as $k => $v) {
+                $op="LIKE";
+                if (startsWith($k,"min"))
+                        $op=">";
+                if (startsWith($k,"max"))
+                        $op="<";
                 if(get_filter_from_list($args,$k)) {
                         $val = get_filter_from_list($args,$k);
-                        if ($sqlfilter!="")
+                        if ($v!='offset') {
+                            if ($sqlfilter!="")
                                 $sqlfilter = $sqlfilter." AND ";
-                        $sqlfilter = $sqlfilter."$v LIKE :k_$v ";
-                        $values["k_$v"] = $val;
+                            $sqlfilter = $sqlfilter."$v $op :k_$k ";
+                        }
+                        $values["k_$k"] = $val;
                 } elseif ($self!='$SELF' && $k=='uid') {
-                        if ($sqlfilter!="")
-                                $sqlfilter = $sqlfilter." AND ";
-                        $sqlfilter = $sqlfilter."$v LIKE :k_$v ";
-                        $values["k_$v"] = $self;
+                        if ($v!='offset') {
+                            if ($sqlfilter!="")
+                                    $sqlfilter = $sqlfilter." AND ";
+                            $sqlfilter = $sqlfilter."$v $op :k_$k ";
+                        }
+                        $values["k_$k"] = $self;
                 }
         }
         if ($sqlfilter != "")

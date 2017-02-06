@@ -177,9 +177,15 @@ class MyAPI extends API
 
             case 'Files':
                 global $MAX_ROWS;
-                $fullfilter = build_filter($this->args, array('filename'=>'name', 'uid'=>'uid', 'gid'=>'gid'), $self);
+                $fullfilter = build_filter($this->args, array('filename'=>'name', 'uid'=>'uid', 'gid'=>'gid', 'offset'=>'offset','maxsize'=>'size', 'minsize'=>'size'), $self);
                 $sqlfilter=$fullfilter[0];
-                $req = $db->prepare("SELECT uid, gid, size, blocks, name, type, creation_time, last_access, last_mod FROM NAMES INNER JOIN ENTRIES ON ENTRIES.id = NAMES.id $sqlfilter LIMIT $MAX_ROWS");
+                $offset = 0;
+                if (array_key_exists('k_offset',$fullfilter[1])) {
+                        $offset=intval($fullfilter[1]['k_offset']);
+                        unset($fullfilter[1]['k_offset']);
+                }
+                $req = $db->prepare("SELECT uid, gid, size, blocks, name, type, creation_time, last_access, last_mod ".
+                                    "FROM NAMES INNER JOIN ENTRIES ON ENTRIES.id = NAMES.id $sqlfilter LIMIT $MAX_ROWS OFFSET $offset");
                 $req->execute($fullfilter[1]);
                 $count = $req->rowCount();
                 while($sqldata = $req->fetch(PDO::FETCH_ASSOC)) {
@@ -191,10 +197,12 @@ class MyAPI extends API
                 $data = array(
                     'labels' => $labels,
                     'limited' => ($count == $MAX_ROWS) ? $MAX_ROWS : false,
+                    'offset' => $offset,
                     'default_graph' => 'bubble',
                     'filter' => array(),
                     'datasets' => array()
                 );
+
                 $data['datasets'][] = array('data'=>$size, 'backgroundColor'=>$color, 'label'=>'Last Access VS Size');
 
                 break;
@@ -302,11 +310,16 @@ class MyAPI extends API
 
             case 'Files':
                 global $MAX_ROWS;
-                $fullfilter = build_filter($this->args, array('filename'=>'name', 'uid'=>'uid', 'gid'=>'gid'), $self);
+                $fullfilter = build_filter($this->args, array('filename'=>'name', 'uid'=>'uid', 'gid'=>'gid','offset'=>'offset','maxsize'=>'size', 'minsize'=>'size'), $self);
                 $sqlfilter=$fullfilter[0];
+                $offset = 0;
+                if (array_key_exists('k_offset',$fullfilter[1])) {
+                        $offset=intval($fullfilter[1]['k_offset']);
+                        unset($fullfilter[1]['k_offset']);
+                }
                 $req = $db->prepare("SELECT uid, gid, size, blocks, name, type, from_unixtime(creation_time) AS creation_time".
                     ", from_unixtime(last_access) AS last_access, from_unixtime(last_mod) AS last_mod".
-                    " FROM NAMES INNER JOIN ENTRIES ON ENTRIES.id = NAMES.id $sqlfilter LIMIT $MAX_ROWS");
+                    " FROM NAMES INNER JOIN ENTRIES ON ENTRIES.id = NAMES.id $sqlfilter LIMIT $MAX_ROWS OFFSET $offset");
                 $req->execute($fullfilter[1]);
 
                 //we should autorize the user to see his own files
@@ -320,6 +333,9 @@ class MyAPI extends API
                 $columns[] = array('title' => 'last_access');
                 $columns[] = array('title' => 'last_mod');
                 $columnsDefs[] = array('type' => 'file-size', 'targets' => 3);
+                $count = $req->rowCount();
+                $data['limited'] = ($count == $MAX_ROWS) ? $MAX_ROWS : false;
+                $data['offset'] = $offset;
                 while($sqldata = $req->fetch(PDO::FETCH_ASSOC)) {
 
                     $datasets[] = array_values($sqldata);
