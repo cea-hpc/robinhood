@@ -17,8 +17,14 @@ var TableState="empty";
 var myChart;
 var GraphCTX;
 var lastGet="empty";
-//Global Graph
-//Chart.defaults.global.responsive = true;
+
+//Used for background data loading
+var tableData;
+var tableDataCount;
+var tableDataTaskId=0;
+var graphData;
+var graphDataCount;
+var graphDataTaskId=0;
 
 Chart.pluginService.register({
     beforeRender: function (chart) {
@@ -161,6 +167,53 @@ function logout() {
     jQuery.get(out);
 }
 
+
+/****************************************
+ * Recursive background load of dataTable
+ **************************************/
+function loadDataTable(item, queryString, taskID) {
+        if (tableData.limited!=false && tableDataCount<maxdisplayedrows && tableDataTaskId==taskID) {
+                newoffset = tableData.offset + tableData.limited;
+                console.log("Table Query offset:",newoffset);
+                $.ajax({
+                        url: "api/index.php?request=data/" + item + "/" +queryString + "/offset/" + newoffset + "/"
+                }).then(function(data) {
+                        tableData=data;
+                        TableState.rows.add(data.datasets).draw();
+                        tableDataCount=tableDataCount+data.limited;
+
+                        //let's test the stack size ! (20 000 for IE10, 281 810 for FF42 )
+                        loadDataTable(item, queryString, taskID);
+                });
+        } else if (tableDataCount>=maxdisplayedrows) {
+                msg_warning("Partial result for graph and table,  limited to "+maxdisplayedrows+" entries by maxdisplayedrows (config.php). Please use filter !");
+        }
+}
+
+
+/****************************************
+ * Recursive background load of a graph
+ **************************************/
+function loadDataGraph(item, queryString, taskID) {
+        if (graphData.limited!=false && graphDataCount<maxdisplayedrows && graphDataTaskId==taskID) {
+                newoffset = graphData.offset + graphData.limited;
+                console.log("Graph Query offset:",newoffset);
+        $.ajax({
+                url: "api/index.php?request=graph/" + item + "/" +queryString + "/offset/" + newoffset + "/"
+        }).then(function(data) {
+                graphData=data
+                myChart.data.datasets[0].data = myChart.data.datasets[0].data.concat(data.datasets[0].data);
+                myChart.data.datasets[0].backgroundColor = myChart.data.datasets[0].backgroundColor.concat(data.datasets[0].backgroundColor);
+                console.log(data);
+                myChart.update();
+                graphDataCount=graphDataCount+data.limited;
+
+        //let's test the stack size ! (20 000 for IE10, 281 810 for FF42 )
+        loadDataGraph(item, queryString, taskID);
+        });
+        }
+}
+
 /****************************************
  * Async. function which request graph
  * and data, then update graph and table
@@ -176,10 +229,25 @@ function GetGraph(item){
     for (var i = 0; i < myForm.elements.length; i++) {
         if (myForm.elements[i].name.length>0)
         {
-            queryString = queryString + "/" + myForm.elements[i].name + "/" + myForm.elements[i].value
+            queryString = queryString + "/" + myForm.elements[i].name + "/" + myForm.elements[i].value.replace("/","-");
         }
     }
 
+
+    //Clean Graph and Data table
+
+    if (TableState!="empty"){
+        TableState.destroy();
+        $('#datalist').empty();
+    }
+
+     //Delete the old graph
+     if (GraphState!="empty") {
+         myChart.destroy();
+     }
+
+
+    graphDataTaskId++;
 
     //Get the Graph data
     $.ajax({
@@ -210,47 +278,45 @@ function GetGraph(item){
             }
         }
 
-        if (data.limited) {
-            msg_warning("Partial result,  limited to "+data.limited+" entries by $MAX_ROWS (config.php). Please use filter !");
-        } else {
-            msg_clean();
-        }
-
-        //Delete the old graph
-        if (GraphState!="empty") {
-            myChart.destroy();
-        }
 
         GraphCTX = document.getElementById("ctx").getContext("2d");
-
+        graphData=data;
         //Create the new graph
         myChart = new Chart(GraphCTX,{
             type: data.default_graph,
                 data: data,
                 options: options
         });
-
+        //Load the whole graph in backgroup
+        graphDataCount = data.limited;
+        loadDataGraph(item, queryString, tableDataTaskId);
         GraphState=data.default_graph;
         $('#filter').button('reset')
     });
 
 
-    $.ajax({
-        url: "api/index.php?request=data/" + item + "/" +queryString
-    }).then(function(data) {
-        if (TableState!="empty"){
-            TableState.destroy();
-            $('#datalist').empty();
-        }
 
-        TableState = $('#datalist').DataTable( {
-            destroy: true,
-                   clear: true,
-                   data: data.datasets,
-                   columns: data.columns,
-                   columnDefs: data.columnsDefs
-        } );
-    });
+    tableDataTaskId++;
+
+
+    $.ajax({
+            url: "api/index.php?request=data/" + item + "/" +queryString
+    }).then(function(data) {
+            tableData=data;
+            TableState = $('#datalist').DataTable( {
+                    destroy: true,
+                       clear: true,
+                       bAutoWidth: false,
+                       bSortClasses: false,
+                       bDeferRender: true,
+                       data: data.datasets,
+                       columns: data.columns,
+                       columnDefs: data.columnsDefs
+            } );
+            //Load the whole table in backgroup
+            tableDataCount = data.limited;
+            loadDataTable(item, queryString, tableDataTaskId);
+            });
 
 
 }
