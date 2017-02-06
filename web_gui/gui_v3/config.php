@@ -56,7 +56,7 @@ if (version_compare(phpversion(), '5.4.0', '>='))
     $JSON_OPTIONS |= JSON_PRETTY_PRINT;
 
 /*****************************
-*           ChartJS          *
+*       ChartJS/dataTable    *
 *****************************/
 $CHARTJS = array();
 $CHARTJS['Chart.defaults.global.title.display'] = "true";
@@ -64,6 +64,7 @@ $CHARTJS['Chart.defaults.global.defaultFontSize'] = 13;
 $CHARTJS['responsiveChart'] = "true";
 $CHARTJS['animationChart'] = "false";
 $CHARTJS['showAllTooltipsChart'] = "true";
+$CHARTJS['maxdisplayedrows'] = 50000;
 
 /*****************************
 *        Customization       *
