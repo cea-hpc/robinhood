@@ -89,6 +89,13 @@ static int rbh_cfg_read_set(int module_mask, char *file_path, char *err_msg_out,
             && !(p_curr->flags & module_mask))
             continue;
 
+        /* Disable dynamic policies load, current code may segfault
+         * if policies are reloaded
+         */
+        if (reload && (!strcmp("policies", p_curr->funcs->module_name))) {
+            DisplayLog(LVL_DEBUG, RELOAD_TAG, "Policies reload currently not supported");
+            continue;
+        }
         cfg = p_curr->funcs->new();
         if (cfg == NULL) {
             rc_final = ENOMEM;
