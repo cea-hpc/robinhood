@@ -29,10 +29,10 @@
 
 /** set of managed status */
 typedef enum {
-  STATUS_CLEAR,                 /* checked, no alert raised */
-  STATUS_ALERT,                 /* alert raised */
+    STATUS_CLEAR,   /* checked, no alert raised */
+    STATUS_ALERT,   /* alert raised */
 
-  STATUS_COUNT,                 /* number of possible file status */
+    STATUS_COUNT,   /* number of possible file status */
 } alert_status_t;
 
 static const char *alerter_status_list[] = {
@@ -42,19 +42,17 @@ static const char *alerter_status_list[] = {
 
 static const char *alerter_status2str(alert_status_t st)
 {
-    switch (st)
-    {
-        case STATUS_CLEAR:
-        case STATUS_ALERT:
-            return alerter_status_list[st];
-        default:
-            return NULL;
+    switch (st) {
+    case STATUS_CLEAR:
+    case STATUS_ALERT:
+        return alerter_status_list[st];
+    default:
+        return NULL;
     }
 }
 
 /** enum of specific attributes */
-enum alerter_info_e
-{
+enum alerter_info_e {
     ATTR_LAST_CHECK = 0,
     ATTR_LAST_ALERT,
 };
@@ -64,50 +62,49 @@ enum alerter_info_e
  * last_alert: unix epoch
  */
 static sm_info_def_t alerter_info[] = {
-    [ATTR_LAST_CHECK] = { "last_check", "lstchk",  DB_UINT, 0, {.val_uint = 0}, PT_DURATION },
-    [ATTR_LAST_ALERT] = { "last_alert", "lstalrt", DB_UINT, 0, {.val_uint = 0}, PT_DURATION },
+    [ATTR_LAST_CHECK] =
+        {"last_check", "lstchk", DB_UINT, 0, {.val_uint = 0}, PT_DURATION},
+    [ATTR_LAST_ALERT] =
+        {"last_alert", "lstalrt", DB_UINT, 0, {.val_uint = 0}, PT_DURATION},
 };
 
 static int alerter_executor(struct sm_instance *smi,
                             const char *implements,
                             const policy_action_t *action,
- /* arguments for the action : */ const entry_id_t *p_id, attr_set_t *p_attrs,
+                            /* arguments for the action : */
+                            const entry_id_t *p_id, attr_set_t *p_attrs,
                             const action_params_t *params,
-                            post_action_e *what_after,
-                            db_cb_func_t db_cb_fn, void *db_cb_arg)
+                            post_action_e *what_after, db_cb_func_t db_cb_fn,
+                            void *db_cb_arg)
 {
     const char *val;
     const char *status_str = NULL;
-    int         rc = 0;
-    bool        alert = false;
+    int rc = 0;
+    bool alert = false;
 
-    if (params == NULL)
-    {
-        DisplayLog(LVL_MAJOR, TAG, "Missing action parameters for 'alerter' status manager");
+    if (params == NULL) {
+        DisplayLog(LVL_MAJOR, TAG,
+                   "Missing action parameters for 'alerter' status manager");
         return -EINVAL;
     }
 
     val = rbh_param_get(params, "alert");
-    if (val == NULL)
-    {
-        DisplayLog(LVL_MAJOR, TAG, "Missing action parameter 'alert = yes/clear' for 'alerter' status manager");
+    if (val == NULL) {
+        DisplayLog(LVL_MAJOR, TAG,
+                   "Missing action parameter 'alert = yes/clear' for 'alerter' status manager");
         return -EINVAL;
     }
 
-    if (!strcasecmp(val, "clear"))
-    {
+    if (!strcasecmp(val, "clear")) {
         /* if the action succeed new status will be: clear */
         status_str = alerter_status2str(STATUS_CLEAR);
-    }
-    else if (!strcasecmp(val, "raise"))
-    {
+    } else if (!strcasecmp(val, "raise")) {
         /* if the action succeed new status will be: alert */
         status_str = alerter_status2str(STATUS_ALERT);
         alert = true;
-    }
-    else
-    {
-        DisplayLog(LVL_MAJOR, TAG, "Invalid value for 'alert' action parameter: 'raise' or 'clear' expected");
+    } else {
+        DisplayLog(LVL_MAJOR, TAG,
+                   "Invalid value for 'alert' action parameter: 'raise' or 'clear' expected");
         return -EINVAL;
     }
 
@@ -131,29 +128,27 @@ static int alerter_alert(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
                          db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     char *str_id = NULL;
-    bool  str_is_alloc = false;
+    bool str_is_alloc = false;
     GString *gs = g_string_new(NULL);
 
     /* build alert string */
-    if (ATTR_MASK_TEST(p_attrs, fullpath))
-    {
+    if (ATTR_MASK_TEST(p_attrs, fullpath)) {
         str_id = ATTR(p_attrs, fullpath);
-    }
-    else
-    {
+    } else {
         asprintf(&str_id, DFID, PFID(p_entry_id));
         str_is_alloc = true;
     }
 
     /** TODO build specific parameter that represents the alert rule */
-    #if 0
-    rc = BoolExpr2str(&entry_proc_conf.alert_list[i].boolexpr, stralert, 2*RBH_PATH_MAX);
-    if ( rc < 0 )
-        strcpy( stralert, "Error building alert string" );
-    #endif
+#if 0
+    rc = BoolExpr2str(&entry_proc_conf.alert_list[i].boolexpr, stralert,
+                      2 * RBH_PATH_MAX);
+    if (rc < 0)
+        strcpy(stralert, "Error building alert string");
+#endif
 
-    /** TODO build specific parameter that represents attr mask for the rule (alert mask) */
-
+    /** TODO build specific parameter that represents attr mask for the rule
+     * (alert mask) */
     print_attrs(gs, p_attrs, null_mask, 0);
 
     /* title: alert rule name */
@@ -170,9 +165,11 @@ static int alerter_alert(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
 /** Status manager for alerts management */
 status_manager_t alerter_sm = {
     .name = "alerter",
-    /* TODO can possibly raise alerts on file deletion? if so, must set a softrm_* fields */
+    /* TODO can possibly raise alerts on file deletion? if so, must set
+     * a softrm_* fields */
     .flags = 0,
-    .status_enum = alerter_status_list, /* initial state is empty(unset) status */
+    .status_enum = alerter_status_list, /* initial state is empty(unset)
+                                           status */
     .status_count = STATUS_COUNT,
     .nb_info = G_N_ELEMENTS(alerter_info),
     .info_types = alerter_info,
