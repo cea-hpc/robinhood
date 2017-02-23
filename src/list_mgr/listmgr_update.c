@@ -27,20 +27,20 @@
 #include <unistd.h>
 #include <pthread.h>
 
-
 int ListMgr_Update(lmgr_t *p_mgr, const entry_id_t *p_id,
                    const attr_set_t *p_update_set)
 {
-    int            rc;
-    GString       *req;
+    int rc;
+    GString *req;
     DEF_PK(pk);
 
     /* read only fields in info mask? */
-    if (readonly_fields(p_update_set->attr_mask))
-    {
-        attr_mask_t and = attr_mask_and(&p_update_set->attr_mask, &readonly_attr_set);
-        DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Error: trying to update read only "
-                   "values: attr_mask="DMASK, PMASK(&and));
+    if (readonly_fields(p_update_set->attr_mask)) {
+        attr_mask_t and =
+            attr_mask_and(&p_update_set->attr_mask, &readonly_attr_set);
+        DisplayLog(LVL_MAJOR, LISTMGR_TAG,
+                   "Error: trying to update read only " "values: attr_mask="
+                   DMASK, PMASK(&and));
         return DB_INVALID_ARG;
     }
 
@@ -48,25 +48,21 @@ int ListMgr_Update(lmgr_t *p_mgr, const entry_id_t *p_id,
 
     req = g_string_new(NULL);
 
-retry:
+ retry:
     rc = lmgr_begin(p_mgr);
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
 
     /* update fields in main table */
-    if (main_fields(p_update_set->attr_mask))
-    {
-        g_string_assign(req, "UPDATE "MAIN_TABLE" SET ");
+    if (main_fields(p_update_set->attr_mask)) {
+        g_string_assign(req, "UPDATE " MAIN_TABLE " SET ");
 
         rc = attrset2updatelist(p_mgr, req, p_update_set, T_MAIN, 0);
-        if (rc < 0)
-        {
+        if (rc < 0) {
             rc = -rc;
             goto free_str;
-        }
-        else if (rc > 0)
-        {
-            g_string_append_printf(req, " WHERE id="DPK, pk);
+        } else if (rc > 0) {
+            g_string_append_printf(req, " WHERE id=" DPK, pk);
             rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
             if (lmgr_delayed_retry(p_mgr, rc))
                 goto retry;
@@ -76,15 +72,16 @@ retry:
     }
 
     /* update names table */
-    if (ATTR_MASK_TEST(p_update_set, name) && ATTR_MASK_TEST(p_update_set, parent_id))
-    {
+    if (ATTR_MASK_TEST(p_update_set, name)
+        && ATTR_MASK_TEST(p_update_set, parent_id)) {
         g_string_assign(req, "INSERT INTO " DNAMES_TABLE "(id");
         attrmask2fieldlist(req, p_update_set->attr_mask, T_DNAMES, "", "",
                            AOF_LEADING_SEP);
-        g_string_append_printf(req, ",pkn) VALUES ("DPK, pk);
-        attrset2valuelist(p_mgr, req, p_update_set, T_DNAMES,
-                          AOF_LEADING_SEP);
-        g_string_append(req, ","HNAME_DEF") ON DUPLICATE KEY UPDATE id=VALUES(id)");
+        g_string_append_printf(req, ",pkn) VALUES (" DPK, pk);
+        attrset2valuelist(p_mgr, req, p_update_set, T_DNAMES, AOF_LEADING_SEP);
+        g_string_append(req,
+                        "," HNAME_DEF
+                        ") ON DUPLICATE KEY UPDATE id=VALUES(id)");
         attrset2updatelist(p_mgr, req, p_update_set, T_DNAMES,
                            AOF_LEADING_SEP | AOF_GENERIC_VAL);
 
@@ -93,28 +90,25 @@ retry:
             goto retry;
         else if (rc)
             goto rollback;
-    }
-    else if (ATTR_MASK_TEST(p_update_set, name) || ATTR_MASK_TEST(p_update_set, parent_id))
-    {
-        DisplayLog(LVL_DEBUG, LISTMGR_TAG, "WARNING: missing attribute to update name information"
-                   " (entry "DPK"): name %s, parent_id %s", pk,
+    } else if (ATTR_MASK_TEST(p_update_set, name)
+               || ATTR_MASK_TEST(p_update_set, parent_id)) {
+        DisplayLog(LVL_DEBUG, LISTMGR_TAG,
+                   "WARNING: missing attribute to update name information"
+                   " (entry " DPK "): name %s, parent_id %s", pk,
                    ATTR_MASK_TEST(p_update_set, name) ? "is set" : "is not set",
-                   ATTR_MASK_TEST(p_update_set, parent_id) ? "is set" : "is not set");
+                   ATTR_MASK_TEST(p_update_set,
+                                  parent_id) ? "is set" : "is not set");
     }
 
     /* update annex table */
-    if (annex_fields(p_update_set->attr_mask))
-    {
-        g_string_assign(req, "UPDATE "ANNEX_TABLE" SET ");
+    if (annex_fields(p_update_set->attr_mask)) {
+        g_string_assign(req, "UPDATE " ANNEX_TABLE " SET ");
         rc = attrset2updatelist(p_mgr, req, p_update_set, T_ANNEX, 0);
-        if (rc < 0)
-        {
+        if (rc < 0) {
             rc = -rc;
             goto free_str;
-        }
-        else if (rc > 0)
-        {
-            g_string_append_printf(req, " WHERE id="DPK, pk);
+        } else if (rc > 0) {
+            g_string_append_printf(req, " WHERE id=" DPK, pk);
             rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
             if (lmgr_delayed_retry(p_mgr, rc))
                 goto retry;
@@ -122,10 +116,8 @@ retry:
                 goto rollback;
         }
     }
-
 #ifdef _LUSTRE
-    if (ATTR_MASK_TEST(p_update_set, stripe_info))
-    {
+    if (ATTR_MASK_TEST(p_update_set, stripe_info)) {
 #ifdef HAVE_LLAPI_FSWAP_LAYOUTS
         int validator = ATTR(p_update_set, stripe_info).validator;
 #else
@@ -138,7 +130,8 @@ retry:
             p_items = &ATTR(p_update_set, stripe_items);
 
         rc = update_stripe_info(p_mgr, pk, validator,
-                                &ATTR(p_update_set, stripe_info), p_items, true);
+                                &ATTR(p_update_set, stripe_info), p_items,
+                                true);
         if (lmgr_delayed_retry(p_mgr, rc))
             goto retry;
         else if (rc)
@@ -154,9 +147,9 @@ retry:
 
     goto free_str;
 
-rollback:
+ rollback:
     lmgr_rollback(p_mgr);
-free_str:
+ free_str:
     g_string_free(req, TRUE);
     return rc;
 }
@@ -172,7 +165,7 @@ int ListMgr_Replace(lmgr_t *p_mgr, entry_id_t *old_id, attr_set_t *old_attrs,
     DEF_PK(newpk);
     int rc;
 
-retry:
+ retry:
     rc = lmgr_begin(p_mgr);
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
@@ -198,8 +191,8 @@ retry:
     entry_id2pk(old_id, PTR_PK(oldpk));
     entry_id2pk(new_id, PTR_PK(newpk));
 
-    req = g_string_new("UPDATE "DNAMES_TABLE);
-    g_string_append_printf(req, " SET parent_id="DPK" WHERE parent_id="DPK,
+    req = g_string_new("UPDATE " DNAMES_TABLE);
+    g_string_append_printf(req, " SET parent_id=" DPK " WHERE parent_id=" DPK,
                            newpk, oldpk);
     rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
     if (lmgr_delayed_retry(p_mgr, rc))
@@ -210,13 +203,12 @@ retry:
     rc = lmgr_commit(p_mgr);
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
-    else
-    {
+    else {
         g_string_free(req, TRUE);
         return rc;
     }
 
-rollback:
+ rollback:
     lmgr_rollback(p_mgr);
     if (req != NULL)
         g_string_free(req, TRUE);
