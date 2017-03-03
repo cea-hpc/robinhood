@@ -746,6 +746,11 @@ static void *signal_handler_thr(void *arg)
             DisplayLog(LVL_EVENT, RELOAD_TAG,
                        "Reloading configuration from '%s'", config_file_path());
 
+            if(rbh_cfg_reload(parsing_mask) != 0) {
+                DisplayLog(LVL_MAJOR, RELOAD_TAG,
+                           "Failure reloading configuration from '%s'", config_file_path());
+            }
+
             reload_sig = false;
             FlushLogs();
         } else if (dump_sig) {
