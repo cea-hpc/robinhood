@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "fabf19d9_3ed81fef",
+        "filename": "web_gui/tests/nonreg.php",
+        "patchSetId": 3
+      },
+      "lineNbr": 39,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-03-06T15:35:18Z",
+      "side": 1,
+      "message": "(style, minor) space at end of line. Cleaned if you update this patch.",
+      "revId": "30606ed190adc3b2bc353e5c93f0cbd1685c776a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fabf19d9_9ee72bac",
+        "filename": "web_gui/tests/nonreg.php",
+        "patchSetId": 3
+      },
+      "lineNbr": 46,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-03-06T15:35:18Z",
+      "side": 1,
+      "message": "Does this work wherever you run the script?",
+      "revId": "30606ed190adc3b2bc353e5c93f0cbd1685c776a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
