@@ -632,17 +632,21 @@ int compare_cmd(char **c1, char **c2)
 {
     int rc;
 
-    while (c1 && c2) {
+    /* strcmp does not perform argument sanity check */
+    while (c1 && *c1 && c2 && *c2) {
         rc = strcmp(*c1, *c2);
         if (rc)
             return rc;
+        /* got to next element in array */
+        c1++;
+        c2++;
     }
 
     /* only c1 left, it's bigger */
-    if (c1)
+    if (c1 && *c1)
         return 1;
 
-    if (c2)
+    if (c2 && *c2)
         return -1;
 
     return 0;

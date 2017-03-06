@@ -343,7 +343,7 @@ sm_instance_t *create_sm_instance(const char *pol_name, const char *sm_name)
         return NULL;
 
     /* if it is shared, check if it is already instanciated */
-    if ((sm->flags & SM_SHARED) && sm_instance_exists(sm_name, &smi))
+    if (sm_instance_exists((sm->flags & SM_SHARED) ? sm_name: pol_name, &smi))
         return smi;
 
     /* create an instance */
