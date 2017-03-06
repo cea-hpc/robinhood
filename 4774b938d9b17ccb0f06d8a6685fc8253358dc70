@@ -2,6 +2,23 @@
   "comments": [
     {
       "key": {
+        "uuid": "fabf19d9_996d05cf",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 1
+      },
+      "lineNbr": 7,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-03-06T16:06:42Z",
+      "side": 1,
+      "message": "Missing summary line (first line, short single line), like:\n   rbh_daemon: enable and fix config reload",
+      "revId": "4774b938d9b17ccb0f06d8a6685fc8253358dc70",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "fabf19d9_790d9136",
         "filename": "src/policies/status_manager.c",
         "patchSetId": 1
