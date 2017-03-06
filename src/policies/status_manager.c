@@ -260,12 +260,15 @@ static status_manager_t *load_status_manager(const char *name)
 }
 
 /** check if an instance of shared status manager exists */
-static bool sm_instance_exists(const char *name, sm_instance_t **smi_ptr)
+static bool sm_instance_exists(bool is_shared, const char *sm_name,
+                               const char *pol_name, sm_instance_t **smi_ptr)
 {
     int i;
 
     for (i = 0; i < sm_inst_count; i++) {
-        if (!strcasecmp(sm_inst[i]->sm->name, name)) {
+        if ((is_shared && (!strcasecmp(sm_inst[i]->sm->name, sm_name))) ||
+            ((!is_shared) && !strcasecmp(sm_inst[i]->sm->name, sm_name) &&
+             !strcasecmp(sm_inst[i]->instance_name, pol_name))) {
             *smi_ptr = sm_inst[i];
             return true;
         }
@@ -343,7 +346,7 @@ sm_instance_t *create_sm_instance(const char *pol_name, const char *sm_name)
         return NULL;
 
     /* if it is shared, check if it is already instanciated */
-    if ((sm->flags & SM_SHARED) && sm_instance_exists(sm_name, &smi))
+    if (sm_instance_exists(sm->flags & SM_SHARED, sm_name, pol_name, &smi))
         return smi;
 
     /* create an instance */
