@@ -16,6 +16,24 @@
       "revId": "478daaf3a028ee6fa165fb9ac06cf9cb75ac44d8",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "f2993576_b0db9b51",
+        "filename": "src/policies/status_manager.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 346,
+      "author": {
+        "id": 1009999
+      },
+      "writtenOn": "2017-03-07T17:09:15Z",
+      "side": 1,
+      "message": "Thanks for the comment, will work on it tomorrow\nnon shared instances will have to match sm_name and pol_name",
+      "parentUuid": "aa4b8385_9e38b671",
+      "revId": "478daaf3a028ee6fa165fb9ac06cf9cb75ac44d8",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
