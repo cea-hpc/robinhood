@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "aa4b8385_9e38b671",
+        "filename": "src/policies/status_manager.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 346,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-03-07T16:03:16Z",
+      "side": 1,
+      "message": "Actually, this doesn\u0027t look right.\n\nWhen initially loading the config, it is expected that a SM instance is created for each policy that use a non-shared SM. For example, there may be several policies using an \"alerter\" status manager, and each policy will have it own instance of alerter. So we must not prevent from instanciating multiple SM here.\n\nThe problem is when reloading. This piece of code uses the same logic as for an initial loading, whereas it should obviously not...\n\nI\u0027m going to dig that a little more to propose you an appropriate solution.",
+      "revId": "478daaf3a028ee6fa165fb9ac06cf9cb75ac44d8",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
