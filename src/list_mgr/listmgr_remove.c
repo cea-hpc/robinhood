@@ -595,6 +595,7 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
         nb += attrmask2fieldlist(req, mask_no_rmtime, T_TMP_SOFTRM,
                                  "", "", AOF_LEADING_SEP);
         g_string_append_printf(req, " FROM %s", tmp_table_name);
+        g_string_append_printf(req, " ORDER BY CHAR_LENGTH(fullpath) DESC");
     }
     else
         g_string_printf(req, "SELECT id FROM %s", tmp_table_name);
