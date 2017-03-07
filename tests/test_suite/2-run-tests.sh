@@ -8955,9 +8955,6 @@ function test_du
 
 }
 
-
-
-
 function check_disabled
 {
        config_file=$1
@@ -9026,6 +9023,53 @@ function check_disabled
 
 }
 
+function test_reload
+{
+    config_file=$1
+
+    clean_logs
+
+    # create test cases
+    $RBH_TESTS_DIR/fill_fs.sh $RH_ROOT 100 >/dev/null
+
+    # create a tmp copy of the config to modify it
+    cfg=$RBH_CFG_DIR/${config_file}.COPY.conf
+    cp -f $RBH_CFG_DIR/$config_file $cfg
+
+    # run regular scan + alerts
+    export ALERT_CLASS=size10k
+    $RH -f $cfg --scan --run=alert -L rh_scan.log -l DEBUG -p rh.pid &
+
+    # check the effect of reload
+    sleep 2 # wait for full rbh initialization
+    # change config file
+    echo "EntryProcessor { nb_threads = 2; }" >> $cfg
+    kill -HUP $(cat rh.pid)
+    sleep 2 # signal processing loop awakes every second
+
+    # check the signal is properly received
+    grep "SIGHUP received" rh_scan.log || error "Signal not received"
+    # check the reload operation is properly triggered
+    grep "Reloading configuration" rh_scan.log ||
+        error "config reload not triggered"
+
+    grep "Failure reloading" rh_scan.log && error "failed to parse cfg"
+
+    # check config parsing is triggered for submodules
+    grep "Loading policies config"  rh_scan.log ||
+        error "Config parsing not triggered for submodules"
+
+    # check the config change is taken into account (to be completed)
+    grep "EntryProcessor::nb_threads changed" ||
+        error "Parameter change not taken into account"
+
+    kill $(cat rh.pid)
+    rm -f $cfg
+    return 0
+}
+
+
+#############################################################################
 
 
 only_test=""
@@ -11844,6 +11888,7 @@ run_test 509    test_cfg_overflow "config options too long"
 run_test 510    test_rbh_find_printf test_checker.conf "Test rbh-find with -printf option"
 run_test 511    archive_uuid1 test_uuid.conf "Test UUID presence while scanning"
 run_test 512    archive_uuid2 test_uuid.conf "Archive and undelete file with UUID using changelogs"
+run_test 513    test_reload   alert.conf "Reloading configuration (with alert policy)"
 
 #### Tests by Sogeti ####
 run_test 600a test_alerts alert.conf "file1" 0 "TEST_ALERT_PATH_NAME"
