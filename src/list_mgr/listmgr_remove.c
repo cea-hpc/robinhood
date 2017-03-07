@@ -599,6 +599,8 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
     else
         g_string_printf(req, "SELECT id FROM %s", tmp_table_name);
 
+    g_string_append_printf(req, " ORDER BY CHAR_LENGTH(fullpath) DESC");
+
     rc = db_exec_sql(&p_mgr->conn, req->str, &result);
     if (rc)
         goto free_str;
