@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "f474e697_812984e6",
+        "filename": "src/policies/status_manager.c",
+        "patchSetId": 6
+      },
+      "lineNbr": 263,
+      "author": {
+        "id": 1009999
+      },
+      "writtenOn": "2017-03-10T06:40:39Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "64bfa24a_41c68efd",
+      "revId": "05b5d7b6a4a641c0b253bebe8a4721ce5f37b470",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "51f0e7b5_5da7b164",
         "filename": "src/policies/status_manager.c",
         "patchSetId": 6
@@ -30,6 +48,30 @@
       "writtenOn": "2017-03-09T19:26:32Z",
       "side": 1,
       "message": "superfluous parenthesing",
+      "range": {
+        "startLine": 269,
+        "startChar": 26,
+        "endLine": 269,
+        "endChar": 27
+      },
+      "revId": "05b5d7b6a4a641c0b253bebe8a4721ce5f37b470",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "1026803e_39680ba5",
+        "filename": "src/policies/status_manager.c",
+        "patchSetId": 6
+      },
+      "lineNbr": 269,
+      "author": {
+        "id": 1009999
+      },
+      "writtenOn": "2017-03-10T06:40:39Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "51f0e7b5_5da7b164",
       "range": {
         "startLine": 269,
         "startChar": 26,
@@ -65,6 +107,30 @@
     },
     {
       "key": {
+        "uuid": "f6df44db_8f87fd4e",
+        "filename": "src/policies/status_manager.c",
+        "patchSetId": 6
+      },
+      "lineNbr": 270,
+      "author": {
+        "id": 1009999
+      },
+      "writtenOn": "2017-03-10T06:40:39Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "355c75a0_32faeb51",
+      "range": {
+        "startLine": 270,
+        "startChar": 29,
+        "endLine": 270,
+        "endChar": 30
+      },
+      "revId": "05b5d7b6a4a641c0b253bebe8a4721ce5f37b470",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "3a140beb_3dd3c108",
         "filename": "src/policies/status_manager.c",
         "patchSetId": 6
@@ -76,6 +142,30 @@
       "writtenOn": "2017-03-09T19:26:32Z",
       "side": 1,
       "message": "extra parenthesing",
+      "range": {
+        "startLine": 349,
+        "startChar": 27,
+        "endLine": 349,
+        "endChar": 28
+      },
+      "revId": "05b5d7b6a4a641c0b253bebe8a4721ce5f37b470",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "3b9fecd4_5fd5c4e1",
+        "filename": "src/policies/status_manager.c",
+        "patchSetId": 6
+      },
+      "lineNbr": 349,
+      "author": {
+        "id": 1009999
+      },
+      "writtenOn": "2017-03-10T06:40:39Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "3a140beb_3dd3c108",
       "range": {
         "startLine": 349,
         "startChar": 27,
