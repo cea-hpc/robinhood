@@ -4020,6 +4020,61 @@ function test_sched_limits
     (( c == 5 )) || error "5 actions expected (got $c)"
 }
 
+function test_basic_sm
+{
+	local config_file=$1
+
+	clean_logs
+
+    local nb_files_ok=10
+    local nb_files_error=5
+    local nb_all=$(( $nb_files_ok + $nb_files_error ))
+
+    # migrating by creation order, so create them in order
+    # to increase the error rate sightly
+    # and reach this condition before the whole migration is finished
+	echo "1-Creating test files..."
+	for i in $(seq 1 ${nb_files_ok}); do
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+	done
+    sleep 1
+	for i in $(seq 1 ${nb_files_error}); do
+		dd if=/dev/zero of=$RH_ROOT/file.$i.fail bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i.fail"
+	done
+
+    echo "2-Scanning"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l VERB -L rh_scan.log ||
+        error "scan error"
+    check_db_error rh_scan.log
+
+    echo "3-Checking initial 'basic' status"
+	$REPORT -f $RBH_CFG_DIR/$config_file --status-info=touch --csv -q \
+            --count-min=1 > rh_report.log
+	cat rh_report.log
+    check_status_count rh_report.log "ok" 0
+    check_status_count rh_report.log "failed" 0
+    check_status_count rh_report.log "" $nb_all
+
+    echo "4-Running basic policy"
+    $RH -f $RBH_CFG_DIR/$config_file --run=touch --once -l VERB -L rh_migr.log ||
+        error "policy run error"
+    check_db_error rh_migr.log
+
+    # check policy actions are executed on all entries
+    local actions=$(grep "Executing policy action" rh_migr.log | wc -l)
+    (($actions == $nb_all)) || error "$nb_all actions expected"
+
+    echo "5-Checking final 'basic' status"
+	$REPORT -f $RBH_CFG_DIR/$config_file --status-info=touch --csv -q \
+            --count-min=1 > rh_report.log
+	cat rh_report.log
+    check_status_count rh_report.log "ok" $nb_files_ok
+    check_status_count rh_report.log "failed" $nb_files_error
+
+    return 0
+}
+
+
 function grep_matched_rule
 {
     log_file=$1
@@ -11832,6 +11887,7 @@ run_test 232b  test_sched_limits test_sched1.conf sched_max_vol "check max vol e
 run_test 232c  test_sched_limits test_sched1.conf trigger "check trigger vs. max_per_run scheduler"
 run_test 232d  test_sched_limits test_sched1.conf param "check policy parameter vs. max_per_run scheduler"
 run_test 232e  test_sched_limits test_sched1.conf cmd "check cmd line vs. max_per_run scheduler"
+run_test 233   test_basic_sm     test_basic.conf  "Test basic status manager"
 
 
 #### triggers ####

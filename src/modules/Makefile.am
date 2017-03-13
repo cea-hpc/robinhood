@@ -15,6 +15,10 @@ pkglib_LTLIBRARIES+=librbh_mod_checker.la
 librbh_mod_checker_la_SOURCES=checker.c mod_internal.c mod_internal.h
 librbh_mod_checker_la_LDFLAGS=-version-info 0:0:0
 
+pkglib_LTLIBRARIES+=librbh_mod_basic.la
+librbh_mod_basic_la_SOURCES=basic.c mod_internal.c mod_internal.h
+librbh_mod_basic_la_LDFLAGS=-version-info 0:0:0
+
 if LUSTRE_HSM
 pkglib_LTLIBRARIES+=librbh_mod_lhsm.la
 librbh_mod_lhsm_la_SOURCES=lhsm.c mod_internal.c mod_internal.h
