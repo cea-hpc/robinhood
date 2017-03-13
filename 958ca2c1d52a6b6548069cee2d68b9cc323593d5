@@ -1,0 +1,50 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "7c821634_c595e379",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 44,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-03-13T16:40:17Z",
+      "side": 1,
+      "message": "Ideally I would like to put this enforced mask in the policy definition file (modeguard.inc), but I didn\u0027t find a way so I can then access it from both modeguard_status() and modeguard_action(). For modeguard_action(), it seems easy as I could use action_params, but I don\u0027t want to put it at two places.",
+      "range": {
+        "startLine": 44,
+        "startChar": 0,
+        "endLine": 44,
+        "endChar": 32
+      },
+      "revId": "958ca2c1d52a6b6548069cee2d68b9cc323593d5",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "17bf5480_1b6b7425",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 175,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-03-13T16:40:17Z",
+      "side": 1,
+      "message": "input of this would be appreciated, in my tests, I didn\u0027t notice any differences, the mode was always up-to-date when modeguard_status() is called (even after disabled readlog and changing the directory mode under the hood :)",
+      "range": {
+        "startLine": 173,
+        "startChar": 5,
+        "endLine": 175,
+        "endChar": 61
+      },
+      "revId": "958ca2c1d52a6b6548069cee2d68b9cc323593d5",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
