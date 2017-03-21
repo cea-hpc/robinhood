@@ -1,0 +1,285 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "8d23b1bb_70c1b21d",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 4023,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-03-21T09:00:55Z",
+      "side": 1,
+      "message": "(style) indentation is not consistent",
+      "revId": "892a6f1a0e6e7144756e066483a29e0209e669a7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "af157e93_3e8b7579",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 4029,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-03-21T09:00:55Z",
+      "side": 1,
+      "message": "(style) I prefer to group definitions",
+      "revId": "892a6f1a0e6e7144756e066483a29e0209e669a7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "56e80c4a_e99d913a",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 4034,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-03-21T09:00:55Z",
+      "side": 1,
+      "message": "(typo) slightly?",
+      "range": {
+        "startLine": 4034,
+        "startChar": 33,
+        "endLine": 4034,
+        "endChar": 40
+      },
+      "revId": "892a6f1a0e6e7144756e066483a29e0209e669a7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "f94d7598_8aec519e",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 4037,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-03-21T09:00:55Z",
+      "side": 1,
+      "message": "the \u00271\u0027 is optionnal/implicit",
+      "range": {
+        "startLine": 4037,
+        "startChar": 16,
+        "endLine": 4037,
+        "endChar": 17
+      },
+      "revId": "892a6f1a0e6e7144756e066483a29e0209e669a7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "f70d2092_25456a43",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 4038,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-03-21T09:00:55Z",
+      "side": 1,
+      "message": "(style) line is too long",
+      "range": {
+        "startLine": 4038,
+        "startChar": 63,
+        "endLine": 4038,
+        "endChar": 101
+      },
+      "revId": "892a6f1a0e6e7144756e066483a29e0209e669a7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "559462aa_767db15a",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 4040,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-03-21T09:00:55Z",
+      "side": 1,
+      "message": "why?",
+      "range": {
+        "startLine": 4040,
+        "startChar": 4,
+        "endLine": 4040,
+        "endChar": 11
+      },
+      "revId": "892a6f1a0e6e7144756e066483a29e0209e669a7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "4e8a4023_3d0a1e59",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 4041,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-03-21T09:00:55Z",
+      "side": 1,
+      "message": "the \u00271\u0027 is optionnal/implicit",
+      "range": {
+        "startLine": 4041,
+        "startChar": 16,
+        "endLine": 4041,
+        "endChar": 17
+      },
+      "revId": "892a6f1a0e6e7144756e066483a29e0209e669a7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "2489b1cd_95afc9a8",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 4042,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-03-21T09:00:55Z",
+      "side": 1,
+      "message": "(style) line is too long",
+      "range": {
+        "startLine": 4042,
+        "startChar": 57,
+        "endLine": 4042,
+        "endChar": 111
+      },
+      "revId": "892a6f1a0e6e7144756e066483a29e0209e669a7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "f35dce85_4a198216",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 4053,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-03-21T09:00:55Z",
+      "side": 1,
+      "message": "could use tee",
+      "range": {
+        "startLine": 4052,
+        "startChar": 26,
+        "endLine": 4053,
+        "endChar": 18
+      },
+      "revId": "892a6f1a0e6e7144756e066483a29e0209e669a7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "29694779_7be12a16",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 4065,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-03-21T09:00:55Z",
+      "side": 1,
+      "message": "To test integers, I prefer to use [ $1 -eq $2 ] as I find (($1 \u003d\u003d $2)) to be weaker: ((a \u003d\u003d 0)) evaluates to true for example.\n\nBut I can see that this is consistent with other tests, so it is probably better not to change it.",
+      "range": {
+        "startLine": 4065,
+        "startChar": 4,
+        "endLine": 4065,
+        "endChar": 27
+      },
+      "revId": "892a6f1a0e6e7144756e066483a29e0209e669a7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "68a73f5d_90ddfab4",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 4070,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-03-21T09:00:55Z",
+      "side": 1,
+      "message": "could use tee",
+      "range": {
+        "startLine": 4069,
+        "startChar": 26,
+        "endLine": 4070,
+        "endChar": 18
+      },
+      "revId": "892a6f1a0e6e7144756e066483a29e0209e669a7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ceb1067b_a578d126",
+        "filename": "tests/test_suite/cfg/test_basic.conf",
+        "patchSetId": 1
+      },
+      "lineNbr": 1,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-03-21T09:00:55Z",
+      "side": 1,
+      "message": "(style) indentation is not consistent",
+      "revId": "892a6f1a0e6e7144756e066483a29e0209e669a7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "4ed20035_15b4b415",
+        "filename": "tests/test_suite/cfg/test_basic.conf",
+        "patchSetId": 1
+      },
+      "lineNbr": 20,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-03-21T09:00:55Z",
+      "side": 1,
+      "message": "(style) blank space at the end of the line",
+      "range": {
+        "startLine": 20,
+        "startChar": 36,
+        "endLine": 20,
+        "endChar": 37
+      },
+      "revId": "892a6f1a0e6e7144756e066483a29e0209e669a7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
