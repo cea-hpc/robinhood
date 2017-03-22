@@ -36,11 +36,14 @@ int lmgr_simple_filter_init(lmgr_filter_t *p_filter)
     sf->filter_compar = MemCalloc(FILTER_PREALLOC_INIT,
                                   sizeof(filter_comparator_t));
     sf->filter_value = MemCalloc(FILTER_PREALLOC_INIT, sizeof(filter_value_t));
+    sf->filter_begin_end_block = MemCalloc(FILTER_PREALLOC_INIT, sizeof(bool));
 
     if (sf->filter_flags == NULL || sf->filter_index == NULL
-        || sf->filter_compar == NULL || sf->filter_value == NULL)
+        || sf->filter_compar == NULL || sf->filter_value == NULL
+        || sf->filter_begin_end_block == NULL )
         return DB_NO_MEMORY;
 
+    memset(sf->filter_begin_end_block, 0, FILTER_PREALLOC_INIT*sizeof(bool));
     sf->prealloc = FILTER_PREALLOC_INIT;
     return 0;
 }
@@ -167,9 +170,12 @@ int lmgr_simple_filter_add(lmgr_filter_t *p_filter, unsigned int attr_index,
                                    sf->prealloc * sizeof(filter_comparator_t));
         sf->filter_value = MemRealloc(sf->filter_value,
                                    sf->prealloc * sizeof(filter_value_t));
+        sf->filter_begin_end_block = MemRealloc(sf->filter_begin_end_block,
+                                                sf->prealloc * sizeof(bool));
 
         if (sf->filter_flags == NULL || sf->filter_index == NULL
-            || sf->filter_compar == NULL || sf->filter_value == NULL)
+            || sf->filter_compar == NULL || sf->filter_value == NULL
+            || sf->filter_begin_end_block == NULL)
             return DB_NO_MEMORY;
     }
 
@@ -177,6 +183,7 @@ int lmgr_simple_filter_add(lmgr_filter_t *p_filter, unsigned int attr_index,
     sf->filter_index[sf->filter_count] = attr_index;
     sf->filter_compar[sf->filter_count] = comparator;
     sf->filter_value[sf->filter_count] = value;
+    sf->filter_begin_end_block[sf->filter_count] = false;
 
     /* duplicate and copy buffers if needed */
     rc = lmgr_simple_filter_dup_buffers(p_filter, sf->filter_count);
@@ -234,6 +241,7 @@ int lmgr_simple_filter_add_or_replace(lmgr_filter_t *p_filter,
         sf->filter_flags[i] = flag | syntax_flags;
         sf->filter_compar[i] = comparator;
         sf->filter_value[i] = value;
+        sf->filter_begin_end_block[i] = false;
 
         /* duplicate and copy buffers if needed */
         rc = lmgr_simple_filter_dup_buffers(p_filter, i);
@@ -293,9 +301,32 @@ int lmgr_simple_filter_free(lmgr_filter_t *p_filter)
         MemFree(sf->filter_compar);
     if (sf->filter_value)
         MemFree(sf->filter_value);
+    if (sf->filter_begin_end_block)
+        MemFree(sf->filter_begin_end_block);
     memset(p_filter, 0, sizeof(lmgr_filter_t));
     return 0;
 }
+
+/* Add begin or end block. */
+int lmgr_simple_filter_add_block(lmgr_filter_t *p_filter,
+                                  enum filter_flags flag)
+{
+    int rc;
+    lmgr_simple_filter_t *sf = &p_filter->filter_simple;
+
+    filter_value_t val;
+    memset(&val, 0, sizeof(filter_value_t));
+    rc = lmgr_simple_filter_add(p_filter, 0, 0, val, flag);
+
+    if (rc != 0)
+        return rc;
+
+    /* set begin_end_block flag */
+    sf->filter_begin_end_block[sf->filter_count-1] = true;
+
+    return 0;
+}
+
 
 /* is it a simple 'AND' expression ? */
 static bool is_simple_expr(bool_node_t *boolexpr, int depth, bool_op_t op_ctx)
@@ -510,6 +541,7 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
     case NODE_BINARY_EXPR:
         {
             int flag1, flag2;
+            bool begin_end = false;
 
             /* ensures there are no 2 levels of parenthesing */
             if (depth > 1)
@@ -535,6 +567,23 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
                 flag1 |=
                     FILTER_FLAG_BEGIN | (expr_flag & FILTER_FLAG_NOT_BEGIN);
                 flag2 |= FILTER_FLAG_END | (expr_flag & FILTER_FLAG_NOT_END);
+
+                // don't create a new block if parent already has one
+                if (!(expr_flag & FILTER_FLAG_BEGIN_BLOCK)) {
+                    // Append begin node
+                    flag1 |= FILTER_FLAG_BEGIN_BLOCK;
+                    flag1 &= ~FILTER_FLAG_BEGIN;
+                    flag2 &= ~FILTER_FLAG_END;
+                    begin_end = true;
+                    if (op_ctx == BOOL_OR) {
+                        lmgr_simple_filter_add_block(filter, FILTER_FLAG_OR
+                                                       | FILTER_FLAG_BEGIN_BLOCK);
+                    }
+                    else {
+                        lmgr_simple_filter_add_block(filter,
+                                                     FILTER_FLAG_BEGIN_BLOCK);
+                    }
+                }
             }
 
             rc = append_simple_expr(boolexpr->content_u.bool_expr.expr1,
@@ -545,6 +594,10 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
             rc = append_simple_expr(boolexpr->content_u.bool_expr.expr2,
                                     filter, smi, time_mod, flag2, new_depth,
                                     boolexpr->content_u.bool_expr.bool_op);
+            if (begin_end) {
+                lmgr_simple_filter_add_block(filter, FILTER_FLAG_END_BLOCK);
+            }
+
             return rc;
         }
 
