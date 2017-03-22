@@ -297,6 +297,19 @@ int lmgr_simple_filter_free(lmgr_filter_t *p_filter)
     return 0;
 }
 
+/* Add begin or end block. */
+int lmgr_simple_filter_add_block(lmgr_filter_t *p_filter,
+                                  enum filter_flags flag)
+{
+    int rc;
+
+    filter_value_t val;
+    memset(&val, 0, sizeof(filter_value_t));
+
+    return lmgr_simple_filter_add(p_filter, 0, 0, val, flag);
+}
+
+
 /* is it a simple 'AND' expression ? */
 static bool is_simple_expr(bool_node_t *boolexpr, int depth, bool_op_t op_ctx)
 {
@@ -510,6 +523,7 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
     case NODE_BINARY_EXPR:
         {
             int flag1, flag2;
+            bool begin_end = false;
 
             /* ensures there are no 2 levels of parenthesing */
             if (depth > 1)
@@ -533,8 +547,29 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
                 /* new level of parenthesing */
                 /* propagate NOT_BEGIN/NOT_END flags */
                 flag1 |=
-                    FILTER_FLAG_BEGIN | (expr_flag & FILTER_FLAG_NOT_BEGIN);
-                flag2 |= FILTER_FLAG_END | (expr_flag & FILTER_FLAG_NOT_END);
+                    FILTER_FLAG_BEGIN
+                    | (expr_flag
+                        & (FILTER_FLAG_NOT_BEGIN | FILTER_FLAG_NOT_END));
+                flag2 |= FILTER_FLAG_END
+                         | (expr_flag
+                             & (FILTER_FLAG_NOT_END | FILTER_FLAG_NOT_BEGIN));
+
+                // don't create a new block if parent already has one
+                if (!(expr_flag & FILTER_FLAG_BEGIN_BLOCK)) {
+                    // Append begin node
+                    flag1 |= FILTER_FLAG_BEGIN_BLOCK;
+                    flag1 &= ~FILTER_FLAG_BEGIN;
+                    flag2 &= ~FILTER_FLAG_END;
+                    begin_end = true;
+                    if (op_ctx == BOOL_OR) {
+                        lmgr_simple_filter_add_block(filter, FILTER_FLAG_OR
+                                                       | FILTER_FLAG_BEGIN_BLOCK);
+                    }
+                    else {
+                        lmgr_simple_filter_add_block(filter,
+                                                     FILTER_FLAG_BEGIN_BLOCK);
+                    }
+                }
             }
 
             rc = append_simple_expr(boolexpr->content_u.bool_expr.expr1,
@@ -545,6 +580,10 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
             rc = append_simple_expr(boolexpr->content_u.bool_expr.expr2,
                                     filter, smi, time_mod, flag2, new_depth,
                                     boolexpr->content_u.bool_expr.bool_op);
+            if (begin_end) {
+                lmgr_simple_filter_add_block(filter, FILTER_FLAG_END_BLOCK);
+            }
+
             return rc;
         }
 

@@ -238,24 +238,10 @@ For status manager that handle removed entries the 2 masks are:
     - fields to save in softrm table (needed for undelete or recovery)
 */
 
-/* -------------- Basic status manager implementation ------------------- */
-
-#define BASIC_ST_COUNT 2
-static const char *basic_status_list[] = { "ok", "failed" };    /* + not set */
-
-static status_manager_t basic_sm = {
-    .name = "basic",
-    .status_enum = basic_status_list,
-    .status_count = BASIC_ST_COUNT
-};
-
 /* -------------- managing status managers ---------- */
 
 static status_manager_t *load_status_manager(const char *name)
 {
-    if (strcasecmp(name, "basic") == 0)
-        return &basic_sm;
-
     return module_get_status_manager(name);
 }
 
