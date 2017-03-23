@@ -715,6 +715,168 @@ static bool is_lustre_special(const struct entry_proc_op_t *p_op)
     return false;
 }
 
+#ifdef HAVE_CHANGELOGS
+/**
+ * Infer what are the needed attributes from DB, depending on changelog
+ * record content.
+ */
+static void logrec2dbneed(struct entry_proc_op_t *p_op)
+{
+    CL_REC_TYPE *logrec = p_op->extra_info.log_record.p_log_rec;
+    obj_type_t type_clue = TYPE_NONE;
+    uint32_t status_scope = 0;  /* status mask */
+    attr_mask_t tmp;
+
+    /* does the log record gives a clue about entry_type */
+    type_clue = cl2type_clue(logrec);
+
+    p_op->db_attr_need = null_mask;
+
+    if (type_clue == TYPE_NONE) {
+        /* type is a useful information to make decisions (about getstripe,
+         * readlink, ...) */
+        attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_type);
+    } else {
+        ATTR_MASK_SET(&p_op->fs_attrs, type);
+        strcpy(ATTR(&p_op->fs_attrs, type), type2db(type_clue));
+    }
+
+    /* add diff mask for diff mode */
+    p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &diff_mask);
+
+    /* If this is an unlink and we don't know whether it is the
+     * last entry, use nlink. */
+    if (logrec->cr_type == CL_UNLINK && p_op->check_if_last_entry)
+        attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_nlink);
+    /* If it's a hard link, we will need the hlink so we can
+     * increment it. Will override the fs value. */
+    else if (logrec->cr_type == CL_HARDLINK)
+        attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_nlink);
+
+    /* in case of (last) unlink, we need softrm filter masks.
+     * don't retrieve other information */
+    if (p_op->extra_info.log_record.p_log_rec->cr_type == CL_UNLINK
+        && logrec->cr_flags & CLF_UNLINK_LAST) {
+        tmp = sm_softrm_mask();
+        p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
+        /* Entry was deleted. Don't try to get more info from the DB. */
+        return;
+    }
+
+    /* Only need to get md_update if the update policy != always */
+    if (updt_params.md.when != UPDT_ALWAYS)
+        attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_md_update);
+
+    /* Only need to get path_update if the update policy != always
+     * and if it is not provided in logrec
+     */
+    if ((updt_params.path.when != UPDT_ALWAYS)
+        && (logrec->cr_namelen == 0))
+        attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_path_update);
+
+    if (entry_proc_conf.detect_fake_mtime)
+        attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_creation_time);
+
+    if (type_clue == TYPE_NONE || type_clue == TYPE_LINK)
+        /* check if link content is set for this entry */
+        attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_link);
+
+    if (entry_proc_conf.match_classes) {
+        if (updt_params.fileclass.when != UPDT_ALWAYS)
+            attr_mask_set_index(&p_op->db_attr_need,
+                                ATTR_INDEX_class_update);
+
+        tmp = attr_mask_and_not(&policies.global_fileset_mask,
+                                &p_op->fs_attrs.attr_mask);
+        p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
+    }
+
+    /* check if entry is in policies scope */
+    add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true,
+                             &status_scope);
+
+    /* get missing attributes to check the scopes:
+     * db_attr_need |= <attrs_for_status> and not <fs_attrs>
+     */
+    tmp = attrs_for_status_mask(status_scope, false);
+    tmp = attr_mask_and_not(&tmp, &p_op->fs_attrs.attr_mask);
+    p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
+
+    /* In case of a RENAME, match the new name (not the one from the DB). */
+    if ((logrec->cr_type == CL_EXT)
+        && (p_op->db_attr_need.std & ATTR_MASK_fullpath)) {
+        int rc;
+
+        rc = Lustre_GetFullPath(&p_op->entry_id,
+                                ATTR(&p_op->fs_attrs, fullpath),
+                                sizeof(ATTR(&p_op->fs_attrs, fullpath)));
+        if (rc == 0) {
+            ATTR_MASK_SET(&p_op->fs_attrs, fullpath);
+            p_op->db_attr_need.std &= ~ATTR_MASK_fullpath;
+        }
+    }
+}
+#endif
+
+/**
+ * Determine needed DB attributes to process a scanned entry.
+ */
+static void scan2dbneed(struct entry_proc_op_t *p_op)
+{
+    attr_mask_t attr_allow_cached;
+    uint32_t status_scope = 0;  /* status mask */
+    attr_mask_t tmp;
+
+    /* check if entry is in policies scope */
+    add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true,
+                             &status_scope);
+
+    p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &diff_mask);
+    /* retrieve missing attributes for diff */
+    tmp = attr_mask_and_not(&diff_mask, &p_op->fs_attrs.attr_mask);
+    p_op->fs_attr_need = attr_mask_or(&p_op->fs_attr_need, &tmp);
+
+    if (entry_proc_conf.detect_fake_mtime)
+        attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_creation_time);
+
+    /* get all needed attributes for status */
+    attr_allow_cached = attrs_for_status_mask(status_scope, false);
+
+    /* what must be retrieved from DB: */
+    tmp = attr_mask_and_not(&attr_allow_cached, &p_op->fs_attrs.attr_mask);
+    p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
+
+    /* no dircount for non-dirs */
+    if (ATTR_MASK_TEST(&p_op->fs_attrs, type) &&
+        strcmp(ATTR(&p_op->fs_attrs, type), STR_TYPE_DIR))
+        attr_mask_unset_index(&p_op->db_attr_need, ATTR_INDEX_dircount);
+
+    /* no readlink for non symlinks */
+    if (ATTR_MASK_TEST(&p_op->fs_attrs, type)) { /* likely */
+        if (!strcmp(ATTR(&p_op->fs_attrs, type), STR_TYPE_LINK)) {
+            /* check if symlink's contents is known */
+            attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_link);
+            /* no stripe for symlinks */
+            attr_mask_unset_index(&p_op->db_attr_need,
+                                  ATTR_INDEX_stripe_info);
+            attr_mask_unset_index(&p_op->db_attr_need,
+                                  ATTR_INDEX_stripe_items);
+        } else
+            attr_mask_unset_index(&p_op->db_attr_need, ATTR_INDEX_link);
+    }
+
+    if (entry_proc_conf.match_classes) {
+        if (updt_params.fileclass.when != UPDT_ALWAYS)
+            attr_mask_set_index(&p_op->db_attr_need,
+                                ATTR_INDEX_class_update);
+
+        tmp = attr_mask_and_not(&policies.global_fileset_mask,
+                                &p_op->fs_attrs.attr_mask);
+        p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
+    }
+}
+
+
 /**
  * check if the entry exists in the database and what info
  * must be retrieved.
@@ -723,9 +885,6 @@ int EntryProc_get_info_db(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
 {
     int rc = 0;
     int next_stage = -1;    /* -1 = skip */
-    attr_mask_t attr_allow_cached = null_mask;
-    attr_mask_t attr_need_fresh = null_mask;
-    uint32_t status_scope = 0;  /* status mask */
     attr_mask_t tmp;
 
     const pipeline_stage_t *stage_info =
@@ -750,26 +909,7 @@ int EntryProc_get_info_db(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
 #ifdef HAVE_CHANGELOGS
     /* is this a changelog record? */
     if (p_op->extra_info.is_changelog_record) {
-        obj_type_t type_clue = TYPE_NONE;
-
         CL_REC_TYPE *logrec = p_op->extra_info.log_record.p_log_rec;
-
-        /* does the log record gives a clue about entry_type */
-        type_clue = cl2type_clue(logrec);
-
-        p_op->db_attr_need = null_mask;
-
-        if (type_clue == TYPE_NONE) {
-            /* type is a useful information to take decisions (about getstripe,
-             * readlink, ...) */
-            attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_type);
-        } else {
-            ATTR_MASK_SET(&p_op->fs_attrs, type);
-            strcpy(ATTR(&p_op->fs_attrs, type), type2db(type_clue));
-        }
-
-        /* add diff mask for diff mode */
-        p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &diff_mask);
 
         /* chglog_reader_config.mds_has_lu543 has already been tested
          * in changelog reader before pushing the entry. */
@@ -808,73 +948,8 @@ int EntryProc_get_info_db(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
             }
         }
 
-        /* If this is an unlink and we don't know whether it is the
-         * last entry, use nlink. */
-        if (logrec->cr_type == CL_UNLINK && p_op->check_if_last_entry)
-            attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_nlink);
-        /* If it's a hard link, we will need the hlink so we can
-         * increment it. Will override the fs value. */
-        else if (logrec->cr_type == CL_HARDLINK)
-            attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_nlink);
-
-        /* Only need to get md_update if the update policy != always */
-        if (updt_params.md.when != UPDT_ALWAYS)
-            attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_md_update);
-
-        /* Only need to get path_update if the update policy != always
-         * and if it is not provided in logrec
-         */
-        if ((updt_params.path.when != UPDT_ALWAYS)
-            && (logrec->cr_namelen == 0))
-            attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_path_update);
-
-        if (entry_proc_conf.detect_fake_mtime)
-            attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_creation_time);
-
-        if (type_clue == TYPE_NONE || type_clue == TYPE_LINK)
-            /* check if link content is set for this entry */
-            attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_link);
-
-        if (entry_proc_conf.match_classes) {
-            if (updt_params.fileclass.when != UPDT_ALWAYS)
-                attr_mask_set_index(&p_op->db_attr_need,
-                                    ATTR_INDEX_class_update);
-
-            tmp =
-                attr_mask_and_not(&policies.global_fileset_mask,
-                                  &p_op->fs_attrs.attr_mask);
-            p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
-        }
-
-        /* check if entry is in policies scope */
-        add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true,
-                                 &status_scope);
-
-        /* get missing attributes to check the scopes:
-         * db_attr_need |= <attrs_for_status> and not <fs_attrs>
-         */
-        tmp = attrs_for_status_mask(status_scope, false);
-        tmp = attr_mask_and_not(&tmp, &p_op->fs_attrs.attr_mask);
-        p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
-
-        /* in case of unlink, we need softrm filter masks */
-        if (p_op->extra_info.log_record.p_log_rec->cr_type == CL_UNLINK) {
-            tmp = sm_softrm_mask();
-
-            p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
-        }
-
-        /* In case of a RENAME, match the new name (not the one from the DB). */
-        if ((logrec->cr_type == CL_EXT)
-            && (p_op->db_attr_need.std & ATTR_MASK_fullpath)) {
-            rc = Lustre_GetFullPath(&p_op->entry_id,
-                                    ATTR(&p_op->fs_attrs, fullpath),
-                                    sizeof(ATTR(&p_op->fs_attrs, fullpath)));
-            if (rc == 0) {
-                ATTR_MASK_SET(&p_op->fs_attrs, fullpath);
-                p_op->db_attr_need.std &= ~ATTR_MASK_fullpath;
-            }
-        }
+        /* determine needed attributes from DB */
+        logrec2dbneed(p_op);
 
         /* attributes to be retrieved */
         p_op->db_attrs.attr_mask = p_op->db_attr_need;
@@ -919,8 +994,9 @@ int EntryProc_get_info_db(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
                    name_status_mask(p_op->fs_attr_need.status, tmp_buf,
                                     sizeof(tmp_buf)));
     } else {    /* entry from FS scan */
-
 #endif
+        attr_mask_t attr_need_fresh;
+
         /* scan is expected to provide full path and attributes. */
         if (!ATTR_MASK_TEST(&p_op->fs_attrs, fullpath)) {
             DisplayLog(LVL_CRIT, ENTRYPROC_TAG,
@@ -930,54 +1006,8 @@ int EntryProc_get_info_db(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
             goto next_step;
         }
 
-        /* check if entry is in policies scope */
-        add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true,
-                                 &status_scope);
-
-        p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &diff_mask);
-        /* retrieve missing attributes for diff */
-        tmp = attr_mask_and_not(&diff_mask, &p_op->fs_attrs.attr_mask);
-        p_op->fs_attr_need = attr_mask_or(&p_op->fs_attr_need, &tmp);
-
-        if (entry_proc_conf.detect_fake_mtime)
-            attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_creation_time);
-
-        /* get all needed attributes for status */
-        attr_allow_cached = attrs_for_status_mask(status_scope, false);
-        attr_need_fresh = attrs_for_status_mask(status_scope, true);
-
-        /* what must be retrieved from DB: */
-        tmp = attr_mask_and_not(&attr_allow_cached, &p_op->fs_attrs.attr_mask);
-        p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
-
-        /* no dircount for non-dirs */
-        if (ATTR_MASK_TEST(&p_op->fs_attrs, type) &&
-            strcmp(ATTR(&p_op->fs_attrs, type), STR_TYPE_DIR))
-            attr_mask_unset_index(&p_op->db_attr_need, ATTR_INDEX_dircount);
-
-        /* no readlink for non symlinks */
-        if (ATTR_MASK_TEST(&p_op->fs_attrs, type)) { /* likely */
-            if (!strcmp(ATTR(&p_op->fs_attrs, type), STR_TYPE_LINK)) {
-                /* check if symlink's contents is known */
-                attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_link);
-                /* no stripe for symlinks */
-                attr_mask_unset_index(&p_op->db_attr_need,
-                                      ATTR_INDEX_stripe_info);
-                attr_mask_unset_index(&p_op->db_attr_need,
-                                      ATTR_INDEX_stripe_items);
-            } else
-                attr_mask_unset_index(&p_op->db_attr_need, ATTR_INDEX_link);
-        }
-
-        if (entry_proc_conf.match_classes) {
-            if (updt_params.fileclass.when != UPDT_ALWAYS)
-                attr_mask_set_index(&p_op->db_attr_need,
-                                    ATTR_INDEX_class_update);
-
-            tmp = attr_mask_and_not(&policies.global_fileset_mask,
-                                    &p_op->fs_attrs.attr_mask);
-            p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
-        }
+        /* determined needed attributes from DB */
+        scan2dbneed(p_op);
 
         if (!attr_mask_is_null(p_op->db_attr_need)) {
             p_op->db_attrs.attr_mask = p_op->db_attr_need;
