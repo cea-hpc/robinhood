@@ -2011,6 +2011,7 @@ function test_undelete
         echo 123 > "$f" || error "write"
     done
     local sz1=$(stat -c '%s' "${files[0]}")
+    local fid=$(get_id "$RH_ROOT/dir0/dir1/file1")
 
     # initial scan + archive all
     $RH -f "$RBH_CFG_DIR/$config_file" --scan --once $SYNC_OPT -l DEBUG -L rh_chglogs.log || error "Initial scan and sync"
@@ -2042,12 +2043,30 @@ function test_undelete
     diff <(sort rh_report.log) <(printf '%s\n' "${files[@]:0:2}" | sort) ||
         error "undelete list does not match the expected output"
 
+    # query a single file by path
+    $UNDELETE -f "$RBH_CFG_DIR/$config_file" -L "$RH_ROOT/dir0/dir1/file2" \
+        > rh_report.log || error "list softrm by path"
+    grep "$RH_ROOT/dir0/dir1/file2" rh_report.log || error "entry missing in report"
+
+    # query a single file by fid
+    $UNDELETE -f "$RBH_CFG_DIR/$config_file" -L "$fid" > rh_report.log ||
+        error "list softrm by fid"
+    grep "$RH_ROOT/dir0/dir1/file1" rh_report.log || error "entry missing in report"
+
     # recover all deleted entries from dir2
     local undeleted_files=( "${files[@]:2}" )
     $UNDELETE -f "$RBH_CFG_DIR/$config_file" -R "$RH_ROOT/dir0/dir2" | grep Restoring | cut -d "'" -f 2 > rh_report.log
     diff <(sort rh_report.log) \
         <(printf '%s\n' "${undeleted_files[@]}" | sort) ||
         error "list of undeleted file does not match the expected output"
+
+    # query a single file by path
+    $UNDELETE -f "$RBH_CFG_DIR/$config_file" -R "$RH_ROOT/dir0/dir1/file2" || error "undelete by path"
+    undeleted_files+=( "$RH_ROOT/dir0/dir1/file2" )
+
+    # query a single file by fid
+    $UNDELETE -f "$RBH_CFG_DIR/$config_file" -R "$fid" || error "undelete by fid"
+    undeleted_files+=( "$RH_ROOT/dir0/dir1/file1" )
 
     for f in "${undeleted_files[@]}"; do
         [ -f "$f"  ] || error "Missing $f in FS after undelete"

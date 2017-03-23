@@ -979,7 +979,10 @@ int     ListMgr_GetRmEntry(lmgr_t * p_mgr,
     p_attrs->attr_mask = attr_mask_and(&p_attrs->attr_mask, &softrm_attr_set);
 
     req = g_string_new("SELECT ");
-    nb = attrmask2fieldlist(req, p_attrs->attr_mask, T_SOFTRM, NULL, NULL, 0);
+    nb = attrmask2fieldlist(req, p_attrs->attr_mask, T_SOFTRM, "", "", 0);
+    if (nb == 0)
+        g_string_append(req, "id");
+
     g_string_append_printf(req, " FROM "SOFT_RM_TABLE" WHERE id='"DFID_NOBRACE"'",
                            PFID(p_id));
 

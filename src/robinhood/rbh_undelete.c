@@ -236,6 +236,7 @@ static int list_rm(void)
     list[7] = ATTR_INDEX_FLG_STATUS | smi->smi_index;
 
     mask = list2mask(list, list_cnt);
+    attrs.attr_mask = mask;
 
     print_attr_list(0, list, list_cnt, NULL, false);
 
@@ -275,8 +276,6 @@ static int list_rm(void)
         }
 
         index = 0;
-        attrs.attr_mask = mask;
-
         while ((rc = ListMgr_GetNextRmEntry(rm_list, &id, &attrs))
                == DB_SUCCESS) {
             index++;
@@ -386,6 +385,7 @@ static int undelete(void)
     attrs.attr_mask = mask;
 
     if (is_id_filter(&id)) {    /* 1 single entry */
+        ATTR_MASK_SET(&attrs, fullpath);
         rc = ListMgr_GetRmEntry(&lmgr, &id, &attrs);
         if (rc == DB_SUCCESS) {
             undelete_helper(&id, &attrs);
