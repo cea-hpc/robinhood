@@ -1,0 +1,67 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "86ea2282_8ddc1929",
+        "filename": "doc/templates/example.conf",
+        "patchSetId": 2
+      },
+      "lineNbr": 268,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-03-23T08:37:35Z",
+      "side": 1,
+      "message": "(defect) Missing %include \"includes/modeguard.inc\"",
+      "revId": "7df86a28852882472747b47d58d586914ca8aa73",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "e9f5eb09_af929470",
+        "filename": "doc/templates/example.conf",
+        "patchSetId": 2
+      },
+      "lineNbr": 277,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-03-23T08:37:35Z",
+      "side": 1,
+      "message": "using lustre changelogs is recommended?",
+      "range": {
+        "startLine": 277,
+        "startChar": 16,
+        "endLine": 277,
+        "endChar": 50
+      },
+      "revId": "7df86a28852882472747b47d58d586914ca8aa73",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9a766aeb_d978ee9b",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 47,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-03-23T08:37:35Z",
+      "side": 1,
+      "message": "@TODO so doxygen aggregates them in a specific section",
+      "range": {
+        "startLine": 47,
+        "startChar": 3,
+        "endLine": 47,
+        "endChar": 7
+      },
+      "revId": "7df86a28852882472747b47d58d586914ca8aa73",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
