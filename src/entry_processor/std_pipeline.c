@@ -817,6 +817,16 @@ int EntryProc_get_info_db(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
         else if (logrec->cr_type == CL_HARDLINK)
             attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_nlink);
 
+        /* in case of (last) unlink, we need softrm filter masks.
+         * don't retrieve other information */
+        if (p_op->extra_info.log_record.p_log_rec->cr_type == CL_UNLINK
+            && logrec->cr_flags & CLF_UNLINK_LAST) {
+            tmp = sm_softrm_mask();
+            p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
+            /* Entry is removed. Don't try to get more info from the DB. */
+            goto do_get_db;
+        }
+
         /* Only need to get md_update if the update policy != always */
         if (updt_params.md.when != UPDT_ALWAYS)
             attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_md_update);
@@ -836,7 +846,6 @@ int EntryProc_get_info_db(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
             p_op->db_attr_need |= ATTR_MASK_stripe_info;
 #endif
 #endif
-
         if (entry_proc_conf.detect_fake_mtime)
             attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_creation_time);
 
@@ -849,9 +858,8 @@ int EntryProc_get_info_db(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
                 attr_mask_set_index(&p_op->db_attr_need,
                                     ATTR_INDEX_class_update);
 
-            tmp =
-                attr_mask_and_not(&policies.global_fileset_mask,
-                                  &p_op->fs_attrs.attr_mask);
+            tmp = attr_mask_and_not(&policies.global_fileset_mask,
+                                    &p_op->fs_attrs.attr_mask);
             p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
         }
 
@@ -866,13 +874,6 @@ int EntryProc_get_info_db(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
         tmp = attr_mask_and_not(&tmp, &p_op->fs_attrs.attr_mask);
         p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
 
-        /* in case of unlink, we need softrm filter masks */
-        if (p_op->extra_info.log_record.p_log_rec->cr_type == CL_UNLINK) {
-            tmp = sm_softrm_mask();
-
-            p_op->db_attr_need = attr_mask_or(&p_op->db_attr_need, &tmp);
-        }
-
         /* In case of a RENAME, match the new name (not the one from the DB). */
         if ((logrec->cr_type == CL_EXT)
             && (p_op->db_attr_need.std & ATTR_MASK_fullpath)) {
@@ -884,6 +885,8 @@ int EntryProc_get_info_db(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
                 p_op->db_attr_need.std &= ~ATTR_MASK_fullpath;
             }
         }
+
+do_get_db:
 
         /* attributes to be retrieved */
         p_op->db_attrs.attr_mask = p_op->db_attr_need;
