@@ -4075,6 +4075,8 @@ function test_basic_sm
     check_status_count rh_report.log "failed" 0
     check_status_count rh_report.log "" $nb_all
 
+    # make sure md_update of scan < now
+    sleep 1
     echo "4-Running basic policy"
     $RH -f $RBH_CFG_DIR/$config_file --run=touch --once -l VERB -L rh_migr.log ||
         error "policy run error"
