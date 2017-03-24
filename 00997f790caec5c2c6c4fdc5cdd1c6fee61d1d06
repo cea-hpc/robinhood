@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "7e18ac34_1b63f3f2",
+        "filename": "src/list_mgr/listmgr_remove.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 598,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-03-24T15:59:15Z",
+      "side": 1,
+      "message": "I\u0027m affraid of such a sort operation if the number of deleted entries is huge (millions or more).\n\nAlso why not moving this line below, so it will apply to both \"if\" and \"else\" cases.",
+      "range": {
+        "startLine": 598,
+        "startChar": 58,
+        "endLine": 598,
+        "endChar": 68
+      },
+      "revId": "00997f790caec5c2c6c4fdc5cdd1c6fee61d1d06",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
