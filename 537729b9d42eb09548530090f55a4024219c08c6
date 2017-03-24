@@ -1,0 +1,142 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "30f7ec70_03df9af1",
+        "filename": "src/include/list_mgr.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 521,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-03-24T19:46:12Z",
+      "side": 1,
+      "message": "isn\u0027t filter_flag enough to indicate this?",
+      "range": {
+        "startLine": 521,
+        "startChar": 24,
+        "endLine": 521,
+        "endChar": 48
+      },
+      "revId": "537729b9d42eb09548530090f55a4024219c08c6",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "19631292_51a2058e",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1262,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-03-24T19:46:12Z",
+      "side": 1,
+      "message": "s/parentesing/parenthesing/",
+      "range": {
+        "startLine": 1262,
+        "startChar": 52,
+        "endLine": 1262,
+        "endChar": 63
+      },
+      "revId": "537729b9d42eb09548530090f55a4024219c08c6",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "095a0c60_4b7d67bd",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1264,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-03-24T19:46:12Z",
+      "side": 1,
+      "message": "Why?",
+      "range": {
+        "startLine": 1264,
+        "startChar": 15,
+        "endLine": 1264,
+        "endChar": 61
+      },
+      "revId": "537729b9d42eb09548530090f55a4024219c08c6",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "412fbc2b_bd1c763b",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1266,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-03-24T19:46:12Z",
+      "side": 1,
+      "message": "it looks it could be replaced by:\n filter_flags \u0026 (FILTER_FLAG_BEGIN_BLOCK | FILTER_FLAG_END_BLOCK)",
+      "range": {
+        "startLine": 1266,
+        "startChar": 16,
+        "endLine": 1266,
+        "endChar": 65
+      },
+      "revId": "537729b9d42eb09548530090f55a4024219c08c6",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "572f8b53_fad6efb9",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1271,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-03-24T19:46:12Z",
+      "side": 1,
+      "message": "(style) please indent of 4 spaces",
+      "range": {
+        "startLine": 1271,
+        "startChar": 20,
+        "endLine": 1271,
+        "endChar": 33
+      },
+      "revId": "537729b9d42eb09548530090f55a4024219c08c6",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "8b306ad4_71821ec6",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1281,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-03-24T19:46:12Z",
+      "side": 1,
+      "message": "(style) new line, and indent of 4 spaces",
+      "range": {
+        "startLine": 1281,
+        "startChar": 29,
+        "endLine": 1281,
+        "endChar": 30
+      },
+      "revId": "537729b9d42eb09548530090f55a4024219c08c6",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
