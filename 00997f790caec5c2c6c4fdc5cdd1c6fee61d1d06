@@ -22,6 +22,30 @@
       "revId": "00997f790caec5c2c6c4fdc5cdd1c6fee61d1d06",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "33364646_03c7d0de",
+        "filename": "src/list_mgr/listmgr_remove.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 598,
+      "author": {
+        "id": 1009999
+      },
+      "writtenOn": "2017-03-24T17:20:02Z",
+      "side": 1,
+      "message": "moving sort out of \"if\" \"else\" cases seem a good idea",
+      "parentUuid": "7e18ac34_1b63f3f2",
+      "range": {
+        "startLine": 598,
+        "startChar": 58,
+        "endLine": 598,
+        "endChar": 68
+      },
+      "revId": "00997f790caec5c2c6c4fdc5cdd1c6fee61d1d06",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
