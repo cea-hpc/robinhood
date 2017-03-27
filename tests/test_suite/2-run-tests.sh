@@ -9145,6 +9145,35 @@ function test_reload
     return 0
 }
 
+function test_lhsm_archive
+{
+    # test_lhsm1.conf "check sql query string in case of multiple AND/OR"
+
+    if (( $is_lhsm == 0 )); then
+        echo "Lustre/HSM test only: skipped"
+        set_skipped
+        return 1
+    fi
+
+    config_file=$1
+    rm -f rh_archive.log
+
+    # run one pass lhsm_archive - need full scan first
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once 2>&1 > /dev/null
+    $RH -f $RBH_CFG_DIR/$config_file --run=lhsm_archive -L rh_archive.log -l FULL -O
+
+    # check
+    grep "AS id FROM ENTRIES" rh_archive.log |
+      grep "AND(((ENTRIES.lhsm_lstarc=0" |
+      grep "ENTRIES.last_mod IS NULL))) AND (ENTRIES.last_access" > /dev/null ||
+      error "lhsm_archive query begin blocks incorrect"
+
+    grep "Error 7 executing query" rh_archive.log > /dev/null &&
+      error "lhsm_archive DB query failure"
+
+    return 0
+}
+
 
 #############################################################################
 
@@ -11910,6 +11939,7 @@ run_test 232c  test_sched_limits test_sched1.conf trigger "check trigger vs. max
 run_test 232d  test_sched_limits test_sched1.conf param "check policy parameter vs. max_per_run scheduler"
 run_test 232e  test_sched_limits test_sched1.conf cmd "check cmd line vs. max_per_run scheduler"
 run_test 233   test_basic_sm     test_basic.conf  "Test basic status manager"
+run_test 234   test_lhsm_archive test_lhsm1.conf "check sql query string in case of multiple AND/OR"
 
 
 #### triggers ####
