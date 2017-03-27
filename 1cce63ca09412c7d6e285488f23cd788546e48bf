@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "aef57637_c0142234",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 1269,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-03-27T14:57:42Z",
+      "side": 1,
+      "message": "If you need to apply only to a single table, I think moving this test into the if block below (if (match || ...)) will avoid running this piece of code multiple times.\nIs this what you tried to address with this \"if (table !\u003d T_MAIN)\"?",
+      "range": {
+        "startLine": 1268,
+        "startChar": 0,
+        "endLine": 1269,
+        "endChar": 29
+      },
+      "revId": "1cce63ca09412c7d6e285488f23cd788546e48bf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
