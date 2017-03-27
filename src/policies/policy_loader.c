@@ -1702,7 +1702,7 @@ static int parse_rule_block(config_item_t config_item,
                         "specified in a <policy>_action_params block.",
                         rh_config_GetItemLine(sub_item));
                 return EINVAL;
-            } else if (!strcasecmp(subitem_name, "condition")) {
+            } else if (!strcasecmp(subitem_name, CONDITION_BLOCK)) {
                 if (strcasecmp(value, "true") != 0) {
                     sprintf(msg_out,
                             "Sub-block (or 'condition = true') is expected for '%s' item in block '%s %s', line %d",
