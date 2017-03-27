@@ -302,9 +302,9 @@ static int mkfilters(void)
         /* append bool expr to entry filter */
         /* Do not use 'OR' expression there */
         convert_boolexpr_to_simple_filter(&match_expr, &entry_filter,
-                                          prog_options.smi, NULL, 0);
+                                          prog_options.smi, NULL, 0, BOOL_AND);
         convert_boolexpr_to_simple_filter(&match_expr, &parent_filter,
-                                          prog_options.smi, NULL, 0);
+                                          prog_options.smi, NULL, 0, BOOL_AND);
     }
 
     return 0;

@@ -808,6 +808,70 @@ static bool check_queue_limit(policy_info_t *pol,
 }
 
 /**
+ * build a filter from from policy rules for DB query
+ */
+static void build_rule_filters(policy_info_t *policy,
+                                    lmgr_filter_t *p_filter)
+{
+    policy_rules_t *rules = &policy->descr->rules;
+
+    /*
+     * Try to convert policy rules to simple filter
+     * using all rules and filesets with report flag set.
+     */
+    if (rules->rule_count) {
+        int i;
+        if (rules->rule_count > 1)
+            lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_BEGIN_BLOCK);
+
+        for (i = 0; i < rules->rule_count; i++) {
+            int j, tc = 0;
+
+            /* count matchables fileclasses for current rule */
+            for (j = 0; j < rules->rules[i].target_count; j++) {
+                if (rules->rules[i].target_list[j]->matchable)
+                    tc++;
+            }
+            if (tc > 1 || rules->rule_count > 1)
+                lmgr_simple_filter_add_block(p_filter,
+                   rules->rule_count > 1
+                   ? FILTER_FLAG_BEGIN_BLOCK | FILTER_FLAG_OR
+                   : FILTER_FLAG_BEGIN_BLOCK);
+            if (convert_boolexpr_to_simple_filter(&rules->rules[i].condition,
+                 p_filter, policy->descr->status_mgr, policy->time_modifier,
+                 policy->descr->manage_deleted ? FILTER_FLAG_ALLOW_NULL : 0,
+                 rules->rule_count > 1 ? BOOL_OR : BOOL_AND)) {
+                DisplayLog(LVL_FULL, tag(policy),
+                           "Could not convert rule '%s' to simple filter.",
+                           rules->rules[i].rule_id);
+            }
+            if (tc && (!policy->config->recheck_ignored_entries)) {
+                filter_value_t fval;
+                memset(&fval, 0, sizeof(fval));
+                if (tc > 1)
+                    lmgr_simple_filter_add_block(p_filter,
+                                                 FILTER_FLAG_BEGIN_BLOCK);
+                for (j = 0; j < rules->rules[i].target_count; j++) {
+                    if (rules->rules[i].target_list[j]->matchable) {
+                        fval.value.val_str =
+                            rules->rules[i].target_list[j]->fileset_id;
+                        lmgr_simple_filter_add(p_filter, ATTR_INDEX_fileclass,
+                                               EQUAL, fval,
+                                               tc > 1 ? FILTER_FLAG_OR : 0);
+                    }
+                }
+                if (tc > 1)
+                    lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
+            }
+            if (tc > 1 || rules->rule_count > 1)
+                lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
+        }
+        if (rules->rule_count > 1)
+            lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
+    }
+}
+
+/**
  * build a filter from policies, to optimize DB queries.
  */
 static int set_optimization_filters(policy_info_t *policy,
@@ -816,19 +880,8 @@ static int set_optimization_filters(policy_info_t *policy,
     policy_rules_t *rules = &policy->descr->rules;
 /** @TODO build a filter for getting the union of all filesets/conditions */
 
-    /* If there is a single policy, try to convert its condition
-     * to a simple filter.
-     */
-    if (rules->rule_count == 1) {
-        if (convert_boolexpr_to_simple_filter
-            (&rules->rules[0].condition, p_filter,
-             policy->descr->status_mgr, policy->time_modifier,
-             policy->descr->manage_deleted ? FILTER_FLAG_ALLOW_NULL : 0)) {
-            DisplayLog(LVL_FULL, tag(policy),
-                       "Could not convert rule '%s' to simple filter.",
-                       rules->rules[0].rule_id);
-        }
-    }
+    // Convert rule policies to filter
+    build_rule_filters(policy, p_filter);
 
     if (!policy->config->recheck_ignored_entries) {
         int i;
@@ -840,7 +893,7 @@ static int set_optimization_filters(policy_info_t *policy,
 
             fval.value.val_str = rules->ignore_list[i]->fileset_id;
             if (i == 0)
-                flags = FILTER_FLAG_NOT | FILTER_FLAG_ALLOW_NULL;
+                flags = FILTER_FLAG_NOT_BEGIN | FILTER_FLAG_NOT_END;
             else
                 flags = FILTER_FLAG_NOT;
             lmgr_simple_filter_add(p_filter, ATTR_INDEX_fileclass, EQUAL,
@@ -849,12 +902,12 @@ static int set_optimization_filters(policy_info_t *policy,
 
         /* don't select entries maching 'ignore' statements */
         for (i = 0; i < rules->whitelist_count; i++) {
-            if (convert_boolexpr_to_simple_filter
-                (&rules->whitelist_rules[i].bool_expr, p_filter,
-                 policy->descr->status_mgr, policy->time_modifier,
-                 policy->descr->
-                 manage_deleted ? FILTER_FLAG_ALLOW_NULL | FILTER_FLAG_NOT :
-                 FILTER_FLAG_NOT)) {
+            if (convert_boolexpr_to_simple_filter(
+                &rules->whitelist_rules[i].bool_expr, p_filter,
+                policy->descr->status_mgr, policy->time_modifier,
+                (policy->descr->manage_deleted && i == 0) ?
+                 FILTER_FLAG_ALLOW_NULL | FILTER_FLAG_NOT
+                 : FILTER_FLAG_NOT, BOOL_AND)) {
                 DisplayLog(LVL_DEBUG, tag(policy),
                            "Could not convert 'ignore' rule to simple filter.");
                 DisplayLog(LVL_EVENT, tag(policy),
@@ -1689,7 +1742,8 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     if (convert_boolexpr_to_simple_filter
         (&p_pol_info->descr->scope, &filter, p_pol_info->descr->status_mgr,
          p_pol_info->time_modifier,
-         p_pol_info->descr->manage_deleted ? FILTER_FLAG_ALLOW_NULL : 0)) {
+         p_pol_info->descr->manage_deleted ? FILTER_FLAG_ALLOW_NULL : 0,
+         BOOL_AND)) {
         DisplayLog(LVL_DEBUG, tag(p_pol_info),
                    "Could not convert policy scope to simple filter.");
         DisplayLog(LVL_EVENT, tag(p_pol_info),
