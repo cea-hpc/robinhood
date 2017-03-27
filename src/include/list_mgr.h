@@ -1146,6 +1146,8 @@ enum filter_flags {
                                            is allocated */
     FILTER_FLAG_ALLOC_LIST = (1 << 8), /** for internal usage: list in filter
                                            is allocated */
+    FILTER_FLAG_BEGIN_BLOCK = (1 << 9), /**< start a section with parenthesis */
+    FILTER_FLAG_END_BLOCK   = (1 << 10), /**< ends a section with parenthesis */
 };
 
 /** Add a criteria to a simple filter */
@@ -1194,12 +1196,14 @@ struct time_modifier;
  * @param[in]     smi       the current status manager (if any).
  * @param[in]     time_mod  time modifier for maintenance mode.
  * @param[in]     flags     filter flags
+ * @param[in]     op_ctx    default boolean operation
  */
 int convert_boolexpr_to_simple_filter(struct bool_node_t *boolexpr,
                                       lmgr_filter_t *filter,
                                       const struct sm_instance *smi,
                                       const struct time_modifier *time_mod,
-                                      enum filter_flags flags);
+                                      enum filter_flags flags,
+                                      bool_op_t op_ctx);
 
 /** Set a complex filter structure */
 int lmgr_set_filter_expression(lmgr_filter_t *p_filter,
@@ -1260,6 +1264,9 @@ int ListMgr_GenerateFields(attr_set_t *p_set, attr_mask_t target_mask);
 
 /** Check mask compatibility for request batching. */
 bool lmgr_batch_compat(attr_mask_t m1, attr_mask_t m2);
+
+/** Add begin or end block. */
+int lmgr_simple_filter_add_block(lmgr_filter_t *, enum filter_flags);
 
 #endif
 
