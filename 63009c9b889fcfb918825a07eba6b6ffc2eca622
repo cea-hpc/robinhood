@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "e82eec79_463a0ecd",
+        "filename": "doc/templates/example.conf",
+        "patchSetId": 1
+      },
+      "lineNbr": 284,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-03-27T15:11:47Z",
+      "side": 1,
+      "message": "I think there is more efficient way than checking all entries every 7 days.\nI\u0027ll think about it and give you another proposal.",
+      "revId": "63009c9b889fcfb918825a07eba6b6ffc2eca622",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
