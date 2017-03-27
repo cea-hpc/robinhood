@@ -1258,6 +1258,36 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
                 continue;
             }
 
+            /*
+             * if this is a begin_end block add new parenthesing
+             * layer and continue
+             * skip new block creation if table is not T_MAIN
+             */
+            if (p_filter->filter_simple.filter_flags[i]
+                & (FILTER_FLAG_BEGIN_BLOCK | FILTER_FLAG_END_BLOCK)) {
+                if (table != T_MAIN)
+                    continue;
+                switch(p_filter->filter_simple.filter_flags[i]) {
+                    case FILTER_FLAG_BEGIN_BLOCK:
+                        g_string_append(str, " AND(");
+                        nbfields = 0;
+                        break;
+                    case FILTER_FLAG_END_BLOCK:
+                        g_string_append(str, ")");
+                        break;
+                    case FILTER_FLAG_OR | FILTER_FLAG_BEGIN_BLOCK:
+                        g_string_append(str, " OR(");
+                        nbfields = 0;
+                        break;
+                    default :
+                        DisplayLog(LVL_MAJOR, LISTMGR_TAG,
+                                   "Unhandled case at %X '%s':%d",
+                                   p_filter->filter_simple.filter_flags[i],
+                                   __FILE__, __LINE__);
+                }
+                continue;
+            }
+
             if (match || (table == T_NONE)) {
                 /* add prefixes or parenthesis, etc. */
                 if (leading_and || (nbfields > 0)) {
