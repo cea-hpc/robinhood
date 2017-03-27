@@ -297,6 +297,17 @@ int lmgr_simple_filter_free(lmgr_filter_t *p_filter)
     return 0;
 }
 
+/* Add begin or end block. */
+int lmgr_simple_filter_add_block(lmgr_filter_t *p_filter,
+                                  enum filter_flags flag)
+{
+    filter_value_t val;
+    memset(&val, 0, sizeof(filter_value_t));
+
+    return lmgr_simple_filter_add(p_filter, 0, 0, val, flag);
+}
+
+
 /* is it a simple 'AND' expression ? */
 static bool is_simple_expr(bool_node_t *boolexpr, int depth, bool_op_t op_ctx)
 {
@@ -510,6 +521,7 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
     case NODE_BINARY_EXPR:
         {
             int flag1, flag2;
+            bool begin_end = false;
 
             /* ensures there are no 2 levels of parenthesing */
             if (depth > 1)
@@ -533,8 +545,33 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
                 /* new level of parenthesing */
                 /* propagate NOT_BEGIN/NOT_END flags */
                 flag1 |=
-                    FILTER_FLAG_BEGIN | (expr_flag & FILTER_FLAG_NOT_BEGIN);
-                flag2 |= FILTER_FLAG_END | (expr_flag & FILTER_FLAG_NOT_END);
+                    FILTER_FLAG_BEGIN
+                    | (expr_flag & FILTER_FLAG_NOT_BEGIN);
+                flag2 |= FILTER_FLAG_END
+                         | (expr_flag & FILTER_FLAG_NOT_END);
+
+                // don't create a new block if parent already has one
+                if (!(expr_flag
+                      & (FILTER_FLAG_BEGIN_BLOCK | FILTER_FLAG_NOT_BEGIN))) {
+                    // Append begin node
+                    flag1 |= FILTER_FLAG_BEGIN_BLOCK;
+                    flag1 &= ~(FILTER_FLAG_BEGIN | FILTER_FLAG_NOT_BEGIN);
+                    flag2 &= ~(FILTER_FLAG_END | FILTER_FLAG_NOT_END);
+                    begin_end = true;
+                    switch (op_ctx) {
+                        case BOOL_OR:
+                            lmgr_simple_filter_add_block(filter, FILTER_FLAG_OR
+                                                     | FILTER_FLAG_BEGIN_BLOCK);
+                            break;
+                        case BOOL_AND:
+                            lmgr_simple_filter_add_block(filter,
+                                                     FILTER_FLAG_BEGIN_BLOCK);
+                        default:
+                             DisplayLog(LVL_MAJOR, LISTMGR_TAG,
+                                              "BOOLEXPR unhandeled case");
+                             break;
+                    }
+                }
             }
 
             rc = append_simple_expr(boolexpr->content_u.bool_expr.expr1,
@@ -545,6 +582,9 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
             rc = append_simple_expr(boolexpr->content_u.bool_expr.expr2,
                                     filter, smi, time_mod, flag2, new_depth,
                                     boolexpr->content_u.bool_expr.bool_op);
+            if (begin_end)
+                lmgr_simple_filter_add_block(filter, FILTER_FLAG_END_BLOCK);
+
             return rc;
         }
 
@@ -571,9 +611,10 @@ int convert_boolexpr_to_simple_filter(bool_node_t *boolexpr,
                                       lmgr_filter_t *filter,
                                       const sm_instance_t *smi,
                                       const time_modifier_t *time_mod,
-                                      enum filter_flags flags)
+                                      enum filter_flags flags,
+                                      bool_op_t op_ctx)
 {
-    if (!is_simple_expr(boolexpr, 0, BOOL_AND))
+    if (!is_simple_expr(boolexpr, 0, op_ctx))
         return DB_INVALID_ARG;
 
     /* create a boolexpr as 'NOT ( <expr> )' */
@@ -589,17 +630,17 @@ int convert_boolexpr_to_simple_filter(bool_node_t *boolexpr,
         /* add all or nothing => save filter count before */
         prev_nb = filter->filter_simple.filter_count;
 
-        /* default filter context is AND */
+        /* default filter context is op_ctx */
         rc = append_simple_expr(&notexpr, filter, smi, time_mod,
-                                flags & ~FILTER_FLAG_NOT, 0, BOOL_AND);
+                                flags & ~FILTER_FLAG_NOT, 0, op_ctx);
         if (rc)
             filter->filter_simple.filter_count = prev_nb;
         return rc;
     }
 
-    /* default filter context is AND */
+    /* default filter context is op_ctx */
     return append_simple_expr(boolexpr, filter, smi, time_mod, flags,
-                              0, BOOL_AND);
+                              0, op_ctx);
 }
 
 /** Set a complex filter structure */
