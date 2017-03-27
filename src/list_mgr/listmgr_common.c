@@ -1225,6 +1225,44 @@ static void attr2filter_field(GString *str, table_enum table,
     }
 }
 
+/** find index of table for begin_and blocks. */
+static int find_my_table_idx(const lmgr_filter_t *p_filter, int cur_index)
+{
+   /*
+    * find table where begin_end block is required
+    * search forward for BEGIN and backward for END
+    */
+    if (p_filter->filter_simple.filter_flags[cur_index]
+        & (FILTER_FLAG_BEGIN_BLOCK | FILTER_FLAG_END_BLOCK)) {
+       int j = 0;
+       int fc = p_filter->filter_simple.filter_count;
+
+       /*
+        * If begin block, search forward for next filter that is not
+        * a begin block
+        * for end block perform backward search
+        */
+       if (p_filter->filter_simple.filter_flags[cur_index]
+           & FILTER_FLAG_BEGIN_BLOCK)
+           for (j = cur_index; j < fc; j++) {
+               if (!(p_filter->filter_simple.filter_flags[j]
+                   & (FILTER_FLAG_BEGIN_BLOCK
+                      | FILTER_FLAG_END_BLOCK)))
+                   break;
+           }
+       else
+           for (j = cur_index; j >= 0; j--) {
+               if (!(p_filter->filter_simple.filter_flags[j]
+                   & (FILTER_FLAG_BEGIN_BLOCK
+                      | FILTER_FLAG_END_BLOCK)))
+                   break;
+           }
+        return j;
+    }
+    else
+        return cur_index;
+}
+
 int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
                table_enum table, attrset_op_flag_e flags)
 {
@@ -1237,7 +1275,8 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
     if (p_filter->filter_type == FILTER_SIMPLE) {
 
         for (i = 0; i < p_filter->filter_simple.filter_count; i++) {
-            unsigned int index = p_filter->filter_simple.filter_index[i];
+            unsigned int index = p_filter->filter_simple.filter_index[
+                                                find_my_table_idx(p_filter, i)];
             bool case_sensitive = true;
             bool match = match_table(table, index)
                 || ((table == T_STRIPE_ITEMS) && (index < ATTR_COUNT)
@@ -1259,6 +1298,34 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
             }
 
             if (match || (table == T_NONE)) {
+                /*
+                 * if this is a begin_end block add new parenthesing
+                 * layer and continue
+                 * skip new block creation if table is not correct
+                 */
+                switch(p_filter->filter_simple.filter_flags[i]) {
+                    case FILTER_FLAG_BEGIN_BLOCK:
+                        if (nbfields)
+                            g_string_append(str, " AND (");
+                        else
+                            g_string_append(str, "(");
+                        nbfields = 0;
+                        continue;
+                        break;
+                    case FILTER_FLAG_END_BLOCK:
+                        g_string_append(str, ")");
+                        continue;
+                        break;
+                    case FILTER_FLAG_OR | FILTER_FLAG_BEGIN_BLOCK:
+                        if (nbfields)
+                            g_string_append(str, " OR (");
+                        else
+                            g_string_append(str, "(");
+                        nbfields = 0;
+                        continue;
+                        break;
+                }
+
                 /* add prefixes or parenthesis, etc. */
                 if (leading_and || (nbfields > 0)) {
                     if (p_filter->filter_simple.
@@ -1300,6 +1367,11 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
                     g_string_append(str, "CONVERT(");
                 }
             }
+
+            // Avoid messing up the query with unecessary table JOINS
+            if (p_filter->filter_simple.filter_flags[i]
+                 & (FILTER_FLAG_BEGIN_BLOCK | FILTER_FLAG_END_BLOCK))
+                continue;
 
             /* append field name or function call */
             attr2filter_field(str, table, index, prefix_table);
@@ -1401,8 +1473,8 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
             if (match || table == T_NONE) {
 
                 if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT) {
-                    if (p_filter->filter_simple.
-                        filter_flags[i] & FILTER_FLAG_ALLOW_NULL) {
+                    if (p_filter->filter_simple.filter_flags[i]
+                        & FILTER_FLAG_ALLOW_NULL) {
                         /* (NOT (x <cmp> <val>) OR x IS NULL) */
                         g_string_append(str, ") OR ");
                         attr2filter_field(str, table, index, prefix_table);
@@ -1410,8 +1482,8 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
                     } else
                         /* NOT (x <cmp> <val>) */
                         g_string_append(str, ")");
-                } else if (p_filter->filter_simple.
-                           filter_flags[i] & FILTER_FLAG_ALLOW_NULL) {
+                } else if (p_filter->filter_simple.filter_flags[i]
+                           & FILTER_FLAG_ALLOW_NULL) {
                     /* OR x IS NULL */
                     g_string_append(str, " OR ");
                     attr2filter_field(str, table, index, prefix_table);
