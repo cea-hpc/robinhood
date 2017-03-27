@@ -1258,7 +1258,42 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
                 continue;
             }
 
+            /*
+             * if this is a begin_end block add new parenthesing
+             * layer and continue
+             * skip new block creation if table is not correct
+             */
+            if ((p_filter->filter_simple.filter_flags[i]
+                & (FILTER_FLAG_BEGIN_BLOCK | FILTER_FLAG_END_BLOCK))
+                && (i+1 < p_filter->filter_simple.filter_count)) {
+
+                unsigned int n_index = p_filter->filter_simple.filter_index[i+1];
+                match = match_table(table, n_index)
+                    || ((table == T_STRIPE_ITEMS) && (n_index < ATTR_COUNT)
+                        && (field_infos[n_index].db_type == DB_STRIPE_ITEMS))
+                    || ((table == T_STRIPE_INFO) && (n_index < ATTR_COUNT)
+                        && (field_infos[n_index].db_type == DB_STRIPE_INFO));
+            }
+
             if (match || (table == T_NONE)) {
+
+                switch(p_filter->filter_simple.filter_flags[i]) {
+                    case FILTER_FLAG_BEGIN_BLOCK:
+                        g_string_append(str, " AND(");
+                        nbfields = 0;
+                        continue;
+                        break;
+                    case FILTER_FLAG_END_BLOCK:
+                        g_string_append(str, ")");
+                        continue;
+                        break;
+                    case FILTER_FLAG_OR | FILTER_FLAG_BEGIN_BLOCK:
+                        g_string_append(str, " OR(");
+                        nbfields = 0;
+                        continue;
+                        break;
+                }
+
                 /* add prefixes or parenthesis, etc. */
                 if (leading_and || (nbfields > 0)) {
                     if (p_filter->filter_simple.
@@ -1300,6 +1335,11 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
                     g_string_append(str, "CONVERT(");
                 }
             }
+
+            // Avoid messing up the query with unecessary table JOINS
+            if (p_filter->filter_simple.filter_flags[i]
+                 & (FILTER_FLAG_BEGIN_BLOCK | FILTER_FLAG_END_BLOCK))
+                continue;
 
             /* append field name or function call */
             attr2filter_field(str, table, index, prefix_table);

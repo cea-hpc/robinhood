@@ -1146,6 +1146,8 @@ enum filter_flags {
                                            is allocated */
     FILTER_FLAG_ALLOC_LIST = (1 << 8), /** for internal usage: list in filter
                                            is allocated */
+    FILTER_FLAG_BEGIN_BLOCK     = (1 << 9), /**< start a section with parenthesis */
+    FILTER_FLAG_END_BLOCK     = (1 << 10), /**< ends a section with parenthesis */
 };
 
 /** Add a criteria to a simple filter */
@@ -1260,6 +1262,9 @@ int ListMgr_GenerateFields(attr_set_t *p_set, attr_mask_t target_mask);
 
 /** Check mask compatibility for request batching. */
 bool lmgr_batch_compat(attr_mask_t m1, attr_mask_t m2);
+
+/** Add begin or end block. */
+int lmgr_simple_filter_add_block(lmgr_filter_t *, enum filter_flags);
 
 #endif
 
