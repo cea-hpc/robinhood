@@ -71,6 +71,30 @@
     },
     {
       "key": {
+        "uuid": "88838dd0_e5328e01",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1264,
+      "author": {
+        "id": 1009999
+      },
+      "writtenOn": "2017-03-27T13:21:58Z",
+      "side": 1,
+      "message": "This is a temporary solution, since this function is called 5 times from filter_where for different tables.\nWould it make more sense to use AOF_LEADING_SEP ?",
+      "parentUuid": "095a0c60_4b7d67bd",
+      "range": {
+        "startLine": 1264,
+        "startChar": 15,
+        "endLine": 1264,
+        "endChar": 61
+      },
+      "revId": "537729b9d42eb09548530090f55a4024219c08c6",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "412fbc2b_bd1c763b",
         "filename": "src/list_mgr/listmgr_common.c",
         "patchSetId": 1
