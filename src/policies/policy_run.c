@@ -823,11 +823,28 @@ static int set_optimization_filters(policy_info_t *policy,
         if (convert_boolexpr_to_simple_filter
             (&rules->rules[0].condition, p_filter,
              policy->descr->status_mgr, policy->time_modifier,
-             policy->descr->manage_deleted ? FILTER_FLAG_ALLOW_NULL : 0)) {
+             policy->descr->manage_deleted ? FILTER_FLAG_ALLOW_NULL : 0,
+             BOOL_AND)) {
             DisplayLog(LVL_FULL, tag(policy),
                        "Could not convert rule '%s' to simple filter.",
                        rules->rules[0].rule_id);
         }
+    }
+    else if (rules->rule_count > 1) {
+        int i;
+        lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_BEGIN_BLOCK);
+        for (i = 0; i < rules->rule_count; i++) {
+            if (convert_boolexpr_to_simple_filter
+                (&rules->rules[i].condition, p_filter,
+                 policy->descr->status_mgr, policy->time_modifier,
+                 policy->descr->manage_deleted ? FILTER_FLAG_ALLOW_NULL : 0,
+                 BOOL_OR)) {
+                DisplayLog(LVL_FULL, tag(policy),
+                           "Could not convert rule '%s' to simple filter.",
+                           rules->rules[i].rule_id);
+            }
+        }
+        lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
     }
 
     if (!policy->config->recheck_ignored_entries) {
@@ -854,7 +871,7 @@ static int set_optimization_filters(policy_info_t *policy,
                  policy->descr->status_mgr, policy->time_modifier,
                  policy->descr->
                  manage_deleted ? FILTER_FLAG_ALLOW_NULL | FILTER_FLAG_NOT :
-                 FILTER_FLAG_NOT)) {
+                 FILTER_FLAG_NOT, BOOL_AND)) {
                 DisplayLog(LVL_DEBUG, tag(policy),
                            "Could not convert 'ignore' rule to simple filter.");
                 DisplayLog(LVL_EVENT, tag(policy),
@@ -1689,7 +1706,8 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     if (convert_boolexpr_to_simple_filter
         (&p_pol_info->descr->scope, &filter, p_pol_info->descr->status_mgr,
          p_pol_info->time_modifier,
-         p_pol_info->descr->manage_deleted ? FILTER_FLAG_ALLOW_NULL : 0)) {
+         p_pol_info->descr->manage_deleted ? FILTER_FLAG_ALLOW_NULL : 0,
+         BOOL_AND)) {
         DisplayLog(LVL_DEBUG, tag(p_pol_info),
                    "Could not convert policy scope to simple filter.");
         DisplayLog(LVL_EVENT, tag(p_pol_info),
