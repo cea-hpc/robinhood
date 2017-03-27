@@ -22,6 +22,30 @@
       "revId": "1cce63ca09412c7d6e285488f23cd788546e48bf",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ef8af11e_6e1dd5d5",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 1269,
+      "author": {
+        "id": 1009999
+      },
+      "writtenOn": "2017-03-27T15:50:43Z",
+      "side": 1,
+      "message": "Would be nice to do that, but this is a special case, having p_filter-\u003efilter_simple.filter_index[i] unset voids this option, will test a version that uses value of filter_index[i-1]",
+      "parentUuid": "aef57637_c0142234",
+      "range": {
+        "startLine": 1268,
+        "startChar": 0,
+        "endLine": 1269,
+        "endChar": 29
+      },
+      "revId": "1cce63ca09412c7d6e285488f23cd788546e48bf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
