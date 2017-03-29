@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "7d9f0b98_bbefb998",
+        "filename": "src/list_mgr/listmgr_remove.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 597,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-03-29T13:00:05Z",
+      "side": 1,
+      "message": "Please add a comment before this line to explain the interest of this sort.",
+      "revId": "6f6fa44e25cbd2354d753fb1b846f2dcbbffde58",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
