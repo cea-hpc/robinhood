@@ -4096,6 +4096,73 @@ function test_basic_sm
     return 0
 }
 
+function test_modeguard_sm
+{
+    local config_file=$1
+
+    clean_logs
+
+    local nb_dir_ok=10
+    local nb_dir_invalid=5
+    local nb_all=$(( $nb_dir_ok + $nb_dir_invalid ))
+
+    # test_modeguard.conf will set mode 2000 and clear 0002
+
+    # create 2 sets of directories:
+    # - dir.<i>.ok with the setgid bit and not writable by other
+    # - dir.<i>.invalid without the setgid bit or writable by other
+    echo "1-Creating test directories..."
+    for i in $(seq ${nb_dir_ok}); do
+        mkdir $RH_ROOT/dir.$i.ok || error "creating dir.$i.ok"
+        chmod g+s,o-w $RH_ROOT/dir.$i.ok || error "chmod dir.$i.ok"
+    done
+    for i in $(seq 1 2 ${nb_dir_invalid}); do
+        mkdir $RH_ROOT/dir.$i.invalid || error "creating dir.$i.ok"
+        chmod g-s,o-w $RH_ROOT/dir.$i.invalid || error "chmod dir.$i.ok"
+    done
+    for i in $(seq 2 2 ${nb_dir_invalid}); do
+        mkdir $RH_ROOT/dir.$i.invalid || error "creating dir.$i.ok"
+        chmod g+s,o+w $RH_ROOT/dir.$i.invalid || error "chmod dir.$i.ok"
+    done
+
+    echo "2-Scanning"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l VERB -L rh_scan.log ||
+        error "scan error"
+    check_db_error rh_scan.log
+
+    echo "3-Checking initial 'modeguard' status"
+    $REPORT -f $RBH_CFG_DIR/$config_file --status-info=modeguard --csv -q \
+            --count-min=1 > rh_report.log
+    [ "$DEBUG" = "1" ] && cat rh_report.log
+    check_status_count rh_report.log "ok" $nb_dir_ok
+    check_status_count rh_report.log "invalid" $nb_dir_invalid
+
+    # make sure md_update of scan < now
+    sleep 1
+    echo "4-Running modeguard policy"
+    $RH -f $RBH_CFG_DIR/$config_file --run=modeguard --once -l VERB \
+        -L rh_migr.log || error "policy run error"
+    check_db_error rh_migr.log
+
+    # check policy actions are executed on invalid entries
+    local actions=$(grep "Executing policy action" rh_migr.log | wc -l)
+    [ "$DEBUG" = "1" ] && cat rh_migr.log
+    (($actions == $nb_dir_invalid)) || error "$nb_dir_invalid actions expected"
+
+    echo "5-Process changelogs"
+    $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l VERB \
+        -L rh_chglogs.log || error "readlog error"
+    check_db_error rh_chglogs.log
+
+    echo "6-Checking final 'modeguard' status"
+    $REPORT -f $RBH_CFG_DIR/$config_file --status-info=modeguard --csv -q \
+            --count-min=1 > rh_report.log
+    [ "$DEBUG" = "1" ] && cat rh_report.log
+    check_status_count rh_report.log "ok" $nb_all
+    check_status_count rh_report.log "invalid" 0
+
+    return 0
+}
 
 function grep_matched_rule
 {
@@ -11910,6 +11977,7 @@ run_test 232c  test_sched_limits test_sched1.conf trigger "check trigger vs. max
 run_test 232d  test_sched_limits test_sched1.conf param "check policy parameter vs. max_per_run scheduler"
 run_test 232e  test_sched_limits test_sched1.conf cmd "check cmd line vs. max_per_run scheduler"
 run_test 233   test_basic_sm     test_basic.conf  "Test basic status manager"
+run_test 234   test_modeguard_sm test_modeguard.conf "Test modeguard status manager"
 
 
 #### triggers ####
