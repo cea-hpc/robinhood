@@ -137,6 +137,8 @@ if ($#ARGV < 0) {
 
 # __packed if for kernel land
 push @ignore, 'PREFER_PACKED';
+# allow typedefs
+push @ignore, 'NEW_TYPEDEFS';
 
 foreach my $word (@ignore) {
 	$word =~ s/\s*\n?$//g;
