@@ -186,7 +186,7 @@ class MyAPI extends API
                         unset($fullfilter[1]['k_offset']);
                 }
                 $req = $db->prepare("SELECT uid, gid, size, blocks, name, type, creation_time, last_access, last_mod ".
-                                    "FROM NAMES INNER JOIN ENTRIES ON ENTRIES.id = NAMES.id $sqlfilter LIMIT $MAX_ROWS OFFSET $offset");
+                                    "FROM ENTRIES LEFT JOIN NAMES ON ENTRIES.id = NAMES.id $sqlfilter LIMIT $MAX_ROWS OFFSET $offset");
                 $req->execute($fullfilter[1]);
                 $count = $req->rowCount();
                 while($sqldata = $req->fetch(PDO::FETCH_ASSOC)) {
@@ -320,7 +320,7 @@ class MyAPI extends API
                 }
                 $req = $db->prepare("SELECT uid, gid, size, blocks, name, type, from_unixtime(creation_time) AS creation_time".
                     ", from_unixtime(last_access) AS last_access, from_unixtime(last_mod) AS last_mod".
-                    " FROM NAMES INNER JOIN ENTRIES ON ENTRIES.id = NAMES.id $sqlfilter LIMIT $MAX_ROWS OFFSET $offset");
+                    " FROM ENTRIES LEFT JOIN NAMES ON ENTRIES.id = NAMES.id $sqlfilter LIMIT $MAX_ROWS OFFSET $offset");
                 $req->execute($fullfilter[1]);
 
                 //we should autorize the user to see his own files
