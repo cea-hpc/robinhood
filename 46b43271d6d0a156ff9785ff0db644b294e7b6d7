@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "35d96b82_0a7cbd1c",
+        "filename": "src/policies/policy_run.c",
+        "patchSetId": 11
+      },
+      "lineNbr": 848,
+      "author": {
+        "id": 1009999
+      },
+      "writtenOn": "2017-04-03T12:53:28Z",
+      "side": 1,
+      "message": "working on new version to remove redundant calls to convert_boolexpr_to_simple_filter",
+      "range": {
+        "startLine": 822,
+        "startChar": 1,
+        "endLine": 848,
+        "endChar": 5
+      },
+      "revId": "46b43271d6d0a156ff9785ff0db644b294e7b6d7",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
