@@ -33,6 +33,24 @@
       "revId": "30606ed190adc3b2bc353e5c93f0cbd1685c776a",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "d6262b5d_65cb896b",
+        "filename": "web_gui/tests/nonreg.php",
+        "patchSetId": 3
+      },
+      "lineNbr": 46,
+      "author": {
+        "id": 1008417
+      },
+      "writtenOn": "2017-04-03T07:15:16Z",
+      "side": 1,
+      "message": "Yes, the commit hook always use the right directory.",
+      "parentUuid": "fabf19d9_9ee72bac",
+      "revId": "30606ed190adc3b2bc353e5c93f0cbd1685c776a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
