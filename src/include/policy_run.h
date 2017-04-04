@@ -139,6 +139,17 @@ static inline char *trigger2str(const trigger_item_t *trig)
     return NULL;
 }
 
+typedef enum {
+    MS_INVALID = -1,  /**< Wrong value */
+    MS_NONE    = 0,   /**< No matching */
+    MS_CACHE_ONLY,    /**< Use only cached information for matching */
+    MS_AUTO_UPDT,     /**< Complete cached information by retrirving missing
+                           attributes and attributes that are required to be
+                           up to date */
+    MS_FORCE_UPDT,    /**< Force using up to date information */
+} match_source_t;
+
+
 typedef struct policy_run_config_t {
     unsigned int        nb_threads;
     unsigned int        queue_size;
@@ -201,6 +212,12 @@ typedef struct policy_run_config_t {
     const struct action_scheduler **schedulers;
     /** configuration of action schedulers */
     void                   **sched_cfg;
+
+    /** source information for checking policy rules before scheduling */
+    match_source_t       pre_sched_match;
+    /** source information for checking policy rules before action
+     * (after scheduling) */
+    match_source_t       post_sched_match;
 
 } policy_run_config_t;
 
