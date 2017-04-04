@@ -4246,6 +4246,128 @@ function test_modeguard_sm_file
     return 0
 }
 
+function action_executed_on
+{
+    local target="$1"
+    local log_file="$2"
+
+    grep "Executing policy action" "$log_file" | grep "$target"
+}
+
+function assert_action_on
+{
+    action_executed_on "$1" "$2" ||
+        error "Action expected on '$1'"
+}
+
+function assert_no_action_on
+{
+    action_executed_on "$1" "$2" &&
+        error "No action expected on '$1'"
+}
+
+# test pre check matching behaviors
+function test_prepost_sched
+{
+    config_file=$1
+    export pre_sched=$2
+    export post_sched=$3
+    export sched=$4
+
+    if (( $is_lhsm + $is_hsmlite == 0 )); then
+        echo "HSM test only: skipped"
+        set_skipped
+        return 1
+    fi
+
+    # only pre_sched or post_sched != none
+    local check_mode=$pre_sched
+    [ $pre_sched = "none" ] && check_mode=$post_sched
+
+    clean_logs
+
+    mkdir $RH_ROOT/subdir
+    # create test files (1 for each rule)
+    # make sure these files match the policy condition (older than 1day)
+    touch -d "now-1day" $RH_ROOT/file.{2..4}
+    touch -d "now-1day" $RH_ROOT/subdir/file.1
+
+    # initial scan
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG \
+        -L rh_scan.log 2>/dev/null || error "scan error"
+    check_db_error rh_scan.log
+
+    # file 4 is younger than previously created ones
+    touch $RH_ROOT/file.4
+    # change file depth
+    mv $RH_ROOT/file.2 $RH_ROOT/subdir/file.2
+
+    $RH -f $RBH_CFG_DIR/$config_file --run=migration --once -l FULL \
+        -L rh_migr.log 2>/dev/null
+
+    case "$check_mode" in
+    none)
+        # depth criteria is not checked => files in subdir are migrated
+        assert_action_on "subdir/file.1" rh_migr.log
+        assert_action_on "file.2" rh_migr.log
+        assert_action_on "file.3" rh_migr.log
+        grep "Updating info about" rh_migr.log &&
+            error "No attr update expected"
+        ;;
+
+    cache_only)
+        # mtime is not refreshed => file.4 is migrated
+        assert_action_on "file.4" rh_migr.log
+        # depth is from DB (move not taken into account) => file 2 is migrated
+        assert_action_on "file.2" rh_migr.log
+        # depth comes from DB, it is checked
+        assert_no_action_on "subdir/file.1" rh_migr.log
+        # action should run on file.3
+        assert_action_on "file.3" rh_migr.log
+        grep "Updating info about" rh_migr.log &&
+            error "No attr update expected"
+        ;;
+
+    # no big difference between these 2, as the used policy needs to update
+    # everything
+    auto_update|force_update)
+        # any needed criteria is refreshed: subdir/file.1 file2, and file.4 are
+        # not migrated
+        assert_no_action_on "subdir/file.1" rh_migr.log
+        assert_no_action_on "file.2" rh_migr.log
+        assert_no_action_on "file.4" rh_migr.log
+        assert_action_on "file.3" rh_migr.log
+        grep -q "Updating POSIX info" rh_migr.log ||
+            error "Attr update expected"
+        ;;
+    esac
+
+    $RH -f $RBH_CFG_DIR/$config_file --run=cleanup --once -l FULL \
+        -L rh_purge.log 2>/dev/null
+    case "$check_mode" in
+    none|cache_only)
+        # no update expected
+        grep "Updating info" rh_purge.log && error "No attr update expected"
+        ;;
+    auto_update)
+        # POSIX attr update expected, but no path
+        grep -q "Updating POSIX info" rh_purge.log ||
+            error "Attr update expected"
+        grep "Updating path info" rh_purge.log &&
+            error "No path update expected"
+        ;;
+    force_update)
+        # all updates expected
+        grep -q "Updating POSIX info" rh_purge.log ||
+            error "Attr update expected"
+        grep -q "Updating path info" rh_purge.log ||
+            error "Path update expected"
+        ;;
+    esac
+
+    return 0
+}
+
 function grep_matched_rule
 {
     log_file=$1
@@ -12057,7 +12179,24 @@ run_test 232e  test_sched_limits test_sched1.conf cmd "check cmd line vs. max_pe
 run_test 233   test_basic_sm     test_basic.conf  "Test basic status manager"
 run_test 234   test_modeguard_sm_dir test_modeguard_dir.conf "Test modeguard status manager with directories"
 run_test 235   test_modeguard_sm_file test_modeguard_file.conf "Test modeguard status manager with files"
-
+run_test 236a  test_prepost_sched test_prepost_sched.conf none none \
+    common.max_per_run "pre/post_sched_match=none"
+run_test 236b  test_prepost_sched test_prepost_sched.conf cache_only none \
+    common.max_per_run "pre_sched_match=cache_only"
+run_test 236c  test_prepost_sched test_prepost_sched.conf auto_update none \
+    common.max_per_run "pre_sched_match=auto_update"
+run_test 236d  test_prepost_sched test_prepost_sched.conf auto_update none \
+    "" "pre_sched_match=auto_update (no scheduler)"
+run_test 236e  test_prepost_sched test_prepost_sched.conf force_update none \
+    common.max_per_run "pre_sched_match=force_update"
+run_test 236f  test_prepost_sched test_prepost_sched.conf none cache_only \
+    common.max_per_run "post_sched_match=cache_only"
+run_test 236g  test_prepost_sched test_prepost_sched.conf none auto_update \
+    common.max_per_run "post_sched_match=auto_update"
+run_test 236h  test_prepost_sched test_prepost_sched.conf none auto_update \
+    "" "post_sched_match=auto_update (no scheduler)"
+run_test 236i  test_prepost_sched test_prepost_sched.conf none force_update \
+    common.max_per_run "post_sched_match=force_update"
 
 #### triggers ####
 
