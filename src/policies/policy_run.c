@@ -1054,6 +1054,7 @@ static attr_mask_t db_attr_mask(policy_info_t *policy,
     mask = attr_mask_or(&mask, &tmp);
 
     /* needed attributes to check policy rules */
+    /* Note: mask for schedulers is part of policy's run_attr_mask */
     mask = attr_mask_or(&mask, &policy->descr->rules.run_attr_mask);
 
     /* if the policy manages deleted entries, get all
@@ -1064,7 +1065,37 @@ static attr_mask_t db_attr_mask(policy_info_t *policy,
             attr_mask_or(&mask,
                          &policy->descr->status_mgr->softrm_table_mask);
 
-    // TODO class management?
+    /* if depth is needed, need fullpath to compute it */
+    if (mask.std & ATTR_MASK_depth)
+        mask.std |= ATTR_MASK_fullpath;
+
+    return mask;
+}
+
+/** mask of fresh attributes to be retrieved */
+static attr_mask_t updt_attr_mask(const policy_info_t *policy)
+{
+    attr_mask_t mask = { 0 };
+    attr_mask_t tmp;
+
+    /* needed to check the entry order didn't change */
+    if (policy->config->lru_sort_attr != LRU_ATTR_NONE)
+        attr_mask_set_index(&mask, policy->config->lru_sort_attr);
+
+    /* Needed attrs to double check policy scope */
+    mask = attr_mask_or(&mask, &policy->descr->scope_mask);
+
+    /* Needed fresh attributes to check status from scope */
+    tmp = attrs_for_status_mask(mask.status, true);
+    mask = attr_mask_or(&mask, &tmp);
+
+    /* Needed attributes to check policy rules */
+    /* Note: mask for schedulers is part of policy's run_attr_mask */
+    mask = attr_mask_or(&mask, &policy->descr->rules.run_attr_mask);
+
+    /* if depth is needed, need fullpath to compute it */
+    if (mask.std & ATTR_MASK_depth)
+        mask.std |= ATTR_MASK_fullpath;
 
     return mask;
 }
@@ -1854,69 +1885,84 @@ static inline int update_entry(lmgr_t *lmgr, const entry_id_t *p_entry_id,
     return rc;
 }
 
+static inline bool need_update(match_source_t check_method, uint32_t stdattr)
+{
+    return check_method == MS_FORCE_UPDT ||
+           (check_method == MS_AUTO_UPDT && stdattr != 0);
+}
+
 #ifdef _HAVE_FID
 /**
 * Check that entry still exists
-* @param fill entry MD if entry is valid
+* @param new_attr_set   Updated entry MD if entry is valid.
+* @param check_method   Indicates what information is to be matched.
 */
 static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
-                       queue_item_t *p_item, attr_set_t *new_attr_set)
+                       queue_item_t *p_item, attr_set_t *new_attr_set,
+                       match_source_t check_method)
 {
     char fid_path[RBH_PATH_MAX];
     struct stat entry_md;
     int rc;
     sm_instance_t *smi = policy->descr->status_mgr;
+    attr_mask_t    updt_mask = updt_attr_mask(policy);
+    bool           updated = false;
 
-    DisplayLog(LVL_FULL, tag(policy), "Considering entry " DFID,
+    if (check_method == MS_NONE || check_method == MS_CACHE_ONLY)
+        return AS_OK;
+
+    DisplayLog(LVL_FULL, tag(policy), "Updating info about " DFID,
                PFID(&p_item->entry_id));
 
     /* 1) Build fid path */
     BuildFidPath(&p_item->entry_id, fid_path);
 
-    /* 2) Perform lstat on entry (size is needed!):
-     * important to respect LRU sort order (TODO: not if sort order is not
-     * in POSIX attrs)
-     */
-    if (lstat(fid_path, &entry_md) != 0) {
-        rc = errno;
-
-        /* If lstat returns an error, skip the entry */
-        DisplayLog(LVL_DEBUG, tag(policy),
-                   "lstat() failed on %s. Skipping it.", fid_path);
-
-        /* This entry has been processed and has probably removed */
-        if (rc == ENOENT)
-            /** @TODO remove entry from DB if errno = ENOENT ? */
-            return AS_MOVED;
-        else
-            return AS_STAT_FAILURE;
-    }
-
-    /* creation time from DB has the priority on filesystem stat */
+    /* creation time from DB has the priority on filesystem stat,
+     * whatever next operations */
     if (ATTR_MASK_TEST(&p_item->entry_attr, creation_time)) {
         ATTR_MASK_SET(new_attr_set, creation_time);
         ATTR(new_attr_set, creation_time) =
             ATTR(&p_item->entry_attr, creation_time);
     }
 
-    /* convert posix attributes to attr structure */
-    stat2rbh_attrs(&entry_md, new_attr_set, true);
+    /* lstat only if POSIX attrs are to be updated */
+    if (need_update(check_method, updt_mask.std & POSIX_ATTR_MASK)) {
+        DisplayLog(LVL_FULL, tag(policy), "Updating POSIX info of "DFID,
+                   PFID(&p_item->entry_id));
+        if (lstat(fid_path, &entry_md) != 0) {
+            rc = errno;
+            /* If lstat returns an error, skip the entry */
+            DisplayLog(LVL_DEBUG, tag(policy),
+                       "lstat() failed on %s. Skipping it.", fid_path);
 
-    /* set update time of the structure */
-    ATTR_MASK_SET(new_attr_set, md_update);
-    ATTR(new_attr_set, md_update) = time(NULL);
+            /* This entry has been processed and has probably removed */
+            if (rc == ENOENT)
+                return AS_MOVED;
+            else
+                return AS_STAT_FAILURE;
+        }
 
-    /* get fullpath or name, if they are needed for applying policy */
-    if (policy->descr->rules.run_attr_mask.std
-        & (ATTR_MASK_fullpath | ATTR_MASK_name)) {
-        path_check_update(&p_item->entry_id, fid_path, new_attr_set,
-                          policy->descr->rules.run_attr_mask);
+        /* convert posix attributes to attr structure */
+        stat2rbh_attrs(&entry_md, new_attr_set, true);
+        updated = true;
     }
 
-    /* retrieve up-to-date status from status manager if the scope reliesk
+    /* get fullpath or name, if they are needed to apply the policy */
+    if (need_update(check_method, updt_mask.std &
+                        (ATTR_MASK_fullpath | ATTR_MASK_name))) {
+        DisplayLog(LVL_FULL, tag(policy), "Updating path info of "DFID,
+                   PFID(&p_item->entry_id));
+        updated |= path_check_update(&p_item->entry_id, fid_path, new_attr_set,
+                                     updt_mask);
+    }
+
+    /* retrieve up-to-date status from status manager if the scope relies
      * on it */
     if (smi != NULL && smi->sm->get_status_func != NULL
-        && (policy->descr->scope_mask.status & SMI_MASK(smi->smi_index))) {
+        && need_update(check_method, updt_mask.status &
+                            SMI_MASK(smi->smi_index))) {
+        DisplayLog(LVL_FULL, tag(policy), "Updating status info of "DFID,
+                   PFID(&p_item->entry_id));
         /* update entry status */
         rc = smi->sm->get_status_func(smi, &p_item->entry_id,
                                       new_attr_set, new_attr_set);
@@ -1927,6 +1973,18 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
                        PFID(&p_item->entry_id), smi->sm->name, rc);
             return AS_ERROR;
         }
+        updated = true;
+    }
+
+    if (updated) {
+        /* generate virtual fields, if needed */
+        if (ListMgr_GenerateFields(new_attr_set, updt_mask))
+            DisplayLog(LVL_DEBUG, tag(policy),
+                       "Failed to compute generated fields");
+
+        /* set update time of the structure */
+        ATTR_MASK_SET(new_attr_set, md_update);
+        ATTR(new_attr_set, md_update) = time(NULL);
     }
 
     /* entry is valid */
@@ -1938,11 +1996,13 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
 * @param fill entry MD if entry is valid
 */
 static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
-                       queue_item_t *p_item, attr_set_t *new_attr_set)
+                       queue_item_t *p_item, attr_set_t *new_attr_set,
+                       match_source_t check_method)
 {
     struct stat entry_md;
     char *stat_path;
     sm_instance_t *smi = policy->descr->status_mgr;
+    attr_mask_t updt_mask = updt_attr_mask(policy);
 
     /* 1) Check if fullpath is set (if no fid support) */
     if (!ATTR_MASK_TEST(&p_item->entry_attr, fullpath)) {
@@ -1955,19 +2015,24 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
     }
     stat_path = ATTR(&p_item->entry_attr, fullpath);
 
-    if (ATTR_MASK_TEST(&p_item->entry_attr, fullpath))
-        DisplayLog(LVL_FULL, tag(policy), "Considering entry %s",
-                   ATTR(&p_item->entry_attr, fullpath));
+    if (check_method == MS_NONE || check_method == MS_CACHE_ONLY)
+        return AS_OK;
 
-    /* 2) Perform lstat on entry */
-    if (lstat(stat_path, &entry_md) != 0) {
-        /* If lstat returns an error, invalidate the entry */
-        DisplayLog(LVL_DEBUG, tag(policy),
-                   "lstat() failed on %s. Tagging it invalid.", stat_path);
-        invalidate_entry(policy, lmgr, &p_item->entry_id);
+    DisplayLog(LVL_FULL, tag(policy), "Updating info about %s", stat_path);
 
-        /* This entry has been processed and has probably moved */
-        return AS_MOVED;
+    /* lstat only if POSIX attrs are to be updated */
+    if (check_method == MS_FORCE_UPDT ||
+        (check_method == MS_AUTO_UPDT && (updt_mask.std & POSIX_ATTR_MASK))) {
+        /* 2) Perform lstat on entry */
+        if (lstat(stat_path, &entry_md) != 0) {
+            /* If lstat returns an error, invalidate the entry */
+            DisplayLog(LVL_DEBUG, tag(policy),
+                       "lstat() failed on %s. Tagging it invalid.", stat_path);
+            invalidate_entry(policy, lmgr, &p_item->entry_id);
+
+            /* This entry has been processed and has probably moved */
+            return AS_MOVED;
+        }
     }
 
     /* 3) check entry id and fskey */
@@ -2267,26 +2332,48 @@ out_free:
     free_entry_context(ectx);
 }
 
+static inline const char *match_source2str(match_source_t check_method)
+{
+    switch (check_method) {
+    case MS_NONE:
+        return "none";
+    case MS_CACHE_ONLY:
+        return "cache_only";
+    case MS_AUTO_UPDT:
+        return "auto_update";
+    case MS_FORCE_UPDT:
+        return "force_update";
+    case MS_INVALID:
+        return "?";
+    }
+    return "?";
+}
+
 /**
  * Refresh entry attributes and match policy rules.
  */
-static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx)
+static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx,
+                                   match_source_t check_method)
 {
     policy_match_t  match;
     int             rc;
     policy_info_t  *pol = ectx->policy;
+    const char     *path;
 
     DisplayLog(LVL_FULL, tag(pol),
-               "Checking if entry %s matches policy rules",
-               ATTR(&ectx->item->entry_attr, fullpath));
+               "Checking if entry %s matches policy rules (mode=%s)",
+               ATTR(&ectx->item->entry_attr, fullpath),
+               match_source2str(check_method));
 
     if (!pol->descr->manage_deleted) {
-        rc = check_entry(pol, lmgr, ectx->item, &ectx->fresh_attrs);
+        rc = check_entry(pol, lmgr, ectx->item, &ectx->fresh_attrs,
+                         check_method);
         if (rc != AS_OK)
             return rc;
     }
     /* In any case, complete with missing attrs from database */
     ListMgr_MergeAttrSets(&ectx->fresh_attrs, &ectx->item->entry_attr, false);
+    path = ATTR(&ectx->fresh_attrs, fullpath);
 
 #ifdef ATTR_INDEX_invalid
     /* From here, assume that entry is valid */
@@ -2304,7 +2391,7 @@ static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx)
     case POLICY_NO_MATCH:
         DisplayLog(LVL_DEBUG, tag(pol),
                    "Entry %s doesn't match scope of policy '%s'.",
-                   ATTR(&ectx->fresh_attrs, fullpath), tag(pol));
+                   path, tag(pol));
         if (!pol->descr->manage_deleted)
             update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
 
@@ -2314,8 +2401,7 @@ static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx)
         if (!pol->descr->manage_deleted) {
             DisplayLog(LVL_MAJOR, tag(pol),
                        "Warning: cannot determine if entry %s matches the "
-                       "scope of policy '%s': skipping it.",
-                       ATTR(&ectx->fresh_attrs, fullpath), tag(pol));
+                       "scope of policy '%s': skipping it.", path, tag(pol));
 
             update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
             return AS_MISSING_MD;
@@ -2325,7 +2411,7 @@ static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx)
             DisplayLog(LVL_DEBUG, tag(pol),
                        "Cannot determine if entry %s matches the "
                        "scope of policy '%s'. Continuing anyway.",
-                       ATTR(&ectx->fresh_attrs, fullpath), tag(pol));
+                       path, tag(pol));
         }
     }
 
@@ -2333,15 +2419,14 @@ static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx)
      * - don't check rules
      * - don't care about recent atime etc...
      */
-    if (!ignore_policies(pol)) {
+    if (!ignore_policies(pol) && (check_method != MS_NONE)) {
         /* 4) check whitelist rules */
         match = is_whitelisted(pol->descr, &ectx->item->entry_id,
                                &ectx->fresh_attrs, &ectx->fileset);
 
         if (match == POLICY_MATCH) {
             DisplayLog(LVL_DEBUG, tag(pol),
-                       "Entry %s matches ignored target %s.",
-                       ATTR(&ectx->item->entry_attr, fullpath),
+                       "Entry %s matches ignored target %s.", path,
                        ectx->fileset ? ectx->fileset->fileset_id :
                            "(ignore rule)");
 
@@ -2354,8 +2439,7 @@ static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx)
              * (do nothing in database) */
             DisplayLog(LVL_MAJOR, tag(pol),
                        "Warning: cannot determine if entry %s is whitelisted: "
-                       "skipping it.",
-                       ATTR(&ectx->item->entry_attr, fullpath));
+                       "skipping it.", path);
 
             if (!pol->descr->manage_deleted)
                 update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
@@ -2370,15 +2454,14 @@ static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx)
         if (rc != AS_OK)
             /* check_entry_times already updates the entry */
             return rc;
-    }
+    } /* end if 'don't ignore policies' */
 
-    /* end if 'don't ignore policies' */
     /* get policy rule for the entry */
     ectx->rule = policy_case(pol->descr, &ectx->item->entry_id, &ectx->fresh_attrs,
-                            &ectx->fileset);
+                             &ectx->fileset);
     if (!ectx->rule) {
         DisplayLog(LVL_DEBUG, tag(pol), "Entry %s matches no policy rule",
-                   ATTR(&ectx->item->entry_attr, fullpath));
+                   path);
 
         if (!pol->descr->manage_deleted)
             update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
@@ -2388,7 +2471,7 @@ static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx)
 
     /* don't care about policy condition if 'ignore-policies' flag is
      * specified */
-    if (ignore_policies(pol))
+    if (ignore_policies(pol) || (check_method == MS_NONE))
         return AS_OK;
 
     /* check if the entry matches the policy condition */
@@ -2401,15 +2484,14 @@ static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx)
         /* OK, entry matches */
         DisplayLog(LVL_DEBUG, tag(pol),
                    "Entry %s matches the condition for policy rule '%s'.",
-                   ATTR(&ectx->item->entry_attr, fullpath), ectx->rule->rule_id);
+                   path, ectx->rule->rule_id);
         break;
 
     case POLICY_NO_MATCH:
         /* entry is not eligible now */
         DisplayLog(LVL_DEBUG, tag(pol),
                    "Entry %s doesn't match condition for policy rule '%s'",
-                   ATTR(&ectx->item->entry_attr, fullpath),
-                   ectx->rule->rule_id);
+                   path, ectx->rule->rule_id);
 
         if (!pol->descr->manage_deleted)
             update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
@@ -2421,7 +2503,7 @@ static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx)
         DisplayLog(LVL_MAJOR, tag(pol),
                    "Warning: cannot determine if entry %s matches the "
                    "condition for policy rule '%s': skipping it.",
-                   ATTR(&ectx->item->entry_attr, fullpath), ectx->rule->rule_id);
+                   path, ectx->rule->rule_id);
 
         if (!pol->descr->manage_deleted)
             update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
@@ -2483,6 +2565,14 @@ static void run_sched_cb(void *udata, sched_status_e st)
 
         /* if this was the last scheduler, now run the action */
         if (pol->config->sched_count == ectx->curr_sched) {
+            /* Final rule check before running the action */
+            rc = refresh_and_match_entry(sched_db_conn, ectx,
+                                         pol->config->post_sched_match);
+            if (rc != AS_OK) {
+                policy_ack(&pol->queue, rc, &ectx->fresh_attrs,
+                           ectx->item->targeted);
+                return;
+            }
             rc = policy_action(ectx);
             action_fini(rc, sched_db_conn, ectx);
             return;
@@ -2553,8 +2643,9 @@ static void run_sched_cb(void *udata, sched_status_e st)
 static void process_entry(policy_info_t *pol, lmgr_t *lmgr,
                           queue_item_t *p_item, bool free_item)
 {
-    entry_context_t *ectx;
-    int                 rc;
+    entry_context_t  *ectx;
+    int               rc;
+    match_source_t    check_method;
 
     ectx = calloc(1, sizeof(entry_context_t));
     if (!ectx) {
@@ -2577,8 +2668,17 @@ static void process_entry(policy_info_t *pol, lmgr_t *lmgr,
         goto out_free;
     }
 
-    /* refresh entry info and match policy rules */
-    rc = refresh_and_match_entry(lmgr, ectx);
+    /* If there are schedulers, this is a prematching.
+     * Else, use the highest check level between pre/post-matching */
+    if (pol->config->sched_count > 0)
+        check_method = pol->config->pre_sched_match;
+    else
+        check_method = MAX(pol->config->pre_sched_match,
+                           pol->config->post_sched_match);
+
+    /* Refresh entry info and match policy rules.
+     * This is a precheck if there are schedulers */
+    rc = refresh_and_match_entry(lmgr, ectx, check_method);
     if (rc != AS_OK) {
         policy_ack(&pol->queue, rc, &p_item->entry_attr,
                    p_item->targeted);
@@ -2778,8 +2878,9 @@ int check_current_actions(policy_info_t *pol, lmgr_t *lmgr,
             DisplayLog(LVL_VERB, tag(pol), "Updating status of '%s'...",
                        ATTR(&q_item.entry_attr, fullpath));
 
-        /* check entry */
-        if (check_entry(pol, lmgr, &q_item, &q_item.entry_attr) == AS_OK) {
+        /* check entry (force retrieving fresh attributes) */
+        if (check_entry(pol, lmgr, &q_item, &q_item.entry_attr, MS_FORCE_UPDT)
+            == AS_OK) {
             int smi_index = pol->descr->status_mgr->smi_index;
 
             if (ATTR_MASK_STATUS_TEST(&q_item.entry_attr, smi_index)) {
