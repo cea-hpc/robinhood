@@ -75,6 +75,11 @@ static int polrun_set_default(const policy_descr_t *pol,
     cfg->schedulers = NULL;
     cfg->sched_cfg = NULL;
 
+    /* precheck with cached info only */
+    cfg->pre_sched_match = MS_CACHE_ONLY;
+    /* final check using required info (from cache+FS) */
+    cfg->post_sched_match = MS_AUTO_UPDT;
+
     return 0;
 }
 
@@ -128,6 +133,8 @@ static void policy_run_cfg_write_default(FILE *output)
     print_line(output, 1, "db_result_size_max      : 100000");
     print_line(output, 1, "pre_maintenance_window  : 0 (disabled)");
     print_line(output, 1, "maint_min_apply_delay   : 30min");
+    print_line(output, 1, "pre_sched_match         : cache_only");
+    print_line(output, 1, "post_sched_match        : auto_update");
     print_end_block(output, 0);
     fprintf(output, "\n");
 }
@@ -186,6 +193,15 @@ static void policy_run_cfg_write_template(FILE *output)
     print_line(output, 1, "# internal/tuning parameters");
     print_line(output, 1, "#queue_size = 4096;");
     print_line(output, 1, "#db_result_size_max = 100000;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# Indicate what attributes are used to match policy rules");
+    print_line(output, 1, "# before the scheduling step.");
+    print_line(output, 1, "# Possible values are 'none' (no rule check), 'cache_only', ");
+    print_line(output, 1, "# 'auto_update', 'force_update'");
+    print_line(output, 1, "#pre_sched_match = cache_only;");
+    print_line(output, 1, "# Same as previous parameter, for final check before running");
+    print_line(output, 1, "# the policy action");
+    print_line(output, 1, "#post_sched_match = auto_update;");
     print_line(output, 0, "#}");
     fprintf(output, "\n");
 
@@ -556,8 +572,8 @@ static int load_sched_cfg(const ctx_cfg_funcs_t *funcs,
     void *cfg;
     int rc;
 
-    /* scheduler has no configuration */
     if (funcs == NULL) {
+        /* scheduler has no configuration */
         *pcfg = NULL;
         return 0;
     }
@@ -622,6 +638,10 @@ static int parse_schedulers(config_item_t cfg_block, char *param_value,
             return EINVAL;
         }
 
+        /* add mask of needed attributes to policy run mask */
+        conf->run_attr_mask = attr_mask_or(&conf->run_attr_mask,
+                                         &conf->schedulers[i]->sched_attr_mask);
+
         /* now load its configuration */
         /** TODO manage/check reload case */
         if (load_sched_cfg(conf->schedulers[i]->sched_cfg_funcs,
@@ -630,6 +650,20 @@ static int parse_schedulers(config_item_t cfg_block, char *param_value,
             return EINVAL;
     }
     return 0;
+}
+
+static match_source_t str2match_source(const char *tmp)
+{
+    if (!strcasecmp(tmp, "none"))
+        return MS_NONE;
+    if (!strcasecmp(tmp, "cache_only"))
+        return MS_CACHE_ONLY;
+    if (!strcasecmp(tmp, "auto_update"))
+        return MS_AUTO_UPDT;
+    if (!strcasecmp(tmp, "force_update"))
+        return MS_FORCE_UPDT;
+
+    return MS_INVALID;
 }
 
 #define critical_err_check(_ptr_, _blkname_) do { if (!(_ptr_)) {\
@@ -659,6 +693,7 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
         "recheck_ignored_entries", "report_actions",
         "pre_maintenance_window", "maint_min_apply_delay", "queue_size",
         "db_result_size_max", "action_params", "action", SCHED_PARAM_NAME,
+        "pre_sched_match", "post_sched_match",
         "reschedule_delay_ms", "recheck_ignored_classes",  /* for compat */
         NULL
     };
@@ -760,6 +795,44 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
         rc = parse_schedulers(param_block, tmp, conf, msg_out);
         if (rc)
             return rc;
+    }
+
+    /* parse the value of pre_sched_match and post_sched_match */
+    rc = GetStringParam(param_block, block_name, "pre_sched_match",
+                        PFLG_NO_WILDCARDS, tmp, sizeof(tmp), NULL, NULL,
+                        msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+    else if (rc != ENOENT) {
+        match_source_t ms;
+
+        /* interpret its value */
+        ms = str2match_source(tmp);
+        if (ms == MS_INVALID) {
+            strcpy(msg_out, "Wrong value for pre_sched_match. Expected: 'none', "
+                   "'cache_only', 'auto_update', 'force_update'.");
+            return EINVAL;
+        } else
+            conf->pre_sched_match = ms;
+    }
+
+    /* parse the value of presched_match and psot_sched_match */
+    rc = GetStringParam(param_block, block_name, "post_sched_match",
+                        PFLG_NO_WILDCARDS, tmp, sizeof(tmp), NULL, NULL,
+                        msg_out);
+    if ((rc != 0) && (rc != ENOENT))
+        return rc;
+    else if (rc != ENOENT) {
+        match_source_t ms;
+
+        /* interpret its value */
+        ms = str2match_source(tmp);
+        if (ms == MS_INVALID) {
+            strcpy(msg_out, "Wrong value for post_sched_match. Expected: 'none', "
+                   "'cache_only', 'auto_update', 'force_update'.");
+            return EINVAL;
+        } else
+            conf->post_sched_match = ms;
     }
 
     /* get subblock */

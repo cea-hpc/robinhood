@@ -4096,6 +4096,112 @@ function test_basic_sm
     return 0
 }
 
+# test pre check matching behaviors
+function test_pre_sched
+{
+    config_file=$1
+    export pre_sched=$2
+    export sched=$3
+    # do no post-check to make sure the decision is due to the pre-check
+    export post_sched=none
+
+    if (( $is_lhsm + $is_hsmlite == 0 )); then
+        echo "HSM test only: skipped"
+        set_skipped
+        return 1
+    fi
+
+    clean_logs
+
+    mkdir $RH_ROOT/subdir
+    # create test files (1 for each rule)
+    for i in 1 2 3 4 5 ; do
+        touch $RH_ROOT/file.$i
+    done
+    touch $RH_ROOT/subdir/file.1
+
+    # initial scan
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG \
+        -L rh_scan.log 2>/dev/null || error "scan error"
+    check_db_error rh_scan.log
+
+    # ensure file 4 is younger than 2s and others are older
+    sleep 2
+    # change file mtime in FS and run the policy immediatly
+    touch $RH_ROOT/file.4
+    # change file depth
+    mv  $RH_ROOT/file.2 $RH_ROOT/subdir/file.2
+
+    $RH -f $RBH_CFG_DIR/$config_file --run=migration --once -l FULL \
+        -L rh_migr.log 2>/dev/null
+
+    case "$pre_sched" in
+    none)
+        # depth criteria is not checked => files in subdir are migrated
+        grep "Executing policy action" rh_migr.log | grep subdir/file.1 ||
+            error "Action expected on subdir/file.1"
+        grep "Executing policy action" rh_migr.log | grep file.2 ||
+            error "Action expected on file.2"
+        grep "Executing policy action" rh_migr.log | grep file.3 ||
+            error "Action expected on file.3"
+        grep "Updating info about" rh_migr.log && error "No attr update expected"
+        ;;
+
+    cache_only)
+        # mtime is not refreshed => file.4 is migrated
+        grep "Executing policy action" rh_migr.log | grep file.4 ||
+            error "Action expected on file.4"
+        # depth is from DB (move not taken into account) => file 2 is migrated
+        grep "Executing policy action" rh_migr.log | grep file.2 ||
+            error "Action expected on file.2"
+        # depth comes from DB, it is checked
+        grep "Executing policy action" rh_migr.log | grep subdir/file.1 &&
+            error "No action expected on subdir/file.1"
+        # action should run on file.3
+        grep "Executing policy action" rh_migr.log | grep file.3 ||
+            error "Action expected on file.3"
+        grep "Updating info about" rh_migr.log && error "No attr update expected"
+        ;;
+
+    # no big difference between these 2, as the used policy needs to update
+    # everything
+    auto_update|force_update)
+        # any needed criteria is refreshed: subdir/file.1 file2, and file.4 are
+        # not migrated
+        grep "Executing policy action" rh_migr.log | grep subdir/file.1 &&
+            error "No action expected on subdir/file.1"
+        grep "Executing policy action" rh_migr.log | grep file.2 &&
+            error "No action expected on file.2"
+        grep "Executing policy action" rh_migr.log | grep file.4 &&
+            error "No action expected on file.4"
+
+        grep "Executing policy action" rh_migr.log | grep file.3 ||
+            error "Action expected on file.3"
+        grep -q "Updating POSIX info" rh_migr.log || error "Attr update expected"
+        ;;
+    esac
+
+    $RH -f $RBH_CFG_DIR/$config_file --run=cleanup --once -l FULL \
+        -L rh_purge.log 2>/dev/null
+    case "$pre_sched" in
+    none|cache_only)
+        # no update expected
+        grep "Updating info" rh_purge.log && error "No attr update expected"
+        ;;
+    auto_update)
+        # POSIX attr update expected, but no path
+        grep -q "Updating POSIX info" rh_purge.log || error "Attr update expected"
+        grep -q "Updating path info" rh_purge.log && error "No path update expected"
+        ;;
+    force_update)
+        # all updates expected
+        grep -q "Updating POSIX info" rh_purge.log || error "Attr update expected"
+        grep -q "Updating path info" rh_purge.log || error "Path update expected"
+        ;;
+    esac
+
+    return 0
+}
 
 function grep_matched_rule
 {
@@ -11910,7 +12016,11 @@ run_test 232c  test_sched_limits test_sched1.conf trigger "check trigger vs. max
 run_test 232d  test_sched_limits test_sched1.conf param "check policy parameter vs. max_per_run scheduler"
 run_test 232e  test_sched_limits test_sched1.conf cmd "check cmd line vs. max_per_run scheduler"
 run_test 233   test_basic_sm     test_basic.conf  "Test basic status manager"
-
+run_test 234a  test_pre_sched test_prepost_sched.conf none common.max_per_run "pre_sched_match=none"
+run_test 234b  test_pre_sched test_prepost_sched.conf cache_only common.max_per_run "pre_sched_match=cache_only"
+run_test 234c  test_pre_sched test_prepost_sched.conf auto_update common.max_per_run "pre_sched_match=auto_update"
+run_test 234d  test_pre_sched test_prepost_sched.conf auto_update "" "pre_sched_match=auto_update (no scheduler)"
+run_test 234e  test_pre_sched test_prepost_sched.conf force_update common.max_per_run "pre_sched_match=force_update"
 
 #### triggers ####
 
