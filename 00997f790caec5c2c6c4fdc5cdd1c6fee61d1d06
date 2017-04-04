@@ -46,6 +46,30 @@
       "revId": "00997f790caec5c2c6c4fdc5cdd1c6fee61d1d06",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "085a7f2a_5aa71f57",
+        "filename": "src/list_mgr/listmgr_remove.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 598,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-04T13:14:03Z",
+      "side": 1,
+      "message": "Can you submit a update with the suggested change? Thanks",
+      "parentUuid": "33364646_03c7d0de",
+      "range": {
+        "startLine": 598,
+        "startChar": 58,
+        "endLine": 598,
+        "endChar": 68
+      },
+      "revId": "00997f790caec5c2c6c4fdc5cdd1c6fee61d1d06",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
