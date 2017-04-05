@@ -254,7 +254,7 @@ static void listmgr_optimizedstat(lmgr_report_t *p_report, lmgr_t *p_mgr,
  * ACCT_TABLE */
 static bool full_acct(const report_field_descr_t *report_desc_array,
                       unsigned int report_descr_count,
-                      const lmgr_filter_t *p_filter)
+                      const lmgr_filter_t *filter)
 {
     int i;
 
@@ -266,13 +266,11 @@ static bool full_acct(const report_field_descr_t *report_desc_array,
             return false;
     }
 
-    if (!no_filter(p_filter)) {
-        if (p_filter->filter_type == FILTER_SIMPLE) {
-            for (i = 0; i < p_filter->filter_simple.filter_count; i++) {
-                if (!is_acct_pk(p_filter->filter_simple.filter_index[i]) &&
-                    !is_acct_field(p_filter->filter_simple.filter_index[i]))
-                    return false;
-            }
+    if (!no_filter(filter)) {
+        for (i = 0; i < filter->filter_count; i++) {
+            if (!is_acct_pk(filter->filter_index[i]) &&
+                !is_acct_field(filter->filter_index[i]))
+                return false;
         }
     }
     return true;
@@ -287,7 +285,7 @@ struct lmgr_report_t *ListMgr_Report(lmgr_t *p_mgr,
                                      unsigned int report_descr_count,
                                      const profile_field_descr_t *
                                      profile_descr,
-                                     const lmgr_filter_t *p_filter,
+                                     const lmgr_filter_t *filter,
                                      const lmgr_iter_opt_t *p_opt)
 {
     unsigned int i;
@@ -354,7 +352,7 @@ struct lmgr_report_t *ListMgr_Report(lmgr_t *p_mgr,
     having = g_string_new(NULL);
     where = g_string_new(NULL);
 
-    if (full_acct(report_desc_array, report_descr_count, p_filter)
+    if (full_acct(report_desc_array, report_descr_count, filter)
         && !opt.force_no_acct) {
         listmgr_optimizedstat(p_report, p_mgr, report_descr_count,
                               report_desc_array, profile_descr, fields,
@@ -512,13 +510,13 @@ struct lmgr_report_t *ListMgr_Report(lmgr_t *p_mgr,
     }
 
     /* process filter */
-    if (!(no_filter(p_filter))) {
-        if (full_acct(report_desc_array, report_descr_count, p_filter)
+    if (!(no_filter(filter))) {
+        if (full_acct(report_desc_array, report_descr_count, filter)
             && !opt.force_no_acct) {
             int filter_acct;
 
             /* filter on acct fields only */
-            filter_acct = filter2str(p_mgr, where, p_filter, T_ACCT,
+            filter_acct = filter2str(p_mgr, where, filter, T_ACCT,
                                (!GSTRING_EMPTY(where) ? AOF_LEADING_SEP : 0)
                                | AOF_PREFIX);
             if (filter_acct > 0)
@@ -526,13 +524,13 @@ struct lmgr_report_t *ListMgr_Report(lmgr_t *p_mgr,
         } else {
             /* process NAMES filters apart, as with must then join with
              * DISTINCT(id) */
-            filter_where(p_mgr, p_filter, &fcnt, where,
+            filter_where(p_mgr, filter, &fcnt, where,
                          (!GSTRING_EMPTY(where) ? AOF_LEADING_SEP : 0)
                          | AOF_SKIP_NAME);
 
             filter_name = g_string_new(NULL);
             fcnt.nb_names =
-                filter2str(p_mgr, filter_name, p_filter, T_DNAMES, 0);
+                filter2str(p_mgr, filter_name, filter, T_DNAMES, 0);
         }
     }
 
@@ -611,7 +609,7 @@ struct lmgr_report_t *ListMgr_Report(lmgr_t *p_mgr,
             g_string_free(filter_name, TRUE);
 
         return ListMgr_Report(p_mgr, report_desc_array, report_descr_count,
-                              profile_descr, p_filter, &new_opt);
+                              profile_descr, filter, &new_opt);
     }
 
  free_str:

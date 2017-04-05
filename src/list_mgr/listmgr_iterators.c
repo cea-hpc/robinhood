@@ -197,7 +197,7 @@ static int select_all_request(lmgr_t *p_mgr, GString *req,
 
 /** get an iterator on a list of entries */
 struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
-                                         const lmgr_filter_t *p_filter,
+                                         const lmgr_filter_t *filter,
                                          const lmgr_sort_type_t *p_sort_type,
                                          const lmgr_iter_opt_t *p_opt)
 {
@@ -226,7 +226,7 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
     /* initialize the request */
     req = g_string_new(NULL);
 
-    if (no_filter(p_filter)) {
+    if (no_filter(filter)) {
         /* no filter is specified: build a select request with no criteria */
         rc = select_all_request(p_mgr, req, sort_table, sort_dirattr, distinct);
         if (rc)
@@ -238,13 +238,13 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
         /* check condition on directory */
         filter_dir = g_string_new(NULL);
         filter_dir_type =
-            dir_filter(p_mgr, filter_dir, p_filter, &filter_dir_index,
+            dir_filter(p_mgr, filter_dir, filter, &filter_dir_index,
                        (sort_table !=
                         T_NONE) ? table2name(sort_table) : MAIN_TABLE);
         /* XXX is sort dirattr the same as filter dirattr? */
 
         where = g_string_new(NULL);
-        filter_where(p_mgr, p_filter, &fcnt, where, 0);
+        filter_where(p_mgr, filter, &fcnt, where, 0);
 
         nbft = nb_field_tables(&fcnt);
 
@@ -264,7 +264,7 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
             if (nbft > 1) {
                 /* rebuild the contents of "where", a more ordered way */
                 g_string_assign(where, "");
-                if (unlikely(filter2str(p_mgr, where, p_filter,
+                if (unlikely(filter2str(p_mgr, where, filter,
                                         T_NONE, AOF_PREFIX) <= 0))
                     RBH_BUG("Inconsistent case: more than 1 filter table, "
                             "but no filter???");

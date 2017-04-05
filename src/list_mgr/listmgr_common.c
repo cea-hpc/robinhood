@@ -984,66 +984,64 @@ char *compar2str(filter_comparator_t compar)
 }
 
 /**
- * @param filter_str initialized GString.
- * @retval FILTERDIR_NONE if there is no filter on dirattrs
- * @retval FILTERDIR_EMPTY if the test is 'dircount == 0' (no junction needed)
- * @retval FILTERDIR_NONEMPTY if the test is on dircount != 0, >= 0, condition on avgsize
- *                           junction needed, depending on the filter
- *                           test looks like "dirattr >= x"
+ * @param filter_str    initialized GString.
+ *
+ * @retval              FILTERDIR_NONE if there is no filter on dirattrs
+ * @retval              FILTERDIR_EMPTY if the test is 'dircount == 0'
+ *                      (no junction needed)
+ * @retval              FILTERDIR_NONEMPTY if the test is on dircount != 0,
+ *                      >= 0, condition on avgsize junction needed,
+ *                      depending on the filter test looks like "dirattr >= x"
  */
 filter_dir_e dir_filter(lmgr_t *p_mgr, GString *filter_str,
-                        const lmgr_filter_t *p_filter,
+                        const lmgr_filter_t *filter,
                         unsigned int *dir_attr_index, const char *prefix)
 {
     int i;
 
-    if (p_filter->filter_type == FILTER_SIMPLE) {
-        for (i = 0; i < p_filter->filter_simple.filter_count; i++) {
-            unsigned int index = p_filter->filter_simple.filter_index[i];
-            if (!is_dirattr(index))
-                continue;
+    for (i = 0; i < filter->filter_count; i++) {
+        unsigned int index = filter->filter_index[i];
+        if (!is_dirattr(index))
+            continue;
 
-            /* condition about empty directory (dircount == 0)? */
-            if ((index == ATTR_INDEX_dircount)
-                && (p_filter->filter_simple.filter_value[i].value.val_uint == 0)
-                && (p_filter->filter_simple.filter_compar[i] == EQUAL)) {
-                DisplayLog(LVL_FULL, LISTMGR_TAG,
-                           "Special filter on empty directory");
+        /* condition about empty directory (dircount == 0)? */
+        if (index == ATTR_INDEX_dircount &&
+            filter->filter_value[i].value.val_uint == 0 &&
+            filter->filter_compar[i] == EQUAL) {
+            DisplayLog(LVL_FULL, LISTMGR_TAG,
+                       "Special filter on empty directory");
 
-                /* empty directories are not in parent_ids of NAMES table */
-                if (filter_str != NULL) {   /* allow passing no string */
-                    if (prefix)
-                        g_string_append_printf(filter_str,
-                                               "%s.id NOT IN (SELECT distinct(parent_id) "
-                                               "FROM " DNAMES_TABLE ")",
-                                               prefix);
-                    else
-                        g_string_append(filter_str,
-                                        "id NOT IN (SELECT distinct(parent_id) "
-                                        "FROM " DNAMES_TABLE ")");
-                }
-                if (dir_attr_index != NULL) /* allow passing no index */
-                    *dir_attr_index = index;
-
-                return FILTERDIR_EMPTY;
-            } else {
-                /* dirattrN <comparator> */
-                if (filter_str != NULL) {
-                    g_string_append_printf(filter_str, "dirattr%s",
-                                           compar2str(p_filter->filter_simple.
-                                                      filter_compar[i]));
-
-                    /* value: (list only apply to OSTs XXX for now) */
-                    db_type_u typeu =
-                        p_filter->filter_simple.filter_value[i].value;
-                    printdbtype(&p_mgr->conn, filter_str,
-                                field_infos[index].db_type, &typeu);
-                }
-
-                if (dir_attr_index != NULL)
-                    *dir_attr_index = index;
-                return FILTERDIR_OTHER;
+            /* empty directories are not in parent_ids of NAMES table */
+            if (filter_str != NULL) {   /* allow passing no string */
+                if (prefix)
+                    g_string_append_printf(filter_str,
+                                           "%s.id NOT IN (SELECT distinct(parent_id) "
+                                           "FROM " DNAMES_TABLE ")",
+                                           prefix);
+                else
+                    g_string_append(filter_str,
+                                    "id NOT IN (SELECT distinct(parent_id) "
+                                    "FROM " DNAMES_TABLE ")");
             }
+            if (dir_attr_index != NULL) /* allow passing no index */
+                *dir_attr_index = index;
+
+            return FILTERDIR_EMPTY;
+        } else {
+            /* dirattrN <comparator> */
+            if (filter_str != NULL) {
+                g_string_append_printf(filter_str, "dirattr%s",
+                                       compar2str(filter->filter_compar[i]));
+
+                /* value: (list only apply to OSTs XXX for now) */
+                db_type_u typeu = filter->filter_value[i].value;
+                printdbtype(&p_mgr->conn, filter_str,
+                            field_infos[index].db_type, &typeu);
+            }
+
+            if (dir_attr_index != NULL)
+                *dir_attr_index = index;
+            return FILTERDIR_OTHER;
         }
     }
     return FILTERDIR_NONE;
@@ -1055,7 +1053,7 @@ filter_dir_e dir_filter(lmgr_t *p_mgr, GString *filter_str,
  * @return the number of filtered values
  */
 int func_filter(lmgr_t *p_mgr, GString *filter_str,
-                const lmgr_filter_t *p_filter, table_enum table,
+                const lmgr_filter_t *filter, table_enum table,
                 attrset_op_flag_e flags)
 {
     int i;
@@ -1065,119 +1063,106 @@ int func_filter(lmgr_t *p_mgr, GString *filter_str,
     bool leading_and = flags & AOF_LEADING_SEP;
     bool prefix_table = flags & AOF_PREFIX;
 
-    if (p_filter->filter_type == FILTER_SIMPLE) {
-        for (i = 0; i < p_filter->filter_simple.filter_count; i++) {
-            unsigned int index = p_filter->filter_simple.filter_index[i];
+    for (i = 0; i < filter->filter_count; i++) {
+        unsigned int index = filter->filter_index[i];
 
-            if (is_funcattr(index)) {
-                db_type_u typeu;
+        if (!is_funcattr(index))
+            continue;
 
-                param1[0] = '\0';
-                param2[0] = '\0';
+        db_type_u typeu;
 
-                if (filter_str == NULL) /* no need to check other stuff */
-                    goto end_of_loop;
+        param1[0] = '\0';
+        param2[0] = '\0';
 
-                /* add prefixes or parenthesis, etc. */
-                if (leading_and || (nb_fields > 0)) {
-                    if (p_filter->filter_simple.
-                        filter_flags[i] & FILTER_FLAG_OR)
-                        g_string_append(filter_str, " OR ");
-                    else
-                        g_string_append(filter_str, " AND ");
+        if (filter_str == NULL) /* no need to check other stuff */
+            goto end_of_loop;
+
+        /* add prefixes or parenthesis, etc. */
+        if (leading_and || (nb_fields > 0)) {
+            if (filter->filter_flags[i] & FILTER_FLAG_OR)
+                g_string_append(filter_str, " OR ");
+            else
+                g_string_append(filter_str, " AND ");
+        }
+
+        if (filter->filter_flags[i] & FILTER_FLAG_BEGIN)
+            g_string_append(filter_str, "(");
+
+        if (filter->filter_flags[i] & FILTER_FLAG_NOT)
+            /* NOT (x <cmp> <val>) */
+            g_string_append(filter_str, " NOT (");
+
+        if (index == ATTR_INDEX_fullpath) {
+            char relative[RBH_PATH_MAX];
+
+            if (fullpath_attr2db(filter->filter_value[i].value.val_str,
+                                 relative)) {
+                /* condition is always false */
+                g_string_append(filter_str, "FALSE");
+                return 1;
+            }
+            typeu.val_str = relative;
+
+            /* if the filter applies to DNAMES, exactly filter on each
+             * row, else, filter on any path */
+            if (table == T_DNAMES) {
+                if (prefix_table) {
+                    snprintf(param1, sizeof(param1), "%s.parent_id",
+                             table2name(table));
+                    snprintf(param2, sizeof(param2), "%s.name",
+                             table2name(table));
+                } else {
+                    rh_strncpy(param1, "parent_id", sizeof(param1));
+                    rh_strncpy(param2, "name", sizeof(param2));
                 }
 
-                if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_BEGIN)
+                if (filter->filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
                     g_string_append(filter_str, "(");
 
-                if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT) {
-                    /* NOT (x <cmp> <val>) */
-                    g_string_append(filter_str, " NOT (");
-                }
+                g_string_append_printf(filter_str, THIS_PATH_FUNC "(%s,%s)%s",
+                                       param1, param2,
+                                       compar2str(filter->filter_compar[i]));
+                printdbtype(&p_mgr->conn, filter_str,
+                            field_infos[index].db_type, &typeu);
 
-                if (index == ATTR_INDEX_fullpath) {
-                    char relative[RBH_PATH_MAX];
+                if (filter->filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
+                    g_string_append_printf(filter_str,
+                                           " OR " THIS_PATH_FUNC
+                                           "(%s,%s) IS NULL)", param1,
+                                           param2);
+            } else {
+                if (prefix_table)
+                    snprintf(param1, sizeof(param1), "%s.id",
+                             table2name(table));
+                else
+                    rh_strncpy(param1, "id", sizeof(param1));
 
-                    if (fullpath_attr2db
-                        (p_filter->filter_simple.filter_value[i].value.val_str,
-                         relative)) {
-                        /* condition is always false */
-                        g_string_append(filter_str, "FALSE");
-                        return 1;
-                    }
-                    typeu.val_str = relative;
+                if (filter->filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
+                    g_string_append(filter_str, "(");
 
-                    /* if the filter applies to DNAMES, exactly filter on each
-                     * row, else, filter on any path */
-                    if (table == T_DNAMES) {
-                        if (prefix_table) {
-                            snprintf(param1, sizeof(param1), "%s.parent_id",
-                                     table2name(table));
-                            snprintf(param2, sizeof(param2), "%s.name",
-                                     table2name(table));
-                        } else {
-                            rh_strncpy(param1, "parent_id", sizeof(param1));
-                            rh_strncpy(param2, "name", sizeof(param2));
-                        }
+                g_string_append_printf(filter_str, ONE_PATH_FUNC "(%s)%s",
+                                       param1,
+                                       compar2str(filter->filter_compar[i]));
+                printdbtype(&p_mgr->conn, filter_str,
+                            field_infos[index].db_type, &typeu);
 
-                        if (p_filter->filter_simple.
-                            filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
-                            g_string_append(filter_str, "(");
-
-                        g_string_append_printf(filter_str,
-                                               THIS_PATH_FUNC "(%s,%s)%s",
-                                               param1, param2,
-                                               compar2str(p_filter->
-                                                          filter_simple.
-                                                          filter_compar[i]));
-                        printdbtype(&p_mgr->conn, filter_str,
-                                    field_infos[index].db_type, &typeu);
-
-                        if (p_filter->filter_simple.
-                            filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
-                            g_string_append_printf(filter_str,
-                                                   " OR " THIS_PATH_FUNC
-                                                   "(%s,%s) IS NULL)", param1,
-                                                   param2);
-                    } else {
-                        if (prefix_table)
-                            snprintf(param1, sizeof(param1), "%s.id",
-                                     table2name(table));
-                        else
-                            rh_strncpy(param1, "id", sizeof(param1));
-
-                        if (p_filter->filter_simple.
-                            filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
-                            g_string_append(filter_str, "(");
-
-                        g_string_append_printf(filter_str,
-                                               ONE_PATH_FUNC "(%s)%s", param1,
-                                               compar2str(p_filter->
-                                                          filter_simple.
-                                                          filter_compar[i]));
-                        printdbtype(&p_mgr->conn, filter_str,
-                                    field_infos[index].db_type, &typeu);
-
-                        if (p_filter->filter_simple.
-                            filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
-                            g_string_append_printf(filter_str,
-                                                   " OR " ONE_PATH_FUNC
-                                                   "(%s) IS NULL)", param1);
-                    }
-                }
-
-                /* add closing parenthesis, etc... */
-                if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT)
-                    /* NOT (x <cmp> <val>) */
-                    g_string_append(filter_str, ")");
-
-                if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_END)
-                    g_string_append(filter_str, ")");
-
- end_of_loop:
-                nb_fields++;
+                if (filter->filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
+                    g_string_append_printf(filter_str,
+                                           " OR " ONE_PATH_FUNC
+                                           "(%s) IS NULL)", param1);
             }
         }
+
+        /* add closing parenthesis, etc... */
+        if (filter->filter_flags[i] & FILTER_FLAG_NOT)
+            /* NOT (x <cmp> <val>) */
+            g_string_append(filter_str, ")");
+
+        if (filter->filter_flags[i] & FILTER_FLAG_END)
+            g_string_append(filter_str, ")");
+
+end_of_loop:
+        nb_fields++;
     }
     return nb_fields;
 }
@@ -1185,8 +1170,8 @@ int func_filter(lmgr_t *p_mgr, GString *filter_str,
 static void attr2filter_field(GString *str, table_enum table,
                               unsigned int attr, bool prefix_table)
 {
-    if (match_table(table, attr)
-        || (table == T_NONE && !is_stripe_field(attr))) {
+    if (match_table(table, attr) ||
+        (table == T_NONE && !is_stripe_field(attr))) {
         /* exception: fullpath is a real field in SOFT_RM and temporary softrm
            table */
         if (is_funcattr(attr) && !((table == T_SOFTRM || table == T_TMP_SOFTRM)
@@ -1195,12 +1180,11 @@ static void attr2filter_field(GString *str, table_enum table,
 
             if (prefix_table)
                 snprintf(prefix, sizeof(prefix), "%s.",
-                         table2name(table ==
-                                    T_NONE ? field2table(attr) : table));
+                         table2name(table == T_NONE ? field2table(attr) :
+                                                      table));
 
             print_func_call(str, attr, prefix);
         } else {    /* std field */
-
             if (prefix_table)
                 g_string_append_printf(str, "%s.",
                                        table2name(table ==
@@ -1225,7 +1209,7 @@ static void attr2filter_field(GString *str, table_enum table,
     }
 }
 
-int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
+int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *filter,
                table_enum table, attrset_op_flag_e flags)
 {
     int i;
@@ -1234,200 +1218,176 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
     bool leading_and = flags & AOF_LEADING_SEP;
     bool prefix_table = flags & AOF_PREFIX;
 
-    if (p_filter->filter_type == FILTER_SIMPLE) {
+    for (i = 0; i < filter->filter_count; i++) {
+        unsigned int index = filter->filter_index[i];
+        bool case_sensitive = true;
+        bool match = match_table(table, index)
+            || ((table == T_STRIPE_ITEMS) && (index < ATTR_COUNT)
+                && (field_infos[index].db_type == DB_STRIPE_ITEMS))
+            || ((table == T_STRIPE_INFO) && (index < ATTR_COUNT)
+                && (field_infos[index].db_type == DB_STRIPE_INFO));
 
-        for (i = 0; i < p_filter->filter_simple.filter_count; i++) {
-            unsigned int index = p_filter->filter_simple.filter_index[i];
-            bool case_sensitive = true;
-            bool match = match_table(table, index)
-                || ((table == T_STRIPE_ITEMS) && (index < ATTR_COUNT)
-                    && (field_infos[index].db_type == DB_STRIPE_ITEMS))
-                || ((table == T_STRIPE_INFO) && (index < ATTR_COUNT)
-                    && (field_infos[index].db_type == DB_STRIPE_INFO));
+        /* filter on generated fields are not allowed */
+        if (is_dirattr(index)) {
+            DisplayLog(LVL_FULL, LISTMGR_TAG,
+                       "Special filter on dir attribute '%s'",
+                       field_name(index));
+            continue;
+        } else if (is_gen_field(index)) {
+            DisplayLog(LVL_DEBUG, LISTMGR_TAG,
+                       "Ignoring filter on generated field '%s'",
+                       field_name(index));
+            continue;
+        }
 
-            /* filter on generated fields are not allowed */
-            if (is_dirattr(index)) {
-                DisplayLog(LVL_FULL, LISTMGR_TAG,
-                           "Special filter on dir attribute '%s'",
-                           field_name(index));
-                continue;
-            } else if (is_gen_field(index)) {
-                DisplayLog(LVL_DEBUG, LISTMGR_TAG,
-                           "Ignoring filter on generated field '%s'",
-                           field_name(index));
-                continue;
-            }
-
-            if (match || (table == T_NONE)) {
-                /* add prefixes or parenthesis, etc. */
-                if (leading_and || (nbfields > 0)) {
-                    if (p_filter->filter_simple.
-                        filter_flags[i] & FILTER_FLAG_OR)
-                        g_string_append(str, " OR ");
-                    else
-                        g_string_append(str, " AND ");
-                }
-
-                /* NOT_BEGIN is for expressions like: NOT ( <x> ...
-                 * and is to be terminated by END.
-                 * whereas BEGIN + NOT will result in (NOT (<x>) ...
-                 */
-                if (p_filter->filter_simple.
-                    filter_flags[i] & FILTER_FLAG_NOT_BEGIN)
-                    g_string_append(str, "NOT (");
-                if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_BEGIN)
-                    g_string_append(str, "(");
-
-                if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT) {
-                    if (p_filter->filter_simple.
-                        filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
-                        /* (NOT (x <cmp> <val>) OR x IS NULL) */
-                        g_string_append(str, " (NOT (");
-                    else
-                        /* NOT (x <cmp> <val>) */
-                        g_string_append(str, " NOT (");
-                } else if (p_filter->filter_simple.
-                           filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
-                    /* (x <cmp> <val> OR x IS NULL) */
-                    g_string_append(str, "(");
-
-                /* If the field is a VARBINARY and the matching must be
-                 * insensitive, convert it to varchar */
-                if ((p_filter->filter_simple.filter_compar[i] == ILIKE
-                     || p_filter->filter_simple.filter_compar[i] == IUNLIKE)
-                    && field_infos[index].db_type == DB_TEXT) {
-                    case_sensitive = false;
-                    g_string_append(str, "CONVERT(");
-                }
-            }
-
-            /* append field name or function call */
-            attr2filter_field(str, table, index, prefix_table);
-
-            if (!case_sensitive)
-                g_string_append(str, " USING latin1)");
-
-            if (match_table(table, index)
-                || (table == T_NONE && !is_stripe_field(index))) {
-                /* append comparator */
-                if (is_sepdlist(index)) {
-                    /* always match '%+<item>+%' => use LIKE and UNLIKE */
-                    if (p_filter->filter_simple.filter_compar[i] == EQUAL)
-                        p_filter->filter_simple.filter_compar[i] = LIKE;
-                    else if (p_filter->filter_simple.filter_compar[i] ==
-                             NOTEQUAL)
-                        p_filter->filter_simple.filter_compar[i] = UNLIKE;
-                }
-                g_string_append(str,
-                                compar2str(p_filter->filter_simple.
-                                           filter_compar[i]));
-
-                /* no expected value after IS NULL or IS NOT NULL */
-                if (p_filter->filter_simple.filter_compar[i] != ISNULL
-                    && p_filter->filter_simple.filter_compar[i] != NOTNULL) {
-                    /* fullpath already includes root for SOFT_RM table */
-                    if ((index == ATTR_INDEX_fullpath) && (table != T_SOFTRM)) {
-                        char relative[RBH_PATH_MAX];
-
-                        if (fullpath_attr2db
-                            (p_filter->filter_simple.filter_value[i].value.
-                             val_str, relative)) {
-                            /* condition is always false */
-                            g_string_append(str, "FALSE");
-                        } else {
-                            typeu.val_str = relative;
-                            printdbtype(&p_mgr->conn, str,
-                                        field_infos[index].db_type, &typeu);
-                        }
-                    } else {
-                        char tmp[1024];
-
-                        if (is_sepdlist(index)) {
-                            /* match '%+<item>+%' */
-                            separated_list2match(p_filter->filter_simple.
-                                                 filter_value[i].value.val_str,
-                                                 tmp, sizeof(tmp));
-                            typeu.val_str = tmp;
-                        } else
-                            /* single value (list only apply to OSTs XXX for
-                             * now) */
-                            typeu =
-                                p_filter->filter_simple.filter_value[i].value;
-
-                        printdbtype(&p_mgr->conn, str, field_type(index),
-                                    &typeu);
-                    }
-                }
-                nbfields++;
-            } else if ((table == T_STRIPE_ITEMS || table == T_NONE)
-                       && (field_type(index) == DB_STRIPE_ITEMS)) {
-                /* single value or a list? */
-                if (p_filter->filter_simple.filter_compar[i] == IN
-                    || (p_filter->filter_simple.filter_compar[i] == NOTIN)) {
-                    unsigned int j;
-                    db_type_u *list;
-
-                    g_string_append_printf(str, "%s(",
-                                           compar2str(p_filter->filter_simple.
-                                                      filter_compar[i]));
-
-                    list = p_filter->filter_simple.filter_value[i].list.values;
-                    for (j = 0;
-                         j < p_filter->filter_simple.filter_value[i].list.count;
-                         j++) {
-                        g_string_append_printf(str, "%s%u", j == 0 ? "" : ",",
-                                               list[j].val_uint);
-                    }
-                    g_string_append(str, ")");
-                } else {    /* single value */
-
-                    g_string_append_printf(str, "%s%u",
-                                           compar2str(p_filter->filter_simple.
-                                                      filter_compar[i]),
-                                           p_filter->filter_simple.
-                                           filter_value[i].value.val_uint);
-                }
-                nbfields++;
-            } else if ((table == T_STRIPE_INFO || table == T_NONE)
-                       && (field_type(index) == DB_STRIPE_INFO)) {
-                g_string_append_printf(str, "%s'%s'",
-                                       compar2str(p_filter->filter_simple.
-                                                  filter_compar[i]),
-                                       p_filter->filter_simple.filter_value[i].
-                                       value.val_str);
-                nbfields++;
-            }
-
-            if (match || table == T_NONE) {
-
-                if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_NOT) {
-                    if (p_filter->filter_simple.
-                        filter_flags[i] & FILTER_FLAG_ALLOW_NULL) {
-                        /* (NOT (x <cmp> <val>) OR x IS NULL) */
-                        g_string_append(str, ") OR ");
-                        attr2filter_field(str, table, index, prefix_table);
-                        g_string_append(str, " IS NULL)");
-                    } else
-                        /* NOT (x <cmp> <val>) */
-                        g_string_append(str, ")");
-                } else if (p_filter->filter_simple.
-                           filter_flags[i] & FILTER_FLAG_ALLOW_NULL) {
-                    /* OR x IS NULL */
+        if (match || (table == T_NONE)) {
+            /* add prefixes or parenthesis, etc. */
+            if (leading_and || (nbfields > 0)) {
+                if (filter->filter_flags[i] & FILTER_FLAG_OR)
                     g_string_append(str, " OR ");
+                else
+                    g_string_append(str, " AND ");
+            }
+
+            /* NOT_BEGIN is for expressions like: NOT ( <x> ...
+             * and is to be terminated by END.
+             * whereas BEGIN + NOT will result in (NOT (<x>) ...
+             */
+            if (filter->filter_flags[i] & FILTER_FLAG_NOT_BEGIN)
+                g_string_append(str, "NOT (");
+            if (filter->filter_flags[i] & FILTER_FLAG_BEGIN)
+                g_string_append(str, "(");
+
+            if (filter->filter_flags[i] & FILTER_FLAG_NOT) {
+                if (filter->filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
+                    /* (NOT (x <cmp> <val>) OR x IS NULL) */
+                    g_string_append(str, " (NOT (");
+                else
+                    /* NOT (x <cmp> <val>) */
+                    g_string_append(str, " NOT (");
+            } else if (filter->filter_flags[i] & FILTER_FLAG_ALLOW_NULL)
+                /* (x <cmp> <val> OR x IS NULL) */
+                g_string_append(str, "(");
+
+            /* If the field is a VARBINARY and the matching must be
+             * insensitive, convert it to varchar */
+            if ((filter->filter_compar[i] == ILIKE
+                 || filter->filter_compar[i] == IUNLIKE)
+                && field_infos[index].db_type == DB_TEXT) {
+                case_sensitive = false;
+                g_string_append(str, "CONVERT(");
+            }
+        }
+
+        /* append field name or function call */
+        attr2filter_field(str, table, index, prefix_table);
+
+        if (!case_sensitive)
+            g_string_append(str, " USING latin1)");
+
+        if (match_table(table, index)
+            || (table == T_NONE && !is_stripe_field(index))) {
+            /* append comparator */
+            if (is_sepdlist(index)) {
+                /* always match '%+<item>+%' => use LIKE and UNLIKE */
+                if (filter->filter_compar[i] == EQUAL)
+                    filter->filter_compar[i] = LIKE;
+                else if (filter->filter_compar[i] == NOTEQUAL)
+                    filter->filter_compar[i] = UNLIKE;
+            }
+            g_string_append(str, compar2str(filter->filter_compar[i]));
+
+            /* no expected value after IS NULL or IS NOT NULL */
+            if (filter->filter_compar[i] != ISNULL
+                && filter->filter_compar[i] != NOTNULL) {
+                /* fullpath already includes root for SOFT_RM table */
+                if ((index == ATTR_INDEX_fullpath) && (table != T_SOFTRM)) {
+                    char relative[RBH_PATH_MAX];
+
+                    if (fullpath_attr2db
+                        (filter->filter_value[i].value.
+                         val_str, relative)) {
+                        /* condition is always false */
+                        g_string_append(str, "FALSE");
+                    } else {
+                        typeu.val_str = relative;
+                        printdbtype(&p_mgr->conn, str,
+                                    field_infos[index].db_type, &typeu);
+                    }
+                } else {
+                    char tmp[1024];
+
+                    if (is_sepdlist(index)) {
+                        /* match '%+<item>+%' */
+                        separated_list2match(filter->filter_value[i].value.val_str,
+                                             tmp, sizeof(tmp));
+                        typeu.val_str = tmp;
+                    } else {
+                        /* single value (list only apply to OSTs XXX for now) */
+                        typeu = filter->filter_value[i].value;
+                    }
+
+                    printdbtype(&p_mgr->conn, str, field_type(index), &typeu);
+                }
+            }
+            nbfields++;
+        } else if ((table == T_STRIPE_ITEMS || table == T_NONE)
+                   && (field_type(index) == DB_STRIPE_ITEMS)) {
+            /* single value or a list? */
+            if (filter->filter_compar[i] == IN
+                || (filter->filter_compar[i] == NOTIN)) {
+                unsigned int j;
+                db_type_u *list;
+
+                g_string_append_printf(str, "%s(",
+                                       compar2str(filter->
+                                                  filter_compar[i]));
+
+                list = filter->filter_value[i].list.values;
+                for (j = 0; j < filter->filter_value[i].list.count; j++) {
+                    g_string_append_printf(str, "%s%u", j == 0 ? "" : ",",
+                                           list[j].val_uint);
+                }
+                g_string_append(str, ")");
+            } else {    /* single value */
+
+                g_string_append_printf(str, "%s%u",
+                                       compar2str(filter->filter_compar[i]),
+                                       filter->filter_value[i].value.val_uint);
+            }
+            nbfields++;
+        } else if ((table == T_STRIPE_INFO || table == T_NONE)
+                   && (field_type(index) == DB_STRIPE_INFO)) {
+            g_string_append_printf(str, "%s'%s'",
+                                   compar2str(filter->filter_compar[i]),
+                                   filter->filter_value[i].value.val_str);
+            nbfields++;
+        }
+
+        if (match || table == T_NONE) {
+            if (filter->filter_flags[i] & FILTER_FLAG_NOT) {
+                if (filter->filter_flags[i] & FILTER_FLAG_ALLOW_NULL) {
+                    /* (NOT (x <cmp> <val>) OR x IS NULL) */
+                    g_string_append(str, ") OR ");
                     attr2filter_field(str, table, index, prefix_table);
                     g_string_append(str, " IS NULL)");
+                } else {
+                    /* NOT (x <cmp> <val>) */
+                    g_string_append(str, ")");
                 }
-
-                if (p_filter->filter_simple.filter_flags[i] & FILTER_FLAG_END)
-                    g_string_append(str, ")");
-                if (p_filter->filter_simple.
-                    filter_flags[i] & FILTER_FLAG_NOT_END)
-                    g_string_append(str, ")");
+            } else if (filter->filter_flags[i] & FILTER_FLAG_ALLOW_NULL) {
+                /* OR x IS NULL */
+                g_string_append(str, " OR ");
+                attr2filter_field(str, table, index, prefix_table);
+                g_string_append(str, " IS NULL)");
             }
-        }   /* end for */
-    } else {
-        return -DB_NOT_SUPPORTED;
-    }
+
+            if (filter->filter_flags[i] & FILTER_FLAG_END)
+                g_string_append(str, ")");
+            if (filter->filter_flags[i] & FILTER_FLAG_NOT_END)
+                g_string_append(str, ")");
+        }
+    }   /* end for */
     return nbfields;
 }   /* filter2str */
 
@@ -1450,7 +1410,7 @@ const char *dirattr2str(unsigned int attr_index)
  * @param[out] counts count of filter fields in each table.
  * @return the number of created filters.
  */
-int filter_where(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+int filter_where(lmgr_t *p_mgr, const lmgr_filter_t *filter,
                  struct field_count *counts, GString *where,
                  attrset_op_flag_e flags)
 {
@@ -1458,14 +1418,14 @@ int filter_where(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
     unsigned int all = 0;
 
     /* on which table are the filters ?  */
-    nb = filter2str(p_mgr, where, p_filter, T_MAIN,
+    nb = filter2str(p_mgr, where, filter, T_MAIN,
                     (flags & AOF_LEADING_SEP) | AOF_PREFIX);
     if (nb > 0) {
         counts->nb_main += nb;
         all += nb;
     }
 
-    nb = filter2str(p_mgr, where, p_filter, T_ANNEX,
+    nb = filter2str(p_mgr, where, filter, T_ANNEX,
                     (all > 0 ? AOF_LEADING_SEP : 0) |
                     (flags & AOF_LEADING_SEP) | AOF_PREFIX);
     if (nb > 0) {
@@ -1474,7 +1434,7 @@ int filter_where(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
     }
 
     if ((flags & AOF_SKIP_NAME) == 0) {
-        nb = filter2str(p_mgr, where, p_filter, T_DNAMES,
+        nb = filter2str(p_mgr, where, filter, T_DNAMES,
                         (all > 0 ? AOF_LEADING_SEP : 0) |
                         (flags & AOF_LEADING_SEP) | AOF_PREFIX);
         if (nb > 0) {
@@ -1485,7 +1445,7 @@ int filter_where(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
 
     /* stripes are only managed for Lustre filesystems */
 #ifdef _LUSTRE
-    nb = filter2str(p_mgr, where, p_filter, T_STRIPE_INFO,
+    nb = filter2str(p_mgr, where, filter, T_STRIPE_INFO,
                     (all > 0 ? AOF_LEADING_SEP : 0) |
                     (flags & AOF_LEADING_SEP) | AOF_PREFIX);
     if (nb > 0) {
@@ -1493,7 +1453,7 @@ int filter_where(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
         all += nb;
     }
 
-    nb = filter2str(p_mgr, where, p_filter, T_STRIPE_ITEMS,
+    nb = filter2str(p_mgr, where, filter, T_STRIPE_ITEMS,
                     (all > 0 ? AOF_LEADING_SEP : 0) |
                     (flags & AOF_LEADING_SEP) | AOF_PREFIX);
     if (nb > 0) {
