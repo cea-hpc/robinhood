@@ -29,19 +29,20 @@
 #include <pthread.h>
 
 
-static int clean_names(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+static int clean_names(lmgr_t *p_mgr, const lmgr_filter_t *filter,
                        unsigned int *nb_filter_names)
 {
     int      rc = DB_SUCCESS;
     GString *req;
 
     req = g_string_new("DELETE FROM "DNAMES_TABLE" WHERE ");
-    *nb_filter_names = filter2str(p_mgr, req, p_filter, T_DNAMES, 0);
+    *nb_filter_names = filter2str(p_mgr, req, filter, T_DNAMES, 0);
 
     if (*nb_filter_names == 0)
         goto out;
 
-    DisplayLog(LVL_DEBUG, LISTMGR_TAG, "Direct deletion in "DNAMES_TABLE" table");
+    DisplayLog(LVL_DEBUG, LISTMGR_TAG,
+               "Direct deletion in "DNAMES_TABLE" table");
     rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
 out:
     g_string_free(req, TRUE);
@@ -355,7 +356,7 @@ static int listmgr_softrm_single(lmgr_t *p_mgr, const entry_id_t *p_id,
 }
 
 /** create a temporary table with all entries to be deleted */
-static int create_tmp_table_rm(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+static int create_tmp_table_rm(lmgr_t *p_mgr, const lmgr_filter_t *filter,
                                const struct field_count *counts,
                                const char *tmpname, bool soft_rm,
                                table_enum query_tab, GString *from,
@@ -370,81 +371,100 @@ static int create_tmp_table_rm(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
     req = g_string_new("CREATE TEMPORARY TABLE");
     g_string_append_printf(req, " %s AS ", tmpname);
 
-    if (soft_rm)
-    {
-        /* case A: full scan (no filter on fullpath), all non-updated entries are to be removed + all unseen names must be cleaned.
-         *          => filter_names + soft_rm
-         * case B: partial scan, we don't remove objects from ENTRIES (only from NAMES).
+    if (soft_rm) {
+        /* case A: full scan (no filter on fullpath), all non-updated entries
+         *         are to be removed + all unseen names must be cleaned.
+         *    => filter_names + soft_rm
+         * case B: partial scan, we don't remove objects from ENTRIES (only
+         *         from NAMES).
          */
-        if (lmgr_filter_check_field(p_filter, ATTR_INDEX_fullpath)) /* partial scan with condition on NAMES + ENTRIES */
-        {
-                /* 1) get the entries to be removed (those with nb paths = removed paths)
-                 * 2) then we will clean the names
-                 */
+        if (lmgr_filter_check_field(filter, ATTR_INDEX_fullpath)) {
+            /* partial scan with condition on NAMES + ENTRIES */
 
-                /* To determine names whose we remove the last reference, we avoid huge JOIN like this one:
-                            (select id,COUNT(*) as rmd from NAMES LINKS WHERE <condition> GROUP BY id) rmname
-                            JOIN
-                            (select id, COUNT(*) as all FROM NAMES GROUP BY id) allname
-                            ON rmname.id=allname.id
-                            WHERE rmname.rmcount=paths.pathcount
-                 *
-                 * Instead we do:
-                 *  SELECT id,sum(this_path(parent_id,name) LIKE '%/foo' AND path_update < x) as rmcnt, count(*) as tot FROM NAMES GROUP BY id HAVING rmcnt=tot;
-                 *
-                 * BUT we must also get ENTRIES with no remaining name (no matching entry in NAMES)...
-                 * Finally we do:
-                 *  SELECT ENTRIES.id, this_path(parent_id, name) as fullpath, ...
-                    sum(path_update < 1377176998 and this_path(parent_id, name) like 'dir1/%') as rm, count(*) as tot
-                    FROM ENTRIES LEFT JOIN NAMES ON ENTRIES.id=NAMES.id GROUP BY ENTRIES.id HAVING s=tot or fullpath is NULL;
-                 */
+            /* 1) get the entries to be removed (those with nb paths = removed paths)
+             * 2) then we will clean the names
+             */
 
-                g_string_append(req,"SELECT "MAIN_TABLE".id");
-                attrmask2fieldlist(req, softrm_attr_set, T_MAIN,
-                                   MAIN_TABLE".", "", AOF_LEADING_SEP);
-                attrmask2fieldlist(req, softrm_attr_set, T_ANNEX,
-                                   ANNEX_TABLE".", "", AOF_LEADING_SEP);
-                attrmask2fieldlist(req, softrm_attr_set, T_DNAMES,
-                                   DNAMES_TABLE".", "", AOF_LEADING_SEP);
-                g_string_append_printf(req, ",SUM(%s) AS rmcnt,COUNT(*) AS tot FROM "MAIN_TABLE
-                                       " LEFT JOIN "DNAMES_TABLE" ON "MAIN_TABLE".id="DNAMES_TABLE".id"
-                                       " LEFT JOIN "ANNEX_TABLE" ON "MAIN_TABLE".id="ANNEX_TABLE".id"
-                                       " WHERE %s GROUP BY "MAIN_TABLE".id"
-                                       " HAVING rmcnt=tot OR fullpath is NULL",
-                                       GSTRING_SAFE(filter_names), GSTRING_SAFE(where));
-        }
-        else /* full scan */
-        {
-            g_string_append(req,"SELECT "MAIN_TABLE".id," ONE_PATH_FUNC"("MAIN_TABLE".id) AS fullpath");
+            /* To determine names whose we remove the last reference,
+             * we avoid huge JOIN like this one:
+             * SELECT id,COUNT(*) as rmd
+             * FROM NAMES LINKS
+             * WHERE <condition> GROUP BY id) rmname
+             * JOIN
+             *     (select id, COUNT(*) as all FROM NAMES GROUP BY id) allname
+             *     ON rmname.id=allname.id
+             *     WHERE rmname.rmcount=paths.pathcount
+             *
+             * Instead we do:
+             * SELECT id,sum(this_path(parent_id,name)
+             * LIKE '%/foo' AND path_update < x) as rmcnt, count(*) as tot
+             * FROM NAMES GROUP BY id HAVING rmcnt=tot;
+             *
+             * BUT we must also get ENTRIES with no remaining name (no matching
+             * entry in NAMES)...
+             * Finally we do:
+             * SELECT ENTRIES.id, this_path(parent_id, name) as fullpath, ...
+             * sum(path_update < 1377176998 and this_path(parent_id, name)
+             * like 'dir1/%') as rm, count(*) as tot
+             * FROM ENTRIES LEFT JOIN NAMES ON ENTRIES.id=NAMES.id
+             * GROUP BY ENTRIES.id HAVING s=tot or fullpath is NULL;
+             */
+
+            g_string_append(req,"SELECT "MAIN_TABLE".id");
+            attrmask2fieldlist(req, softrm_attr_set, T_MAIN, MAIN_TABLE".", "",
+                               AOF_LEADING_SEP);
+            attrmask2fieldlist(req, softrm_attr_set, T_ANNEX, ANNEX_TABLE".",
+                               "", AOF_LEADING_SEP);
+            attrmask2fieldlist(req, softrm_attr_set, T_DNAMES, DNAMES_TABLE".",
+                               "", AOF_LEADING_SEP);
+            g_string_append_printf(req,
+                                   ", SUM(%s) AS rmcnt,COUNT(*) AS tot "
+                                   "FROM " MAIN_TABLE " "
+                                   "LEFT JOIN " DNAMES_TABLE " "
+                                   "ON " MAIN_TABLE".id="DNAMES_TABLE".id "
+                                   "LEFT JOIN "ANNEX_TABLE " "
+                                   "ON " MAIN_TABLE".id="ANNEX_TABLE".id "
+                                   "WHERE %s GROUP BY " MAIN_TABLE".id "
+                                   "HAVING rmcnt=tot OR fullpath is NULL",
+                                   GSTRING_SAFE(filter_names),
+                                   GSTRING_SAFE(where));
+        } else {
+            /* full scan */ 
+            g_string_append(req,"SELECT "MAIN_TABLE".id," 
+                            ONE_PATH_FUNC"("MAIN_TABLE".id) AS fullpath");
             attrmask2fieldlist(req, softrm_attr_set, T_MAIN,
                                MAIN_TABLE".", "", AOF_LEADING_SEP);
             attrmask2fieldlist(req, softrm_attr_set, T_ANNEX,
                                ANNEX_TABLE".", "", AOF_LEADING_SEP);
 
-            g_string_append_printf(req, " FROM "MAIN_TABLE
-                                   " LEFT JOIN "ANNEX_TABLE" ON "MAIN_TABLE".id="ANNEX_TABLE".id"
-                                   " WHERE %s", GSTRING_SAFE(where));
+            g_string_append_printf(req, " "
+                                        "FROM " MAIN_TABLE " "
+                                        "LEFT JOIN " ANNEX_TABLE " "
+                                        "ON " MAIN_TABLE".id="ANNEX_TABLE".id "
+                                        "WHERE %s", GSTRING_SAFE(where));
         }
-    }
-    else
-    {
-        if (counts->nb_names > 0)
-        {
+    } else {
+        if (counts->nb_names > 0) {
             /* Only delete entries with no remaining name */
-            /* 2 requests were tested here, with a significant performance difference: use the fastest.
+
+            /* 2 requests were tested here, with significant performance
+             * differences: use the fastest.
              * (request time for 2.6M entries)
-             *  mysql> select * from ENTRIES WHERE id not in (select id from NAMES);
-             *  Empty set (7.06 sec)
-             *  mysql> select * from ENTRIES LEFT JOIN NAMES on ENTRIES.id=NAMES.id WHERE NAMES.id IS NULL;
-             *  Empty set (16.09 sec)
+             * SELECT * FROM ENTRIES WHERE id not in (select id from NAMES);
+             *     => Empty set (7.06 sec)
+             * SELECT * FROM ENTRIES
+             * LEFT JOIN NAMES ON ENTRIES.id=NAMES.id WHERE NAMES.id IS NULL;
+             *     => Empty set (16.09 sec)
              */
             g_string_append_printf(where, " AND %s.id NOT IN "
-                                   "(SELECT DISTINCT(id) FROM "DNAMES_TABLE")",
+                                          "(SELECT DISTINCT(id) "
+                                          "FROM "DNAMES_TABLE")",
                                    table2name(query_tab));
         }
         if (distinct)
-            g_string_append_printf(req, "SELECT DISTINCT(%s.id) FROM %s"
-                                   " WHERE %s", table2name(query_tab),
+            g_string_append_printf(req, "SELECT DISTINCT(%s.id) FROM %s "
+                                        "WHERE %s",
+                                   table2name(query_tab),
                                    GSTRING_SAFE(from), GSTRING_SAFE(where));
         else
             g_string_append_printf(req, "SELECT %s.id FROM %s" " WHERE %s",
@@ -463,8 +483,9 @@ static int create_tmp_table_rm(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
 /** Perform removal or soft removal for all entries matching a filter
  * (no transaction management).
  */
-static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
-                                     bool soft_rm, time_t rm_time, rm_cb_func_t cb_func,
+static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *filter,
+                                     bool soft_rm, time_t rm_time,
+                                     rm_cb_func_t cb_func,
                                      unsigned int *rm_count)
 {
     struct field_count counts = {0};
@@ -485,10 +506,8 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
 
     attr_mask_unset_index(&mask_no_rmtime, ATTR_INDEX_rm_time);
 
-    if (no_filter(p_filter))
-    {
-        if (soft_rm)
-        {
+    if (no_filter(filter)) {
+        if (soft_rm) {
             rc = listmgr_softrm_all(p_mgr, rm_time);
             if (rc)
                 return rc;
@@ -496,44 +515,41 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
 
         /* Remove all !!! */
         DisplayLog(LVL_EVENT, LISTMGR_TAG,
-                    "No filter is specified: removing entries from all tables.");
+                   "No filter is specified: removing entries from all tables.");
         return listmgr_rm_all(p_mgr);
     }
 
-    if (!soft_rm)
-    {
+    if (!soft_rm) {
         /* no soft_rm:
          * 1) clean names if there is a filter on them.
-         * 2) clean related entries in other tables if there is no remaining path.
+         * 2) clean related entries in other tables if there is no remaining
+         *    path.
          */
-        rc = clean_names(p_mgr, p_filter, &counts.nb_names);
+        rc = clean_names(p_mgr, filter, &counts.nb_names);
         if (rc)
             return rc;
-    }
-    else
-    {
+    } else {
         filter_names = g_string_new(NULL);
         /* soft rm: just build the name filter for the later request */
-        counts.nb_names = filter2str(p_mgr, filter_names, p_filter, T_DNAMES, 0);
+        counts.nb_names = filter2str(p_mgr, filter_names, filter, T_DNAMES, 0);
     }
 
     from = g_string_new(NULL);
     where = g_string_new(NULL);
 
     /* build the where clause */
-    if (filter_where(p_mgr, p_filter, &counts, where, AOF_SKIP_NAME) == 0)
-    {
-        if (unlikely(counts.nb_names == 0))
-        {
+    if (filter_where(p_mgr, filter, &counts, where, AOF_SKIP_NAME) == 0) {
+        if (unlikely(counts.nb_names == 0)) {
             /* empty filter should have been detected earlier */
-            DisplayLog(LVL_CRIT, LISTMGR_TAG, "How come empty filter has not been detected?!");
+            DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                       "How come empty filter has not been detected?!");
             rc = DB_REQUEST_FAILED;
             goto free_str;
         }
 
         /* filter is only on names table */
         if (soft_rm)
-            rc = clean_names(p_mgr, p_filter, &counts.nb_names);
+            rc = clean_names(p_mgr, filter, &counts.nb_names);
         /* else (no softrm): name cleaning has been done at the beginning of the function */
         else
             rc = 0;
@@ -560,7 +576,7 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
     snprintf(tmp_table_name, sizeof(tmp_table_name), "TMP_TABLE_%u_%u",
         (unsigned int)getpid(), (unsigned int)pthread_self());
 
-    rc = create_tmp_table_rm(p_mgr, p_filter, &counts, tmp_table_name, soft_rm,
+    rc = create_tmp_table_rm(p_mgr, filter, &counts, tmp_table_name, soft_rm,
                              query_tab, from, filter_names, where, distinct);
     if (rc)
         goto free_str;
@@ -610,24 +626,23 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
     *rm_count = 0;
 
     /* for each returned record from tmp table */
-    while ((rc = db_next_record(&p_mgr->conn, &result, field_tab, nb))
-                == DB_SUCCESS
-            && (field_tab[0] != NULL))
-    {
+    while ((rc = db_next_record(&p_mgr->conn, &result, field_tab, nb)) ==
+            DB_SUCCESS && field_tab[0] != NULL) {
         entry_id_t id;
 
         rc = parse_entry_id(p_mgr, field_tab[0], PTR_PK(pk), &id);
         if (rc)
             goto free_res;
 
-        if (soft_rm)
-        {
+        if (soft_rm) {
             attr_set_t old_attrs = ATTR_SET_INIT;
 
             old_attrs.attr_mask = mask_no_rmtime;
 
-            /* parse result attributes + set rm_time for listmgr_softrm_single */
-            rc = result2attrset(T_TMP_SOFTRM, field_tab + 1,  nb - 1, &old_attrs);
+            /* parse result attributes and set rm_time for
+             * listmgr_softrm_single */
+            rc = result2attrset(T_TMP_SOFTRM, field_tab + 1,  nb - 1,
+                                &old_attrs);
             if (rc)
                 goto free_res;
 
@@ -641,8 +656,8 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
                 goto free_res;
         }
 
-        /* delete all entries related to this id (except from query table if we did
-         * a direct deletion in it) */
+        /* delete all entries related to this id (except from query table if
+         * we did a direct deletion in it) */
         rc = listmgr_remove_single(p_mgr, pk, direct_del ? query_tab : T_NONE);
         if (rc)
             goto free_res;
@@ -668,7 +683,7 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
 
     /* Condition on names only (partial scan cleans not found names). */
     if (soft_rm && filter_names)
-        rc = clean_names(p_mgr, p_filter, &counts.nb_names);
+        rc = clean_names(p_mgr, filter, &counts.nb_names);
     /* else, it has been done at the beginning of the function */
 
     goto free_str;
@@ -691,8 +706,9 @@ free_str:
 
 
 /** handles a mass_remove transaction */
-static int listmgr_mass_remove(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
-                               bool soft_rm, time_t rm_time, rm_cb_func_t cb_func)
+static int listmgr_mass_remove(lmgr_t *p_mgr, const lmgr_filter_t *filter,
+                               bool soft_rm, time_t rm_time,
+                               rm_cb_func_t cb_func)
 {
     int             rc;
     unsigned int    rmcount = 0;
@@ -705,7 +721,8 @@ retry:
     else if (rc)
         return rc;
 
-    rc = listmgr_mass_remove_no_tx(p_mgr, p_filter, soft_rm, rm_time, cb_func, &rmcount);
+    rc = listmgr_mass_remove_no_tx(p_mgr, filter, soft_rm, rm_time, cb_func,
+                                   &rmcount);
 
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
@@ -726,18 +743,18 @@ rollback:
     return rc;
 }
 
-int ListMgr_MassRemove(lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
+int ListMgr_MassRemove(lmgr_t * p_mgr, const lmgr_filter_t * filter,
                         rm_cb_func_t cb_func)
 {
     /* not a soft rm */
-    return listmgr_mass_remove(p_mgr, p_filter, false, 0, cb_func);
+    return listmgr_mass_remove(p_mgr, filter, false, 0, cb_func);
 }
 
-int ListMgr_MassSoftRemove(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+int ListMgr_MassSoftRemove(lmgr_t *p_mgr, const lmgr_filter_t *filter,
                            time_t rm_time, rm_cb_func_t cb_func)
 {
     /* soft rm */
-    return listmgr_mass_remove(p_mgr, p_filter, true, rm_time, cb_func);
+    return listmgr_mass_remove(p_mgr, filter, true, rm_time, cb_func);
 }
 
 /**
@@ -829,61 +846,50 @@ typedef struct lmgr_rm_list_t
     unsigned int  result_len;
 } lmgr_rm_list_t;
 
-/* XXX selecting 'expired' entries is done using a rm_time criteria in p_filter */
-struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *p_filter,
+/* XXX selecting 'expired' entries is done using a rm_time criteria in filter */
+struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *filter,
                                       const lmgr_sort_type_t *p_sort_type)
 {
-    int             rc, nb;
-    lmgr_rm_list_t *p_list = MemAlloc(sizeof(lmgr_rm_list_t));
-    GString        *req;
+    lmgr_rm_list_t *p_list = malloc(sizeof(lmgr_rm_list_t));
+    GString *req;
+    int rc, nb;
 
     if (!p_list)
         return NULL;
 
     req = g_string_new("SELECT id");
-    nb = attrmask2fieldlist(req, softrm_attr_set, T_SOFTRM,
-                            "", "", AOF_LEADING_SEP);
+    nb = attrmask2fieldlist(req, softrm_attr_set, T_SOFTRM, "", "",
+                            AOF_LEADING_SEP);
     g_string_append(req, " FROM "SOFT_RM_TABLE);
 
-    if (p_filter)
-    {
-        if (p_filter->filter_type != FILTER_SIMPLE)
-        {
-            DisplayLog(LVL_CRIT, LISTMGR_TAG,
-                       "Unsupported filter in %s(): simple filter expected",
-                       __FUNCTION__);
-            goto free_err;
-        }
+    if (filter) {
         /* are there unsuported fields in this filter? */
-        if (lmgr_check_filter_fields(p_filter, softrm_attr_set, &rc))
-        {
-            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Unsupported field in filter: %s (in %s())",
+        if (lmgr_check_filter_fields(filter, softrm_attr_set, &rc)) {
+            DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                       "Unsupported field in filter: %s (in %s())",
                        rc == -1 ? "supported filter type" :
-                       field_name(p_filter->filter_simple.filter_index[rc]), __func__);
+                                  field_name(filter->filter_index[rc]),
+                       __func__);
             goto free_err;
         }
         g_string_append(req, " WHERE ");
-        if (filter2str(p_mgr, req, p_filter, T_SOFTRM, 0) <= 0)
-        {
-            DisplayLog(LVL_CRIT, LISTMGR_TAG, "Error converting filter to SQL request");
+        if (filter2str(p_mgr, req, filter, T_SOFTRM, 0) <= 0) {
+            DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                       "Error converting filter to SQL request");
             goto free_err;
         }
     }
 
     /* is there a sort order ? */
-    if (p_sort_type == NULL || p_sort_type->order == SORT_NONE)
-    {
+    if (p_sort_type == NULL || p_sort_type->order == SORT_NONE) {
         /* default is rm_time */
         g_string_append(req, " ORDER BY rm_time ASC");
-    }
-    else if (!is_softrm_field(p_sort_type->attr_index))
-    {
-        DisplayLog(LVL_CRIT, LISTMGR_TAG, "ERROR: attribute '%s' is not part of %s table",
+    } else if (!is_softrm_field(p_sort_type->attr_index)) {
+        DisplayLog(LVL_CRIT, LISTMGR_TAG,
+                   "ERROR: attribute '%s' is not part of %s table",
                    field_name(p_sort_type->attr_index), SOFT_RM_TABLE);
         goto free_err;
-    }
-    else
-    {
+    } else {
         g_string_append_printf(req, " ORDER BY %s %s",
                                field_name(p_sort_type->attr_index),
                                p_sort_type->order == SORT_ASC ? "ASC" : "DESC");
@@ -897,8 +903,7 @@ struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *p_filter,
         rc = db_exec_sql(&p_mgr->conn, req->str, &p_list->select_result);
     } while (lmgr_delayed_retry(p_mgr, rc));
 
-    if (rc)
-    {
+    if (rc) {
         char msg_buff[1024];
 
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
@@ -914,16 +919,16 @@ struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *p_filter,
 
 free_err: /* error */
     g_string_free(req, TRUE);
-    MemFree(p_list);
+    free(p_list);
     return NULL;
 }
 
-int            ListMgr_GetNextRmEntry(struct lmgr_rm_list_t *p_iter,
-                                      entry_id_t *p_id, attr_set_t *p_attrs)
+int ListMgr_GetNextRmEntry(struct lmgr_rm_list_t *p_iter,
+                           entry_id_t *p_id, attr_set_t *p_attrs)
 {
-    int            rc = 0;
-    int i;
     char *record[MAX_SOFTRM_FIELDS];
+    int rc = 0;
+    int i;
 
     if (p_iter->result_len > MAX_SOFTRM_FIELDS)
         RBH_BUG("unexpected result length > MAX_SOFTRM_FIELDS");

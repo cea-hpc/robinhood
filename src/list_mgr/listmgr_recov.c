@@ -184,14 +184,17 @@ int ListMgr_RecovStatus(lmgr_t *p_mgr, lmgr_recov_stat_t *p_stats)
 
 /**
  *  Initialize a recovery process.
- *  \param p_filter[in] (optional) filter partial filesystem recovery
- *  \retval DB_SUCCESS the recovery process successfully started;
- *          the stats indicate the recovery states we can expect.
- *  \retval DB_ALREADY_EXISTS a recovery process already started
- *          and was not properly completed. stats indicate the current status.
- *  \retval error   another error occurred.
+ *  @param filter       (optional) filter partial filesystem recovery
+ *
+ *  @retval DB_SUCCESS          the recovery process successfully started;
+ *                              the stats indicate the recovery states we can
+ *                              expect.
+ *  @retval DB_ALREADY_EXISTS   a recovery process already started
+ *                              and was not properly completed. stats indicate
+ *                              the current status.
+ *  @retval error               another error occurred.
  */
-int ListMgr_RecovInit(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+int ListMgr_RecovInit(lmgr_t *p_mgr, const lmgr_filter_t *filter,
                       lmgr_recov_stat_t *p_stats)
 {
     int rc;
@@ -224,36 +227,36 @@ int ListMgr_RecovInit(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
             return rc;
     }
 
-    if (p_filter) {
+    if (filter) {
         /* dummy vars */
         char filter_dir_str[512] = "";
         unsigned int filter_dir_index = 0;
 
-        if (dir_filter(p_mgr, filter_dir_str, p_filter, &filter_dir_index, NULL)
+        if (dir_filter(p_mgr, filter_dir_str, filter, &filter_dir_index, NULL)
             != FILTERDIR_NONE) {
             DisplayLog(LVL_CRIT, LISTMGR_TAG,
                        "Directory filter not supported for recovery");
             return DB_NOT_SUPPORTED;
         }
 
-        if (filter2str(p_mgr, filter_curr, p_filter, T_MAIN, AOF_PREFIX) > 0)
+        if (filter2str(p_mgr, filter_curr, filter, T_MAIN, AOF_PREFIX) > 0)
             filter_curr += strlen(filter_curr);
 
-        if (filter2str(p_mgr, filter_curr, p_filter, T_ANNEX,
+        if (filter2str(p_mgr, filter_curr, filter, T_ANNEX,
                        (has_filters ? AOF_LEADING_SEP : 0) | AOF_PREFIX) > 0)
             filter_curr += strlen(filter_curr);
 
-        if (filter2str(p_mgr, filter_curr, p_filter, T_DNAMES,
+        if (filter2str(p_mgr, filter_curr, filter, T_DNAMES,
                        (has_filters ? AOF_LEADING_SEP : 0) | AOF_PREFIX) > 0) {
             filter_curr += strlen(filter_curr);
             distinct = 1;
         }
 
-        if (filter2str(p_mgr, filter_curr, p_filter, T_STRIPE_INFO,
+        if (filter2str(p_mgr, filter_curr, filter, T_STRIPE_INFO,
                        (has_filters ? AOF_LEADING_SEP : 0) | AOF_PREFIX) > 0)
             filter_curr += strlen(filter_curr);
 
-        if (filter2str(p_mgr, filter_curr, p_filter, T_STRIPE_ITEMS,
+        if (filter2str(p_mgr, filter_curr, filter, T_STRIPE_ITEMS,
                        (has_filters ? AOF_LEADING_SEP : 0) | AOF_PREFIX) > 0) {
             filter_curr += strlen(filter_curr);
             distinct = 1;
@@ -341,7 +344,7 @@ int ListMgr_RecovInit(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
         report_count.report_type = REPORT_COUNT_DISTINCT;
 
     /* double check entry count before deleting entries */
-    report = ListMgr_Report(p_mgr, &report_count, 1, NULL, p_filter, NULL);
+    report = ListMgr_Report(p_mgr, &report_count, 1, NULL, filter, NULL);
     if (report == NULL)
         return DB_REQUEST_FAILED;
 
@@ -364,7 +367,7 @@ int ListMgr_RecovInit(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
 
     /* clean previous DB content */
 
-    return ListMgr_MassRemove(p_mgr, p_filter, NULL);
+    return ListMgr_MassRemove(p_mgr, filter, NULL);
 }
 
 /**

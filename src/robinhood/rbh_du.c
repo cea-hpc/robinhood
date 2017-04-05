@@ -63,11 +63,10 @@ static struct option option_tab[] = {
     {"help", no_argument, NULL, 'h'},
     {"version", no_argument, NULL, 'V'},
 
-    {NULL, 0, NULL, 0}
-
+    {NULL, 0, NULL, 0},
 };
 
-#define SHORT_OPT_STRING    "u:g:t:S:scbkmHdf:l:hV"
+#define SHORT_OPT_STRING "u:g:t:S:scbkmHdf:l:hV"
 #define TYPE_HELP "'f' (file), 'd' (dir), 'l' (symlink), 'b' (block), "\
                   "'c' (char), 'p' (named pipe/FIFO), 's' (socket)"
 
@@ -75,6 +74,7 @@ static struct option option_tab[] = {
 
 static lmgr_t lmgr;
 
+/* @TODO: no suffix '_e' for an enum? */
 typedef enum { disp_usage, disp_count, disp_size, disp_details } display_mode;
 typedef enum { disp_byte, disp_kilo, disp_mega, disp_human } display_unit;
 
@@ -100,21 +100,24 @@ struct du_opt {
     display_unit disp_how;
     unsigned int sum:1;
 
-} prog_options = {
-    .disp_what = disp_usage, .disp_how = disp_kilo
+};
+struct du_opt prog_options = {
+    .disp_what = disp_usage,
+    .disp_how = disp_kilo,
 };
 
 /** filter on entries to be summed */
-static lmgr_filter_t    entry_filter;
+static lmgr_filter_t entry_filter;
 /** same as entry_filter + condition on parent id */
-static lmgr_filter_t    parent_filter;
+static lmgr_filter_t parent_filter;
 
 /* filter for root entries */
-static bool_node_t      match_expr;
-static int              is_expr = 0; /**< is it set? */
+static bool_node_t match_expr;
+static int is_expr = 0; /**< is it set? */
 
-static attr_mask_t disp_mask =
-    { .std = ATTR_MASK_type | ATTR_MASK_blocks | ATTR_MASK_size };
+static attr_mask_t disp_mask = {
+    .std = ATTR_MASK_type | ATTR_MASK_blocks | ATTR_MASK_size,
+};
 static attr_mask_t query_mask = { 0 };
 
 typedef struct stats_du_t {
@@ -124,7 +127,7 @@ typedef struct stats_du_t {
     uint64_t    size;
 } stats_du_t;
 
-#define TYPE_COUNT  (TYPE_SOCK+1)
+#define TYPE_COUNT (TYPE_SOCK+1)
 static const stats_du_t stats_zero[TYPE_COUNT] = {
     {"?", 0, 0, 0},
     {STR_TYPE_LINK, 0, 0, 0},
@@ -133,7 +136,7 @@ static const stats_du_t stats_zero[TYPE_COUNT] = {
     {STR_TYPE_CHR, 0, 0, 0},
     {STR_TYPE_BLK, 0, 0, 0},
     {STR_TYPE_FIFO, 0, 0, 0},
-    {STR_TYPE_SOCK, 0, 0, 0}
+    {STR_TYPE_SOCK, 0, 0, 0},
 };
 
 static void reset_stats(stats_du_t *stats)
@@ -184,10 +187,10 @@ static char *sprint_size(char *buf, uint64_t sz)
 
 static void print_stats(const char *name, stats_du_t *stats)
 {
-    int i;
     char b1[1024];
     char b2[1024];
     uint64_t total = 0;
+    int i;
 
     switch (prog_options.disp_what) {
     case disp_details:
@@ -295,6 +298,7 @@ static int mkfilters(void)
 
     if (is_expr) {
         char expr[RBH_PATH_MAX];
+
         /* for debug */
         if (BoolExpr2str(&match_expr, expr, RBH_PATH_MAX) > 0)
             DisplayLog(LVL_FULL, DU_TAG, "Expression matching: %s", expr);
@@ -433,7 +437,7 @@ static int retrieve_root_id(entry_id_t *root_id)
     return rc;
 }
 
-#define REPCNT    4
+#define REPCNT 4
 static report_field_descr_t dir_info[REPCNT] = {
     {ATTR_INDEX_type, REPORT_GROUP_BY, SORT_NONE, false, 0, FV_NULL},
     {0, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL},
@@ -454,12 +458,11 @@ static int dircb(wagon_t *id_list, attr_set_t *attr_list,
     stats_du_t *stats = (stats_du_t *) arg;
 
     /* filter on parent_id */
-
     for (i = 0; i < entry_count; i++) {
         fv.value.val_id = id_list[i].id;
         rc = lmgr_simple_filter_add_or_replace(&parent_filter,
-                                               ATTR_INDEX_parent_id,
-                                               EQUAL, fv, 0);
+                                               ATTR_INDEX_parent_id, EQUAL, fv,
+                                               0);
         if (rc)
             return rc;
 
@@ -469,9 +472,9 @@ static int dircb(wagon_t *id_list, attr_set_t *attr_list,
             return -1;
 
         result_count = REPCNT;
-        while ((rc =
-                ListMgr_GetNextReportItem(it, result, &result_count,
-                                          NULL)) == DB_SUCCESS) {
+        /* @TODO: rc is ignored? */
+        while ((rc = ListMgr_GetNextReportItem(it, result, &result_count,
+                                               NULL)) == DB_SUCCESS) {
             unsigned int idx = db2type(result[0].value_u.val_str);
             stats[idx].count += result[1].value_u.val_biguint;
             stats[idx].blocks += result[2].value_u.val_biguint;
@@ -495,9 +498,9 @@ static int list_all(stats_du_t *stats, bool display_stats)
 {
     attr_set_t root_attrs;
     entry_id_t root_id;
-    int rc;
     struct stat st;
     struct lmgr_report_t *it;
+    int rc;
 
     db_value_t result[REPCNT];
     unsigned int result_count;
@@ -533,9 +536,9 @@ static int list_all(stats_du_t *stats, bool display_stats)
         return -1;
 
     result_count = REPCNT;
-    while ((rc =
-            ListMgr_GetNextReportItem(it, result, &result_count,
-                                      NULL)) == DB_SUCCESS) {
+    /* @TODO: rc is ignored? */
+    while ((rc = ListMgr_GetNextReportItem(it, result, &result_count,
+                                           NULL)) == DB_SUCCESS) {
         unsigned int idx = db2type(result[0].value_u.val_str);
         stats[idx].count += result[1].value_u.val_biguint;
         stats[idx].blocks += result[2].value_u.val_biguint;
@@ -558,11 +561,11 @@ static int list_all(stats_du_t *stats, bool display_stats)
 static int list_content(char **id_list, int id_count)
 {
     wagon_t *ids;
-    int i, rc;
     attr_set_t root_attrs;
     entry_id_t root_id;
-    bool is_id;
     stats_du_t stats[TYPE_COUNT];
+    bool is_id;
+    int i, rc;
 
     if (prog_options.sum)
         reset_stats(stats);
@@ -616,9 +619,9 @@ static int list_content(char **id_list, int id_count)
         /* get root attrs to print it (if it matches program options) */
         root_attrs.attr_mask = attr_mask_or(&disp_mask, &query_mask);
         rc = ListMgr_Get(&lmgr, &ids[i].id, &root_attrs);
-        if (rc == 0)
+        if (rc == 0) {
             dircb(&ids[i], &root_attrs, 1, stats);
-        else {
+        } else {
             DisplayLog(LVL_VERB, DU_TAG, "Notice: no attrs in DB for %s",
                        id_list[i]);
 
@@ -663,7 +666,6 @@ static int list_content(char **id_list, int id_count)
         if (!prog_options.sum) {
             /* if not group all, run and display stats now */
             rc = rbh_scrub(&lmgr, &ids[i], 1, disp_mask, dircb, stats);
-
             if (rc)
                 goto out;
 
@@ -694,10 +696,10 @@ int main(int argc, char **argv)
     int c, option_index = 0;
     const char *bin;
     char config_file[MAX_OPT_LEN] = "";
-    int rc;
     bool chgd = false;
     char err_msg[4096];
     char badcfg[RBH_PATH_MAX];
+    int rc;
 
     bin = rh_basename(argv[0]);
 
@@ -846,8 +848,9 @@ int main(int argc, char **argv)
         DisplayLog(LVL_CRIT, DU_TAG, "Error initializing list manager: %s (%d)",
                    lmgr_err2str(rc), rc);
         exit(rc);
-    } else
+    } else {
         DisplayLog(LVL_DEBUG, DU_TAG, "ListManager successfully initialized");
+    }
 
     if (CheckLastFS() != 0)
         exit(1);
@@ -868,7 +871,7 @@ int main(int argc, char **argv)
                                &prog_options.smi);
         if (rc)
             exit(rc);
-        prog_options.status_value = (char *)strval;
+        prog_options.status_value = (char *) strval;
     }
 
     mkfilters();
@@ -879,8 +882,9 @@ int main(int argc, char **argv)
 
         /* no path in argument: du the entire FS */
         rc = list_all(stats, true); /* display the stats by itself */
-    } else
+    } else {
         rc = list_content(argv + optind, argc - optind);
+    }
 
     ListMgr_CloseAccess(&lmgr);
 

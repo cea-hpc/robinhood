@@ -74,7 +74,7 @@ static int append_parent_cond(lmgr_t *p_mgr, GString *str, const wagon_t *parent
  * \param child_attr_list   [out] ptr to array of child attrs
  * \param child_count       [out] number of returned children
  */
-int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *filter,
                      const wagon_t *parent_list, unsigned int parent_count,
                      attr_mask_t attr_mask,
                      wagon_t **child_id_list, attr_set_t **child_attr_list,
@@ -139,15 +139,15 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
         goto free_str;
 
     /* check filters on other tables */
-    if (!no_filter(p_filter))
+    if (!no_filter(filter))
     {
-        if (unlikely(dir_filter(p_mgr, NULL, p_filter, NULL, NULL) != FILTERDIR_NONE))
+        if (unlikely(dir_filter(p_mgr, NULL, filter, NULL, NULL) != FILTERDIR_NONE))
         {
             DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Directory filter not supported in %s()", __func__);
             rc = DB_NOT_SUPPORTED;
             goto free_str;
         }
-        else if (unlikely(func_filter(p_mgr, NULL, p_filter, T_MAIN, 0)))
+        else if (unlikely(func_filter(p_mgr, NULL, filter, T_MAIN, 0)))
         {
             DisplayLog(LVL_MAJOR, LISTMGR_TAG, "Function filter not supported in %s()", __func__);
             rc = DB_NOT_SUPPORTED;
@@ -157,7 +157,7 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
         /* There is always a filter on T_DNAMES, which is the parent condition.
          * Look for optional filters.
          */
-        filter_where(p_mgr, p_filter, &filter_cnt, where,
+        filter_where(p_mgr, filter, &filter_cnt, where,
                      AOF_LEADING_SEP | AOF_SKIP_NAME);
         /** @FIXME process other filters on NAMES */
     }
