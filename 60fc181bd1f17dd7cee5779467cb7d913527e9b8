@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "461d5c17_6de033fb",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 164,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-05T07:04:26Z",
+      "side": 1,
+      "message": "This doesn\u0027t build for POSIX FS.\n\nI guess this module can work without the CL callback (it is just a bonus with Lustre). So you should add an ifdef HAVE_CHANGELOGS around this function declaration (and in the sm structure definition).\n\nTo test a build without lustre run:\n ./configure --disable-lustre",
+      "revId": "60fc181bd1f17dd7cee5779467cb7d913527e9b8",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
