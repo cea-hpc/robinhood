@@ -491,11 +491,11 @@ int attrset2updatelist(lmgr_t *p_mgr, GString *str, const attr_set_t *p_set,
 
 char *compar2str(filter_comparator_t compar);
 
-int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
+int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *filter,
                table_enum table, attrset_op_flag_e flags);
 
 int func_filter(lmgr_t *p_mgr, GString *filter_str,
-                const lmgr_filter_t *p_filter, table_enum table,
+                const lmgr_filter_t *filter, table_enum table,
                 attrset_op_flag_e flags);
 
 struct field_count {
@@ -506,7 +506,7 @@ struct field_count {
     unsigned int nb_stripe_items;
 };
 
-int filter_where(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+int filter_where(lmgr_t *p_mgr, const lmgr_filter_t *filter,
                  struct field_count *counts, GString *where,
                  attrset_op_flag_e flags);
 void filter_from(lmgr_t *p_mgr, const struct field_count *counts, GString *from,
@@ -528,7 +528,7 @@ typedef enum {
 } filter_dir_e;
 
 filter_dir_e dir_filter(lmgr_t *p_mgr, GString *filter_str,
-                        const lmgr_filter_t *p_filter,
+                        const lmgr_filter_t *filter,
                         unsigned int *dir_attr_index, const char *prefix);
 
 void append_size_range_fields(GString *str, bool leading_comma,
@@ -617,9 +617,10 @@ static inline const char *field_name(unsigned int index)
 
 static inline db_type_e field_type(unsigned int index)
 {
-    if (is_std_attr(index)) /* ensure index < ATTR_COUNT */
+    if (is_std_attr(index)) { /* ensure index < ATTR_COUNT */
         assert(index < ATTR_COUNT);
         return field_infos[index].db_type;
+    }
 
     if (is_status(index))
         return DB_TEXT;
@@ -632,13 +633,9 @@ static inline db_type_e field_type(unsigned int index)
 }
 
 /** helper to check empty filter */
-static inline bool no_filter(const lmgr_filter_t *p_filter)
+static inline bool no_filter(const lmgr_filter_t *filter)
 {
-    return p_filter == NULL ||
-           (p_filter->filter_type == FILTER_SIMPLE &&
-            p_filter->filter_simple.filter_count == 0) ||
-           (p_filter->filter_type == FILTER_BOOLEXPR &&
-            p_filter->filter_boolexpr == NULL);
+    return filter == NULL || filter->filter_count == 0;
 }
 
 bool match_table(table_enum t, unsigned int attr_index);

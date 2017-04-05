@@ -29,8 +29,8 @@
  * \param filter indicate this applies to a restricted set of entries.
  * \param reset indicate if the table is cleaned in case it already exists.
  */
-int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
-                      lmgr_filter_t * p_filter, bool reset)
+int ListMgr_CreateTag(lmgr_t *p_mgr, const char *tag_name,
+                      lmgr_filter_t *filter, bool reset)
 {
     GString         *req = NULL;
     GString         *from = NULL;
@@ -46,15 +46,12 @@ int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
                            tag_name);
 
     /* now build the SELECT clause */
-    if (no_filter(p_filter))
-    {
+    if (no_filter(filter)) {
         /* no filter, create a table with all ids */
         g_string_append(req, "SELECT id FROM "MAIN_TABLE);
-    }
-    else
-    {
+    } else {
         where = g_string_new(NULL);
-        filter_where(p_mgr, p_filter, &fcnt, where, 0);
+        filter_where(p_mgr, filter, &fcnt, where, 0);
 
         if (nb_field_tables(&fcnt) == 0)
         {

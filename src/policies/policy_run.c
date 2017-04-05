@@ -811,7 +811,7 @@ static bool check_queue_limit(policy_info_t *pol,
  * build a filter from policies, to optimize DB queries.
  */
 static int set_optimization_filters(policy_info_t *policy,
-                                    lmgr_filter_t *p_filter)
+                                    lmgr_filter_t *filter)
 {
     policy_rules_t *rules = &policy->descr->rules;
 /** @TODO build a filter for getting the union of all filesets/conditions */
@@ -821,7 +821,7 @@ static int set_optimization_filters(policy_info_t *policy,
      */
     if (rules->rule_count == 1) {
         if (convert_boolexpr_to_simple_filter
-            (&rules->rules[0].condition, p_filter,
+            (&rules->rules[0].condition, filter,
              policy->descr->status_mgr, policy->time_modifier,
              policy->descr->manage_deleted ? FILTER_FLAG_ALLOW_NULL : 0)) {
             DisplayLog(LVL_FULL, tag(policy),
@@ -843,14 +843,14 @@ static int set_optimization_filters(policy_info_t *policy,
                 flags = FILTER_FLAG_NOT | FILTER_FLAG_ALLOW_NULL;
             else
                 flags = FILTER_FLAG_NOT;
-            lmgr_simple_filter_add(p_filter, ATTR_INDEX_fileclass, EQUAL,
+            lmgr_simple_filter_add(filter, ATTR_INDEX_fileclass, EQUAL,
                                    fval, flags);
         }
 
         /* don't select entries maching 'ignore' statements */
         for (i = 0; i < rules->whitelist_count; i++) {
             if (convert_boolexpr_to_simple_filter
-                (&rules->whitelist_rules[i].bool_expr, p_filter,
+                (&rules->whitelist_rules[i].bool_expr, filter,
                  policy->descr->status_mgr, policy->time_modifier,
                  policy->descr->
                  manage_deleted ? FILTER_FLAG_ALLOW_NULL | FILTER_FLAG_NOT :
@@ -874,7 +874,7 @@ static int set_optimization_filters(policy_info_t *policy,
         struct tm ts;
 
         fval.value.val_uint = policy->first_eligible;
-        lmgr_simple_filter_add(p_filter, policy->config->lru_sort_attr,
+        lmgr_simple_filter_add(filter, policy->config->lru_sort_attr,
                                MORETHAN, fval, 0);
         strftime(datestr, 128, "%Y/%m/%d %T",
                  localtime_r(&policy->first_eligible, &ts));
