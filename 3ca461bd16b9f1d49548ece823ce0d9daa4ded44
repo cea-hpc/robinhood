@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "b1baf60a_ada0b904",
+        "filename": "src/list_mgr/listmgr_remove.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 602,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-05T11:02:30Z",
+      "side": 1,
+      "message": "Sorry, I lead you to a mistake that make some tests fail. We can only order by fullpath if it is part of the queried fields. So this should be moved back to the \"if\" block above and conditioned by:\n\n if (mask_no_rm_time.std \u0026 ATTR_MASK_fullpath)\n     g_string_append_printf(req, \" ORDER BY...",
+      "revId": "3ca461bd16b9f1d49548ece823ce0d9daa4ded44",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
