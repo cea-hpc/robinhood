@@ -510,19 +510,6 @@ typedef union filter_value {
 
 #define FV_NULL { {NULL} }
 
-/** simple filter definition */
-typedef struct lmgr_simple_filter_t {
-    unsigned int         filter_count;
-
-    int                 *filter_flags;
-    unsigned int        *filter_index;
-    filter_comparator_t *filter_compar;
-    filter_value_t      *filter_value;
-
-    /** for internal memory management */
-    unsigned int         prealloc;
-} lmgr_simple_filter_t;
-
 /* needed here for defining filters, obj_type_t... */
 #include "policy_rules.h"
 
@@ -559,17 +546,14 @@ static inline obj_type_t db2type(const char *str)
 
 /** generic filter type */
 typedef struct lmgr_filter_t {
-    enum { FILTER_SIMPLE, FILTER_BOOLEXPR } filter_type;
-    union {
-        lmgr_simple_filter_t simple_filter;
-        struct bool_node_t *boolean_expr;   /* not supported yet */
-    } filter_u;
+    unsigned int         prealloc;      /** for internal memory management */
+    unsigned int         filter_count;
 
+    int                 *filter_flags;
+    unsigned int        *filter_index;
+    filter_comparator_t *filter_compar;
+    filter_value_t      *filter_value;
 } lmgr_filter_t;
-
-/* for cleaner code */
-#define filter_simple   filter_u.simple_filter
-#define filter_boolexpr filter_u.boolean_expr
 
 /** Sort types */
 typedef enum {
@@ -686,7 +670,7 @@ int ListMgr_Update(lmgr_t *p_mgr, const entry_id_t *p_id,
 /**
  * Applies a modification to all entries that match the specified filter.
  */
-int ListMgr_MassUpdate(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+int ListMgr_MassUpdate(lmgr_t *p_mgr, const lmgr_filter_t *filter,
                        const attr_set_t *p_attr_set);
 
 /** remove callback function */
@@ -701,7 +685,7 @@ int ListMgr_Remove(lmgr_t *p_mgr, const entry_id_t *p_id,
 /**
  * Removes all entries that match the specified filter.
  */
-int ListMgr_MassRemove(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+int ListMgr_MassRemove(lmgr_t *p_mgr, const lmgr_filter_t *filter,
                        rm_cb_func_t);
 
 /**
@@ -728,7 +712,7 @@ int ListMgr_SoftRemove(lmgr_t *p_mgr, const entry_id_t *p_id,
 /**
  * Soft remove a set of entries according to a filter.
  */
-int ListMgr_MassSoftRemove(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+int ListMgr_MassSoftRemove(lmgr_t *p_mgr, const lmgr_filter_t *filter,
                            time_t rm_time, rm_cb_func_t);
 
 /**
@@ -738,7 +722,7 @@ int ListMgr_SoftRemove_Discard(lmgr_t *p_mgr, const entry_id_t *p_id);
 
 /**
  * Initialize a list of items removed 'softly', sorted by expiration time.
- * Selecting 'expired' entries is done using an rm_time criteria in p_filter
+ * Selecting 'expired' entries is done using an rm_time criteria in filter
  */
 struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *filter,
                                       const lmgr_sort_type_t *p_sort_type);
@@ -768,7 +752,7 @@ int ListMgr_GetRmEntry(lmgr_t *p_mgr, const entry_id_t *p_id,
  * \param reset indicate if the table is cleaned in case it already exists.
  */
 int ListMgr_CreateTag(lmgr_t *p_mgr, const char *tag_name,
-                      lmgr_filter_t *p_filter, bool reset);
+                      lmgr_filter_t *filter, bool reset);
 /** destroy a tag */
 int ListMgr_DestroyTag(lmgr_t *p_mgr, const char *tag_name);
 
@@ -803,15 +787,17 @@ typedef struct _lmgr_recov_stat {
 /* Filesystem recovery functions  */
 
 /**
- *  Initialize a recovery process.
- *  \param p_filter[in] (optional) filter partial filesystem recovery
- *  \retval DB_SUCCESS the recovery process successfully started;
- *          the stats indicate the recovery states we can expect.
- *  \retval DB_ALREADY_EXISTS a recovery process already started
- *          and was not properly completed.
- *  \retval error   another error occurred.
+ * Initialize a recovery process.
+ * @param filter                (optional) filter partial filesystem recovery
+ *
+ * @retval DB_SUCCESS           the recovery process successfully started;
+ *                              the stats indicate the recovery states we can
+ *                              expect.
+ * @retval DB_ALREADY_EXISTS    a recovery process already started
+ *                              and was not properly completed.
+ * @retval error                another error occurred.
  */
-int ListMgr_RecovInit(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+int ListMgr_RecovInit(lmgr_t *p_mgr, const lmgr_filter_t *filter,
                       lmgr_recov_stat_t *p_stats);
 
 /**
@@ -867,7 +853,7 @@ POSIX, fullpath, fields with REMOVED flag, fields asked by status manager.
  * Retrieves an iterator on entries that match the given filter.
  */
 struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
-                                         const lmgr_filter_t *p_filter,
+                                         const lmgr_filter_t *filter,
                                          const lmgr_sort_type_t *p_sort_type,
                                          const lmgr_iter_opt_t *p_opt);
 /**
@@ -900,7 +886,7 @@ void ListMgr_CloseIterator(struct lmgr_iterator_t *p_iter);
  * ListMgr_FreeAttrs() must be called on each child attribute
  * and child_id_list and child_attr_list must be freed with MemFree()
  */
-int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
+int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *filter,
                      const wagon_t *parent_list, unsigned int parent_count,
                      attr_mask_t attr_mask,
                      wagon_t **child, attr_set_t **child_attr_list,
@@ -991,7 +977,7 @@ struct lmgr_report_t *ListMgr_Report(lmgr_t *p_mgr,
         const report_field_descr_t *report_desc_array,
         unsigned int report_descr_count,
         const profile_field_descr_t *profile_desc,   /* optional */
-        const lmgr_filter_t *p_filter,
+        const lmgr_filter_t *filter,
         const lmgr_iter_opt_t *p_opt);
 
 /**
@@ -1027,7 +1013,7 @@ struct lmgr_profile_t *ListMgr_Profile(lmgr_t *p_mgr,
                                        const report_field_descr_t *
                                        report_descr,
                                        unsigned int report_descr_count,
-                                       const lmgr_filter_t *p_filter,
+                                       const lmgr_filter_t *filter,
                                        const lmgr_iter_opt_t *p_opt);
 /**
  * Get next profile entry.
@@ -1124,7 +1110,7 @@ int ListMgr_SetVar(lmgr_t *p_mgr, const char *varname, const char *value);
  */
 
 /** Initialize a simple filter structure */
-int lmgr_simple_filter_init(lmgr_filter_t *p_filter);
+int lmgr_simple_filter_init(lmgr_filter_t *filter);
 
 enum filter_flags {
     FILTER_FLAG_NOT     = (1 << 0), /**< negation of the current test */
@@ -1149,20 +1135,20 @@ enum filter_flags {
 };
 
 /** Add a criteria to a simple filter */
-int lmgr_simple_filter_add(lmgr_filter_t *p_filter,
+int lmgr_simple_filter_add(lmgr_filter_t *filter,
                            unsigned int attr_index,
                            filter_comparator_t comparator,
                            filter_value_t value, enum filter_flags flag);
 
 /* check if the given attribute is part of a filter */
-int lmgr_filter_check_field(const lmgr_filter_t *p_filter,
+int lmgr_filter_check_field(const lmgr_filter_t *filter,
                             unsigned int attr_index);
 
 /**
  * Add a criteria to a simple filter or modify it if it already exists in the
  * filter
  */
-int lmgr_simple_filter_add_or_replace(lmgr_filter_t *p_filter,
+int lmgr_simple_filter_add_or_replace(lmgr_filter_t *filter,
                                       unsigned int attr_index,
                                       filter_comparator_t comparator,
                                       filter_value_t value,
@@ -1171,14 +1157,14 @@ int lmgr_simple_filter_add_or_replace(lmgr_filter_t *p_filter,
 /**
  * Add a criteria to a simple filter if it does not already exist in the filter
  */
-int lmgr_simple_filter_add_if_not_exist(lmgr_filter_t *p_filter,
+int lmgr_simple_filter_add_if_not_exist(lmgr_filter_t *filter,
                                         unsigned int attr_index,
                                         filter_comparator_t comparator,
                                         filter_value_t value,
                                         enum filter_flags flag);
 
 /** release a filter structure */
-int lmgr_simple_filter_free(lmgr_filter_t *p_filter);
+int lmgr_simple_filter_free(lmgr_filter_t *filter);
 
 struct sm_instance;
 struct time_modifier;
@@ -1201,16 +1187,12 @@ int convert_boolexpr_to_simple_filter(struct bool_node_t *boolexpr,
                                       const struct time_modifier *time_mod,
                                       enum filter_flags flags);
 
-/** Set a complex filter structure */
-int lmgr_set_filter_expression(lmgr_filter_t *p_filter,
-                               struct bool_node_t *boolexpr);
-
 /**
  * Check that all fields in filter are in the given mask of supported attributes
  * @param index if not NULL, it is set to the index of the unsupported filter.
  *              and -1 for other errors.
  */
-int lmgr_check_filter_fields(lmgr_filter_t *p_filter, attr_mask_t attr_mask,
+int lmgr_check_filter_fields(lmgr_filter_t *filter, attr_mask_t attr_mask,
                              int *index);
 
 /** Convert a set notation (eg. "3,5-8,12") to a list of values

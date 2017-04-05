@@ -24,24 +24,20 @@
 
 #define FILTER_PREALLOC_INIT 2
 
-int lmgr_simple_filter_init(lmgr_filter_t *p_filter)
+int lmgr_simple_filter_init(lmgr_filter_t *filter)
 {
-    lmgr_simple_filter_t *sf = &p_filter->filter_simple;
-
-    p_filter->filter_type = FILTER_SIMPLE;
-
-    sf->filter_count = 0;
-    sf->filter_flags = MemCalloc(FILTER_PREALLOC_INIT, sizeof(int));
-    sf->filter_index = MemCalloc(FILTER_PREALLOC_INIT, sizeof(unsigned int));
-    sf->filter_compar = MemCalloc(FILTER_PREALLOC_INIT,
+    filter->filter_count = 0;
+    filter->filter_flags = calloc(FILTER_PREALLOC_INIT, sizeof(int));
+    filter->filter_index = calloc(FILTER_PREALLOC_INIT, sizeof(unsigned int));
+    filter->filter_compar = calloc(FILTER_PREALLOC_INIT,
                                   sizeof(filter_comparator_t));
-    sf->filter_value = MemCalloc(FILTER_PREALLOC_INIT, sizeof(filter_value_t));
+    filter->filter_value = calloc(FILTER_PREALLOC_INIT, sizeof(filter_value_t));
 
-    if (sf->filter_flags == NULL || sf->filter_index == NULL
-        || sf->filter_compar == NULL || sf->filter_value == NULL)
-        return DB_NO_MEMORY;
+    if (filter->filter_flags == NULL || filter->filter_index == NULL ||
+        filter->filter_compar == NULL || filter->filter_value == NULL)
+        return -ENOMEM;
 
-    sf->prealloc = FILTER_PREALLOC_INIT;
+    filter->prealloc = FILTER_PREALLOC_INIT;
     return 0;
 }
 
@@ -77,13 +73,12 @@ static int convert_regexp(const char *in_string, char *db_string)
     return 0;
 }
 
-static int lmgr_simple_filter_dup_buffers(lmgr_filter_t *p_filter,
+static int lmgr_simple_filter_dup_buffers(lmgr_filter_t *filter,
                                           unsigned int index)
 {
-    lmgr_simple_filter_t *sf = &p_filter->filter_simple;
-    filter_comparator_t comparator = sf->filter_compar[index];
-    filter_value_t *p_value = &sf->filter_value[index];
-    int flag = sf->filter_flags[index];
+    filter_comparator_t comparator = filter->filter_compar[index];
+    filter_value_t *p_value = &filter->filter_value[index];
+    int flag = filter->filter_flags[index];
 
     /* @TODO support lists of strings (with both FILTER_FLAG_ALLOC_STR
      * and FILTER_FLAG_ALLOC_LIST */
@@ -108,8 +103,8 @@ static int lmgr_simple_filter_dup_buffers(lmgr_filter_t *p_filter,
             MemFree((char *)p_value->value.val_str);
 
         /* mark the new string as releasable */
-        sf->filter_flags[index] |= FILTER_FLAG_ALLOC_STR;
-        sf->filter_value[index].value.val_str = newstr;
+        filter->filter_flags[index] |= FILTER_FLAG_ALLOC_STR;
+        filter->filter_value[index].value.val_str = newstr;
     } else if ((comparator == IN) || (comparator == NOTIN)) {
         /* allocate and copy the list */
         db_type_u *values =
@@ -121,91 +116,82 @@ static int lmgr_simple_filter_dup_buffers(lmgr_filter_t *p_filter,
         if (flag & FILTER_FLAG_ALLOC_LIST)
             MemFree((char *)p_value->list.values);
 
-        sf->filter_flags[index] |= FILTER_FLAG_ALLOC_LIST;
-        sf->filter_value[index].list.values = values;
+        filter->filter_flags[index] |= FILTER_FLAG_ALLOC_LIST;
+        filter->filter_value[index].list.values = values;
     }
 
     return 0;
 }
 
-static void lmgr_simple_filter_free_buffers(lmgr_filter_t *p_filter,
+static void lmgr_simple_filter_free_buffers(lmgr_filter_t *filter,
                                             unsigned int index)
 {
-    lmgr_simple_filter_t *sf = &p_filter->filter_simple;
-
     /* @TODO support lists of strings (with both FILTER_FLAG_ALLOC_STR
        and FILTER_FLAG_ALLOC_LIST */
 
     /* check if previous value must be released */
-    if ((sf->filter_flags[index] & FILTER_FLAG_ALLOC_STR)
-        && (sf->filter_value[index].value.val_str != NULL)) {
-        MemFree((char *)sf->filter_value[index].value.val_str);
-    } else if ((sf->filter_flags[index] & FILTER_FLAG_ALLOC_LIST)
-            && (sf->filter_value[index].list.values != NULL)) {
-        MemFree((char *)sf->filter_value[index].list.values);
+    if ((filter->filter_flags[index] & FILTER_FLAG_ALLOC_STR) &&
+        (filter->filter_value[index].value.val_str != NULL))
+        free((char *) filter->filter_value[index].value.val_str);
+    else if ((filter->filter_flags[index] & FILTER_FLAG_ALLOC_LIST) &&
+             (filter->filter_value[index].list.values != NULL)) {
+        free((char *) filter->filter_value[index].list.values);
     }
 }
 
-int lmgr_simple_filter_add(lmgr_filter_t *p_filter, unsigned int attr_index,
+int lmgr_simple_filter_add(lmgr_filter_t *filter, unsigned int attr_index,
                            filter_comparator_t comparator, filter_value_t value,
                            enum filter_flags flag)
 {
     int rc;
-    lmgr_simple_filter_t *sf = &p_filter->filter_simple;
 
-    if (p_filter->filter_type != FILTER_SIMPLE)
-        return DB_INVALID_ARG;
-
-    if (sf->filter_count >= sf->prealloc) {
+    if (filter->filter_count >= filter->prealloc) {
         /* double the size of the buffers */
-        sf->prealloc *= 2;
-        sf->filter_flags = MemRealloc(sf->filter_flags,
-                                      sf->prealloc * sizeof(int));
-        sf->filter_index = MemRealloc(sf->filter_index,
-                                      sf->prealloc * sizeof(unsigned int));
-        sf->filter_compar = MemRealloc(sf->filter_compar,
-                                   sf->prealloc * sizeof(filter_comparator_t));
-        sf->filter_value = MemRealloc(sf->filter_value,
-                                   sf->prealloc * sizeof(filter_value_t));
+        filter->prealloc *= 2;
+        filter->filter_flags = realloc(filter->filter_flags,
+                                       filter->prealloc * sizeof(int));
+        filter->filter_index = realloc(filter->filter_index,
+                                      filter->prealloc * sizeof(unsigned int));
+        filter->filter_compar = realloc(filter->filter_compar,
+                                   filter->prealloc * sizeof(filter_comparator_t));
+        filter->filter_value = realloc(filter->filter_value,
+                                   filter->prealloc * sizeof(filter_value_t));
 
-        if (sf->filter_flags == NULL || sf->filter_index == NULL
-            || sf->filter_compar == NULL || sf->filter_value == NULL)
-            return DB_NO_MEMORY;
+        if (filter->filter_flags == NULL || filter->filter_index == NULL ||
+            filter->filter_compar == NULL || filter->filter_value == NULL)
+            return -ENOMEM;
     }
 
-    sf->filter_flags[sf->filter_count] = flag;
-    sf->filter_index[sf->filter_count] = attr_index;
-    sf->filter_compar[sf->filter_count] = comparator;
-    sf->filter_value[sf->filter_count] = value;
+    filter->filter_flags[filter->filter_count] = flag;
+    filter->filter_index[filter->filter_count] = attr_index;
+    filter->filter_compar[filter->filter_count] = comparator;
+    filter->filter_value[filter->filter_count] = value;
 
     /* duplicate and copy buffers if needed */
-    rc = lmgr_simple_filter_dup_buffers(p_filter, sf->filter_count);
+    rc = lmgr_simple_filter_dup_buffers(filter, filter->filter_count);
     if (rc)
         return rc;
 
-    sf->filter_count++;
+    filter->filter_count++;
 
     return 0;
 }
 
 /* check if the given attribute is part of a filter */
-int lmgr_filter_check_field(const lmgr_filter_t *p_filter,
+int lmgr_filter_check_field(const lmgr_filter_t *filter,
                             unsigned int attr_index)
 {
     unsigned int i;
 
-    if (p_filter->filter_type != FILTER_SIMPLE)
-        return DB_INVALID_ARG;
-
     /* first check if there is already a filter on this argument */
-    for (i = 0; i < p_filter->filter_simple.filter_count; i++) {
-        if (p_filter->filter_simple.filter_index[i] == attr_index)
+    for (i = 0; i < filter->filter_count; i++) {
+        if (filter->filter_index[i] == attr_index)
             return 1;
     }
     return 0;
 }
 
-int lmgr_simple_filter_add_or_replace(lmgr_filter_t *p_filter,
+int lmgr_simple_filter_add_or_replace(lmgr_filter_t *filter,
                                       unsigned int attr_index,
                                       filter_comparator_t comparator,
                                       filter_value_t value,
@@ -213,30 +199,25 @@ int lmgr_simple_filter_add_or_replace(lmgr_filter_t *p_filter,
 {
     unsigned int i;
     int rc;
-    lmgr_simple_filter_t *sf;
-
-    if (p_filter->filter_type != FILTER_SIMPLE)
-        return DB_INVALID_ARG;
-    sf = &p_filter->filter_simple;
 
     /* first check if there is already a filter on this argument */
-    for (i = 0; i < sf->filter_count; i++) {
-        if (sf->filter_index[i] != attr_index)
+    for (i = 0; i < filter->filter_count; i++) {
+        if (filter->filter_index[i] != attr_index)
             continue;
 
-        int syntax_flags = sf->filter_flags[i]
+        int syntax_flags = filter->filter_flags[i]
             & (FILTER_FLAG_BEGIN | FILTER_FLAG_END | FILTER_FLAG_OR);
 
         /* check if previous value must be released */
-        lmgr_simple_filter_free_buffers(p_filter, i);
+        lmgr_simple_filter_free_buffers(filter, i);
 
         /* ensure parenthesing and 'OR' keywords are conserved */
-        sf->filter_flags[i] = flag | syntax_flags;
-        sf->filter_compar[i] = comparator;
-        sf->filter_value[i] = value;
+        filter->filter_flags[i] = flag | syntax_flags;
+        filter->filter_compar[i] = comparator;
+        filter->filter_value[i] = value;
 
         /* duplicate and copy buffers if needed */
-        rc = lmgr_simple_filter_dup_buffers(p_filter, i);
+        rc = lmgr_simple_filter_dup_buffers(filter, i);
         if (rc)
             return rc;
 
@@ -244,11 +225,10 @@ int lmgr_simple_filter_add_or_replace(lmgr_filter_t *p_filter,
     }
 
     /* not found: add it */
-    return lmgr_simple_filter_add(p_filter, attr_index, comparator, value,
-                                  flag);
+    return lmgr_simple_filter_add(filter, attr_index, comparator, value, flag);
 }
 
-int lmgr_simple_filter_add_if_not_exist(lmgr_filter_t *p_filter,
+int lmgr_simple_filter_add_if_not_exist(lmgr_filter_t *filter,
                                         unsigned int attr_index,
                                         filter_comparator_t comparator,
                                         filter_value_t value,
@@ -256,44 +236,34 @@ int lmgr_simple_filter_add_if_not_exist(lmgr_filter_t *p_filter,
 {
     unsigned int i;
 
-    if (p_filter->filter_type != FILTER_SIMPLE)
-        return DB_INVALID_ARG;
-
     /* first check if there is already a filter on this argument */
-    for (i = 0; i < p_filter->filter_simple.filter_count; i++) {
-        if (p_filter->filter_simple.filter_index[i] == attr_index) {
+    for (i = 0; i < filter->filter_count; i++) {
+        if (filter->filter_index[i] == attr_index) {
             return DB_ALREADY_EXISTS;
         }
     }
 
     /* not found: add it */
-    return lmgr_simple_filter_add(p_filter, attr_index, comparator, value,
-                                  flag);
-
+    return lmgr_simple_filter_add(filter, attr_index, comparator, value, flag);
 }
 
-int lmgr_simple_filter_free(lmgr_filter_t *p_filter)
+int lmgr_simple_filter_free(lmgr_filter_t *filter)
 {
     int i;
-    lmgr_simple_filter_t *sf;
-
-    if (p_filter->filter_type != FILTER_SIMPLE)
-        return DB_INVALID_ARG;
-    sf = &p_filter->filter_simple;
 
     /* free the values that must be released */
-    for (i = 0; i < sf->filter_count; i++)
-        lmgr_simple_filter_free_buffers(p_filter, i);
+    for (i = 0; i < filter->filter_count; i++)
+        lmgr_simple_filter_free_buffers(filter, i);
 
-    if (sf->filter_flags)
-        MemFree(sf->filter_flags);
-    if (sf->filter_index)
-        MemFree(sf->filter_index);
-    if (sf->filter_compar)
-        MemFree(sf->filter_compar);
-    if (sf->filter_value)
-        MemFree(sf->filter_value);
-    memset(p_filter, 0, sizeof(lmgr_filter_t));
+    if (filter->filter_flags)
+        free(filter->filter_flags);
+    if (filter->filter_index)
+        free(filter->filter_index);
+    if (filter->filter_compar)
+        free(filter->filter_compar);
+    if (filter->filter_value)
+        free(filter->filter_value);
+    memset(filter, 0, sizeof(lmgr_filter_t));
     return 0;
 }
 
@@ -587,13 +557,13 @@ int convert_boolexpr_to_simple_filter(bool_node_t *boolexpr,
         notexpr.content_u.bool_expr.owner = 0;
 
         /* add all or nothing => save filter count before */
-        prev_nb = filter->filter_simple.filter_count;
+        prev_nb = filter->filter_count;
 
         /* default filter context is AND */
         rc = append_simple_expr(&notexpr, filter, smi, time_mod,
                                 flags & ~FILTER_FLAG_NOT, 0, BOOL_AND);
         if (rc)
-            filter->filter_simple.filter_count = prev_nb;
+            filter->filter_count = prev_nb;
         return rc;
     }
 
@@ -602,21 +572,12 @@ int convert_boolexpr_to_simple_filter(bool_node_t *boolexpr,
                               0, BOOL_AND);
 }
 
-/** Set a complex filter structure */
-int lmgr_set_filter_expression(lmgr_filter_t *p_filter,
-                               struct bool_node_t *boolexpr)
-{
-    p_filter->filter_type = FILTER_BOOLEXPR;
-    p_filter->filter_u.boolean_expr = boolexpr;
-    return 0;
-}
-
 /** Check that all fields in filter are in the given mask of supported
  *  attributes
  * @param index if not NULL, it is set to the index of the unsupported filter.
  *              and -1 for other errors.
  */
-int lmgr_check_filter_fields(lmgr_filter_t *p_filter, attr_mask_t attr_mask,
+int lmgr_check_filter_fields(lmgr_filter_t *filter, attr_mask_t attr_mask,
                              int *index)
 {
     int i;
@@ -624,12 +585,8 @@ int lmgr_check_filter_fields(lmgr_filter_t *p_filter, attr_mask_t attr_mask,
     if (index)
         *index = -1;
 
-    if (p_filter->filter_type != FILTER_SIMPLE)
-        return DB_INVALID_ARG;
-
-    for (i = 0; i < p_filter->filter_simple.filter_count; i++) {
-        if (!attr_mask_test_index(&attr_mask,
-                                  p_filter->filter_simple.filter_index[i])) {
+    for (i = 0; i < filter->filter_count; i++) {
+        if (!attr_mask_test_index(&attr_mask, filter->filter_index[i])) {
             if (index)
                 *index = i;
             return DB_NOT_SUPPORTED;
