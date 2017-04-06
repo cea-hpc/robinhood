@@ -453,7 +453,18 @@ typedef enum {
     SUBTRACT
 } operation_type;
 
+/**
+ * Add needed source fields to build generated fields.
+ * @param[in,out] std_mask   Mask of attributes where the source fields bits are
+ *                           added.
+ */
 void add_source_fields_for_gen(uint32_t *std_mask);
+
+/**
+ * Generate fields in the given attr_set.
+ * @param[in,out] p_set  Source fields are read from this attribute set, and
+ *                       generated fields are written to it.
+ */
 void generate_fields(attr_set_t *p_set);
 
 int parse_entry_id(lmgr_t *p_mgr, const char *str, PK_PARG_T p_pk,
