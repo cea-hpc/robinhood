@@ -265,7 +265,11 @@ int Lustre_GetFidByFd(int fd, entry_id_t *p_id);
 int Lustre_GetNameParent(const char *path, int linkno,
                          lustre_fid *pfid, char *name, int namelen);
 
-void path_check_update(const entry_id_t *p_id,
+/**
+ * Update parent id, name and/or full path, according to attr_mask.
+ * @return true if at least an attribute has been updated
+ */
+bool path_check_update(const entry_id_t *p_id,
                        const char *fid_path, attr_set_t *p_attrs,
                        attr_mask_t attr_mask);
 
