@@ -1186,7 +1186,7 @@ static void append_size_range_op(GString *request, bool leading_comma,
 {
     unsigned int i;
     char value[128];
-    const char *op = (optype == ADD) ? "+" : "-";
+    const char *op = (optype == OT_ADD) ? "+" : "-";
 
     if (alias_val && alias_val[0])
         rh_strncpy(value, alias_val, sizeof(value));
@@ -1194,7 +1194,7 @@ static void append_size_range_op(GString *request, bool leading_comma,
         snprintf(value, sizeof(value), SZRANGE_FUNC "(%ssize)", prefix);
 
     /* only CAST for subtract */
-    if (optype == SUBTRACT) {
+    if (optype == OT_SUBTRACT) {
         g_string_append_printf(request,
                                "%s%s=CAST(%s as SIGNED)%sCAST((%ssize=0) as SIGNED)",
                                leading_comma ? "," : "", sz_field[0],
@@ -2365,9 +2365,9 @@ static int create_trig_acct_insert(db_conn_t *pconn, bool *affects_trig)
     g_string_append(request, ") ON DUPLICATE KEY UPDATE ");
 
     /* on duplicate key update... */
-    attrmask2fieldoperation(request, acct_attr_set, T_ACCT, "NEW.", ADD);
+    attrmask2fieldoperation(request, acct_attr_set, T_ACCT, "NEW.", OT_ADD);
     g_string_append(request, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "+1");
-    append_size_range_op(request, true, "NEW.", "val", ADD);
+    append_size_range_op(request, true, "NEW.", "val", OT_ADD);
     g_string_append(request, ";");
 
     rc = db_drop_component(pconn, DBOBJ_TRIGGER, ACCT_TRIGGER_INSERT);
@@ -2407,9 +2407,9 @@ static int create_trig_acct_delete(db_conn_t *pconn, bool *affects_trig)
                            "SET val=" SZRANGE_FUNC "(OLD.size);"
                            "UPDATE " ACCT_TABLE " SET ");
     /* update ACCT_TABLE SET ... */
-    attrmask2fieldoperation(request, acct_attr_set, T_ACCT, "OLD.", SUBTRACT);
+    attrmask2fieldoperation(request, acct_attr_set, T_ACCT, "OLD.", OT_SUBTRACT);
     g_string_append(request, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "-1");
-    append_size_range_op(request, true, "OLD.", "val", SUBTRACT);
+    append_size_range_op(request, true, "OLD.", "val", OT_SUBTRACT);
 
     /* ... WHERE ... */
     g_string_append(request, " WHERE ");
@@ -2530,17 +2530,17 @@ static int create_trig_acct_update(db_conn_t *pconn, bool *affects_trig)
     g_string_append(request, ") \n\tON DUPLICATE KEY UPDATE ");
     /* generate operations as follows:
      * size=size+New.size, blocks=blocks+NEW.blocks */
-    attrmask2fieldoperation(request, acct_attr_set, T_ACCT, "NEW.", ADD);
+    attrmask2fieldoperation(request, acct_attr_set, T_ACCT, "NEW.", OT_ADD);
     g_string_append(request, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "+1");
     /* update size range values */
-    append_size_range_op(request, true, "NEW.", "val_new", ADD);
+    append_size_range_op(request, true, "NEW.", "val_new", OT_ADD);
     g_string_append(request, ";\n" "\tUPDATE " ACCT_TABLE " SET ");
 
     /* generate operations as follows:
      * size=size-Old.size, blocks=blocks-Old.blocks */
-    attrmask2fieldoperation(request, acct_attr_set, T_ACCT, "OLD.", SUBTRACT);
+    attrmask2fieldoperation(request, acct_attr_set, T_ACCT, "OLD.", OT_SUBTRACT);
     g_string_append(request, ", " ACCT_FIELD_COUNT "=" ACCT_FIELD_COUNT "-1 ");
-    append_size_range_op(request, true, "OLD.", "val_old", SUBTRACT);
+    append_size_range_op(request, true, "OLD.", "val_old", OT_SUBTRACT);
     g_string_append(request, " WHERE ");
     attrmask2fieldcomparison(request, acct_pk_attr_set, T_ACCT, "", "OLD.", "=",
                              "AND");
