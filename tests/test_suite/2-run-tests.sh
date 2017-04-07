@@ -4097,19 +4097,22 @@ function test_basic_sm
 }
 
 # test pre check matching behaviors
-function test_pre_sched
+function test_prepost_sched
 {
     config_file=$1
     export pre_sched=$2
-    export sched=$3
-    # do no post-check to make sure the decision is due to the pre-check
-    export post_sched=none
+    export post_sched=$3
+    export sched=$4
 
     if (( $is_lhsm + $is_hsmlite == 0 )); then
         echo "HSM test only: skipped"
         set_skipped
         return 1
     fi
+
+    # only pre_sched or post_sched != none
+    local check_mode=$pre_sched
+    [ $pre_sched = "none" ] && check_mode=$post_sched
 
     clean_logs
 
@@ -4135,7 +4138,7 @@ function test_pre_sched
     $RH -f $RBH_CFG_DIR/$config_file --run=migration --once -l FULL \
         -L rh_migr.log 2>/dev/null
 
-    case "$pre_sched" in
+    case "$check_mode" in
     none)
         # depth criteria is not checked => files in subdir are migrated
         grep "Executing policy action" rh_migr.log | grep subdir/file.1 ||
@@ -4183,7 +4186,7 @@ function test_pre_sched
 
     $RH -f $RBH_CFG_DIR/$config_file --run=cleanup --once -l FULL \
         -L rh_purge.log 2>/dev/null
-    case "$pre_sched" in
+    case "$check_mode" in
     none|cache_only)
         # no update expected
         grep "Updating info" rh_purge.log && error "No attr update expected"
@@ -12016,11 +12019,26 @@ run_test 232c  test_sched_limits test_sched1.conf trigger "check trigger vs. max
 run_test 232d  test_sched_limits test_sched1.conf param "check policy parameter vs. max_per_run scheduler"
 run_test 232e  test_sched_limits test_sched1.conf cmd "check cmd line vs. max_per_run scheduler"
 run_test 233   test_basic_sm     test_basic.conf  "Test basic status manager"
-run_test 234a  test_pre_sched test_prepost_sched.conf none common.max_per_run "pre_sched_match=none"
-run_test 234b  test_pre_sched test_prepost_sched.conf cache_only common.max_per_run "pre_sched_match=cache_only"
-run_test 234c  test_pre_sched test_prepost_sched.conf auto_update common.max_per_run "pre_sched_match=auto_update"
-run_test 234d  test_pre_sched test_prepost_sched.conf auto_update "" "pre_sched_match=auto_update (no scheduler)"
-run_test 234e  test_pre_sched test_prepost_sched.conf force_update common.max_per_run "pre_sched_match=force_update"
+run_test 234a  test_prepost_sched test_prepost_sched.conf none none \
+    common.max_per_run "pre/post_sched_match=none"
+run_test 234b  test_prepost_sched test_prepost_sched.conf cache_only none \
+    common.max_per_run "pre_sched_match=cache_only"
+run_test 234c  test_prepost_sched test_prepost_sched.conf auto_update none \
+    common.max_per_run "pre_sched_match=auto_update"
+run_test 234d  test_prepost_sched test_prepost_sched.conf auto_update none \
+    "" "pre_sched_match=auto_update (no scheduler)"
+run_test 234e  test_prepost_sched test_prepost_sched.conf force_update none \
+    common.max_per_run "pre_sched_match=force_update"
+run_test 234f  test_prepost_sched test_prepost_sched.conf none cache_only \
+    common.max_per_run "post_sched_match=cache_only"
+run_test 234g  test_prepost_sched test_prepost_sched.conf none auto_update \
+    common.max_per_run "post_sched_match=auto_update"
+run_test 234h  test_prepost_sched test_prepost_sched.conf none auto_update \
+    "" "post_sched_match=auto_update (no scheduler)"
+run_test 234i  test_prepost_sched test_prepost_sched.conf none force_update \
+    common.max_per_run "post_sched_match=force_update"
+
+
 
 #### triggers ####
 

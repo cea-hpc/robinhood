@@ -2336,6 +2336,23 @@ out_free:
     free_entry_context(ectx);
 }
 
+static inline const char *match_source2str(match_source_t check_method)
+{
+    switch (check_method) {
+    case MS_NONE:
+        return "none";
+    case MS_CACHE_ONLY:
+        return "cache_only";
+    case MS_AUTO_UPDT:
+        return "auto_update";
+    case MS_FORCE_UPDT:
+        return "force_update";
+    case MS_INVALID:
+        return "?";
+    }
+    return "?";
+}
+
 /**
  * Refresh entry attributes and match policy rules.
  */
@@ -2345,10 +2362,12 @@ static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx,
     policy_match_t  match;
     int             rc;
     policy_info_t  *pol = ectx->policy;
+    const char     *path;
 
     DisplayLog(LVL_FULL, tag(pol),
-               "Checking if entry %s matches policy rules",
-               ATTR(&ectx->item->entry_attr, fullpath));
+               "Checking if entry %s matches policy rules (mode=%s)",
+               ATTR(&ectx->item->entry_attr, fullpath),
+               match_source2str(check_method));
 
     if (!pol->descr->manage_deleted) {
         rc = check_entry(pol, lmgr, ectx->item, &ectx->fresh_attrs,
@@ -2358,6 +2377,7 @@ static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx,
     }
     /* In any case, complete with missing attrs from database */
     ListMgr_MergeAttrSets(&ectx->fresh_attrs, &ectx->item->entry_attr, false);
+    path = ATTR(&ectx->fresh_attrs, fullpath);
 
 #ifdef ATTR_INDEX_invalid
     /* From here, assume that entry is valid */
@@ -2375,7 +2395,7 @@ static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx,
     case POLICY_NO_MATCH:
         DisplayLog(LVL_DEBUG, tag(pol),
                    "Entry %s doesn't match scope of policy '%s'.",
-                   ATTR(&ectx->fresh_attrs, fullpath), tag(pol));
+                   path, tag(pol));
         if (!pol->descr->manage_deleted)
             update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
 
@@ -2385,8 +2405,7 @@ static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx,
         if (!pol->descr->manage_deleted) {
             DisplayLog(LVL_MAJOR, tag(pol),
                        "Warning: cannot determine if entry %s matches the "
-                       "scope of policy '%s': skipping it.",
-                       ATTR(&ectx->fresh_attrs, fullpath), tag(pol));
+                       "scope of policy '%s': skipping it.", path, tag(pol));
 
             update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
             return AS_MISSING_MD;
@@ -2396,7 +2415,7 @@ static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx,
             DisplayLog(LVL_DEBUG, tag(pol),
                        "Cannot determine if entry %s matches the "
                        "scope of policy '%s'. Continuing anyway.",
-                       ATTR(&ectx->fresh_attrs, fullpath), tag(pol));
+                       path, tag(pol));
         }
     }
 
@@ -2411,8 +2430,7 @@ static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx,
 
         if (match == POLICY_MATCH) {
             DisplayLog(LVL_DEBUG, tag(pol),
-                       "Entry %s matches ignored target %s.",
-                       ATTR(&ectx->item->entry_attr, fullpath),
+                       "Entry %s matches ignored target %s.", path,
                        ectx->fileset ? ectx->fileset->fileset_id :
                            "(ignore rule)");
 
@@ -2425,8 +2443,7 @@ static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx,
              * (do nothing in database) */
             DisplayLog(LVL_MAJOR, tag(pol),
                        "Warning: cannot determine if entry %s is whitelisted: "
-                       "skipping it.",
-                       ATTR(&ectx->item->entry_attr, fullpath));
+                       "skipping it.", path);
 
             if (!pol->descr->manage_deleted)
                 update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
@@ -2445,10 +2462,10 @@ static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx,
 
     /* get policy rule for the entry */
     ectx->rule = policy_case(pol->descr, &ectx->item->entry_id, &ectx->fresh_attrs,
-                            &ectx->fileset);
+                             &ectx->fileset);
     if (!ectx->rule) {
         DisplayLog(LVL_DEBUG, tag(pol), "Entry %s matches no policy rule",
-                   ATTR(&ectx->item->entry_attr, fullpath));
+                   path);
 
         if (!pol->descr->manage_deleted)
             update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
@@ -2471,15 +2488,14 @@ static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx,
         /* OK, entry matches */
         DisplayLog(LVL_DEBUG, tag(pol),
                    "Entry %s matches the condition for policy rule '%s'.",
-                   ATTR(&ectx->item->entry_attr, fullpath), ectx->rule->rule_id);
+                   path, ectx->rule->rule_id);
         break;
 
     case POLICY_NO_MATCH:
         /* entry is not eligible now */
         DisplayLog(LVL_DEBUG, tag(pol),
                    "Entry %s doesn't match condition for policy rule '%s'",
-                   ATTR(&ectx->item->entry_attr, fullpath),
-                   ectx->rule->rule_id);
+                   path, ectx->rule->rule_id);
 
         if (!pol->descr->manage_deleted)
             update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
@@ -2491,7 +2507,7 @@ static int refresh_and_match_entry(lmgr_t *lmgr, entry_context_t *ectx,
         DisplayLog(LVL_MAJOR, tag(pol),
                    "Warning: cannot determine if entry %s matches the "
                    "condition for policy rule '%s': skipping it.",
-                   ATTR(&ectx->item->entry_attr, fullpath), ectx->rule->rule_id);
+                   path, ectx->rule->rule_id);
 
         if (!pol->descr->manage_deleted)
             update_entry(lmgr, &ectx->item->entry_id, &ectx->fresh_attrs);
@@ -2553,6 +2569,14 @@ static void run_sched_cb(void *udata, sched_status_e st)
 
         /* if this was the last scheduler, now run the action */
         if (pol->config->sched_count == ectx->curr_sched) {
+            /* Final rule check before running the action */
+            rc = refresh_and_match_entry(sched_db_conn, ectx,
+                                         pol->config->post_sched_match);
+            if (rc != AS_OK) {
+                policy_ack(&pol->queue, rc, &ectx->fresh_attrs,
+                           ectx->item->targeted);
+                return;
+            }
             rc = policy_action(ectx);
             action_fini(rc, sched_db_conn, ectx);
             return;
