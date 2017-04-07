@@ -224,6 +224,14 @@ int create_from_attrs(const attr_set_t *attrs_in,
                       attr_set_t *attrs_out,
                       entry_id_t *new_id, bool overwrite, bool setstripe);
 
+/**
+ * Update parent id, name and/or full path, according to attr_mask.
+ * @return true if at least an attribute has been updated
+ */
+bool path_check_update(const entry_id_t *p_id,
+                       const char *fid_path, attr_set_t *p_attrs,
+                       attr_mask_t attr_mask);
+
 #ifdef _LUSTRE
 
 /** initialize access to lustre */
