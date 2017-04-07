@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "c2558a9f_d845b1f6",
+        "filename": "src/policies/policy_run.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 2063,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-07T14:20:51Z",
+      "side": 1,
+      "message": "Same stuff as the Lustre case is to be done here.\nPerhaps this function could be merged with the other one.",
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
