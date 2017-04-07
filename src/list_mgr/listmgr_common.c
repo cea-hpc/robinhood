@@ -464,10 +464,9 @@ int ListMgr_GenerateFields(attr_set_t *p_set, attr_mask_t target_mask)
     attr_mask_t save_mask = p_set->attr_mask;
 
     /* are there generated fields that are not set for the target */
-    if (target_mask.std & ~p_set->attr_mask.std & gen_attr_set.std) {
+    if (target_mask.std & gen_attr_set.std) {
         /* try to generate missing fields */
-        p_set->attr_mask.std |= (target_mask.std & ~p_set->attr_mask.std
-                                 & gen_attr_set.std);
+        p_set->attr_mask.std |= (target_mask.std & gen_attr_set.std);
         generate_fields(p_set);
 
         /* still missing? */
