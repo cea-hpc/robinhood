@@ -449,8 +449,8 @@ static inline const char *table2name(table_enum table)
 }
 
 typedef enum {
-    ADD,
-    SUBTRACT
+    OT_ADD,
+    OT_SUBTRACT
 } operation_type;
 
 /**
