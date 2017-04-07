@@ -2448,11 +2448,13 @@ int create_from_attrs(const attr_set_t *attrs_in,
     return 0;
 }
 
-#ifdef _HAVE_FID
 bool path_check_update(const entry_id_t *p_id,
                        const char *fid_path, attr_set_t *p_attrs,
                        attr_mask_t attr_mask)
 {
+#ifndef _HAVE_FID
+    return false;
+#else
     int rc;
     bool updated = false;
 
@@ -2486,8 +2488,8 @@ bool path_check_update(const entry_id_t *p_id,
         }
     }
     return updated;
-}
 #endif
+}
 
 /* Find the numerical user ID (UID) for a given user name, which is
  * either a real name or a string containing a number.
