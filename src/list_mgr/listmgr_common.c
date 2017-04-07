@@ -622,7 +622,7 @@ int attrmask2fieldoperation(GString *str, attr_mask_t attr_mask,
     unsigned int nbfields = 0;
     char operator;
 
-    if (operation == SUBTRACT)
+    if (operation == OT_SUBTRACT)
         operator = '-';
     else
         operator = '+';
