@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "353379b9_7a83a8a2",
+        "filename": "src/include/policy_run.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 142,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T14:22:11Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "3bece495_8b0d6c7d",
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "c2558a9f_d845b1f6",
         "filename": "src/policies/policy_run.c",
         "patchSetId": 2
@@ -59,6 +77,30 @@
     },
     {
       "key": {
+        "uuid": "493b0907_eea9b313",
+        "filename": "src/policies/policy_run_cfg.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 800,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T14:22:11Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "3add9042_6253dbb1",
+      "range": {
+        "startLine": 800,
+        "startChar": 42,
+        "endLine": 800,
+        "endChar": 65
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "bdb3c562_606327e0",
         "filename": "src/policies/policy_run_cfg.c",
         "patchSetId": 2
@@ -70,6 +112,30 @@
       "writtenOn": "2017-04-11T08:57:21Z",
       "side": 1,
       "message": "if",
+      "range": {
+        "startLine": 806,
+        "startChar": 4,
+        "endLine": 806,
+        "endChar": 11
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5a258796_e5ca87df",
+        "filename": "src/policies/policy_run_cfg.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 806,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T14:22:11Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "bdb3c562_606327e0",
       "range": {
         "startLine": 806,
         "startChar": 4,
@@ -105,6 +171,30 @@
     },
     {
       "key": {
+        "uuid": "c8d02d97_95ed7afd",
+        "filename": "src/policies/policy_run_cfg.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 815,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T14:22:11Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "50c4b166_75d3e519",
+      "range": {
+        "startLine": 815,
+        "startChar": 9,
+        "endLine": 815,
+        "endChar": 14
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "a136f69b_d7b99366",
         "filename": "src/policies/policy_run_cfg.c",
         "patchSetId": 2
@@ -116,6 +206,30 @@
       "writtenOn": "2017-04-11T08:57:21Z",
       "side": 1,
       "message": "post_sched_match (typo)",
+      "range": {
+        "startLine": 819,
+        "startChar": 26,
+        "endLine": 819,
+        "endChar": 61
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "f5b00634_140dfdba",
+        "filename": "src/policies/policy_run_cfg.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 819,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T14:22:11Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "a136f69b_d7b99366",
       "range": {
         "startLine": 819,
         "startChar": 26,
@@ -151,6 +265,30 @@
     },
     {
       "key": {
+        "uuid": "73d2c783_3e07989f",
+        "filename": "src/policies/policy_run_cfg.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 825,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T14:22:11Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "14292455_1cbf97e4",
+      "range": {
+        "startLine": 825,
+        "startChar": 4,
+        "endLine": 825,
+        "endChar": 11
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "bdda6b9f_1b879210",
         "filename": "src/policies/policy_run_cfg.c",
         "patchSetId": 2
@@ -174,6 +312,30 @@
     },
     {
       "key": {
+        "uuid": "651c3e64_4f30905f",
+        "filename": "src/policies/policy_run_cfg.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 834,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T14:22:11Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "bdda6b9f_1b879210",
+      "range": {
+        "startLine": 834,
+        "startChar": 9,
+        "endLine": 834,
+        "endChar": 14
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "8587e41a_fd84ae4d",
         "filename": "tests/test_suite/2-run-tests.sh",
         "patchSetId": 2
@@ -185,6 +347,30 @@
       "writtenOn": "2017-04-11T08:57:21Z",
       "side": 1,
       "message": "did you mean local or is this on purpose?",
+      "range": {
+        "startLine": 4103,
+        "startChar": 4,
+        "endLine": 4103,
+        "endChar": 10
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "327b1b10_b32f53f4",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4103,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T14:22:11Z",
+      "side": 1,
+      "message": "No, this is exported to robinhood configuration.\nIn rbh config you can define a parameter as an environment variable, e.g. :\n \n myparam \u003d $toto;\n\nThis makes the configuration \"configurable\" from the tests.",
+      "parentUuid": "8587e41a_fd84ae4d",
       "range": {
         "startLine": 4103,
         "startChar": 4,
@@ -243,6 +429,30 @@
     },
     {
       "key": {
+        "uuid": "1ddf89c0_7fb00ffe",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4121,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T14:22:11Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "57cd32ab_55360dd1",
+      "range": {
+        "startLine": 4121,
+        "startChar": 21,
+        "endLine": 4121,
+        "endChar": 22
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "43ca8d2e_149f2572",
         "filename": "tests/test_suite/2-run-tests.sh",
         "patchSetId": 2
@@ -266,6 +476,30 @@
     },
     {
       "key": {
+        "uuid": "26d84719_92bb4fd6",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4123,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T14:22:11Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "43ca8d2e_149f2572",
+      "range": {
+        "startLine": 4121,
+        "startChar": 4,
+        "endLine": 4123,
+        "endChar": 8
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "c88a1ca3_6988584a",
         "filename": "tests/test_suite/2-run-tests.sh",
         "patchSetId": 2
@@ -277,6 +511,30 @@
       "writtenOn": "2017-04-11T08:57:21Z",
       "side": 1,
       "message": "Would \"touch -m $RH_ROOT -t \u003cdate + 2 secondes\u003e\" work?",
+      "range": {
+        "startLine": 4132,
+        "startChar": 4,
+        "endLine": 4134,
+        "endChar": 25
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "c3980950_3d0c634c",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4134,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T14:22:11Z",
+      "side": 1,
+      "message": "I don\u0027t think so.\n\nThe needs are:\n* Ensure file.4 don\u0027t match the migration rule while other files will.\n* Ensures file.4 doesn\u0027t match the rule before the end of scan. So, considering that the time between this touch and the end of migration run can be up to 1sec, that\u0027s why sleep 2.\n* Other files must match last_mod \u003e\u003d 2 when running the migration (2 lines below)\n\nOf course, any better idea is welcome.",
+      "parentUuid": "c88a1ca3_6988584a",
       "range": {
         "startLine": 4132,
         "startChar": 4,
@@ -461,6 +719,30 @@
       "writtenOn": "2017-04-11T08:57:21Z",
       "side": 1,
       "message": "(style) indent",
+      "range": {
+        "startLine": 37,
+        "startChar": 0,
+        "endLine": 37,
+        "endChar": 4
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "363390ef_53243463",
+        "filename": "tests/test_suite/cfg/test_prepost_sched.conf",
+        "patchSetId": 2
+      },
+      "lineNbr": 37,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T14:22:11Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "da6d0dda_c7bdad05",
       "range": {
         "startLine": 37,
         "startChar": 0,
