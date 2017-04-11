@@ -1,0 +1,113 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "986367b0_bb1a05bf",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 4
+      },
+      "lineNbr": 7,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T15:09:53Z",
+      "side": 1,
+      "message": "please indicate the impacted module in commit title, eg.\n\n list mgr: remove ....",
+      "range": {
+        "startLine": 7,
+        "startChar": 0,
+        "endLine": 7,
+        "endChar": 6
+      },
+      "revId": "72c982ead360f6be16f48fdb489d8caa0b5610ed",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5399a2a1_474910e5",
+        "filename": "src/include/list_mgr.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 673,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T15:09:53Z",
+      "side": 1,
+      "message": "What\u0027s the point? It\u0027s still a pointer.",
+      "revId": "72c982ead360f6be16f48fdb489d8caa0b5610ed",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "a5826456_3aa76f96",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 1236,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T15:09:53Z",
+      "side": 1,
+      "message": "\"if\" is enough",
+      "range": {
+        "startLine": 1236,
+        "startChar": 10,
+        "endLine": 1236,
+        "endChar": 14
+      },
+      "revId": "72c982ead360f6be16f48fdb489d8caa0b5610ed",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "1e79e8e2_b429ec05",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 615,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T15:09:53Z",
+      "side": 1,
+      "message": "OMG! How could it work?!",
+      "range": {
+        "startLine": 615,
+        "startChar": 28,
+        "endLine": 615,
+        "endChar": 30
+      },
+      "revId": "72c982ead360f6be16f48fdb489d8caa0b5610ed",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "287e1ea1_4a18f256",
+        "filename": "src/list_mgr/listmgr_remove.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 432,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T15:09:53Z",
+      "side": 1,
+      "message": "space at EOL\n(idem next line)",
+      "range": {
+        "startLine": 432,
+        "startChar": 27,
+        "endLine": 432,
+        "endChar": 28
+      },
+      "revId": "72c982ead360f6be16f48fdb489d8caa0b5610ed",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
