@@ -48,6 +48,30 @@
     },
     {
       "key": {
+        "uuid": "33a36a88_7aec35c0",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 349,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T15:11:38Z",
+      "side": 1,
+      "message": "Placing the operator at the start of the line indeed looks better.\nDone",
+      "parentUuid": "069ad3a2_17b92501",
+      "range": {
+        "startLine": 349,
+        "startChar": 40,
+        "endLine": 349,
+        "endChar": 42
+      },
+      "revId": "1a7295e8890241d04bc9dec3f5601fbc823490c0",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "fc255568_98b75a33",
         "filename": "src/list_mgr/listmgr_common.h",
         "patchSetId": 4
@@ -71,6 +95,30 @@
     },
     {
       "key": {
+        "uuid": "d4f80df6_6384278a",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 431,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T15:11:38Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "fc255568_98b75a33",
+      "range": {
+        "startLine": 431,
+        "startChar": 4,
+        "endLine": 431,
+        "endChar": 8
+      },
+      "revId": "1a7295e8890241d04bc9dec3f5601fbc823490c0",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "c06741e8_91db2264",
         "filename": "src/list_mgr/listmgr_common.h",
         "patchSetId": 4
@@ -82,6 +130,30 @@
       "writtenOn": "2017-04-11T14:40:33Z",
       "side": 1,
       "message": "Don\u0027t you declare functions like this:\n\nint foo()\n{\n}",
+      "range": {
+        "startLine": 512,
+        "startChar": 76,
+        "endLine": 512,
+        "endChar": 77
+      },
+      "revId": "1a7295e8890241d04bc9dec3f5601fbc823490c0",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "46dc784a_9d553fef",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 512,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T15:11:38Z",
+      "side": 1,
+      "message": "My bad\nDone",
+      "parentUuid": "c06741e8_91db2264",
       "range": {
         "startLine": 512,
         "startChar": 76,
