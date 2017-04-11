@@ -2,6 +2,23 @@
   "comments": [
     {
       "key": {
+        "uuid": "3bece495_8b0d6c7d",
+        "filename": "src/include/policy_run.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 142,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "(style) indentation of comments",
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "c2558a9f_d845b1f6",
         "filename": "src/policies/policy_run.c",
         "patchSetId": 2
@@ -13,6 +30,489 @@
       "writtenOn": "2017-04-07T14:20:51Z",
       "side": 1,
       "message": "Same stuff as the Lustre case is to be done here.\nPerhaps this function could be merged with the other one.",
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "3add9042_6253dbb1",
+        "filename": "src/policies/policy_run_cfg.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 800,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "*/",
+      "range": {
+        "startLine": 800,
+        "startChar": 42,
+        "endLine": 800,
+        "endChar": 65
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "bdb3c562_606327e0",
+        "filename": "src/policies/policy_run_cfg.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 806,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "if",
+      "range": {
+        "startLine": 806,
+        "startChar": 4,
+        "endLine": 806,
+        "endChar": 11
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "50c4b166_75d3e519",
+        "filename": "src/policies/policy_run_cfg.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 815,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "no need",
+      "range": {
+        "startLine": 815,
+        "startChar": 9,
+        "endLine": 815,
+        "endChar": 14
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "a136f69b_d7b99366",
+        "filename": "src/policies/policy_run_cfg.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 819,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "post_sched_match (typo)",
+      "range": {
+        "startLine": 819,
+        "startChar": 26,
+        "endLine": 819,
+        "endChar": 61
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "14292455_1cbf97e4",
+        "filename": "src/policies/policy_run_cfg.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 825,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "...",
+      "range": {
+        "startLine": 825,
+        "startChar": 4,
+        "endLine": 825,
+        "endChar": 11
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "bdda6b9f_1b879210",
+        "filename": "src/policies/policy_run_cfg.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 834,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "...",
+      "range": {
+        "startLine": 834,
+        "startChar": 9,
+        "endLine": 834,
+        "endChar": 14
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "8587e41a_fd84ae4d",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4103,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "did you mean local or is this on purpose?",
+      "range": {
+        "startLine": 4103,
+        "startChar": 4,
+        "endLine": 4103,
+        "endChar": 10
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "2ccacaf1_8f30d0aa",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4121,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "$RH_ROOT/file.1 does not seem to be used",
+      "range": {
+        "startLine": 4121,
+        "startChar": 13,
+        "endLine": 4121,
+        "endChar": 14
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "57cd32ab_55360dd1",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4121,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "there seems to be only 4 rules ($RH_ROOT/file.5 does not seem to be used)",
+      "range": {
+        "startLine": 4121,
+        "startChar": 21,
+        "endLine": 4121,
+        "endChar": 22
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "43ca8d2e_149f2572",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4123,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "this could probably be written as touch \"$RH_ROOT\"/file.{2..4}",
+      "range": {
+        "startLine": 4121,
+        "startChar": 4,
+        "endLine": 4123,
+        "endChar": 8
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "c88a1ca3_6988584a",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4134,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "Would \"touch -m $RH_ROOT -t \u003cdate + 2 secondes\u003e\" work?",
+      "range": {
+        "startLine": 4132,
+        "startChar": 4,
+        "endLine": 4134,
+        "endChar": 25
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "aab2a195_892b14be",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4136,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "(style) one too many spaces",
+      "range": {
+        "startLine": 4136,
+        "startChar": 6,
+        "endLine": 4136,
+        "endChar": 8
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "02f3e0ad_1a386ae4",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4149,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "Maybe there can be functions for that:\n \n action_executed_on()\n {\n     local target\u003d\"$1\"\n     local log_file\u003d\"${2:-rh_migr.log}\"\n\n     grep \"Executing policy action\" \"$log_file\" | grep \"$target\"\n }\n\n assert_action_executed_on()\n {\n     action_executed_on \"$1\" \"${2:-rh_migr.log}\" \u003e/dev/null ||\n         error \"Action expected on \u0027$1\u0027\"\n }\n\n assert_action_executed_on subdir/file.1\n assert_action_executed_on file.2\n assert_action_executed_on file.3",
+      "range": {
+        "startLine": 4144,
+        "startChar": 8,
+        "endLine": 4149,
+        "endChar": 45
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "e9771e69_168548e6",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4150,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "(style) line too long",
+      "range": {
+        "startLine": 4150,
+        "startChar": 76,
+        "endLine": 4150,
+        "endChar": 81
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "8edda016_cece4ff7",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4162,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "And this would be:\n\n assert_no_action_on()\n {\n     action_executed_on \"$1\" \"${2:-rh_migr.log}\" \u0026\u0026\n         error \"No action expected on \u0027$1\u0027\"\n }\n\n assert_no_action_on subdir/file.1",
+      "range": {
+        "startLine": 4161,
+        "startChar": 8,
+        "endLine": 4162,
+        "endChar": 55
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "3eb167f4_8df03322",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4166,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "(style) ...",
+      "range": {
+        "startLine": 4166,
+        "startChar": 80,
+        "endLine": 4166,
+        "endChar": 81
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "1723ee77_36f91344",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4183,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "(style) ...",
+      "range": {
+        "startLine": 4183,
+        "startChar": 80,
+        "endLine": 4183,
+        "endChar": 81
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "db390379_a450fb52",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4196,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "assert_info_updated POSIX ?",
+      "range": {
+        "startLine": 4196,
+        "startChar": 8,
+        "endLine": 4196,
+        "endChar": 82
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "da6d0dda_c7bdad05",
+        "filename": "tests/test_suite/cfg/test_prepost_sched.conf",
+        "patchSetId": 2
+      },
+      "lineNbr": 37,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "(style) indent",
+      "range": {
+        "startLine": 37,
+        "startChar": 0,
+        "endLine": 37,
+        "endChar": 4
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ad91e94f_3e3e7864",
+        "filename": "tests/test_suite/cfg/test_prepost_sched.conf",
+        "patchSetId": 2
+      },
+      "lineNbr": 48,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "(style) ...",
+      "range": {
+        "startLine": 48,
+        "startChar": 0,
+        "endLine": 48,
+        "endChar": 4
+      },
+      "revId": "85e298369c250dc16eca876b4a60a728849d3797",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "8701e0ee_e7110317",
+        "filename": "tests/test_suite/cfg/test_prepost_sched.conf",
+        "patchSetId": 2
+      },
+      "lineNbr": 53,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T08:57:21Z",
+      "side": 1,
+      "message": "(style) ... x 4",
+      "range": {
+        "startLine": 53,
+        "startChar": 0,
+        "endLine": 53,
+        "endChar": 4
+      },
       "revId": "85e298369c250dc16eca876b4a60a728849d3797",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
