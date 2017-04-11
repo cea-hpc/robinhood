@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "c427a174_127a8cef",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 12
+      },
+      "lineNbr": 1265,
+      "author": {
+        "id": 1009999
+      },
+      "writtenOn": "2017-04-11T15:00:24Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "fdbcf04c_600adc6f",
+      "revId": "ad16102408650f9ce22e201baff4887ac762c007",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "a25cc146_fedd8a81",
         "filename": "src/list_mgr/listmgr_filters.c",
         "patchSetId": 12
@@ -36,6 +54,24 @@
     },
     {
       "key": {
+        "uuid": "4bd19c9a_d2f9a7d0",
+        "filename": "src/list_mgr/listmgr_filters.c",
+        "patchSetId": 12
+      },
+      "lineNbr": 565,
+      "author": {
+        "id": 1009999
+      },
+      "writtenOn": "2017-04-11T15:00:24Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "a25cc146_fedd8a81",
+      "revId": "ad16102408650f9ce22e201baff4887ac762c007",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "5886132e_20dcda10",
         "filename": "src/list_mgr/listmgr_filters.c",
         "patchSetId": 12
@@ -47,6 +83,24 @@
       "writtenOn": "2017-04-05T07:30:31Z",
       "side": 1,
       "message": "(style) no need for braces around a single command line",
+      "revId": "ad16102408650f9ce22e201baff4887ac762c007",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "13e0c800_04444f7a",
+        "filename": "src/list_mgr/listmgr_filters.c",
+        "patchSetId": 12
+      },
+      "lineNbr": 581,
+      "author": {
+        "id": 1009999
+      },
+      "writtenOn": "2017-04-11T15:00:24Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "5886132e_20dcda10",
       "revId": "ad16102408650f9ce22e201baff4887ac762c007",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -81,6 +135,24 @@
       "writtenOn": "2017-04-05T07:30:31Z",
       "side": 1,
       "message": "The test would be more exhaustive with \u0027ignore\u0027, \u0027ignore_fileclass\u0027 and \u0027default\u0027 rule. Also, having 2 target fileclasses in a rule would complete the test.\n\nI tested with:\n\n    ignore { owner \u003d\u003d tutu or owner \u003d\u003d babar }\n    ignore_fileclass \u003d foo_files;\n\n    rule scratch_cleanup {\n        target_fileclass \u003d scratch_files;\n        condition { last_access \u003e 60d and last_mod \u003e 60d }\n    }\n\n    rule scratch_tmp_cleanup {\n        target_fileclass \u003d scratch_tmp_files;\n        target_fileclass \u003d root_files;\n        condition { last_access \u003e 3d and last_mod \u003e 3d }\n    }\n\n    rule default {\n        condition {last_mod \u003e 10}\n    }\n\nUnfortunately, this test showed that the first \"ignore\" statement has not been translated successfully to SQL.\n\nIt is translated to:\n AND(NOT ((ENTRIES.uid\u003d\u0027tutu\u0027 OR ENTRIES.uid IS NULL)) OR NOT ((ENTRIES.uid\u003d\u0027babar\u0027 OR ENTRIES.uid IS NULL)))\nwhich is equivalent to AND(uid\u003c\u003e\u0027tutu\u0027 or uid\u003c\u003e\u0027tutu\u0027) which is always true.\n\nPreviously it was translated to:\n AND NOT (((ENTRIES.uid\u003d\u0027tutu\u0027 OR ENTRIES.uid IS NULL) OR (ENTRIES.uid\u003d\u0027babar\u0027 OR ENTRIES.uid IS NULL)))\n\nSomewhere you should reverse the bool context (OR/AND) when placing NOT before a parenthesis.",
+      "revId": "ad16102408650f9ce22e201baff4887ac762c007",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5d96bf23_d70f2509",
+        "filename": "tests/test_suite/cfg/test_multirule.conf",
+        "patchSetId": 12
+      },
+      "lineNbr": 53,
+      "author": {
+        "id": 1009999
+      },
+      "writtenOn": "2017-04-11T15:00:24Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "210cddb3_6084e250",
       "revId": "ad16102408650f9ce22e201baff4887ac762c007",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
