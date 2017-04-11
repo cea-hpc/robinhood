@@ -1,0 +1,61 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "653d4260_0eaa2002",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 31,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2017-04-11T13:05:30Z",
+      "side": 1,
+      "message": "no space",
+      "range": {
+        "startLine": 31,
+        "startChar": 37,
+        "endLine": 31,
+        "endChar": 39
+      },
+      "revId": "de2b82eac292bbd3f1ebfb4de890e68bcd70b2b3",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fb156dd6_630a6bae",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 44,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2017-04-11T13:05:30Z",
+      "side": 1,
+      "message": "... \u0026 below",
+      "revId": "de2b82eac292bbd3f1ebfb4de890e68bcd70b2b3",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9a3355cc_c1394159",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 150,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2017-04-11T13:05:30Z",
+      "side": 1,
+      "message": "Please remove that comment. UNREACHED is an optim hint to tell the compiler that this part won\u0027t be reached.",
+      "revId": "de2b82eac292bbd3f1ebfb4de890e68bcd70b2b3",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
