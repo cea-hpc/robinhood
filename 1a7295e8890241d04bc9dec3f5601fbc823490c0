@@ -1,0 +1,96 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "83442fad_70c60a0b",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 4
+      },
+      "lineNbr": 7,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T14:40:33Z",
+      "side": 1,
+      "message": "please precise the modified module in the commit title, e.g.\n\n listmgr: style patch",
+      "range": {
+        "startLine": 6,
+        "startChar": 0,
+        "endLine": 7,
+        "endChar": 11
+      },
+      "revId": "1a7295e8890241d04bc9dec3f5601fbc823490c0",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "069ad3a2_17b92501",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 349,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T14:40:33Z",
+      "side": 1,
+      "message": "What do you find more readable?\n\n   1\n + 1\n - 2\n\nor\n\n  1 +\n  1 -\n  2\n\n??",
+      "range": {
+        "startLine": 349,
+        "startChar": 40,
+        "endLine": 349,
+        "endChar": 42
+      },
+      "revId": "1a7295e8890241d04bc9dec3f5601fbc823490c0",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fc255568_98b75a33",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 431,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T14:40:33Z",
+      "side": 1,
+      "message": "indent",
+      "range": {
+        "startLine": 431,
+        "startChar": 4,
+        "endLine": 431,
+        "endChar": 8
+      },
+      "revId": "1a7295e8890241d04bc9dec3f5601fbc823490c0",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "c06741e8_91db2264",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 512,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T14:40:33Z",
+      "side": 1,
+      "message": "Don\u0027t you declare functions like this:\n\nint foo()\n{\n}",
+      "range": {
+        "startLine": 512,
+        "startChar": 76,
+        "endLine": 512,
+        "endChar": 77
+      },
+      "revId": "1a7295e8890241d04bc9dec3f5601fbc823490c0",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
