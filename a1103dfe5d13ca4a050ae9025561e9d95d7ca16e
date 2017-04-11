@@ -560,6 +560,30 @@
       "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "a2ac8981_087cfa2c",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 330,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-11T17:12:07Z",
+      "side": 1,
+      "message": "I agree, a more specific naming would be welcome.",
+      "parentUuid": "37c97959_8ac6f09f",
+      "range": {
+        "startLine": 330,
+        "startChar": 39,
+        "endLine": 330,
+        "endChar": 45
+      },
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
