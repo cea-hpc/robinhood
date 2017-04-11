@@ -25,6 +25,30 @@
     },
     {
       "key": {
+        "uuid": "18a3f0f5_4c5dc8d7",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 4
+      },
+      "lineNbr": 7,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T15:35:17Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "986367b0_bb1a05bf",
+      "range": {
+        "startLine": 7,
+        "startChar": 0,
+        "endLine": 7,
+        "endChar": 6
+      },
+      "revId": "72c982ead360f6be16f48fdb489d8caa0b5610ed",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "5399a2a1_474910e5",
         "filename": "src/include/list_mgr.h",
         "patchSetId": 4
@@ -36,6 +60,24 @@
       "writtenOn": "2017-04-11T15:09:53Z",
       "side": 1,
       "message": "What\u0027s the point? It\u0027s still a pointer.",
+      "revId": "72c982ead360f6be16f48fdb489d8caa0b5610ed",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "78c714ae_e5337e15",
+        "filename": "src/include/list_mgr.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 673,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T15:35:17Z",
+      "side": 1,
+      "message": "I think the \u0027*\u0027 should be enough, the compiler should detect most (if not all) of the incorrect uses.\nIf the question is: \"why do it in this patch?\", well... I had to track every use of lmgr_filter_t so it seemed a good occasion to do it.",
+      "parentUuid": "5399a2a1_474910e5",
       "revId": "72c982ead360f6be16f48fdb489d8caa0b5610ed",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -88,6 +130,30 @@
     },
     {
       "key": {
+        "uuid": "02e12152_2413f605",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 615,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T15:35:17Z",
+      "side": 1,
+      "message": "It probably did not ;-)",
+      "parentUuid": "1e79e8e2_b429ec05",
+      "range": {
+        "startLine": 615,
+        "startChar": 28,
+        "endLine": 615,
+        "endChar": 30
+      },
+      "revId": "72c982ead360f6be16f48fdb489d8caa0b5610ed",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "287e1ea1_4a18f256",
         "filename": "src/list_mgr/listmgr_remove.c",
         "patchSetId": 4
@@ -99,6 +165,30 @@
       "writtenOn": "2017-04-11T15:09:53Z",
       "side": 1,
       "message": "space at EOL\n(idem next line)",
+      "range": {
+        "startLine": 432,
+        "startChar": 27,
+        "endLine": 432,
+        "endChar": 28
+      },
+      "revId": "72c982ead360f6be16f48fdb489d8caa0b5610ed",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "dceabcac_280d7a22",
+        "filename": "src/list_mgr/listmgr_remove.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 432,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-11T15:35:17Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "287e1ea1_4a18f256",
       "range": {
         "startLine": 432,
         "startChar": 27,
