@@ -154,6 +154,30 @@
     },
     {
       "key": {
+        "uuid": "8511fcaa_3f4d7963",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 615,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2017-04-12T11:58:35Z",
+      "side": 1,
+      "message": "This deserves a patch of its own.\nPlus we need to understand what\u0027s the impact (if any) of the bug. More precisely, if this doesn\u0027t wreak havoc we may have dead code, see why.",
+      "parentUuid": "02e12152_2413f605",
+      "range": {
+        "startLine": 615,
+        "startChar": 28,
+        "endLine": 615,
+        "endChar": 30
+      },
+      "revId": "72c982ead360f6be16f48fdb489d8caa0b5610ed",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "287e1ea1_4a18f256",
         "filename": "src/list_mgr/listmgr_remove.c",
         "patchSetId": 4
