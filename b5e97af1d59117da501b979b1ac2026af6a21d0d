@@ -209,6 +209,30 @@
       "revId": "b5e97af1d59117da501b979b1ac2026af6a21d0d",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "10f36f98_16ff86e8",
+        "filename": "src/list_mgr/listmgr_ns.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 228,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-12T08:54:25Z",
+      "side": 1,
+      "message": "My bad, this pointer was already checked.",
+      "parentUuid": "5b7023c7_c05e0ffa",
+      "range": {
+        "startLine": 228,
+        "startChar": 39,
+        "endLine": 228,
+        "endChar": 52
+      },
+      "revId": "b5e97af1d59117da501b979b1ac2026af6a21d0d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
