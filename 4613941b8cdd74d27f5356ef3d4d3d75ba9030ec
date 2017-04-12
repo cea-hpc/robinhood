@@ -25,6 +25,30 @@
     },
     {
       "key": {
+        "uuid": "45d618ec_b4489dd6",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 6
+      },
+      "lineNbr": 326,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-12T12:10:22Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "3291234f_e414533e",
+      "range": {
+        "startLine": 326,
+        "startChar": 35,
+        "endLine": 326,
+        "endChar": 37
+      },
+      "revId": "4613941b8cdd74d27f5356ef3d4d3d75ba9030ec",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "29132519_df50e5b1",
         "filename": "src/list_mgr/listmgr_common.h",
         "patchSetId": 6
@@ -42,6 +66,24 @@
     },
     {
       "key": {
+        "uuid": "e5caf4be_d6d73a36",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 6
+      },
+      "lineNbr": 334,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-12T12:10:22Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "29132519_df50e5b1",
+      "revId": "4613941b8cdd74d27f5356ef3d4d3d75ba9030ec",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "711f4271_7055869d",
         "filename": "src/list_mgr/listmgr_common.h",
         "patchSetId": 6
@@ -53,6 +95,30 @@
       "writtenOn": "2017-04-12T06:15:44Z",
       "side": 1,
       "message": "id",
+      "range": {
+        "startLine": 335,
+        "startChar": 61,
+        "endLine": 335,
+        "endChar": 64
+      },
+      "revId": "4613941b8cdd74d27f5356ef3d4d3d75ba9030ec",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "707a2025_e1ce9fc1",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 6
+      },
+      "lineNbr": 335,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-12T12:10:22Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "711f4271_7055869d",
       "range": {
         "startLine": 335,
         "startChar": 61,
@@ -88,6 +154,30 @@
     },
     {
       "key": {
+        "uuid": "d7ba8839_019c24ba",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 6
+      },
+      "lineNbr": 354,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-12T12:10:22Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "1da6c4aa_920f4565",
+      "range": {
+        "startLine": 354,
+        "startChar": 17,
+        "endLine": 354,
+        "endChar": 19
+      },
+      "revId": "4613941b8cdd74d27f5356ef3d4d3d75ba9030ec",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "ff3a2f18_80fb536a",
         "filename": "src/list_mgr/listmgr_common.h",
         "patchSetId": 6
@@ -111,6 +201,47 @@
     },
     {
       "key": {
+        "uuid": "1e2ba356_983ea452",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 6
+      },
+      "lineNbr": 369,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-12T12:10:22Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "ff3a2f18_80fb536a",
+      "range": {
+        "startLine": 369,
+        "startChar": 35,
+        "endLine": 369,
+        "endChar": 37
+      },
+      "revId": "4613941b8cdd74d27f5356ef3d4d3d75ba9030ec",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5b2cc751_f9d4f0e2",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 6
+      },
+      "lineNbr": 615,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-12T12:10:22Z",
+      "side": 1,
+      "message": "So... As it turns out, I am the one who introduced this... Will correct",
+      "revId": "4613941b8cdd74d27f5356ef3d4d3d75ba9030ec",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "3e024718_35f2fe9c",
         "filename": "src/list_mgr/listmgr_common.h",
         "patchSetId": 6
@@ -122,6 +253,30 @@
       "writtenOn": "2017-04-12T06:15:44Z",
       "side": 1,
       "message": "id",
+      "range": {
+        "startLine": 632,
+        "startChar": 51,
+        "endLine": 632,
+        "endChar": 53
+      },
+      "revId": "4613941b8cdd74d27f5356ef3d4d3d75ba9030ec",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "e55ef2ac_99b00ad9",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 6
+      },
+      "lineNbr": 632,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-12T12:10:22Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "3e024718_35f2fe9c",
       "range": {
         "startLine": 632,
         "startChar": 51,
