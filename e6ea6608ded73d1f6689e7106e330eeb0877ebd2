@@ -1,0 +1,44 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "ee9a5294_2fa17a6e",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 2
+      },
+      "lineNbr": 13,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2017-04-12T11:58:35Z",
+      "side": 1,
+      "message": "why not keeping the name if it is now the only filter?",
+      "range": {
+        "startLine": 13,
+        "startChar": 38,
+        "endLine": 13,
+        "endChar": 58
+      },
+      "revId": "e6ea6608ded73d1f6689e7106e330eeb0877ebd2",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ef58a513_b50b6372",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 623,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2017-04-12T11:58:35Z",
+      "side": 1,
+      "message": "Ouch! That\u0027s a tough one!",
+      "revId": "e6ea6608ded73d1f6689e7106e330eeb0877ebd2",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
