@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "27553247_f5747915",
+        "filename": "src/list_mgr/listmgr_filters.c",
+        "patchSetId": 13
+      },
+      "lineNbr": 571,
+      "author": {
+        "id": 1009999
+      },
+      "writtenOn": "2017-04-12T06:50:53Z",
+      "side": 1,
+      "message": "typo",
+      "range": {
+        "startLine": 571,
+        "startChar": 60,
+        "endLine": 571,
+        "endChar": 62
+      },
+      "revId": "fd7072def74fb8ea9e0141779882e3ed07f540f0",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
