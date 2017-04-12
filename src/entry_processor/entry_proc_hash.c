@@ -37,9 +37,7 @@ struct id_hash *id_hash_init(const unsigned int hash_size, bool use_lock)
     unsigned int i;
     struct id_hash *hash;
 
-    hash =
-        MemAlloc(sizeof(struct id_hash) +
-                 hash_size * sizeof(struct id_hash_slot));
+    hash = malloc(sizeof(*hash) + hash_size * sizeof(struct id_hash_slot));
     if (!hash) {
         DisplayLog(LVL_MAJOR, "Entry_Hash",
                    "Can't allocate new hash table with %d slots", hash_size);

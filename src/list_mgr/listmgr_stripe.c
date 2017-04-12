@@ -265,7 +265,7 @@ int get_stripe_info(lmgr_t *p_mgr, PK_ARG_T pk, stripe_info_t *p_stripe_info,
         if (p_items->count > 0) {
 
             /* allocate stripe array */
-            p_items->stripe = MemCalloc(p_items->count, sizeof(stripe_item_t));
+            p_items->stripe = calloc(p_items->count, sizeof(*p_items->stripe));
 
             if (!p_items->stripe) {
                 rc = DB_NO_MEMORY;
@@ -319,7 +319,7 @@ int get_stripe_info(lmgr_t *p_mgr, PK_ARG_T pk, stripe_info_t *p_stripe_info,
 void free_stripe_items(stripe_items_t *p_stripe_items)
 {
     if (p_stripe_items->stripe)
-        MemFree(p_stripe_items->stripe);
+        free(p_stripe_items->stripe);
     p_stripe_items->stripe = NULL;
     p_stripe_items->count = 0;
 }
@@ -338,8 +338,8 @@ int dup_stripe_items(stripe_items_t *p_stripe_out,
         return 0;
     }
 
-    p_stripe_out->stripe = MemAlloc(p_stripe_out->count
-                                    * sizeof(stripe_item_t));
+    p_stripe_out->stripe = malloc(p_stripe_out->count
+                                  * sizeof(*p_stripe_out->stripe));
     if (p_stripe_out->stripe == NULL)
         return DB_NO_MEMORY;
 

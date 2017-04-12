@@ -2848,7 +2848,7 @@ int main(int argc, char **argv)
         dump_entries(DUMP_OST, 0, ost_set_str, &dump_ost_set, flags);
         /* free the list */
         if (dump_ost_set.values)
-            MemFree(dump_ost_set.values);
+            free(dump_ost_set.values);
     }
 #endif
 

@@ -336,7 +336,7 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
         g_string_append_printf(req, " LIMIT %u", p_opt->list_count_max);
 
     /* allocate a new iterator */
-    it = (lmgr_iterator_t *) MemAlloc(sizeof(lmgr_iterator_t));
+    it = malloc(sizeof(*it));
     it->p_mgr = p_mgr;
     if (p_opt) {
         it->opt = *p_opt;
@@ -363,7 +363,7 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
 
  free_it:
     if (it != NULL)
-        MemFree(it);
+        free(it);
  free_str:
     if (filter_dir != NULL)
         g_string_free(filter_dir, TRUE);
@@ -439,5 +439,5 @@ int ListMgr_GetNext(struct lmgr_iterator_t *p_iter, entry_id_t *p_id,
 void ListMgr_CloseIterator(struct lmgr_iterator_t *p_iter)
 {
     db_result_free(&p_iter->p_mgr->conn, &p_iter->select_result);
-    MemFree(p_iter);
+    free(p_iter);
 }

@@ -324,15 +324,14 @@ struct lmgr_report_t *ListMgr_Report(lmgr_t *p_mgr,
     }
 
     /* allocate a new report structure */
-    p_report = (lmgr_report_t *) MemAlloc(sizeof(lmgr_report_t));
+    p_report = malloc(sizeof(*p_report));
     if (!p_report)
         return NULL;
 
     p_report->p_mgr = p_mgr;
 
-    p_report->result = (struct result *)MemCalloc(report_descr_count
-                                                  + profile_len + ratio,
-                                                  sizeof(struct result));
+    p_report->result = calloc(report_descr_count + profile_len + ratio,
+                              sizeof(*p_report->result));
     if (!p_report->result)
         goto free_report;
 
@@ -631,10 +630,10 @@ struct lmgr_report_t *ListMgr_Report(lmgr_t *p_mgr,
         return p_report;
 
 /* error */
-    MemFree(p_report->result);
+    free(p_report->result);
 
  free_report:
-    MemFree(p_report);
+    free(p_report);
     return NULL;
 }   /* ListMgr_Report */
 
@@ -655,8 +654,8 @@ int ListMgr_GetNextReportItem(struct lmgr_report_t *p_iter,
         return DB_BUFFER_TOO_SMALL;
 
     if (p_iter->str_tab == NULL) {
-        p_iter->str_tab =
-            (char **)MemCalloc(p_iter->result_count, sizeof(char *));
+        p_iter->str_tab = calloc(p_iter->result_count,
+                                 sizeof(*p_iter->str_tab));
         if (!p_iter->str_tab)
             return DB_NO_MEMORY;
     }
@@ -723,10 +722,10 @@ void ListMgr_CloseReport(struct lmgr_report_t *p_iter)
     db_result_free(&p_iter->p_mgr->conn, &p_iter->select_result);
 
     if (p_iter->str_tab != NULL)
-        MemFree(p_iter->str_tab);
+        free(p_iter->str_tab);
 
-    MemFree(p_iter->result);
-    MemFree(p_iter);
+    free(p_iter->result);
+    free(p_iter);
 }
 
 int ListMgr_EntryCount(lmgr_t *p_mgr, uint64_t *count)

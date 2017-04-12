@@ -149,7 +149,7 @@ int listmgr_remove_no_tx(lmgr_t *p_mgr, const entry_id_t *p_id,
 
         /* according to MySQL documentation, escaped string can be up to 2*orig_len+1 */
         len = 2 * strlen(ATTR(p_attr_set, name)) + 1;
-        escaped = MemAlloc(len);
+        escaped = malloc(len);
         if (escaped == NULL)
         {
             rc = DB_NO_MEMORY;
@@ -159,7 +159,7 @@ int listmgr_remove_no_tx(lmgr_t *p_mgr, const entry_id_t *p_id,
 
         g_string_printf(req, "DELETE FROM "DNAMES_TABLE" WHERE pkn="HNAME_FMT" AND id="DPK,
                         ppk, escaped, pk);
-        MemFree(escaped);
+        free(escaped);
 
         rc = db_exec_sql(&p_mgr->conn, req->str, NULL);
         if (rc)
@@ -835,7 +835,7 @@ struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *p_filter,
                                       const lmgr_sort_type_t *p_sort_type)
 {
     int             rc, nb;
-    lmgr_rm_list_t *p_list = MemAlloc(sizeof(lmgr_rm_list_t));
+    lmgr_rm_list_t *p_list = malloc(sizeof(*p_list));
     GString        *req;
 
     if (!p_list)
@@ -915,7 +915,7 @@ struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *p_filter,
 
 free_err: /* error */
     g_string_free(req, TRUE);
-    MemFree(p_list);
+    free(p_list);
     return NULL;
 }
 
@@ -958,7 +958,7 @@ int            ListMgr_GetNextRmEntry(struct lmgr_rm_list_t *p_iter,
 void           ListMgr_CloseRmList(struct lmgr_rm_list_t *p_iter)
 {
     db_result_free(&p_iter->p_mgr->conn, &p_iter->select_result);
-    MemFree(p_iter);
+    free(p_iter);
 }
 
 /**

@@ -122,8 +122,8 @@ static int fill_stripe_info(struct lov_user_md *p_lum,
                 (p_lum->lmm_pattern & LOV_PATTERN_F_RELEASED) == 0) {
                 p_stripe_items->count = p_lum->lmm_stripe_count;
                 p_stripe_items->stripe =
-                    (stripe_item_t *) MemCalloc(p_lum->lmm_stripe_count,
-                                                sizeof(stripe_item_t));
+                    calloc(p_lum->lmm_stripe_count,
+                           sizeof(*p_stripe_items->stripe));
 
                 if (p_stripe_items->stripe == NULL)
                     return -ENOMEM;
@@ -180,8 +180,8 @@ static int fill_stripe_info(struct lov_user_md *p_lum,
                 (p_lum3->lmm_pattern & LOV_PATTERN_F_RELEASED) == 0) {
                 p_stripe_items->count = p_lum3->lmm_stripe_count;
                 p_stripe_items->stripe =
-                    (stripe_item_t *) MemCalloc(p_lum3->lmm_stripe_count,
-                                                sizeof(stripe_item_t));
+                    calloc(p_lum3->lmm_stripe_count,
+                           sizeof(*p_stripe_items->stripe));
 
                 if (p_stripe_items->stripe == NULL)
                     return -ENOMEM;
@@ -252,7 +252,7 @@ int File_GetStripeByPath(const char *entry_path, stripe_info_t *p_stripe_info,
     if (!entry_path || !entry_path[0])
         return -EFAULT;
 
-    p_lum = (struct lov_user_md *)MemAlloc(LUM_SIZE_MAX);
+    p_lum = malloc(LUM_SIZE_MAX);
     if (!p_lum)
         return -ENOMEM;
 
@@ -274,7 +274,7 @@ int File_GetStripeByPath(const char *entry_path, stripe_info_t *p_stripe_info,
     rc = fill_stripe_info(p_lum, p_stripe_info, p_stripe_items);
 
  out_free:
-    MemFree(p_lum);
+    free(p_lum);
     return rc;
 }
 
@@ -288,7 +288,7 @@ int File_GetStripeByDirFd(int dirfd, const char *fname,
     if (!fname || !fname[0])
         return -EFAULT;
 
-    p_lum = MemAlloc(LUM_SIZE_MAX);
+    p_lum = malloc(LUM_SIZE_MAX);
     if (!p_lum)
         return -ENOMEM;
 
@@ -310,7 +310,7 @@ int File_GetStripeByDirFd(int dirfd, const char *fname,
         }
     }
 
-    MemFree(p_lum);
+    free(p_lum);
 
     return rc;
 }
@@ -694,12 +694,12 @@ int Get_pool_usage(const char *poolname, struct statfs *pool_statfs)
     unsigned int obdcount = 256;
     char **ostlist = NULL;
     int bufsize = sizeof(struct obd_uuid) * obdcount;
-    char *buffer = MemAlloc(bufsize + (sizeof(*ostlist) * obdcount));
+    char *buffer = malloc(bufsize + (sizeof(*ostlist) * obdcount));
     ostlist = (char **)(buffer + bufsize);
 
     /* sanity check */
     if (!pool_statfs) {
-        MemFree(buffer);
+        free(buffer);
         return EFAULT;
     }
 #endif
@@ -714,13 +714,16 @@ int Get_pool_usage(const char *poolname, struct statfs *pool_statfs)
     do {
         rc = llapi_get_poolmembers(pool, ostlist, obdcount, buffer, bufsize);
         if (rc == -EOVERFLOW) {
+            void *tmp;
             /* buffer too small, increase obdcount by 2 */
             obdcount *= 2;
             bufsize = sizeof(struct obd_uuid) * obdcount;
-            buffer =
-                MemRealloc(buffer, bufsize + (sizeof(*ostlist) * obdcount));
-            if (buffer == NULL)
+            tmp = realloc(buffer, bufsize + sizeof(*ostlist) * obdcount);
+            if (tmp == NULL) {
+                free(buffer);
                 return ENOMEM;
+            }
+            buffer = tmp;
             ostlist = (char **)(buffer + bufsize);
         }
     } while (rc == -EOVERFLOW);

@@ -171,7 +171,7 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
     pktype        *pklist = NULL;
 
     full_mask = sum_masks(p_attrs, count, all_bits_on);
-    pklist = (pktype *)MemCalloc(count, sizeof(pktype));
+    pklist = calloc(count, sizeof(*pklist));
     if (pklist == NULL)
         return DB_NO_MEMORY;
 
@@ -229,7 +229,7 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
     if (stripe_fields(full_mask))
     {
         /* create validator list */
-        int *validators = (int*)MemCalloc(count, sizeof(int));
+        int *validators = calloc(count, sizeof(*validators));
         if (!validators)
         {
             rc =  DB_NO_MEMORY;
@@ -245,14 +245,14 @@ int listmgr_batch_insert_no_tx(lmgr_t * p_mgr, entry_id_t **p_ids,
 
         rc = batch_insert_stripe_info(p_mgr, pklist, validators, p_attrs,
                                       count, true);
-        MemFree(validators);
+        free(validators);
         if (rc)
             goto out_free;
     }
 #endif
 
 out_free:
-    MemFree(pklist);
+    free(pklist);
     return rc;
 }
 

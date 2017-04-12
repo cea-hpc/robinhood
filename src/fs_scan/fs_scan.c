@@ -1500,8 +1500,7 @@ int Robinhood_InitScanModule(void)
     pthread_attr_setdetachstate(&thread_attrs, PTHREAD_CREATE_JOINABLE);
 
     /* dynamic allocation */
-    thread_list =
-        MemCalloc(fs_scan_config.nb_threads_scan, sizeof(thread_scan_info_t));
+    thread_list = calloc(fs_scan_config.nb_threads_scan, sizeof(*thread_list));
     if (!thread_list)
         return ENOMEM;
 

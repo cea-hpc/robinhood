@@ -103,7 +103,7 @@ static int add_id_list(const wagon_t *list, unsigned int count)
         wagon_t *dir_array_new;
         size_t new_len = what_2_power(array_len + count);
 
-        dir_array_new = MemAlloc(new_len * sizeof(wagon_t));
+        dir_array_new = malloc(new_len * sizeof(*dir_array_new));
         if (!dir_array_new)
             return -ENOMEM;
 
@@ -112,7 +112,7 @@ static int add_id_list(const wagon_t *list, unsigned int count)
             if (array_used)
                 memcpy(&dir_array_new[new_len - array_used],
                        &dir_array[array_first], array_used * sizeof(wagon_t));
-            MemFree(dir_array);
+            free(dir_array);
         }
 
         /* update array info */
@@ -225,14 +225,14 @@ int rbh_scrub(lmgr_t *p_mgr, const wagon_t *id_list,
         if (child_attrs) {
             for (i = 0; i < res_count; i++)
                 ListMgr_FreeAttrs(&child_attrs[i]);
-            MemFree(child_attrs);
+            free(child_attrs);
             child_attrs = NULL;
         }
 
         /* free the returned id array */
         if (child_ids) {
             free_wagon(child_ids, 0, res_count);
-            MemFree(child_ids);
+            free(child_ids);
             child_ids = NULL;
         }
     }

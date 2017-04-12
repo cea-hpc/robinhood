@@ -898,7 +898,7 @@ void ListMgr_CloseIterator(struct lmgr_iterator_t *p_iter);
  * \param child_count       [out] number of returned children
  *
  * ListMgr_FreeAttrs() must be called on each child attribute
- * and child_id_list and child_attr_list must be freed with MemFree()
+ * and child_id_list and child_attr_list must be freed
  */
 int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
                      const wagon_t *parent_list, unsigned int parent_count,

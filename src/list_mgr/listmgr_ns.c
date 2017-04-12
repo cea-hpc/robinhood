@@ -188,7 +188,7 @@ retry:
     *child_count = db_result_nb_records(&p_mgr->conn, &result);
 
     /* allocate entry_id array */
-    *child_id_list = MemCalloc(*child_count, sizeof(wagon_t));
+    *child_id_list = calloc(*child_count, sizeof(**child_id_list));
     if (*child_id_list == NULL)
     {
         rc = DB_NO_MEMORY;
@@ -197,7 +197,7 @@ retry:
 
     if (child_attr_list)
     {
-        *child_attr_list = MemCalloc(*child_count, sizeof(attr_set_t));
+        *child_attr_list = calloc(*child_count, sizeof(**child_attr_list));
         if (*child_attr_list == NULL)
         {
             rc = DB_NO_MEMORY;
@@ -299,10 +299,10 @@ array_free:
         free(path);
     if (child_attr_list && *child_attr_list)
     {
-        MemFree(*child_attr_list);
+        free(*child_attr_list);
         *child_attr_list = NULL;
     }
-    MemFree(*child_id_list);
+    free(*child_id_list);
     *child_id_list = NULL;
 free_str:
     if (req != NULL)

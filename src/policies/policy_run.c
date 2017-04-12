@@ -60,7 +60,7 @@ static queue_item_t *entry2queue_item(entry_id_t *p_entry_id,
 {
     queue_item_t *new_entry;
 
-    new_entry = (queue_item_t *) MemAlloc(sizeof(queue_item_t));
+    new_entry = malloc(sizeof(*new_entry));
     if (!new_entry)
         return NULL;
 
@@ -77,7 +77,7 @@ static queue_item_t *entry2queue_item(entry_id_t *p_entry_id,
 static void free_queue_item(queue_item_t *item)
 {
     ListMgr_FreeAttrs(&item->entry_attr);
-    MemFree(item);
+    free(item);
 }
 
 typedef struct subst_args {
@@ -2661,8 +2661,7 @@ int start_worker_threads(policy_info_t *pol)
 {
     unsigned int i;
 
-    pol->threads = (pthread_t *) MemCalloc(pol->config->nb_threads,
-                                           sizeof(pthread_t));
+    pol->threads = calloc(pol->config->nb_threads, sizeof(*pol->threads));
     if (!pol->threads) {
         DisplayLog(LVL_CRIT, tag(pol), "Memory error in %s", __func__);
         return ENOMEM;

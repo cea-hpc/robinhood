@@ -1013,8 +1013,8 @@ static int dircb(wagon_t *id_list, attr_set_t *attr_list,
             }
 
             free_wagon(chids, 0, chcount);
-            MemFree(chids);
-            MemFree(chattrs);
+            free(chids);
+            free(chattrs);
         }
     }
     return 0;
@@ -1141,7 +1141,7 @@ static int list_contents(char **id_list, int id_count)
     if (rc)
         return rc;
 
-    ids = MemCalloc(id_count, sizeof(wagon_t));
+    ids = calloc(id_count, sizeof(*ids));
     if (!ids)
         return -ENOMEM;
 
@@ -1179,7 +1179,7 @@ static int list_contents(char **id_list, int id_count)
             DisplayLog(LVL_DEBUG, FIND_TAG,
                        "Optimization: switching to bulk DB request mode");
             mkfilters(false);   /* keep dirs */
-            MemFree(ids);
+            free(ids);
             return list_bulk();
         }
 
@@ -1235,7 +1235,7 @@ static int list_contents(char **id_list, int id_count)
 
  out:
     /* ids have been processed, free them */
-    MemFree(ids);
+    free(ids);
     return rc;
 }
 

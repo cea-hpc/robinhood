@@ -160,7 +160,7 @@ static void *entry_proc_worker_thr(void *arg)
         } else
             RBH_BUG("Empty operation list returned");
 
-        MemFree(list_op);
+        free(list_op);
     }
 
     if (!terminate_flag)
@@ -212,7 +212,7 @@ static int mk_bench_pipeline(unsigned int stages)
 {
     int i;
     bench_pipeline_descr.stage_count = stages;
-    bench_pipeline = MemCalloc(stages, sizeof(pipeline_stage_t));
+    bench_pipeline = calloc(stages, sizeof(*bench_pipeline));
     if (bench_pipeline == NULL)
         return -ENOMEM;
     for (i = 0; i < stages; i++) {
@@ -287,9 +287,7 @@ int EntryProcessor_Init(pipeline_flavor_e flavor, run_flags_t flags, void *arg)
                        entry_proc_pipeline[i].max_thread_count);
     }
 
-    pipeline =
-        (list_by_stage_t *) MemCalloc(entry_proc_descr.stage_count,
-                                      sizeof(list_by_stage_t));
+    pipeline = calloc(entry_proc_descr.stage_count, sizeof(*pipeline));
     if (!pipeline)
         return ENOMEM;
 
@@ -321,9 +319,7 @@ int EntryProcessor_Init(pipeline_flavor_e flavor, run_flags_t flags, void *arg)
 
     /* start workers */
 
-    worker_params =
-        (worker_info_t *) MemCalloc(entry_proc_conf.nb_thread,
-                                    sizeof(worker_info_t));
+    worker_params = calloc(entry_proc_conf.nb_thread, sizeof(*worker_params));
     if (!worker_params)
         return ENOMEM;
 
@@ -658,8 +654,7 @@ static entry_proc_op_t **next_work_avail(bool *p_empty, int *op_count)
 
                     V(pl->stage_mutex);
 
-                    entry_proc_op_t **listop =
-                        MemAlloc(sizeof(entry_proc_op_t *));
+                    entry_proc_op_t **listop = malloc(sizeof(*listop));
                     if (listop) {
                         *listop = p_curr;
                         *op_count = 1;
@@ -765,8 +760,7 @@ static entry_proc_op_t **next_work_avail(bool *p_empty, int *op_count)
                 p_curr->being_processed = 1;
 
                 entry_proc_op_t **listop =
-                    MemCalloc(entry_proc_conf.max_batch_size,
-                              sizeof(entry_proc_op_t *));
+                    calloc(entry_proc_conf.max_batch_size, sizeof(*listop));
                 if (!listop)
                     return NULL;
                 listop[0] = p_curr;
@@ -896,7 +890,7 @@ void EntryProcessor_Release(entry_proc_op_t *p_op)
     ListMgr_FreeAttrs(&p_op->db_attrs);
 
     /* free the memory */
-    MemFree(p_op);
+    free(p_op);
 }
 
 /**
@@ -1151,7 +1145,7 @@ entry_proc_op_t *EntryProcessor_Get(void)
     /* allocate a new pipeline entry */
     entry_proc_op_t *p_entry;
 
-    p_entry = (entry_proc_op_t *) MemCalloc(1, sizeof(entry_proc_op_t));
+    p_entry = calloc(1, sizeof(*p_entry));
 
     if (!p_entry)
         return NULL;

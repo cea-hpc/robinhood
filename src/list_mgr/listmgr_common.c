@@ -56,12 +56,12 @@ void printdbtype(db_conn_t *pconn, GString *str, db_type_e type,
             } else {
                 /* length required by MySQL manual */
                 int len = 2 * strlen(value_ptr->val_str) + 1;
-                char *tmpstr = MemAlloc(len);
+                char *tmpstr = malloc(len);
 
                 /* escape special characters in value */
                 db_escape_string(pconn, tmpstr, len, value_ptr->val_str);
                 g_string_append_printf(str, "'%s'", tmpstr);
-                MemFree(tmpstr);
+                free(tmpstr);
             }
             break;
         }
@@ -1938,20 +1938,25 @@ int lmgr_range2list(const char *set, db_type_e type, value_list_t *p_list)
         if (!dash) {
             /* single value */
             int tmpval;
+            void *tmp;
+
             tmpval = str2int(curr);
             if (tmpval == -1)
                 goto out_free;
-            p_list->values =
-                MemRealloc(p_list->values,
-                           (1 + p_list->count) * sizeof(*(p_list->values)));
-            if (!p_list->values)
+            tmp = realloc(p_list->values,
+                          (1 + p_list->count) * sizeof(*p_list->values));
+            if (tmp == NULL)
                 goto out_free;
+            p_list->values = tmp;
+
             p_list->values[p_list->count].val_uint = tmpval;
             p_list->count++;
         } else {
             /* range */
             int val_start, val_end, i;
             unsigned int j;
+            void *tmp;
+
             *dash = '\0';   /* tokenize at '-' */
             dash++; /*  points to end value */
             val_start = str2int(curr);
@@ -1959,12 +1964,13 @@ int lmgr_range2list(const char *set, db_type_e type, value_list_t *p_list)
             if (val_start == -1 || val_end == -1 || val_end < val_start)
                 goto out_free;
 
-            p_list->values =
-                MemRealloc(p_list->values,
-                           (val_end - val_start + 1 +
-                            p_list->count) * sizeof(*(p_list->values)));
-            if (!p_list->values)
+            tmp = realloc(p_list->values,
+                          (val_end - val_start + 1 + p_list->count)
+                          * sizeof(*p_list->values));
+            if (tmp == NULL)
                 goto out_free;
+            p_list->values = tmp;
+
             for (i = 0, j = val_start; j <= val_end; i++, j++) {
                 p_list->values[p_list->count + i].val_uint = j;
             }
@@ -1977,7 +1983,7 @@ int lmgr_range2list(const char *set, db_type_e type, value_list_t *p_list)
 
  out_free:
     if (p_list->values)
-        MemFree(p_list->values);
+        free(p_list->values);
     p_list->values = NULL;
     p_list->count = 0;
     return -1;

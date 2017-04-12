@@ -60,18 +60,19 @@ int CreateQueue(entry_queue_t *p_queue, unsigned int queue_size,
     p_queue->last_index = 0;
 
     /* allocates array of entries and stats */
-    p_queue->queue = MemCalloc(p_queue->array_size, sizeof(void *));
+    p_queue->queue = calloc(p_queue->array_size, sizeof(*p_queue->queue));
     if (p_queue->queue == NULL)
         return ENOMEM;
 
     p_queue->status_count = max_status + 1;
-    p_queue->status_array = MemCalloc(max_status + 1, sizeof(unsigned int));
+    p_queue->status_array = calloc(max_status + 1,
+                                   sizeof(*p_queue->status_array));
     if (p_queue->status_array == NULL)
         return ENOMEM;
 
     p_queue->feedback_count = feedback_count;
-    p_queue->feedback_array =
-        MemCalloc(feedback_count, sizeof(unsigned long long));
+    p_queue->feedback_array = calloc(feedback_count,
+                                     sizeof(*p_queue->feedback_array));
     if (p_queue->feedback_array == NULL)
         return ENOMEM;
 

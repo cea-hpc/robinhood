@@ -892,10 +892,10 @@ int EntryProc_batch_apply(struct entry_proc_op_t **ops, int count,
     attr_set_t **attrs = NULL;
 
     /* allocate arrays of ids and attrs */
-    ids = MemCalloc(count, sizeof(*ids));
+    ids = calloc(count, sizeof(*ids));
     if (!ids)
         return -ENOMEM;
-    attrs = MemCalloc(count, sizeof(*attrs));
+    attrs = calloc(count, sizeof(*attrs));
     if (!attrs) {
         rc = -ENOMEM;
         goto free_ids;
@@ -942,9 +942,9 @@ int EntryProc_batch_apply(struct entry_proc_op_t **ops, int count,
         DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage %s.",
                    rc, stage_info->stage_name);
 
-    MemFree(attrs);
+    free(attrs);
  free_ids:
-    MemFree(ids);
+    free(ids);
     return rc;
 }
 

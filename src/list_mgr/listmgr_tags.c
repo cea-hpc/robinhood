@@ -174,7 +174,7 @@ struct lmgr_iterator_t *ListMgr_ListUntagged( lmgr_t * p_mgr,
         query_end += sprintf(query_end, " LIMIT %u", p_opt->list_count_max);
 
     /* allocate a new iterator */
-    it = (lmgr_iterator_t *) MemAlloc(sizeof(lmgr_iterator_t));
+    it = malloc(sizeof(*it));
     it->p_mgr = p_mgr;
     if (p_opt)
     {
@@ -187,15 +187,13 @@ struct lmgr_iterator_t *ListMgr_ListUntagged( lmgr_t * p_mgr,
     }
 
     /* execute request */
-retry:
-    rc = db_exec_sql( &p_mgr->conn, query, &it->select_result );
-    if (lmgr_delayed_retry(p_mgr, rc))
-        goto retry;
-    else if (rc)
-    {
-        MemFree( it );
+    do {
+        rc = db_exec_sql( &p_mgr->conn, query, &it->select_result );
+    } while (lmgr_delayed_retry(p_mgr, rc));
+    if (rc) {
+        free(it);
         return NULL;
     }
-    else
-        return it;
+
+    return it;
 }

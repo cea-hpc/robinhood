@@ -31,11 +31,11 @@ int lmgr_simple_filter_init(lmgr_filter_t *p_filter)
     p_filter->filter_type = FILTER_SIMPLE;
 
     sf->filter_count = 0;
-    sf->filter_flags = MemCalloc(FILTER_PREALLOC_INIT, sizeof(int));
-    sf->filter_index = MemCalloc(FILTER_PREALLOC_INIT, sizeof(unsigned int));
-    sf->filter_compar = MemCalloc(FILTER_PREALLOC_INIT,
-                                  sizeof(filter_comparator_t));
-    sf->filter_value = MemCalloc(FILTER_PREALLOC_INIT, sizeof(filter_value_t));
+    sf->filter_flags = calloc(FILTER_PREALLOC_INIT, sizeof(*sf->filter_flags));
+    sf->filter_index = calloc(FILTER_PREALLOC_INIT, sizeof(*sf->filter_index));
+    sf->filter_compar = calloc(FILTER_PREALLOC_INIT,
+                               sizeof(*sf->filter_compar));
+    sf->filter_value = calloc(FILTER_PREALLOC_INIT, sizeof(*sf->filter_value));
 
     if (sf->filter_flags == NULL || sf->filter_index == NULL
         || sf->filter_compar == NULL || sf->filter_value == NULL)
@@ -91,13 +91,13 @@ static int lmgr_simple_filter_dup_buffers(lmgr_filter_t *p_filter,
     if ((comparator == LIKE) || (comparator == UNLIKE) || (comparator == RLIKE)
         || (comparator == ILIKE) || (comparator == IUNLIKE)) {
         int rc;
-        char *newstr = MemAlloc(strlen(p_value->value.val_str) + 1);
+        char *newstr = malloc(strlen(p_value->value.val_str) + 1);
 
         if (comparator != RLIKE) {
             /* value is a perl regexp, don't convert it */
             rc = convert_regexp(p_value->value.val_str, newstr);
             if (rc) {
-                MemFree(newstr);
+                free(newstr);
                 return rc;
             }
         } else
@@ -105,21 +105,20 @@ static int lmgr_simple_filter_dup_buffers(lmgr_filter_t *p_filter,
 
         /* free the previous string */
         if (flag & FILTER_FLAG_ALLOC_STR)
-            MemFree((char *)p_value->value.val_str);
+            free(p_value->value.val_str);
 
         /* mark the new string as releasable */
         sf->filter_flags[index] |= FILTER_FLAG_ALLOC_STR;
         sf->filter_value[index].value.val_str = newstr;
     } else if ((comparator == IN) || (comparator == NOTIN)) {
         /* allocate and copy the list */
-        db_type_u *values =
-            (db_type_u *) MemAlloc(p_value->list.count * sizeof(db_type_u));
+        db_type_u *values = malloc(p_value->list.count * sizeof(*values));
         memcpy(values, p_value->list.values,
-               p_value->list.count * sizeof(db_type_u));
+               p_value->list.count * sizeof(*values));
 
         /* free the previous list */
         if (flag & FILTER_FLAG_ALLOC_LIST)
-            MemFree((char *)p_value->list.values);
+            free(p_value->list.values);
 
         sf->filter_flags[index] |= FILTER_FLAG_ALLOC_LIST;
         sf->filter_value[index].list.values = values;
@@ -139,10 +138,10 @@ static void lmgr_simple_filter_free_buffers(lmgr_filter_t *p_filter,
     /* check if previous value must be released */
     if ((sf->filter_flags[index] & FILTER_FLAG_ALLOC_STR)
         && (sf->filter_value[index].value.val_str != NULL)) {
-        MemFree((char *)sf->filter_value[index].value.val_str);
+        free(sf->filter_value[index].value.val_str);
     } else if ((sf->filter_flags[index] & FILTER_FLAG_ALLOC_LIST)
             && (sf->filter_value[index].list.values != NULL)) {
-        MemFree((char *)sf->filter_value[index].list.values);
+        free(sf->filter_value[index].list.values);
     }
 }
 
@@ -157,20 +156,28 @@ int lmgr_simple_filter_add(lmgr_filter_t *p_filter, unsigned int attr_index,
         return DB_INVALID_ARG;
 
     if (sf->filter_count >= sf->prealloc) {
+        void tmp[4];
+        int i;
+
         /* double the size of the buffers */
         sf->prealloc *= 2;
-        sf->filter_flags = MemRealloc(sf->filter_flags,
-                                      sf->prealloc * sizeof(int));
-        sf->filter_index = MemRealloc(sf->filter_index,
-                                      sf->prealloc * sizeof(unsigned int));
-        sf->filter_compar = MemRealloc(sf->filter_compar,
-                                   sf->prealloc * sizeof(filter_comparator_t));
-        sf->filter_value = MemRealloc(sf->filter_value,
-                                   sf->prealloc * sizeof(filter_value_t));
+        tmp[0] = realloc(sf->filter_flags,
+                         sf->prealloc * sizeof(*sf->filter_flags));
+        tmp[1] = realloc(sf->filter_index,
+                         sf->prealloc * sizeof(*sf->filter_index));
+        tmp[2] = realloc(sf->filter_compar,
+                         sf->prealloc * sizeof(sf->filter_compar));
+        tmp[3] = realloc(sf->filter_value,
+                         sf->prealloc * sizeof(sf->filter_value));
 
-        if (sf->filter_flags == NULL || sf->filter_index == NULL
-            || sf->filter_compar == NULL || sf->filter_value == NULL)
-            return DB_NO_MEMORY;
+        for (i = 0; i < 4; i++) {
+            if (tmp[i] == NULL)
+                return ENOMEM;
+        }
+        sf->filter_flags = tmp[0];
+        sf->filter_index = tmp[1];
+        sf->filter_compar = tmp[2];
+        sf->filter_value = tmp[3];
     }
 
     sf->filter_flags[sf->filter_count] = flag;
@@ -286,13 +293,13 @@ int lmgr_simple_filter_free(lmgr_filter_t *p_filter)
         lmgr_simple_filter_free_buffers(p_filter, i);
 
     if (sf->filter_flags)
-        MemFree(sf->filter_flags);
+        free(sf->filter_flags);
     if (sf->filter_index)
-        MemFree(sf->filter_index);
+        free(sf->filter_index);
     if (sf->filter_compar)
-        MemFree(sf->filter_compar);
+        free(sf->filter_compar);
     if (sf->filter_value)
-        MemFree(sf->filter_value);
+        free(sf->filter_value);
     memset(p_filter, 0, sizeof(lmgr_filter_t));
     return 0;
 }

@@ -558,7 +558,7 @@ int criteria2filter(const compare_triplet_t *p_comp,
         if (add_root)
             len += strlen(global_config.fs_path) + 1;   /* root path + '/' */
 
-        new_str = MemAlloc(len + 3);    /* 3 => '/' '%' '\0' */
+        new_str = malloc(len + 3);    /* 3 => '/' '%' '\0' */
         *p_must_release = true;
 
         if (add_root)
@@ -588,7 +588,7 @@ int criteria2filter(const compare_triplet_t *p_comp,
         if (!IS_ABSOLUTE_PATH(p_comp->val.str)) {
             /* add root path */
             len = strlen(p_comp->val.str) + strlen(global_config.fs_path) + 1;
-            new_str = MemAlloc(len + 1);    /* +1 for \0 */
+            new_str = malloc(len + 1);    /* +1 for \0 */
             *p_must_release = true;
             sprintf(new_str, "%s/%s", global_config.fs_path, p_comp->val.str);
             p_value->value.val_str = new_str;

@@ -687,7 +687,7 @@ static CL_REC_TYPE *create_fake_unlink_record(const reader_thr_info_t *p_info,
     /* Build a simple changelog record with no extension (jobid, rename...).
      * So, just allocate enough space for the record and the source name. */
     name_len = strlen(rh_get_cl_cr_name(rec_in));
-    rec = MemAlloc(sizeof(CL_REC_TYPE) + name_len + 1);
+    rec = malloc(sizeof(CL_REC_TYPE) + name_len + 1);
     if (rec == NULL)
         return NULL;
 
@@ -737,7 +737,7 @@ static CL_REC_TYPE *create_fake_rename_record(const reader_thr_info_t *p_info,
     /* Build a simple changelog record with no extension (jobid, rename...).
      * So, just allocate enough space for the record and the source name. */
     sname_len = changelog_rec_snamelen(rec_in);
-    rec = MemAlloc(sizeof(CL_REC_TYPE) + sname_len + 1);
+    rec = malloc(sizeof(CL_REC_TYPE) + sname_len + 1);
     if (rec == NULL)
         return NULL;
 
@@ -1176,8 +1176,7 @@ int cl_reader_start(run_flags_t flags, int mdt_index)
     behavior_flags = flags;
 
     /* create thread params */
-    reader_info = (reader_thr_info_t *)MemCalloc(cl_reader_config.mdt_count,
-                                                  sizeof(reader_thr_info_t));
+    reader_info = calloc(cl_reader_config.mdt_count, sizeof(*reader_info));
 
     if (reader_info == NULL)
         return ENOMEM;

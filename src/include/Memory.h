@@ -26,20 +26,12 @@
 
 #include "BuddyMalloc.h"
 
-#define MemAlloc(_a)       BuddyMallocExit(_a)
-#define MemCalloc(_s1, _s2) BuddyCalloc(_s1, _s2)
-#define MemRealloc(_p, _s)   BuddyRealloc((caddr_t)(_p), _s)
-#define MemFree(_a)        BuddyFree((caddr_t) (_a))
 #define MemErrno            BuddyErrno
 
 #define GetPreferedPool(_n, _s)  BuddyPreferedPoolCount(_n, _s)
 
 #else
 
-#define MemAlloc(s)       malloc(s)
-#define MemCalloc(_n, _s)   calloc((_n), (_s))
-#define MemRealloc(p, s)  realloc(p, s)
-#define MemFree(p)        free(p)
 #define MemErrno            errno
 
 #define GetPreferedPool(_n, _s)  (_n)
@@ -83,7 +75,7 @@ do {                                                                      \
   _prefered = GetPreferedPool(_nb, sizeof(_type));                        \
   _pool= NULL ;                                                           \
                                                                           \
-  if ((_pool = (_type *)MemCalloc(_prefered, sizeof(_type))) != NULL) {   \
+  if ((_pool = calloc(_prefered, sizeof(_type))) != NULL) {               \
       memstats.nb_prealloc += _prefered ;                                 \
       for (_i = 0 ; _i < _prefered ; _i++) {                              \
           if (_i != _prefered - 1)                                        \

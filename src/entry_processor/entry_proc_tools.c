@@ -717,7 +717,7 @@ static void clear_stripe_info(attr_set_t *attrs)
     if (ATTR_MASK_TEST(attrs, stripe_items)) {
         /* free stripe structure */
         if (ATTR(attrs, stripe_items).stripe)
-            MemFree(ATTR(attrs, stripe_items).stripe);
+            free(ATTR(attrs, stripe_items).stripe);
         ATTR_MASK_UNSET(attrs, stripe_items);
     }
 }

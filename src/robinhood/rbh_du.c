@@ -571,7 +571,7 @@ static int list_content(char **id_list, int id_count)
     if (rc)
         return rc;
 
-    ids = MemCalloc(id_count, sizeof(wagon_t));
+    ids = calloc(id_count, sizeof(*ids));
     if (!ids)
         return -ENOMEM;
 
@@ -680,7 +680,7 @@ static int list_content(char **id_list, int id_count)
 
  out:
     /* ids have been processed, free them */
-    MemFree(ids);
+    free(ids);
     return rc;
 }
 

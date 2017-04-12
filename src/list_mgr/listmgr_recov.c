@@ -419,14 +419,14 @@ struct lmgr_iterator_t *ListMgr_RecovResume(lmgr_t *p_mgr, const char *dir_path,
     }
 
     /* allocate a new iterator */
-    it = (lmgr_iterator_t *) MemAlloc(sizeof(lmgr_iterator_t));
+    it = malloc(sizeof(*it));
     it->p_mgr = p_mgr;
 
     /* execute request */
     rc = db_exec_sql(&p_mgr->conn, query, &it->select_result);
 
     if (rc) {
-        MemFree(it);
+        free(it);
         return NULL;
     } else
         return it;
@@ -466,14 +466,14 @@ struct lmgr_iterator_t *ListMgr_RecovList(lmgr_t *p_mgr, recov_type_e st)
     }
 
     /* allocate a new iterator */
-    it = (lmgr_iterator_t *) MemAlloc(sizeof(lmgr_iterator_t));
+    it = malloc(sizeof(*it));
     it->p_mgr = p_mgr;
 
     /* execute request */
     rc = db_exec_sql(&p_mgr->conn, query, &it->select_result);
 
     if (rc) {
-        MemFree(it);
+        free(it);
         return NULL;
     } else
         return it;

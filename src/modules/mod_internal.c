@@ -159,7 +159,7 @@ static int builtin_copy_standard(const struct copy_info *cp_nfo,
     io_size = MAX2(cp_nfo->src_st.st_blksize, dst_st.st_blksize);
     DisplayLog(LVL_DEBUG, CP_TAG, "using IO size = %" PRI_SZ, io_size);
 
-    io_buff = MemAlloc(io_size);
+    io_buff = malloc(io_size);
     if (!io_buff) {
         rc = -ENOMEM;
         goto out_close;
@@ -218,7 +218,7 @@ static int builtin_copy_standard(const struct copy_info *cp_nfo,
         goto out_free;
 
  out_free:
-    MemFree(io_buff);
+    free(io_buff);
 
  out_close:
     if (flags & CP_COMPRESS)

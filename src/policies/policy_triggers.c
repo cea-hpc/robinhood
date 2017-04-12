@@ -531,9 +531,12 @@ static inline void ost_list_init(struct ost_list *l)
 
 static inline int ost_list_add(struct ost_list *l, unsigned int ost_idx)
 {
-    l->list = MemRealloc(l->list, (l->count + 1) * sizeof(*l->list));
-    if (!l->list)
+    void *tmp;
+
+    tmp = realloc(l->list, (l->count + 1) * sizeof(*l->list));
+    if (tmp == NULL)
         return ENOMEM;
+    l->list = tmp;
 
     l->list[l->count] = ost_idx;
     l->count++;
@@ -543,7 +546,7 @@ static inline int ost_list_add(struct ost_list *l, unsigned int ost_idx)
 static inline void ost_list_free(struct ost_list *l)
 {
     if (l->list)
-        MemFree(l->list);
+        free(l->list);
     l->list = NULL;
     l->count = 0;
 }
@@ -1614,7 +1617,7 @@ static void *targeted_run_thr(void *arg)
     /* this was allocated by the thread starter */
     DisplayLog(LVL_DEBUG, tag(targ->policy),
                "Policy run terminated with status %d", rc);
-    MemFree(arg);
+    free(arg);
     pthread_exit(NULL);
     return NULL;
 }
@@ -1880,9 +1883,8 @@ int policy_module_start(policy_info_t *policy, /* out */
      * (only if there is no a specific target)
      */
     if (options->target == TGT_NONE) {
-        policy->trigger_info =
-            (trigger_info_t *) MemCalloc(p_config->trigger_count,
-                                         sizeof(trigger_info_t));
+        policy->trigger_info = calloc(p_config->trigger_count,
+                                      sizeof(*policy->trigger_info));
         if (policy->trigger_info == NULL) {
             DisplayLog(LVL_CRIT, tag(policy), "Memory Error in %s", __func__);
             return ENOMEM;
@@ -1898,8 +1900,7 @@ int policy_module_start(policy_info_t *policy, /* out */
 
         /* This structure is to be released by the thread, once it used its
          * contents */
-        struct targeted_run_arg *thr_arg =
-            MemAlloc(sizeof(struct targeted_run_arg));
+        struct targeted_run_arg *thr_arg = malloc(sizeof(*thr_arg));
 
         if (thr_arg == NULL) {
             DisplayLog(LVL_CRIT, tag(policy), "Memory Error in %s", __func__);

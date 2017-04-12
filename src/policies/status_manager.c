@@ -36,7 +36,7 @@ void sm_status_ensure_alloc(char const ***p_tab)
     if (*p_tab != NULL || sm_inst_count == 0)
         return;
 
-    *p_tab = MemCalloc(sm_inst_count, sizeof(char *));
+    *p_tab = calloc(sm_inst_count, sizeof(**p_tab));
 }
 
 void sm_status_free(char const ***p_tab)
@@ -44,7 +44,7 @@ void sm_status_free(char const ***p_tab)
     if (*p_tab == NULL)
         return;
 
-    MemFree(*p_tab);
+    free(*p_tab);
     *p_tab = NULL;
 }
 
@@ -54,7 +54,7 @@ void sm_info_ensure_alloc(void ***p_tab)
     if (*p_tab != NULL || sm_attr_count == 0)
         return;
 
-    *p_tab = MemCalloc(sm_attr_count, sizeof(void *));
+    *p_tab = calloc(sm_attr_count, sizeof(**p_tab));
 }
 
 /** free info array */
@@ -68,7 +68,7 @@ void sm_info_free(void ***p_tab)
     for (i = 0; i < sm_attr_count; i++)
         free((*p_tab)[i]);  /* strdup -> free */
 
-    MemFree(*p_tab);
+    free(*p_tab);
     *p_tab = NULL;
 }
 
