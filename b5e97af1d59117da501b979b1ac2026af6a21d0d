@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "613ef31e_d7faf64b",
+        "filename": "src/include/list_mgr.h",
+        "patchSetId": 5
+      },
+      "lineNbr": 673,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-12T08:04:48Z",
+      "side": 1,
+      "message": "This is not the only parameter throughout the file that is not prefixed by \"p_\".",
+      "parentUuid": "f015431b_efe10097",
+      "revId": "b5e97af1d59117da501b979b1ac2026af6a21d0d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "017fb7b7_caadc1bf",
         "filename": "src/list_mgr/listmgr_common.c",
         "patchSetId": 5
@@ -30,6 +48,24 @@
       "writtenOn": "2017-04-12T06:27:07Z",
       "side": 1,
       "message": "operators at beginning of line is more readable",
+      "revId": "b5e97af1d59117da501b979b1ac2026af6a21d0d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "d99ae90c_8f5d0689",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 1008,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-12T08:04:48Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "017fb7b7_caadc1bf",
       "revId": "b5e97af1d59117da501b979b1ac2026af6a21d0d",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -59,6 +95,30 @@
     },
     {
       "key": {
+        "uuid": "81fc3a5c_ddc74694",
+        "filename": "src/list_mgr/listmgr_filters.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 160,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-12T08:04:48Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "495dba8a_6aa32d08",
+      "range": {
+        "startLine": 160,
+        "startChar": 73,
+        "endLine": 160,
+        "endChar": 75
+      },
+      "revId": "b5e97af1d59117da501b979b1ac2026af6a21d0d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "b67201d4_f9859295",
         "filename": "src/list_mgr/listmgr_iterators.c",
         "patchSetId": 5
@@ -76,6 +136,24 @@
     },
     {
       "key": {
+        "uuid": "8314ff4c_0deced58",
+        "filename": "src/list_mgr/listmgr_iterators.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 200,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-12T08:04:48Z",
+      "side": 1,
+      "message": "If you really want to, we can homogenize all prototypes to have pointer\u0027s name start with \"p_\" but that would have to be a project wide rule and it would have to be mentioned in the coding guidelines.\nShort of that, I don\u0027t think it makes sense maintaining a semi-homogeneity.",
+      "parentUuid": "b67201d4_f9859295",
+      "revId": "b5e97af1d59117da501b979b1ac2026af6a21d0d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "6eec382b_6d72a0c5",
         "filename": "src/list_mgr/listmgr_ns.c",
         "patchSetId": 5
@@ -87,6 +165,47 @@
       "writtenOn": "2017-04-12T06:27:07Z",
       "side": 1,
       "message": "I\u0027m surprised this part of the code is still indented like this",
+      "revId": "b5e97af1d59117da501b979b1ac2026af6a21d0d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "4fea13b3_b5760e32",
+        "filename": "src/list_mgr/listmgr_ns.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 143,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-12T08:04:48Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "6eec382b_6d72a0c5",
+      "revId": "b5e97af1d59117da501b979b1ac2026af6a21d0d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5b7023c7_c05e0ffa",
+        "filename": "src/list_mgr/listmgr_ns.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 228,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-12T08:04:48Z",
+      "side": 1,
+      "message": "Is it not dangerous to dereference this pointer before checking it is not NULL? (the check is right underneath)",
+      "range": {
+        "startLine": 228,
+        "startChar": 39,
+        "endLine": 228,
+        "endChar": 52
+      },
       "revId": "b5e97af1d59117da501b979b1ac2026af6a21d0d",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
