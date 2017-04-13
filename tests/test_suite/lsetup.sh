@@ -1,15 +1,10 @@
-#!/bin/sh
+#!/bin/bash
 
-HUDSON_DIR=$HUDSON_HOME
-NODE_LABEL=lustre
 export OSTSIZE=400000
 export OSTCOUNT=4
+LUSTRE_SRC_DIR=${LUSTRE_SRC_DIR:-/usr/lib64}
 
 if [[ "$1" == "mount" || -z "$1" ]]; then
-
-	if [[ -z "$LUSTRE_SRC_DIR" ]]; then
-		LUSTRE_SRC_DIR=/usr/lib64
-	fi
 
 	# moving to lustre test dir
 	if [[ -d $LUSTRE_SRC_DIR ]]; then
@@ -36,10 +31,6 @@ if [[ "$1" == "mount" || -z "$1" ]]; then
     exit $?
 
 elif [[ "$1" == "umount" ]]; then
-
-	if [[ -z "$LUSTRE_SRC_DIR" ]]; then
-		LUSTRE_SRC_DIR=$HUDSON_DIR/workspace/Lustre-2.0/label/$NODE_LABEL
-	fi
 
 	# moving to lustre test dir
 	if [[ -d $LUSTRE_SRC_DIR ]]; then
