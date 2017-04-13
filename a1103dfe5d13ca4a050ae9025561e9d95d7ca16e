@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "37b251e4_79882635",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 58,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "Done (note: not present in other modules)",
+      "parentUuid": "49de22db_2ba6e537",
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "e7c050e1_4db62035",
         "filename": "src/modules/modeguard.c",
         "patchSetId": 4
@@ -36,6 +54,24 @@
     },
     {
       "key": {
+        "uuid": "c746baa7_9758c47c",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 59,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "not changing to be more coherent with existing alerter and checker modules (and I don\u0027t think there is any condition in this module that actually checks the status)",
+      "parentUuid": "e7c050e1_4db62035",
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "14641c55_c55979e2",
         "filename": "src/modules/modeguard.c",
         "patchSetId": 4
@@ -47,6 +83,30 @@
       "writtenOn": "2017-04-11T07:35:47Z",
       "side": 1,
       "message": "(minor) not needed in C files",
+      "range": {
+        "startLine": 82,
+        "startChar": 7,
+        "endLine": 82,
+        "endChar": 13
+      },
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "f8ae4296_c9be53aa",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 82,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "of course! done- note that this comes from a copy/paste as there are a few of them in src/modules/*.c",
+      "parentUuid": "14641c55_c55979e2",
       "range": {
         "startLine": 82,
         "startChar": 7,
@@ -82,6 +142,30 @@
     },
     {
       "key": {
+        "uuid": "cfb71b9d_ef16a146",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 95,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "gerrit artifact",
+      "parentUuid": "d758e4f6_d57073b4",
+      "range": {
+        "startLine": 95,
+        "startChar": 0,
+        "endLine": 95,
+        "endChar": 25
+      },
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "a084c923_0ec862bd",
         "filename": "src/modules/modeguard.c",
         "patchSetId": 4
@@ -93,6 +177,30 @@
       "writtenOn": "2017-04-11T07:35:47Z",
       "side": 1,
       "message": "...",
+      "range": {
+        "startLine": 96,
+        "startChar": 0,
+        "endLine": 96,
+        "endChar": 25
+      },
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7cd1fd7e_83ca9635",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 96,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "gerrit artifact",
+      "parentUuid": "a084c923_0ec862bd",
       "range": {
         "startLine": 96,
         "startChar": 0,
@@ -122,6 +230,24 @@
     },
     {
       "key": {
+        "uuid": "67b89cac_8199184a",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 104,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "7ceda210_016ba4cf",
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "dac26faa_260cbda0",
         "filename": "src/modules/modeguard.c",
         "patchSetId": 4
@@ -133,6 +259,30 @@
       "writtenOn": "2017-04-11T07:35:47Z",
       "side": 1,
       "message": "(style) we usually declare one variable per line",
+      "range": {
+        "startLine": 127,
+        "startChar": 17,
+        "endLine": 127,
+        "endChar": 27
+      },
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "c14e77bc_50c11087",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 127,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "dac26faa_260cbda0",
       "range": {
         "startLine": 127,
         "startChar": 17,
@@ -168,6 +318,30 @@
     },
     {
       "key": {
+        "uuid": "a39ec3b2_5486e6cd",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 134,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "not high enough! changed to LVL_MAJOR as it shouldn\u0027t happen (the policy scope should be directory only for now). If lowering to LVL_DEBUG, the risk is that the admin won\u0027t notice and Robinhood will consume a lot of CPU time for nothing.",
+      "parentUuid": "5e3ccb61_118bdba0",
+      "range": {
+        "startLine": 134,
+        "startChar": 19,
+        "endLine": 134,
+        "endChar": 28
+      },
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "48a005fa_527c0f7a",
         "filename": "src/modules/modeguard.c",
         "patchSetId": 4
@@ -179,6 +353,24 @@
       "writtenOn": "2017-04-11T07:35:47Z",
       "side": 1,
       "message": "I would de-couple this check to ease troubleshooting in case it\u0027s hit",
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "3f44201a_86f8cd59",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 139,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "Done, and much better indeed",
+      "parentUuid": "48a005fa_527c0f7a",
       "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -202,6 +394,24 @@
     },
     {
       "key": {
+        "uuid": "59df0809_835d821b",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 141,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "227b5d40_3da0779f",
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "ece48a1b_fec1f085",
         "filename": "src/modules/modeguard.c",
         "patchSetId": 4
@@ -213,6 +423,30 @@
       "writtenOn": "2017-04-11T07:35:47Z",
       "side": 1,
       "message": "you better do! ;)",
+      "range": {
+        "startLine": 145,
+        "startChar": 35,
+        "endLine": 145,
+        "endChar": 56
+      },
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "c0e46183_74133347",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 145,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "ece48a1b_fec1f085",
       "range": {
         "startLine": 145,
         "startChar": 35,
@@ -248,6 +482,30 @@
     },
     {
       "key": {
+        "uuid": "662fac29_91b956bc",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 151,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "175d0483_316e9091",
+      "range": {
+        "startLine": 151,
+        "startChar": 57,
+        "endLine": 151,
+        "endChar": 59
+      },
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "586980b1_c2b86df2",
         "filename": "src/modules/modeguard.c",
         "patchSetId": 4
@@ -265,6 +523,24 @@
     },
     {
       "key": {
+        "uuid": "0fd2f5d0_7293ec52",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 153,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "tried but that turns ugly, I think the code is clear enough here and errno shouldn\u0027t be a problem",
+      "parentUuid": "586980b1_c2b86df2",
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "07887ea7_0169543c",
         "filename": "src/modules/modeguard.c",
         "patchSetId": 4
@@ -276,6 +552,30 @@
       "writtenOn": "2017-04-11T07:35:47Z",
       "side": 1,
       "message": "idem quotes",
+      "range": {
+        "startLine": 154,
+        "startChar": 61,
+        "endLine": 154,
+        "endChar": 63
+      },
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "46ef26ee_023a78ee",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 154,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "07887ea7_0169543c",
       "range": {
         "startLine": 154,
         "startChar": 61,
@@ -311,6 +611,30 @@
     },
     {
       "key": {
+        "uuid": "48fb9157_0162e1ae",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 155,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "37e8d880_2ce10dd9",
+      "range": {
+        "startLine": 155,
+        "startChar": 24,
+        "endLine": 155,
+        "endChar": 26
+      },
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "51e03323_f894ee3f",
         "filename": "src/modules/modeguard.c",
         "patchSetId": 4
@@ -322,6 +646,30 @@
       "writtenOn": "2017-04-11T07:35:47Z",
       "side": 1,
       "message": "() not needed",
+      "range": {
+        "startLine": 175,
+        "startChar": 8,
+        "endLine": 175,
+        "endChar": 9
+      },
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "004b030d_6b88a9b2",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 175,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "done but please note this style can be found in lhsm.c:lhsm_cl_cb()",
+      "parentUuid": "51e03323_f894ee3f",
       "range": {
         "startLine": 175,
         "startChar": 8,
@@ -357,6 +705,30 @@
     },
     {
       "key": {
+        "uuid": "9c40c51f_895ad783",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 185,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "ae3c1d3a_f2f720ea",
+      "range": {
+        "startLine": 185,
+        "startChar": 0,
+        "endLine": 185,
+        "endChar": 38
+      },
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "3b8eddef_1d2fba5c",
         "filename": "src/modules/modeguard.c",
         "patchSetId": 4
@@ -368,6 +740,30 @@
       "writtenOn": "2017-04-11T07:35:47Z",
       "side": 1,
       "message": "can tmp be NULL (like left untouched on error or something)?\n\nAlso, I think there are more error cases to check. Cf. man strtol",
+      "range": {
+        "startLine": 192,
+        "startChar": 23,
+        "endLine": 192,
+        "endChar": 26
+      },
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "1b17b19f_f37a17e7",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 192,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "not sure to fully understand, but yes the second argument of strtol may be NULL, and actually I started with that at the beginning but however in that case I don\u0027t have any way to check some conversion errors.  man strtol says \"if *nptr is not \u0027\\0\u0027 but **endptr is \u0027\\0\u0027 on return, the entire string is valid.\", also ERANGE is set in case of underflow and overflow... EINVAL is not always supported and not needed if endptr is used, IMHO\n\nI think my code is not too bad.\n\nA link about strtol usage: http://stackoverflow.com/questions/9445171/strtol-using-errno",
+      "parentUuid": "3b8eddef_1d2fba5c",
       "range": {
         "startLine": 192,
         "startChar": 23,
@@ -403,6 +799,30 @@
     },
     {
       "key": {
+        "uuid": "32fbbf7a_357ca0e2",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 193,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "4ab78519_c0b64c9f",
+      "range": {
+        "startLine": 193,
+        "startChar": 73,
+        "endLine": 193,
+        "endChar": 75
+      },
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "44502f5b_fe9626a0",
         "filename": "src/modules/modeguard.c",
         "patchSetId": 4
@@ -414,6 +834,30 @@
       "writtenOn": "2017-04-11T07:35:47Z",
       "side": 1,
       "message": "-EINVAL?",
+      "range": {
+        "startLine": 195,
+        "startChar": 15,
+        "endLine": 195,
+        "endChar": 21
+      },
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "91b82197_93e29edc",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 195,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "44502f5b_fe9626a0",
       "range": {
         "startLine": 195,
         "startChar": 15,
@@ -449,6 +893,30 @@
     },
     {
       "key": {
+        "uuid": "ec3eadfa_8c3f9d43",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 204,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "d9dde097_0cf2fe6f",
+      "range": {
+        "startLine": 204,
+        "startChar": 41,
+        "endLine": 204,
+        "endChar": 62
+      },
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "7a45d97b_3edbdfbf",
         "filename": "src/modules/modeguard.c",
         "patchSetId": 4
@@ -460,6 +928,24 @@
       "writtenOn": "2017-04-11T07:35:47Z",
       "side": 1,
       "message": "not needed",
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "59eb93c0_d741c9de",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 216,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "Done - please note this is a copy/paste from modules/lhsm.c",
+      "parentUuid": "7a45d97b_3edbdfbf",
       "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -483,6 +969,24 @@
     },
     {
       "key": {
+        "uuid": "aa2c2748_2b9c0bb9",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 222,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "1c6e37e4_484db79d",
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "8e841524_5749f4f8",
         "filename": "src/modules/modeguard.c",
         "patchSetId": 4
@@ -494,6 +998,24 @@
       "writtenOn": "2017-04-11T07:35:47Z",
       "side": 1,
       "message": "(style) missing blank line",
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "2f72c90a_28719de5",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 229,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "8e841524_5749f4f8",
       "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -517,6 +1039,24 @@
     },
     {
       "key": {
+        "uuid": "0f398b00_26c56318",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 237,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "73361c97_cf115eb0",
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "4abfeb89_61e05767",
         "filename": "src/modules/modeguard.c",
         "patchSetId": 4
@@ -528,6 +1068,30 @@
       "writtenOn": "2017-04-11T07:35:47Z",
       "side": 1,
       "message": "I would find %s better",
+      "range": {
+        "startLine": 276,
+        "startChar": 47,
+        "endLine": 276,
+        "endChar": 61
+      },
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "6bfa22bb_129e9cf8",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 276,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "4abfeb89_61e05767",
       "range": {
         "startLine": 276,
         "startChar": 47,
@@ -574,6 +1138,54 @@
       "writtenOn": "2017-04-11T17:12:07Z",
       "side": 1,
       "message": "I agree, a more specific naming would be welcome.",
+      "parentUuid": "37c97959_8ac6f09f",
+      "range": {
+        "startLine": 330,
+        "startChar": 39,
+        "endLine": 330,
+        "endChar": 45
+      },
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "95f9983a_3f5638b4",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 330,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "a2ac8981_087cfa2c",
+      "range": {
+        "startLine": 330,
+        "startChar": 39,
+        "endLine": 330,
+        "endChar": 45
+      },
+      "revId": "a1103dfe5d13ca4a050ae9025561e9d95d7ca16e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "2aa9c15c_6ca01b3a",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 330,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-13T05:38:13Z",
+      "side": 1,
+      "message": "I like when there is \"action\" in the name, to make things clear in the config for the user. I will change it to modeguard.enforce_action",
       "parentUuid": "37c97959_8ac6f09f",
       "range": {
         "startLine": 330,
