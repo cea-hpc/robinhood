@@ -1,0 +1,50 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "b495f778_f2a3d8ae",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 135,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-13T06:28:44Z",
+      "side": 1,
+      "message": "Couldn\u0027t it be used for files (for example if I want to prevent users to have files writtable for other)? If this is a site specific reason, it should only be controlled by the scope.",
+      "range": {
+        "startLine": 135,
+        "startChar": 37,
+        "endLine": 135,
+        "endChar": 48
+      },
+      "revId": "4bf6663999e85238c1e8ab38adeba3f269361df4",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "59e094f7_26a2cff0",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 343,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-13T06:28:44Z",
+      "side": 1,
+      "message": "Don\u0027t you find it clear:\n\n action \u003d modeguard.enforce_mode;",
+      "range": {
+        "startLine": 343,
+        "startChar": 39,
+        "endLine": 343,
+        "endChar": 53
+      },
+      "revId": "4bf6663999e85238c1e8ab38adeba3f269361df4",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
