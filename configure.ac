@@ -350,8 +350,6 @@ if test "x$support_lustre" = "xyes" ; then
         if test "x$have_lustre_hsm" = "xyes"; then
             AC_DEFINE([_LUSTRE_HSM], [1], [Lustre/HSM feature is present])
             build_lhsm="ON"
-            # only needed for Lustre/HSM
-            PKG_CHECK_MODULES([LIBUUID], [uuid >= 2.17])
         fi
 
         # test if library is available for shook mode
