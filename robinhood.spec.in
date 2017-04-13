@@ -81,9 +81,6 @@ BuildRequires: %{lpackage} >= %{lversion}
 %else
 BuildRequires: %{lpackage}
 %endif
-%if %{with lhsm}
-BuildRequires: libuuid-devel
-%endif
 %endif
 %if %{with mysql}
 BuildRequires: /usr/include/mysql/mysql.h

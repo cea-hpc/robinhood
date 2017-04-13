@@ -32,7 +32,6 @@
 #include <glib.h>
 #include <sys/types.h>
 #include <attr/xattr.h>
-#include <uuid/uuid.h>
 
 /* config block name */
 #define LHSM_BLOCK "lhsm_config"

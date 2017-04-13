@@ -1,4 +1,4 @@
-AM_CFLAGS= $(CC_OPT) $(DB_CFLAGS) $(PURPOSE_CFLAGS) @LIBUUID_CFLAGS@
+AM_CFLAGS= $(CC_OPT) $(DB_CFLAGS) $(PURPOSE_CFLAGS)
 
 pkglib_LTLIBRARIES=
 
@@ -23,7 +23,7 @@ if LUSTRE_HSM
 pkglib_LTLIBRARIES+=librbh_mod_lhsm.la
 librbh_mod_lhsm_la_SOURCES=lhsm.c mod_internal.c mod_internal.h
 librbh_mod_lhsm_la_LDFLAGS=-version-info 0:0:0
-librbh_mod_lhsm_la_LIBADD=-llustreapi @LIBUUID_LIBS@
+librbh_mod_lhsm_la_LIBADD=-llustreapi
 endif
 if HSM_LITE
 pkglib_LTLIBRARIES+=librbh_mod_backup.la
