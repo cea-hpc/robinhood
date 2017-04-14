@@ -25,6 +25,30 @@
     },
     {
       "key": {
+        "uuid": "fbf32b3d_4de2675e",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 135,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-14T05:22:52Z",
+      "side": 1,
+      "message": "I totally agree and I will remove this restriction! I can\u0027t remember why I put that condition here actually.",
+      "parentUuid": "b495f778_f2a3d8ae",
+      "range": {
+        "startLine": 135,
+        "startChar": 37,
+        "endLine": 135,
+        "endChar": 48
+      },
+      "revId": "4bf6663999e85238c1e8ab38adeba3f269361df4",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "59e094f7_26a2cff0",
         "filename": "src/modules/modeguard.c",
         "patchSetId": 5
@@ -36,6 +60,30 @@
       "writtenOn": "2017-04-13T06:28:44Z",
       "side": 1,
       "message": "Don\u0027t you find it clear:\n\n action \u003d modeguard.enforce_mode;",
+      "range": {
+        "startLine": 343,
+        "startChar": 39,
+        "endLine": 343,
+        "endChar": 53
+      },
+      "revId": "4bf6663999e85238c1e8ab38adeba3f269361df4",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "84c4829b_1f74a23b",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 343,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-14T05:22:52Z",
+      "side": 1,
+      "message": "putting that way, that looks fine to me ;)",
+      "parentUuid": "59e094f7_26a2cff0",
       "range": {
         "startLine": 343,
         "startChar": 39,
