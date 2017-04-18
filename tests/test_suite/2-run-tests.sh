@@ -190,7 +190,8 @@ function wait_stable_df
 
     $LFS df $RH_ROOT > /tmp/lfsdf.1
     while (( 1 )); do
-        sleep 1
+        # df is updated about every 2sec
+        sleep 2
         $LFS df $RH_ROOT > /tmp/lfsdf.2
         diff /tmp/lfsdf.1 /tmp/lfsdf.2 > /dev/null && break
         echo "waiting for df update..."
@@ -12208,43 +12209,91 @@ function TEST_OTHER_PARAMETERS_4
     umount -f $BKROOT
 }
 
+function assert_nb_scan
+{
+    local log=$1
+    local expect=$2
+
+    grep -E "Starting scan|Full scan of" $log >&2
+
+    local nb_scan=`grep "Starting scan of" $log | wc -l`
+    if (( $nb_scan != $expect )); then
+        error "********** TEST FAILED (LOG): $nb_scan scan detected,"\
+              "but $expect expected"
+        return 1
+    else
+        echo "OK: $nb_scan scan started"
+    fi
+    return 0
+}
+
+function get_scan_interval
+{
+    local log=$1
+    local pid=$2
+    local interv=""
+
+    # make robinhood dump current scan interval in its log
+    kill -USR1 $pid
+    while  [ -z "$interv" ]; do
+        sleep 1
+        interv=$(grep "scan interval" $log | awk '{print $(NF)}' |
+                 sed -e "s/s$//" | sed -e "s/^0\([^0]\)/\1/g")
+    done
+    echo "current scan interval: $interv sec" >&2
+    echo $interv
+}
+
 function TEST_OTHER_PARAMETERS_5
 {
-	# Test for many parameters
-	# 	TEST_OTHER_PARAMETERS_5 config_file
-	#=>
-	# config_file == config file name
+    # Test for many parameters
+    #     TEST_OTHER_PARAMETERS_5 config_file
+    #=>
+    # config_file == config file name
 
-	config_file=$1
+    config_file=$1
 
     if (( ($shook + $is_lhsm) == 0 )); then
-		echo "No TEST_OTHER_PARAMETERS_5 for this purpose: skipped"
-		set_skipped
-		return 1
-	fi
-
-	clean_logs
-
-    echo "Launch scan in background..."
-	$RH -f $RBH_CFG_DIR/$config_file --scan --check-thresholds=purge -l DEBUG -L rh_scan.log &
-	pid=$!
-
-	sleep 2
-
-	nbError=0
-	nb_scan=`grep "Starting scan of" rh_scan.log | wc -l`
-	if (( $nb_scan != 1 )); then
-        error "********** TEST FAILED (LOG): $nb_scan scan detected, but 1 expected"
-        ((nbError++))
+        echo "No TEST_OTHER_PARAMETERS_5 for this purpose: skipped"
+        set_skipped
+        return 1
     fi
 
-	echo "sleep 60 seconds"
-	sleep 60
+    clean_logs
+    # make sure the initial scan interval in based on empty FS
+    wait_stable_df
 
+    echo "Launch scan in background..."
+    $RH -f $RBH_CFG_DIR/$config_file --scan --check-thresholds=purge -l DEBUG \
+        -L rh_scan.log 2>/dev/null &
+    local pid=$!
+
+    # wait for scan to actually start
+    sleep 1
+
+    nbError=0
+    assert_nb_scan rh_scan.log 1 || ((nbError++))
+
+    # make robinhood dump current scan interval in its log
+    local interv=$(get_scan_interval rh_scan.log $pid)
+    ((interv++))
+
+    echo "sleeping $interv seconds"
+    sleep $interv 
+
+    # terminate the process and flush its log
+    kill $pid
+    sleep 1
+    # check there was a second scan
+    assert_nb_scan rh_scan.log 2 || ((nbError++))
+
+    kill -9 $pid 2>/dev/null
+
+    # create files to fullfill the FS
     echo "Create files"
-	elem=`$LFS df $RH_ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
-	limit=60
-	indice=1
+    elem=`$LFS df $RH_ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+    limit=50
+    indice=1
     while (( $elem < $limit ))
     do
         dd if=/dev/zero of=$RH_ROOT/file.$indice bs=10M count=1 >/dev/null 2>/dev/null
@@ -12258,17 +12307,28 @@ function TEST_OTHER_PARAMETERS_5
         ((indice++))
     done
 
-	echo "sleep 60 seconds"
-	sleep 60
+    :> rh_scan.log
 
-	nbError=0
-	nb_scan=`grep "Starting scan of" rh_scan.log | wc -l`
-	if (( $nb_scan != 3 )); then
-        error "********** TEST FAILED (LOG): $nb_scan scan detected, but 3 expected"
-        ((nbError++))
-    fi
+    echo "Launch scan in background..."
+    $RH -f $RBH_CFG_DIR/$config_file --scan --check-thresholds=purge -l DEBUG \
+        -L rh_scan.log 2>/dev/null &
+    pid=$!
 
-	if (($nbError == 0 )); then
+    sleep 2
+    local interv2=$(get_scan_interval rh_scan.log $pid)
+    ((interv2++))
+
+    # interv2 is expected to be smaller than interv
+    # as the FS is more full
+    (( $interv2 <= $interv )) || error "2nd scan interval should be smaller"
+
+    echo "sleep $interv2 seconds"
+    sleep $interv2
+
+    # should start 2 scans (1 initial + 1 after 3sec)
+    assert_nb_scan rh_scan.log 2 || ((nbError++))
+
+    if (($nbError == 0 )); then
         echo "OK: test successful"
     else
         error "********** TEST FAILED **********"
