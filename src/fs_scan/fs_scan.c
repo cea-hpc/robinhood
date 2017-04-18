@@ -1790,6 +1790,9 @@ int Robinhood_CheckScanDeadlines(void)
     time_t loc_last_action;
     time_t now;
 
+    /* compute scan interval (depending on last usage max) */
+    UpdateMaxUsage();
+
     /* Get scan info */
 
     /* lock on scan status */
@@ -1849,9 +1852,6 @@ int Robinhood_CheckScanDeadlines(void)
                    "scan running: started at %s, last action: %s", tmp_buff,
                    tmp_buff2);
     }
-
-    /* compute scan interval (depending on last usage max) */
-    UpdateMaxUsage();
 
     if (loc_scan_complete && !loc_scan_running
         && (now - loc_last_scan_time >= scan_interval)) {
@@ -2001,6 +2001,9 @@ int Robinhood_CheckScanDeadlines(void)
  */
 void Robinhood_StatsScan(robinhood_fsscan_stat_t *p_stats)
 {
+    /* compute scan interval (depending on last usage max) */
+    UpdateMaxUsage();
+
     /* lock scan info */
     P(lock_scan);
 
