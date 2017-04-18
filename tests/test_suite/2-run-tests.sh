@@ -192,7 +192,7 @@ function wait_stable_df
 
     $LFS df $RH_ROOT > /tmp/lfsdf.1
     while (( 1 )); do
-        sleep 5
+        sleep 1
         $LFS df $RH_ROOT > /tmp/lfsdf.2
         diff /tmp/lfsdf.1 /tmp/lfsdf.2 > /dev/null && break
         echo "waiting for df update..."
@@ -213,7 +213,9 @@ fi
 
 PROC=$CMD
 
-CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log rh_syntax.log recov.log rh_scan.log /tmp/rh_alert.log rh_rmdir.log rh.log"
+LOGS=(rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log
+      rh_syntax.log recov.log rh_scan.log /tmp/rh_alert.log rh_rmdir.log
+      rh.log)
 
 SUMMARY="/tmp/test_${PROC}_summary.$$"
 
@@ -260,9 +262,9 @@ function set_skipped
 function clean_logs
 {
     local f
-	for f in $CLEAN; do
-		if [ -s $f ]; then
-			cp /dev/null $f
+	for f in "${LOGS[@]}"; do
+		if [ -s "$f" ]; then
+			cp /dev/null "$f"
 		fi
 	done
 }
@@ -3025,7 +3027,8 @@ function update_test
 		clean_logs
 
 		# start log reader (DEBUG level displays needed attrs)
-		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L $LOG --detach \
+            --pid-file=rh.pid 2>/dev/null || error ""
 
 		start=`date "+%s"`
 		# generate a lot of MTIME events within 'event_updt_min'
@@ -3071,7 +3074,8 @@ function update_test
 		clean_logs
 
 		# start log reader (DEBUG level displays needed attrs)
-		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L $LOG \
+            --detach --pid-file=rh.pid 2>/dev/null || error ""
 
 		start=`date "+%s"`
 		# generate a lot of TIME events within 'event_updt_min'
@@ -3106,7 +3110,8 @@ function update_test
 	clean_logs
 
 	# check that getattr+getpath are performed after update_period, even if the event is not related:
-	$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || error ""
+	$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L $LOG --detach \
+        --pid-file=rh.pid 2>/dev/null || error ""
 	sleep $update_period
 
 	if (( $is_lhsm != 0 )); then
@@ -9283,14 +9288,14 @@ function run_test
 			echo "(TEST #$index : skipped)" >> $SUMMARY
 			SKIP=$(($SKIP+1))
 		elif (( $NB_ERROR > 0 )); then
-			grep "Failed" $CLEAN 2>/dev/null
+			grep "Failed" ${LOGS[*]} 2>/dev/null
 			echo "TEST #$index : *FAILED*" >> $SUMMARY
 			RC=$(($RC+1))
 			if (( $junit )); then
 				junit_report_failure "robinhood.$PURPOSE.Lustre" "Test #$index: $title" "$dur" "ERROR"
 			fi
 		else
-			grep "Failed" $CLEAN 2>/dev/null
+			grep "Failed" ${LOGS[*]} 2>/dev/null
 			echo "TEST #$index : OK" >> $SUMMARY
 			SUCCESS=$(($SUCCESS+1))
 			if (( $junit )); then
@@ -11778,7 +11783,7 @@ run_test 101b 	test_info_collect2  info_collect2.conf	2 "readlog/scan x2"
 run_test 101c 	test_info_collect2  info_collect2.conf	3 "readlog x2 / scan x2"
 run_test 101d 	test_info_collect2  info_collect2.conf	4 "scan x2 / readlog x2"
 run_test 101e 	test_info_collect2  info_collect2.conf	5 "diff+apply x2"
-run_test 102	update_test test_updt.conf 5 30 "db update policy"
+run_test 102	update_test test_updt.conf 3 14 "db update policy"
 run_test 103a    test_acct_table common.conf 5 "" "Acct table and triggers creation (default)"
 run_test 103b    test_acct_table acct.conf 5 "yes" "Acct table and triggers creation (accounting ON)"
 run_test 103c    test_acct_table acct.conf 5 "no" "Acct table and triggers creation (accounting OFF)"
