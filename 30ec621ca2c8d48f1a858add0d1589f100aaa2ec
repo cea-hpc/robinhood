@@ -1,0 +1,50 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "a6bf4d7b_0d03c572",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 5
+      },
+      "lineNbr": 466,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2017-04-18T15:47:13Z",
+      "side": 1,
+      "message": "2 spaces?",
+      "range": {
+        "startLine": 466,
+        "startChar": 4,
+        "endLine": 466,
+        "endChar": 6
+      },
+      "revId": "30ec621ca2c8d48f1a858add0d1589f100aaa2ec",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "f36214b1_d0ea9c41",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 5
+      },
+      "lineNbr": 472,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2017-04-18T15:47:13Z",
+      "side": 1,
+      "message": "ditto.",
+      "range": {
+        "startLine": 472,
+        "startChar": 4,
+        "endLine": 472,
+        "endChar": 6
+      },
+      "revId": "30ec621ca2c8d48f1a858add0d1589f100aaa2ec",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
