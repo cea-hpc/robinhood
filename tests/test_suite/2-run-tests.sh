@@ -192,7 +192,7 @@ function wait_stable_df
 
     $LFS df $RH_ROOT > /tmp/lfsdf.1
     while (( 1 )); do
-        sleep 5
+        sleep 1
         $LFS df $RH_ROOT > /tmp/lfsdf.2
         diff /tmp/lfsdf.1 /tmp/lfsdf.2 > /dev/null && break
         echo "waiting for df update..."
@@ -213,7 +213,9 @@ fi
 
 PROC=$CMD
 
-CLEAN="rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log rh_syntax.log recov.log rh_scan.log /tmp/rh_alert.log rh_rmdir.log rh.log"
+LOGS=(rh_chglogs.log rh_migr.log rh_rm.log rh.pid rh_purge.log rh_report.log
+      rh_syntax.log recov.log rh_scan.log /tmp/rh_alert.log rh_rmdir.log
+      rh.log)
 
 SUMMARY="/tmp/test_${PROC}_summary.$$"
 
@@ -260,9 +262,9 @@ function set_skipped
 function clean_logs
 {
     local f
-	for f in $CLEAN; do
-		if [ -s $f ]; then
-			cp /dev/null $f
+	for f in "${LOGS[@]}"; do
+		if [ -s "$f" ]; then
+			cp /dev/null "$f"
 		fi
 	done
 }
@@ -3002,142 +3004,156 @@ function path_test
 		&& echo "OK: test successful"
 }
 
+
+
 function update_test
 {
-	config_file=$1
-	event_updt_min=$2
-	update_period=$3
-	policy_str="$4"
+    config_file=$1
+    event_updt_min=$2
+    update_period=$3
+    policy_str="$4"
 
-	init=`date "+%s"`
+    init=`date "+%s"`
 
-	LOG=rh_chglogs.log
+    LOG=rh_chglogs.log
 
-	if (( $no_log )); then
-		echo "changelog disabled: skipped"
-		set_skipped
-		return 1
-	fi
+    if (( $no_log )); then
+        echo "changelog disabled: skipped"
+        set_skipped
+        return 1
+    fi
 
-	for i in `seq 1 3`; do
-		t=$(( `date "+%s"` - $init ))
-		echo "loop 1.$i: many 'touch' within $event_updt_min sec (t=$t)"
-		clean_logs
+    for i in `seq 1 3`; do
+        # force emptying the log
+        $LFS changelog_clear lustre-MDT0000 cl1 0
 
-		# start log reader (DEBUG level displays needed attrs)
-		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || error ""
+        t=$(( `date "+%s"` - $init ))
+        echo "loop 1.$i: many 'touch' within $event_updt_min sec (t=$t)"
+        clean_logs
 
-		start=`date "+%s"`
-		# generate a lot of MTIME events within 'event_updt_min'
-		# => must only update once
-		while (( `date "+%s"` - $start < $event_updt_min - 2 )); do
-			touch $RH_ROOT/file
-			usleep 10000
-		done
+        # start log reader (DEBUG level displays needed attrs)
+        $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L $LOG --detach \
+            --pid-file=rh.pid 2>/dev/null || error ""
 
-		# force flushing log
-		sleep 1
-		pkill $PROC
-		sleep 1
-		t=$(( `date "+%s"` - $init ))
+        start=`date "+%s"`
+        # generate a lot of MTIME events within 'event_updt_min'
+        # => must only update once
+        while (( `date "+%s"` - $start < $event_updt_min - 2 )); do
+            touch $RH_ROOT/file
+            usleep 10000
+        done
 
-		nb_getattr=`grep getattr=1 $LOG | wc -l`
-		egrep -e "getattr=1|needed because" $LOG
-		echo "nb attr update: $nb_getattr"
+        # force flushing log
+        sleep 1
+        pkill $PROC
+        sleep 1
+        t=$(( `date "+%s"` - $init ))
 
-		expect_attr=1
-		(( $shook != 0 && $i == 1 )) && expect_attr=4 # .shook dir, .shook/restripe dir, .shook/locks dir
+        nb_getattr=`grep getattr=1 $LOG | wc -l`
+        egrep -e "getattr=1|needed because" $LOG
+        echo "nb attr update: $nb_getattr"
 
-		(( $nb_getattr == $expect_attr )) || error "********** TEST FAILED: wrong count of getattr: $nb_getattr (t=$t), expected=$expect_attr"
-		# the path may be retrieved at the first loop (at creation)
-		# but not during the next loop (as long as elapsed time < update_period)
-		if (( $i > 1 )) && (( `date "+%s"` - $init < $update_period )); then
-			nb_getpath=`grep getpath=1 $LOG | wc -l`
-			grep "getpath=1" $LOG
-			echo "nb path update: $nb_getpath"
-			(( $nb_getpath == 0 )) || error "********** TEST FAILED: wrong count of getpath: $nb_getpath (t=$t), expected=0"
-		fi
+        expect_attr=1
+        (( $shook != 0 && $i == 1 )) && expect_attr=4 # .shook dir, .shook/restripe dir, .shook/locks dir
 
-		# wait for 5s to be fully elapsed
-		while (( `date "+%s"` - $start <= $event_updt_min )); do
-			usleep 100000
-		done
-	done
+        (( $nb_getattr == $expect_attr )) || error "********** TEST FAILED: wrong count of getattr: $nb_getattr (t=$t), expected=$expect_attr"
+        # the path may be retrieved at the first loop (at creation)
+        # but not during the next loop (as long as elapsed time < update_period)
+        if (( $i > 1 )) && (( `date "+%s"` - $init < $update_period )); then
+            nb_getpath=`grep getpath=1 $LOG | wc -l`
+            grep "getpath=1" $LOG
+            echo "nb path update: $nb_getpath"
+            (( $nb_getpath == 0 )) || error "********** TEST FAILED: wrong count of getpath: $nb_getpath (t=$t), expected=0"
+        fi
 
-	init=`date "+%s"`
+        # wait for 5s to be fully elapsed
+        while (( `date "+%s"` - $start <= $event_updt_min )); do
+            usleep 100000
+        done
+    done
 
-	for i in `seq 1 3`; do
-		echo "loop 2.$i: many 'rename' within $event_updt_min sec"
-		clean_logs
+    init=`date "+%s"`
 
-		# start log reader (DEBUG level displays needed attrs)
-		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || error ""
+    for i in `seq 1 3`; do
+        # force emptying the log
+        $LFS changelog_clear lustre-MDT0000 cl1 0
 
-		start=`date "+%s"`
-		# generate a lot of TIME events within 'event_updt_min'
-		# => must only update once
-		while (( `date "+%s"` - $start < $event_updt_min - 2 )); do
-			mv $RH_ROOT/file $RH_ROOT/file.2
-			usleep 10000
-			mv $RH_ROOT/file.2 $RH_ROOT/file
-			usleep 10000
-		done
+        echo "loop 2.$i: many 'rename' within $event_updt_min sec"
+        clean_logs
 
-		# force flushing log
-		sleep 1
-		pkill $PROC
-		sleep 1
+        # start log reader (DEBUG level displays needed attrs)
+        $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L $LOG \
+            --detach --pid-file=rh.pid 2>/dev/null || error ""
 
-		nb_getpath=`grep getpath=1 $LOG | wc -l`
-		echo "nb path update: $nb_getpath"
+        start=`date "+%s"`
+        # generate a lot of TIME events within 'event_updt_min'
+        # => must only update once
+        while (( `date "+%s"` - $start < $event_updt_min - 2 )); do
+            mv $RH_ROOT/file $RH_ROOT/file.2
+            usleep 10000
+            mv $RH_ROOT/file.2 $RH_ROOT/file
+            usleep 10000
+        done
+
+        # force flushing log
+        sleep 1
+        pkill $PROC
+        sleep 1
+
+        nb_getpath=`grep getpath=1 $LOG | wc -l`
+        echo "nb path update: $nb_getpath"
         # no getpath expected as rename records provide name info
-		(( $nb_getpath == 0 )) || error "********** TEST FAILED: wrong count of getpath: $nb_getpath"
+        (( $nb_getpath == 0 )) || error "********** TEST FAILED: wrong count of getpath: $nb_getpath"
 
-		# attributes may be retrieved at the first loop (at creation)
-		# but not during the next loop (as long as elapsed time < update_period)
-		if (( $i > 1 )) && (( `date "+%s"` - $init < $update_period )); then
-			nb_getattr=`grep getattr=1 $LOG | wc -l`
-			echo "nb attr update: $nb_getattr"
-			(( $nb_getattr == 0 )) || error "********** TEST FAILED: wrong count of getattr: $nb_getattr"
-		fi
-	done
+        # attributes may be retrieved at the first loop (at creation)
+        # but not during the next loop (as long as elapsed time < update_period)
+        if (( $i > 1 )) && (( `date "+%s"` - $init < $update_period )); then
+            nb_getattr=`grep getattr=1 $LOG | wc -l`
+            echo "nb attr update: $nb_getattr"
+            (( $nb_getattr == 0 )) || error "********** TEST FAILED: wrong count of getattr: $nb_getattr"
+        fi
+    done
 
-	echo "Waiting $update_period seconds..."
-	clean_logs
+    # force emptying the log
+    $LFS changelog_clear lustre-MDT0000 cl1 0
 
-	# check that getattr+getpath are performed after update_period, even if the event is not related:
-	$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L $LOG --detach --pid-file=rh.pid || error ""
-	sleep $update_period
+    echo "Waiting $update_period seconds..."
+    clean_logs
 
-	if (( $is_lhsm != 0 )); then
-		# chg something different that path or POSIX attributes
-		$LFS hsm_set --noarchive $RH_ROOT/file
-	else
-		touch $RH_ROOT/file
-	fi
+    # check that getattr+getpath are performed after update_period, even if the event is not related:
+    $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L $LOG --detach \
+        --pid-file=rh.pid 2>/dev/null || error ""
+    sleep $update_period
 
-	# force flushing log
-	sleep 1
-	pkill $PROC
-	sleep 1
+    if (( $is_lhsm != 0 )); then
+        # chg something different that path or POSIX attributes
+        $LFS hsm_set --noarchive $RH_ROOT/file
+    else
+        touch $RH_ROOT/file
+    fi
 
-	nb_getattr=`grep getattr=1 $LOG | wc -l`
-	echo "nb attr update: $nb_getattr"
-	(( $nb_getattr == 1 )) || error "********** TEST FAILED: wrong count of getattr: $nb_getattr"
-	nb_getpath=`grep getpath=1 $LOG | wc -l`
-	echo "nb path update: $nb_getpath"
-	(( $nb_getpath == 1 )) || error "********** TEST FAILED: wrong count of getpath: $nb_getpath"
+    # force flushing log
+    sleep 1
+    pkill $PROC
+    sleep 1
 
-	if (( $is_lhsm != 0 )); then
-		# also check that the status is to be retrieved
-		nb_getstatus=`grep "getstatus(lhsm)" $LOG | wc -l`
-		echo "nb status update: $nb_getstatus"
-		(( $nb_getstatus == 1 )) || error "********** TEST FAILED: wrong count of getstatus: $nb_getstatus"
-	fi
+    nb_getattr=`grep getattr=1 $LOG | wc -l`
+    echo "nb attr update: $nb_getattr"
+    (( $nb_getattr == 1 )) || error "********** TEST FAILED: wrong count of getattr: $nb_getattr"
+    nb_getpath=`grep getpath=1 $LOG | wc -l`
+    echo "nb path update: $nb_getpath"
+    (( $nb_getpath == 1 )) || error "********** TEST FAILED: wrong count of getpath: $nb_getpath"
 
-	# kill remaining event handler
-	sleep 1
-	pkill -9 $PROC
+    if (( $is_lhsm != 0 )); then
+        # also check that the status is to be retrieved
+        nb_getstatus=`grep "getstatus(lhsm)" $LOG | wc -l`
+        echo "nb status update: $nb_getstatus"
+        (( $nb_getstatus == 1 )) || error "********** TEST FAILED: wrong count of getstatus: $nb_getstatus"
+    fi
+
+    # kill remaining event handler
+    sleep 1
+    pkill -9 $PROC
 }
 
 function periodic_class_match_migr
@@ -9283,14 +9299,14 @@ function run_test
 			echo "(TEST #$index : skipped)" >> $SUMMARY
 			SKIP=$(($SKIP+1))
 		elif (( $NB_ERROR > 0 )); then
-			grep "Failed" $CLEAN 2>/dev/null
+			grep "Failed" ${LOGS[*]} 2>/dev/null
 			echo "TEST #$index : *FAILED*" >> $SUMMARY
 			RC=$(($RC+1))
 			if (( $junit )); then
 				junit_report_failure "robinhood.$PURPOSE.Lustre" "Test #$index: $title" "$dur" "ERROR"
 			fi
 		else
-			grep "Failed" $CLEAN 2>/dev/null
+			grep "Failed" ${LOGS[*]} 2>/dev/null
 			echo "TEST #$index : OK" >> $SUMMARY
 			SUCCESS=$(($SUCCESS+1))
 			if (( $junit )); then
@@ -11778,7 +11794,7 @@ run_test 101b 	test_info_collect2  info_collect2.conf	2 "readlog/scan x2"
 run_test 101c 	test_info_collect2  info_collect2.conf	3 "readlog x2 / scan x2"
 run_test 101d 	test_info_collect2  info_collect2.conf	4 "scan x2 / readlog x2"
 run_test 101e 	test_info_collect2  info_collect2.conf	5 "diff+apply x2"
-run_test 102	update_test test_updt.conf 5 30 "db update policy"
+run_test 102	update_test test_updt.conf 3 14 "db update policy"
 run_test 103a    test_acct_table common.conf 5 "" "Acct table and triggers creation (default)"
 run_test 103b    test_acct_table acct.conf 5 "yes" "Acct table and triggers creation (accounting ON)"
 run_test 103c    test_acct_table acct.conf 5 "no" "Acct table and triggers creation (accounting OFF)"
