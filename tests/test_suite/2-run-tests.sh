@@ -10180,34 +10180,27 @@ function trigger_purge_OST_QUOTA_EXCEEDED
     fi
 
 	clean_logs
+    # make sure df is up to date
+    wait_stable_df
 
-	echo "1-Create Pools ..."
-	create_pools
-
-	echo "Calculate big string"
-	aaa="azertyuiopqsdfghjklmwxcvbn"
-	for i in `seq 0 2000`; do
-        aaa="$aaa azertyuiop"
-    done
-
-	echo "2-Create Files ..."
+	echo "1-Fullfilling OST#0 up to 80%..."
 	elem=`$LFS df $RH_ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
 	limit=80
 	indice=1
     while [ $elem -lt $limit ]
     do
-        $LFS setstripe -p lustre.$POOL1 $RH_ROOT/file.$indice -c 1 >/dev/null 2>/dev/null
-        for i in `seq 0 200`; do
-		    echo "$aaa$aaa$aaa" >> $RH_ROOT/file.$indice
-            sync
-	    done
+        $LFS setstripe -o 0 $RH_ROOT/file.$indice -c 1 >/dev/null 2>/dev/null
+        dd if=/dev/zero of=$RH_ROOT/file.$indice bs=10M count=1 \
+            conv=sync >/dev/null 2>/dev/null
         unset elem
 	    elem=`$LFS df $RH_ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
+        [ "$DEBUG" = "1" ] && echo "used: $elem, target: $limit"
         ((indice++))
     done
 
-    echo "2-Reading changelogs and Applying purge trigger policy..."
-	$RH -f $RBH_CFG_DIR/$config_file --scan --check-thresholds=purge -l DEBUG -L rh_purge.log --once
+    echo "2-Applying purge trigger policy..."
+	$RH -f $RBH_CFG_DIR/$config_file --scan --check-thresholds=purge -l DEBUG \
+        -L rh_purge.log --once 2>/dev/null
 
     countMigrLog=`grep "High threshold reached on OST #0" rh_purge.log | wc -l`
     if (($countMigrLog == 0)); then
@@ -11425,6 +11418,11 @@ function TEST_OTHER_PARAMETERS_1
     fi
 }
 
+function get_nb_stat
+{
+    grep "STATS" $1 | grep "Dumping stats at" | wc -l
+}
+
 function TEST_OTHER_PARAMETERS_2
 {
 	# Test for many parameters
@@ -11444,56 +11442,63 @@ function TEST_OTHER_PARAMETERS_2
 
 	echo "Create Files ..."
     for i in `seq 1 5` ; do
-    	dd if=/dev/zero of=$RH_ROOT/file.$i bs=10M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+    	dd if=/dev/zero of=$RH_ROOT/file.$i bs=10M count=1 >/dev/null \
+            2>/dev/null || error "writing file.$i"
 	done
     for i in `seq 6 10` ; do
     	touch $RH_ROOT/file.$i
 	done
 
 	sleep 1
-	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once \
+        2>/dev/null
 
 	echo "Migrate files"
-	$RH -f $RBH_CFG_DIR/$config_file --run=migration -l DEBUG -L rh_migr.log &
+	$RH -f $RBH_CFG_DIR/$config_file --run=migration -l DEBUG -L rh_migr.log \
+        2>/dev/null &
 	pid=$!
 
-	sleep 5
-    (( $is_lhsm > 0 )) && wait_done 60
+    if (( $is_lhsm > 0 )); then
+        sleep 2
+        wait_done 60
+    else
+	    sleep 5
+    fi
 
     nbError=0
 	count=`find $BKROOT -type f -not -name "*.lov" | wc -l`
     if (( $count != 10 )); then
-        error "********** TEST FAILED (File System): $count files migrated, but 10 expected"
+        error "********** TEST FAILED (File System): $count files migrated,"\
+              "but 10 expected"
         ((nbError++))
     fi
 
     # Migration dans fs
     countMigrLog=`grep "$ARCH_STR" rh_migr.log | wc -l`
     if (( $countMigrLog != 10 )); then
-        error "********** TEST FAILED (Log): $countMigrLog files migrated, but 10 expected"
+        error "********** TEST FAILED (Log): $countMigrLog files migrated,"\
+              "but 10 expected"
         ((nbError++))
     fi
 
     #comptage du nombre de "STATS"
-    nb_Stats=`grep "STATS" rh_migr.log | wc -l`
+    nb_Stats=$(get_nb_stat rh_migr.log)
 
-	echo "Sleep 30 seconds"
-	sleep 30
+	echo "Sleep 5.5 seconds"
+	usleep 5500000
 
     #comptage du nombre de "STATS"
-    nb_Stats2=`grep "STATS" rh_migr.log | wc -l`
-	if (( $nb_Stats2 <= $nb_Stats )); then
-        error "********** TEST FAILED (Stats): $nb_Stats2 \"STATS\" detected, but more than $nb_Stats \"STATS\" expected"
+    nb_Stats2=$(get_nb_stat rh_migr.log)
+	if (( $nb_Stats2 != $nb_Stats + 1 )); then
+        error "********** TEST FAILED (Stats): $nb_Stats2 \"STATS\" detected,"\
+              "but $nb_Stats + 1 \"STATS\" expected"
         ((nbError++))
     fi
-
-	echo "Sleep 30 seconds"
-	sleep 30
-
 
 	count=`find $BKROOT -type f  -not -name "*.lov" | wc -l`
     if (( $count != 10 )); then
-        error "********** TEST FAILED (File System): $count files migrated, but 10 expected"
+        error "********** TEST FAILED (File System): $count files migrated, "\
+              "but 10 expected"
         ((nbError++))
     fi
 
@@ -11525,17 +11530,20 @@ function TEST_OTHER_PARAMETERS_3
 
 	echo "Create Files ..."
     for i in `seq 1 5` ; do
-    	dd if=/dev/zero of=$RH_ROOT/file.$i bs=1K count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+    	dd if=/dev/zero of=$RH_ROOT/file.$i bs=1K count=1 >/dev/null \
+            2>/dev/null || error "writing file.$i"
 	done
 
 	echo "Archives files"
-	$RH -f $RBH_CFG_DIR/$config_file --scan --run=migration --target=all --once -l DEBUG -L rh_migr.log
+	$RH -f $RBH_CFG_DIR/$config_file --scan --run=migration --target=all \
+        --once -l DEBUG -L rh_migr.log 2>/dev/null
     (( $is_lhsm > 0 )) && wait_done 60
 
 	nbError=0
 	count=`find $BKROOT -type f  -not -name "*.lov" | wc -l`
     if (( $count != 5 )); then
-        error "********** TEST FAILED (File System): $count files migrated, but 5 expected"
+        error "********** TEST FAILED (File System): $count files migrated,"\
+              "but 5 expected"
         ((nbError++))
     fi
 
@@ -11546,21 +11554,25 @@ function TEST_OTHER_PARAMETERS_3
     	rm -f $RH_ROOT/file.$i && rmd+=($f)
 	done
 
-	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log \
+        --once 2>/dev/null
 
-	echo "sleep 31 seconds"
-	sleep 31
+    # wait rm_time + 1
+	echo "sleep 6 seconds"
+	sleep 6
 
 	echo "HSM Remove"
-	$RH -f $RBH_CFG_DIR/$config_file --run=hsm_remove -l DEBUG -L rh_purge.log &
+	$RH -f $RBH_CFG_DIR/$config_file --run=hsm_remove -l DEBUG \
+        -L rh_purge.log 2>/dev/null &
 	pid=$!
 
-	echo "sleep 5 seconds"
-	sleep 5
+    # make sure hsm remove pass finished
+	sleep 2
 
 	nb_Remove=`grep "$HSMRM_STR" rh_purge.log | wc -l`
 	if (( $nb_Remove != 4 )); then
-        error "********** TEST FAILED (LOG): $nb_Remove remove detected, but 4 expected"
+        error "********** TEST FAILED (LOG): $nb_Remove remove detected,"\
+              "but 4 expected"
         ((nbError++))
     fi
 
@@ -11579,16 +11591,19 @@ function TEST_OTHER_PARAMETERS_3
         ((countRemainFile+=$found))
 	done
     if (($countRemainFile != 1)); then
-        error "********** TEST FAILED (File System): Wrong count of remaining files: $countRemainFile (1 expected)"
+        error "********** TEST FAILED (File System): Wrong count of "\
+              "remaining files: $countRemainFile (1 expected)"
         ((nbError++))
     fi
 
-	echo "sleep 61 seconds"
-	sleep 61
+    # wait check_interval +1
+	echo "sleep 11 seconds"
+	sleep 11
 
 	nb_Remove=`grep "$HSMRM_STR" rh_purge.log | wc -l`
 	if (( $nb_Remove != 5 )); then
-        error "********** TEST FAILED (LOG): $nb_Remove remove detected, but 5 expected"
+        error "********** TEST FAILED (LOG): $nb_Remove remove detected,"\
+              "but 5 expected"
         ((nbError++))
     fi
 
@@ -11602,7 +11617,8 @@ function TEST_OTHER_PARAMETERS_3
         ((countRemainFile+=$found))
 	done
     if (($countRemainFile != 0)); then
-        error "********** TEST FAILED (File System): Wrong count of remaining files: $countRemainFile (0 expected)"
+        error "********** TEST FAILED (File System): Wrong count of "\
+              "remaining files: $countRemainFile (0 expected)"
         ((nbError++))
     fi
 
