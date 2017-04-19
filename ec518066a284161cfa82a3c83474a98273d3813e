@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "7ecd4bd6_7dc9d863",
+        "filename": "src/policies/policy_run.c",
+        "patchSetId": 14
+      },
+      "lineNbr": 898,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-19T11:26:13Z",
+      "side": 1,
+      "message": "This ALLOW_NULL flag should be removed.",
+      "revId": "ec518066a284161cfa82a3c83474a98273d3813e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
