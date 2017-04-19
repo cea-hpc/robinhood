@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "d9254742_a9a5fd44",
+        "filename": "src/policies/policy_run.c",
+        "patchSetId": 16
+      },
+      "lineNbr": 909,
+      "author": {
+        "id": 1009999
+      },
+      "writtenOn": "2017-04-19T13:07:02Z",
+      "side": 1,
+      "message": "Since we do not want ALLOW_NULL,does it make sense to keep this ?\nshouln\u0027t be just FILTER_FLAG_NOT",
+      "range": {
+        "startLine": 908,
+        "startChar": 16,
+        "endLine": 909,
+        "endChar": 57
+      },
+      "revId": "b0ef1e0bfafe84ac0a95ff406aae4fb6b9df2714",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
