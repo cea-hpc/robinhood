@@ -22,6 +22,30 @@
       "revId": "b0ef1e0bfafe84ac0a95ff406aae4fb6b9df2714",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "82955da7_85b70348",
+        "filename": "src/policies/policy_run.c",
+        "patchSetId": 16
+      },
+      "lineNbr": 909,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-19T13:31:07Z",
+      "side": 1,
+      "message": "Unlike negated blocks, this simple case is supposed to be handled correctly and should be converted to:\n (NOT (x \u003ccmp\u003e \u003cval\u003e) OR x IS NULL)\n\n(see listmgr_common.c, line 1350)\n\nThe wrong case we want to avoid is:\n NOT (x \u003ccmp\u003e \u003cval\u003e OR x IS NULL)",
+      "parentUuid": "d9254742_a9a5fd44",
+      "range": {
+        "startLine": 908,
+        "startChar": 16,
+        "endLine": 909,
+        "endChar": 57
+      },
+      "revId": "b0ef1e0bfafe84ac0a95ff406aae4fb6b9df2714",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
