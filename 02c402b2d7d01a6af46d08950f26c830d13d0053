@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "401923ca_c50332e9",
+        "filename": "autogen.sh",
+        "patchSetId": 4
+      },
+      "lineNbr": 9,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-19T13:57:45Z",
+      "side": 1,
+      "message": "(quibbling) ln\u0027s man page uses target to refer to the first argument: the path where the link will point. You use it the other way around.\n\n(quibbling) I think using full words is also a better pratice.",
+      "range": {
+        "startLine": 9,
+        "startChar": 10,
+        "endLine": 9,
+        "endChar": 18
+      },
+      "revId": "02c402b2d7d01a6af46d08950f26c830d13d0053",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
