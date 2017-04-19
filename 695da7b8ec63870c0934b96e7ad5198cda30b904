@@ -1,0 +1,73 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "501a35af_6fe14704",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 8
+      },
+      "lineNbr": 4149,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-19T12:52:36Z",
+      "side": 1,
+      "message": "For reproducibility, it might be better to use a large value here so that the test is not impacted by a congested CPU. (1 year for example) the test configuration should be updated accordingly.",
+      "range": {
+        "startLine": 4149,
+        "startChar": 14,
+        "endLine": 4149,
+        "endChar": 22
+      },
+      "revId": "695da7b8ec63870c0934b96e7ad5198cda30b904",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9328f032_3216b950",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 8
+      },
+      "lineNbr": 4149,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-19T12:52:36Z",
+      "side": 1,
+      "message": "2? ($RH_ROOT/file1 is not used)",
+      "range": {
+        "startLine": 4149,
+        "startChar": 39,
+        "endLine": 4149,
+        "endChar": 40
+      },
+      "revId": "695da7b8ec63870c0934b96e7ad5198cda30b904",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "69c3533f_b325d970",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 8
+      },
+      "lineNbr": 4213,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-04-19T12:52:36Z",
+      "side": 1,
+      "message": "following the logic above, there should not be a \"-q\" flag here",
+      "range": {
+        "startLine": 4213,
+        "startChar": 13,
+        "endLine": 4213,
+        "endChar": 15
+      },
+      "revId": "695da7b8ec63870c0934b96e7ad5198cda30b904",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
