@@ -4925,13 +4925,15 @@ function test_info_collect
 	# read changelogs
 	if (( $no_log )); then
 		echo "1-Scanning..."
-		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log \
+            --once 2>/dev/null || error "scan"
 		nb_cr=0
 	else
         [ "$DEBUG" = "1" ] && $LFS changelog lustre
 		echo "1-Reading changelogs..."
 		#$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
-		$RH -f $RBH_CFG_DIR/$config_file --readlog -l FULL -L rh_chglogs.log  --once || error ""
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l FULL -L rh_chglogs.log  \
+            --once 2>/dev/null || error "readlog"
 		nb_cr=4
 	fi
 	check_db_error rh_chglogs.log
@@ -4977,7 +4979,8 @@ function test_info_collect
 	clean_logs
 
 	echo "2-Scanning..."
-	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log \
+        --once 2>/dev/null || error "scan"
 	check_db_error rh_chglogs.log
 
 	grep "DB query failed" rh_chglogs.log && error ": a DB query failed when scanning"
@@ -4999,8 +5002,11 @@ function readlog_chk
 	local config_file=$1
 
 	echo "Reading changelogs..."
-	$RH -f $RBH_CFG_DIR/$config_file --readlog -l FULL -L rh_chglogs.log  --once || error "reading logs"
-	grep "DB query failed" rh_chglogs.log && error ": a DB query failed: `grep 'DB query failed' rh_chglogs.log | tail -1`"
+	$RH -f $RBH_CFG_DIR/$config_file --readlog -l FULL -L rh_chglogs.log \
+        --once 2>/dev/null || error "reading logs"
+	grep "DB query failed" rh_chglogs.log &&
+        error ": a DB query failed:" \
+              "`grep 'DB query failed' rh_chglogs.log | tail -1`"
 	clean_logs
 }
 
@@ -5009,8 +5015,11 @@ function scan_chk
 	local config_file=$1
 
 	echo "Scanning..."
-        $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error "scanning filesystem"
-	grep "DB query failed" rh_chglogs.log && error ": a DB query failed: `grep 'DB query failed' rh_chglogs.log | tail -1`"
+        $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log \
+            --once 2>/dev/null || error "scanning filesystem"
+	grep "DB query failed" rh_chglogs.log &&
+        error ": a DB query failed:" \
+            "`grep 'DB query failed' rh_chglogs.log | tail -1`"
 	clean_logs
 }
 
@@ -5044,9 +5053,11 @@ function empty_fs
 
 function test_info_collect2
 {
-	config_file=$1
-	flavor=$2
-	policy_str="$3"
+	local config_file=$1
+	local flavor=$2
+	local policy_str="$3"
+
+    local fcount=2000
 
 	clean_logs
 
@@ -5056,8 +5067,9 @@ function test_info_collect2
 		return 1
 	fi
 
-	# create 10k entries
-	$RBH_TESTS_DIR/fill_fs.sh $RH_ROOT 10000 >/dev/null
+	# create 5k entries
+    echo "Creating $fcount files..."
+	$RBH_TESTS_DIR/fill_fs.sh $RH_ROOT $fcount >/dev/null
 
 	# flavor 1: scan only x3
 	# flavor 2: mixed (readlog/scan/readlog/scan)
@@ -5067,9 +5079,9 @@ function test_info_collect2
 
 	if (( $flavor == 1 )); then
 		scan_chk $config_file
-        check_fcount 10000
+        check_fcount $fcount
 		scan_chk $config_file
-        check_fcount 10000
+        check_fcount $fcount
         empty_fs
         # sleep 1 to ensure md_update >= 1s
         sleep 1
@@ -5077,13 +5089,13 @@ function test_info_collect2
         check_fcount 0
 	elif (( $flavor == 2 )); then
 		readlog_chk $config_file
-        check_fcount 10000
+        check_fcount $fcount
 		scan_chk    $config_file
-        check_fcount 10000
+        check_fcount $fcount
 		# touch entries before reading log
-		$RBH_TESTS_DIR/fill_fs.sh $RH_ROOT 10000 >/dev/null
+		$RBH_TESTS_DIR/fill_fs.sh $RH_ROOT $fcount >/dev/null
 		readlog_chk $config_file
-        check_fcount 10000
+        check_fcount $fcount
         empty_fs
         # sleep 1 to ensure md_update >= 1s
         sleep 1
@@ -5091,13 +5103,13 @@ function test_info_collect2
         check_fcount 0
 	elif (( $flavor == 3 )); then
 		readlog_chk $config_file
-        check_fcount 10000
+        check_fcount $fcount
 		# touch entries before reading log again
-		$RBH_TESTS_DIR/fill_fs.sh $RH_ROOT 10000 >/dev/null
+		$RBH_TESTS_DIR/fill_fs.sh $RH_ROOT $fcount >/dev/null
 		readlog_chk $config_file
-        check_fcount 10000
+        check_fcount $fcount
 		scan_chk    $config_file
-        check_fcount 10000
+        check_fcount $fcount
         empty_fs
         # sleep 1 to ensure md_update >= 1s
         sleep 1
@@ -5105,17 +5117,17 @@ function test_info_collect2
         check_fcount 0
 	elif (( $flavor == 4 )); then
 		scan_chk    $config_file
-        check_fcount 10000
+        check_fcount $fcount
 		scan_chk    $config_file
-        check_fcount 10000
+        check_fcount $fcount
 		readlog_chk $config_file
-        check_fcount 10000
+        check_fcount $fcount
         empty_fs
 		readlog_chk $config_file
         check_fcount 0
 	elif (( $flavor == 5 )); then
         diff_chk $config_file
-        check_fcount 10000
+        check_fcount $fcount
         empty_fs
         # sleep 1 to ensure md_update >= 1s
         sleep 1
