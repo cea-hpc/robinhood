@@ -4291,7 +4291,8 @@ function test_cnt_trigger
 	if (( $is_hsmlite != 0 )); then
         # this mode may create an extra inode in filesystem: initial scan
         # to take it into account
-		$RH -f $RBH_CFG_DIR/$config_file --scan --once -l MAJOR -L rh_scan.log || error "executing $CMD --scan"
+		$RH -f $RBH_CFG_DIR/$config_file --scan --once -l MAJOR -L rh_scan.log \
+            2>/dev/null || error "executing $CMD --scan"
 		check_db_error rh_scan.log
     fi
 
@@ -4304,7 +4305,8 @@ function test_cnt_trigger
 
 	#create test tree of archived files (1M each)
 	for i in `seq 1 $file_count`; do
-		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing $RH_ROOT/file.$i"
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=1 >/dev/null \
+            2>/dev/null || error "writing $RH_ROOT/file.$i"
 
 		if (( $is_lhsm != 0 )); then
 			$LFS hsm_archive $RH_ROOT/file.$i
@@ -4320,11 +4322,13 @@ function test_cnt_trigger
 
 	if (( $is_hsmlite != 0 )); then
         # scan and sync
-		$RH -f $RBH_CFG_DIR/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+		$RH -f $RBH_CFG_DIR/$config_file --scan $SYNC_OPT -l DEBUG \
+            -L rh_migr.log 2>/dev/null || error "executing $CMD --sync"
 		check_db_error rh_migr.log
     else
        	# scan
-	    	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log || error "executing $CMD --scan"
+	    	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG \
+            -L rh_chglogs.log 2>/dev/null || error "executing $CMD --scan"
 		check_db_error rh_chglogs.log
     fi
 
@@ -4679,6 +4683,19 @@ function check_released
 	return 0
 }
 
+function wait_run_count
+{
+    local log=$1
+    local cnt=$2
+
+    # wait for end of run
+    while (( $(grep "End of current pass" $log | wc -l) < $cnt )); do
+        echo "waiting end of pass..."
+        sleep 1
+        continue
+    done
+}
+
 function test_periodic_trigger
 {
     config_file=$1
@@ -4687,7 +4704,6 @@ function test_periodic_trigger
 
     clean_logs
 
-    t0=`date +%s`
     echo "1-Populating filesystem..."
     # create 3 files of each type
     # (*.1, *.2, *.3, *.4)
@@ -4703,34 +4719,41 @@ function test_periodic_trigger
     done
 
     if (( $is_lhsm != 0 )); then
-        wait_done 60 || error "Copy timeout"
+        wait_done 20 || error "Copy timeout"
     fi
 
+    t0=`date +%s`
 
     # scan
     echo "2-Populating robinhood database (scan)..."
     if (( $is_hsmlite != 0 )); then
         # scan and sync
-        $RH -f $RBH_CFG_DIR/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+        $RH -f $RBH_CFG_DIR/$config_file --scan $SYNC_OPT -l DEBUG \
+            -L rh_migr.log 2>/dev/null || error "executing $CMD --sync"
           check_db_error rh_migr.log
     else
-        $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log || error "executing $CMD --scan"
+        $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log \
+            2>/dev/null || error "executing $CMD --scan"
           check_db_error rh_scan.log
     fi
 
-    # make sure files are old enough
-    sleep 2
+    # make sure files *.1 are old enough
+    sleep 1
 
     # start periodic trigger in background
     echo "3.1-checking trigger for first policy run..."
-    $RH -f $RBH_CFG_DIR/$config_file --run=purge -l DEBUG -L rh_purge.log &
-    sleep 2
+    $RH -f $RBH_CFG_DIR/$config_file --run=purge -l DEBUG -L rh_purge.log \
+        2>/dev/null &
+    sleep 1
 
     t1=`date +%s`
     ((delta=$t1 - $t0))
 
     clean_caches # blocks is cached
     # it first must have purged *.1 files (not others)
+
+    wait_run_count rh_purge.log 1
+
     check_released "$RH_ROOT/file.1" || error "$RH_ROOT/file.1 should have been released after $delta s"
     check_released "$RH_ROOT/foo.1"  || error "$RH_ROOT/foo.1 should have been released after $delta s"
     check_released "$RH_ROOT/bar.1"  || error "$RH_ROOT/bar.1 should have been released after $delta s"
@@ -4739,9 +4762,11 @@ function test_periodic_trigger
     check_released "$RH_ROOT/bar.2"  && error "$RH_ROOT/bar.2 shouldn't have been released after $delta s"
 
     ((sleep_time=$sleep_time-$delta))
-    sleep $(( $sleep_time + 5 ))
+    sleep $(( $sleep_time + 2 ))
     # now, *.2 must have been purged
     echo "3.2-checking trigger for second policy run..."
+
+    wait_run_count rh_purge.log 2
 
     t2=`date +%s`
     ((delta=$t2 - $t0))
@@ -4754,12 +4779,13 @@ function test_periodic_trigger
     check_released "$RH_ROOT/foo.3"  && error "$RH_ROOT/foo.3 shouldn't have been released after $delta s"
     check_released "$RH_ROOT/bar.3" && error "$RH_ROOT/bar.3 shouldn't have been released after $delta s"
 
-    # wait 20 more secs (so another purge policy is applied)
-    sleep 20
+    # wait 4 more secs (so another purge policy is applied)
+    sleep 4
     # now, it's *.3
     # *.4 must be preserved
     echo "3.3-checking trigger for third policy..."
 
+    wait_run_count rh_purge.log 3
     t3=`date +%s`
     ((delta=$t3 - $t0))
 
@@ -4774,8 +4800,8 @@ function test_periodic_trigger
     # final check: 3x "Policy run summary: [...] 3 successful actions"
     nb_pass=$(grep -c "Checking trigger " rh_purge.log)
     # trig count should be (elapsed/period) +/- 1
-    min_trig=$(($delta/10 - 1))
-    max_trig=$(($delta/10 + 1))
+    min_trig=$(($delta/5 - 1))
+    max_trig=$(($delta/5 + 1))
     if (( $nb_pass < $min_trig )) || (( $nb_pass > $max_trig )); then
         error "unexpected trigger count $nb_pass (in $delta sec)"
     else
@@ -12010,7 +12036,7 @@ run_test 233   test_basic_sm     test_basic.conf  "Test basic status manager"
 run_test 300	test_cnt_trigger test_trig.conf 151 21 "trigger on file count"
 run_test 301    test_ost_trigger test_trig2.conf 150 110 "trigger on OST usage"
 run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5 10 40
-run_test 303    test_periodic_trigger test_trig4.conf 35 "periodic trigger"
+run_test 303    test_periodic_trigger test_trig4.conf 5 "periodic trigger"
 run_test 304    test_ost_order test_trig2.conf "OST purge order"
 
 
