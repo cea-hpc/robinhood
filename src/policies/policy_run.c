@@ -1731,6 +1731,43 @@ static int single_file_run(policy_info_t *pol, lmgr_t *lmgr,
     return 0;
 }
 
+/** Execute pre/post policy command */
+static void execute_prepost_run_command(const policy_info_t *policy,
+                                        char **command,
+                                        const char *pre)
+{
+    char *descr = NULL;
+    char **cmd;
+    char *log_cmd;
+    int rc;
+
+    if (command == NULL)
+        /* nothing to do */
+        return;
+
+    asprintf(&descr, "%s_run_command '%s'", pre, command[0]);
+
+    /* replaces placeholders in command */
+    rc = subst_shell_params(command, descr, NULL, NULL, NULL, NULL,
+                            policy->descr->status_mgr, true, &cmd);
+    free(descr);
+
+    if (rc) {
+        log_cmd = concat_cmd(command);
+        DisplayLog(LVL_MAJOR, tag(policy),
+                   "Invalid %s_run_command: %s", pre, log_cmd);
+        free(log_cmd);
+    } else {
+        log_cmd = concat_cmd(cmd);
+        DisplayLog(LVL_MAJOR, tag(policy),
+                   "Executing %s_run_command: %s", pre, log_cmd);
+        free(log_cmd);
+
+        execute_shell_command(cmd, cb_stderr_to_log, (void *)LVL_EVENT);
+        g_strfreev(cmd);
+    }
+}
+
 /**
 * This is called by triggers (or manual policy runs) to run a pass of a policy.
 * @param[in,out] p_pol_info   policy information and resources
@@ -1866,6 +1903,10 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
         }
     }
 
+    /* execute pre_run_command before running the policy */
+    execute_prepost_run_command(p_pol_info, p_pol_info->config->pre_run_command,
+                                "pre");
+
     /* loop on all policy passes */
     do {
         /* check if progress must be reported  */
@@ -1909,6 +1950,11 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
 
     if (p_summary)
         *p_summary = p_pol_info->progress;
+
+    /* execute pre_run_command after running the policy */
+    execute_prepost_run_command(p_pol_info,
+                                p_pol_info->config->post_run_command,
+                                "post");
 
     return rc;
 }
