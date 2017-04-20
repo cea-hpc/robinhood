@@ -219,6 +219,11 @@ typedef struct policy_run_config_t {
      * (after scheduling) */
     match_source_t       post_sched_match;
 
+    /** command to execute before each policy run */
+    char          **pre_run_command;
+    /** command to execute after each policy run */
+    char          **post_run_command;
+
 } policy_run_config_t;
 
 typedef struct counters_t {

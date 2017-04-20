@@ -80,6 +80,9 @@ static int polrun_set_default(const policy_descr_t *pol,
     /* final check using required info (from cache+FS) */
     cfg->post_sched_match = MS_AUTO_UPDT;
 
+    cfg->pre_run_command = NULL;
+    cfg->post_run_command = NULL;
+
     return 0;
 }
 
@@ -119,6 +122,8 @@ static void policy_run_cfg_write_default(FILE *output)
     print_line(output, 1, "schedulers              : none");
     print_line(output, 1, "max_action_count        : 0 (unlimited)");
     print_line(output, 1, "max_action_volume       : 0 (unlimited)");
+    print_line(output, 1, "pre_run_command         : none");
+    print_line(output, 1, "post_run_command        : none");
     print_line(output, 1, "suspend_error_pct       : disabled (0)");
     print_line(output, 1, "suspend_error_min       : disabled (0)");
     print_line(output, 1, "report_interval         : 10min");
@@ -189,6 +194,13 @@ static void policy_run_cfg_write_template(FILE *output)
     fprintf(output, "\n");
     print_line(output, 1, "# delay for rescheduling a delayed entry");
     print_line(output, 1, "#reschedule_delay_ms = 100;");
+    fprintf(output, "\n");
+    print_line(output, 1, "# Command to execute before each run:");
+    print_line(output, 1, "# pre_run_command = \"/path/to/script.sh -f {cfg} "
+                          "-p {fspath}\" ;");
+    print_line(output, 1, "# Command to execute after each run:");
+    print_line(output, 1, "# post_run_command = \"/path/to/script.sh -f {cfg} "
+                          "-p {fspath}\" ;");
     fprintf(output, "\n");
     print_line(output, 1, "# internal/tuning parameters");
     print_line(output, 1, "#queue_size = 4096;");
@@ -694,8 +706,9 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
         "recheck_ignored_entries", "report_actions",
         "pre_maintenance_window", "maint_min_apply_delay", "queue_size",
         "db_result_size_max", "action_params", "action", SCHED_PARAM_NAME,
-        "pre_sched_match", "post_sched_match",
-        "reschedule_delay_ms", "recheck_ignored_classes",  /* for compat */
+        "pre_sched_match", "post_sched_match", "reschedule_delay_ms",
+        "pre_run_command", "post_run_command",
+        "recheck_ignored_classes",  /* for compat */
         NULL
     };
 
@@ -732,6 +745,8 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
          &conf->db_request_limit, 0},
         {"reschedule_delay_ms", PT_INT, PFLG_POSITIVE,
          &conf->reschedule_delay_ms, 0},
+        {"pre_run_command", PT_CMD, 0, &conf->pre_run_command, 0},
+        {"post_run_command", PT_CMD, 0, &conf->post_run_command, 0},
 
         {NULL, 0, 0, NULL, 0}
     };
