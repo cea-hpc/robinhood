@@ -9529,6 +9529,51 @@ function test_rmdir_depth
     return 0
 }
 
+function test_prepost_cmd
+{
+    local config_file=$1
+    local output
+
+    clean_logs
+
+    # genrate and export command line to the robinhood configuration
+    local testfile=$(mktemp)
+    export pre_command="./prepost_cmd.sh init $testfile ABC"
+    export post_command="./prepost_cmd.sh append $testfile DEF"
+
+    # scan and apply a purge policy
+    $RH -f $RBH_CFG_DIR/$config_file --scan --run=purge --target=all -l DEBUG \
+        -L rh_purge.log --once  2>/dev/null
+
+    grep "Executing pre_run_command" rh_purge.log ||
+        error "pre_run_command not executed"
+    grep "Executing post_run_command" rh_purge.log ||
+        error "post_run_command not executed"
+
+    # check that pre/post run cmd have been run
+    output="$(head -n 1 $testfile)"
+    [[ "$output" == "ABC" ]] ||
+        error "Unexpected contents in test file: '$output' ('ABC' expected)"
+    output="$(tail -n 1 $testfile)"
+    [[ "$output" == "DEF" ]] ||
+        error "Unexpected contents in test file: '$output' ('DEF' expected)"
+
+    # check that a faulty precommand aborts the run
+    export pre_command="FOO BAR"
+
+    :> rh_purge.log
+    $RH -f $RBH_CFG_DIR/$config_file --run=purge --target=all -l DEBUG \
+        -L rh_purge.log --once  2>/dev/null
+
+    grep "Aborting policy because pre_run_commmand failed" rh_purge.log ||
+        error "Policy run should have been aborted"
+    grep " 0 successful actions" rh_purge.log ||
+        error "No successful action expected"
+
+    rm -f $testfile
+}
+
+
 #############################################################################
 
 
@@ -12312,7 +12357,7 @@ run_test 236i  test_prepost_sched test_prepost_sched.conf none force_update \
 run_test 237   test_lhsm_archive test_lhsm1.conf "check sql query string in case of multiple AND/OR"
 run_test 238   test_multirule_select test_multirule.conf "check sql query string in case of multiple rules"
 run_test 239   test_rmdir_depth  test_rmdir_depth.conf "check sql query for rmdir with depth condition"
-
+run_test 240   test_prepost_cmd  test_prepost_cmd.conf "test pre/post_run_command"
 
 #### triggers ####
 

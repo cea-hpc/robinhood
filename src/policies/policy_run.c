@@ -1731,6 +1731,49 @@ static int single_file_run(policy_info_t *pol, lmgr_t *lmgr,
     return 0;
 }
 
+/** Execute pre/post policy command */
+static int execute_prepost_run_command(const policy_info_t *policy,
+                                       char **command,
+                                       const char *pre)
+{
+    char *descr = NULL;
+    char **cmd;
+    char *log_cmd;
+    int rc;
+
+    if (command == NULL)
+        /* nothing to do */
+        return 0;
+
+    asprintf(&descr, "%s_run_command '%s'", pre, command[0]);
+
+    /* replaces placeholders in command */
+    rc = subst_shell_params(command, descr, NULL, NULL, NULL, NULL,
+                            policy->descr->status_mgr, true, &cmd);
+    free(descr);
+
+    if (rc) {
+        log_cmd = concat_cmd(command);
+        DisplayLog(LVL_MAJOR, tag(policy),
+                   "Invalid %s_run_command: %s", pre, log_cmd);
+        free(log_cmd);
+        return -EINVAL;
+    }
+
+    log_cmd = concat_cmd(cmd);
+    DisplayLog(LVL_MAJOR, tag(policy),
+               "Executing %s_run_command: %s", pre, log_cmd);
+    free(log_cmd);
+
+    rc = execute_shell_command(cmd, cb_stderr_to_log, (void *)LVL_EVENT);
+    g_strfreev(cmd);
+    if (rc)
+        DisplayLog(LVL_CRIT, tag(policy), "%s_run_command failed: %s",
+                   pre, strerror(-rc));
+
+    return rc;
+}
+
 /**
 * This is called by triggers (or manual policy runs) to run a pass of a policy.
 * @param[in,out] p_pol_info   policy information and resources
@@ -1853,9 +1896,6 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     p_pol_info->progress.policy_start = p_pol_info->progress.last_report
         = time(NULL);
 
-    /* start alert batching in case the policy trigger alerts */
-    Alert_StartBatching();
-
     /* reinit schedulers */
     for (i = 0; i < p_pol_info->config->sched_count; i++) {
         rc = sched_reinit(&p_pol_info->sched_res[i]);
@@ -1865,6 +1905,19 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
             return rc;
         }
     }
+
+    /* execute pre_run_command before running the policy */
+    rc = execute_prepost_run_command(p_pol_info,
+                                     p_pol_info->config->pre_run_command,
+                                     "pre");
+    if (rc) {
+        DisplayLog(LVL_CRIT, tag(p_pol_info),
+                   "Aborting policy run because pre_run_commmand failed");
+        return rc;
+    }
+
+    /* start alert batching in case the policy trigger alerts */
+    Alert_StartBatching();
 
     /* loop on all policy passes */
     do {
@@ -1909,6 +1962,11 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
 
     if (p_summary)
         *p_summary = p_pol_info->progress;
+
+    /* execute pre_run_command after running the policy */
+    execute_prepost_run_command(p_pol_info,
+                                p_pol_info->config->post_run_command,
+                                "post");
 
     return rc;
 }
