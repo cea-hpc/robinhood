@@ -1,0 +1,50 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "471151df_6f5b5eb1",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 9
+      },
+      "lineNbr": 4153,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-24T15:02:34Z",
+      "side": 1,
+      "message": "This fails for POSIX tests. You should have a fallback scan in that case:\n\n if (( $no_log )); then\n  ... --scan ...\n else\n  ... --readlog ...\n fi",
+      "range": {
+        "startLine": 4153,
+        "startChar": 37,
+        "endLine": 4153,
+        "endChar": 46
+      },
+      "revId": "cbe0c5d12dcbce692be8276be26f5309885f8c90",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "a59aed88_155983a9",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 9
+      },
+      "lineNbr": 4221,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-04-24T15:02:34Z",
+      "side": 1,
+      "message": "idem: if no_log scan, else readlog",
+      "range": {
+        "startLine": 4221,
+        "startChar": 36,
+        "endLine": 4221,
+        "endChar": 46
+      },
+      "revId": "cbe0c5d12dcbce692be8276be26f5309885f8c90",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
