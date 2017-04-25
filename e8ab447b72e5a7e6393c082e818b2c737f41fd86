@@ -1,0 +1,67 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "e94f89be_e1ba2dd0",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 11
+      },
+      "lineNbr": 42,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2017-04-25T10:43:11Z",
+      "side": 1,
+      "message": "I am not sure whether I would actually prefer that, but have you considered expressing these macros using the values from sys/stat.h (S_ISGID here)?",
+      "revId": "e8ab447b72e5a7e6393c082e818b2c737f41fd86",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "2fc79bc5_aa58df8b",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 11
+      },
+      "lineNbr": 93,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2017-04-25T10:43:11Z",
+      "side": 1,
+      "message": "(style) align arg",
+      "range": {
+        "startLine": 93,
+        "startChar": 25,
+        "endLine": 93,
+        "endChar": 27
+      },
+      "revId": "e8ab447b72e5a7e6393c082e818b2c737f41fd86",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "2e67e77d_448e8d38",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 11
+      },
+      "lineNbr": 94,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2017-04-25T10:43:11Z",
+      "side": 1,
+      "message": "...",
+      "range": {
+        "startLine": 94,
+        "startChar": 25,
+        "endLine": 94,
+        "endChar": 27
+      },
+      "revId": "e8ab447b72e5a7e6393c082e818b2c737f41fd86",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
