@@ -154,7 +154,38 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
     mkdir -p $BKROOT
 fi
 
-LVERSION=`rpm -qa "lustre[-_]*modules*" --qf "%{Version}"`
+# Prior to Lustre 2.10, the version of Lustre could be determined by
+# parsing the proc file /proc/fs/lustre/version
+# The format of the file was "lustre: <version>"
+function __legacy_lustre_version()
+{
+    grep -o "[1-9].*" /proc/fs/lustre/version
+}
+
+# Prints all, or part of Lustre's version
+#
+# lustre_version {all,major}
+function lustre_version
+{
+    local version
+
+    version="$(cat /sys/fs/lustre/version || __legacy_lustre_version)"
+    [ -n "$version" ] || error "Unable to determine Lustre's version"
+
+    case "$1" in
+    all)
+        printf "$version"
+        ;;
+    major)
+        printf "${version%%.*}"
+        ;;
+    *)
+        error "Invalid argument: '$1', {all,major} expected"
+        ;;
+    esac
+}
+
+LVERSION="$(lustre_version)"
 
 # Compatibility macros. Some lfs setstripe options changed in Lustre
 # 2.3 (7a454853).
@@ -200,9 +231,8 @@ function wait_stable_df
     done
 }
 
-lustre_major=0
 if [ -z "$POSIX_MODE" ]; then
-    lustre_major=$(cat /proc/fs/lustre/version | grep "lustre:" | awk '{print $2}' | cut -d '.' -f 1)
+    lustre_major=$(lustre_version major)
 fi
 
 if [[ -z "$NOLOG" || $NOLOG = "0" ]]; then
