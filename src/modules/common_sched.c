@@ -198,11 +198,16 @@ static action_scheduler_t sched_mpr = {
     .sched_schedule     = sched_mpr_schedule,
 };
 
+/** scheduler defined in sched_ratelimit.c */
+action_scheduler_t sched_tbf;
+
 /** get a common scheduler by name */
 action_scheduler_t *mod_get_scheduler(const char *sched_name)
 {
     if (strcmp(sched_name, "common.max_per_run") == 0)
         return &sched_mpr;
+    else if (strcmp(sched_name, "common.rate_limit") == 0)
+        return &sched_tbf;
 
     return NULL;
 }
