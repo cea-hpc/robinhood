@@ -10237,11 +10237,7 @@ function migration_file_OST
 
 function fs_usage
 {
-    if [ -z "$POSIX_MODE" ]; then
-	    $LFS df $RH_ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'
-    else
-        df $RH_ROOT | xargs | awk '{ print $(NF-1) }' | sed 's/%//'
-    fi
+    df -P "$RH_ROOT" | tail -n 1 | awk '{ print $(NF-1) }' | tr -d '%'
 }
 
 ###########################################################
