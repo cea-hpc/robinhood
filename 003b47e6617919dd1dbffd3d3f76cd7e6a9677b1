@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "1b621f76_053b4e54",
+        "filename": "src/list_mgr/listmgr_filters.c",
+        "patchSetId": 17
+      },
+      "lineNbr": 538,
+      "author": {
+        "id": 1009999
+      },
+      "writtenOn": "2017-04-26T06:54:14Z",
+      "side": 1,
+      "message": "revert to original source code from master branch",
+      "range": {
+        "startLine": 536,
+        "startChar": 16,
+        "endLine": 538,
+        "endChar": 77
+      },
+      "revId": "003b47e6617919dd1dbffd3d3f76cd7e6a9677b1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
