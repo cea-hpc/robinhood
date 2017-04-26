@@ -3,7 +3,8 @@ AM_CFLAGS= $(CC_OPT) $(DB_CFLAGS) $(PURPOSE_CFLAGS)
 pkglib_LTLIBRARIES=
 
 pkglib_LTLIBRARIES+=librbh_mod_common.la
-librbh_mod_common_la_SOURCES=common_actions.c common_sched.c mod_internal.c mod_internal.h
+librbh_mod_common_la_SOURCES=common_actions.c common_sched.c sched_ratelimit.c \
+			     mod_internal.c
 librbh_mod_common_la_LDFLAGS=-version-info 0:0:0
 librbh_mod_common_la_LIBADD=-lz
 
