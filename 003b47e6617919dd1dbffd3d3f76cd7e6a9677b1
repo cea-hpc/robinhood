@@ -2,6 +2,74 @@
   "comments": [
     {
       "key": {
+        "uuid": "7d0dfdae_db04b387",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 17
+      },
+      "lineNbr": 1237,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2017-04-26T15:57:40Z",
+      "side": 1,
+      "message": "block indentation (4 spaces instead of 3)",
+      "revId": "003b47e6617919dd1dbffd3d3f76cd7e6a9677b1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "275c2ef4_d789704b",
+        "filename": "src/list_mgr/listmgr_common.c",
+        "patchSetId": 17
+      },
+      "lineNbr": 1311,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2017-04-26T15:57:40Z",
+      "side": 1,
+      "message": "For single characters strings, you can use g_string_append_c.",
+      "revId": "003b47e6617919dd1dbffd3d3f76cd7e6a9677b1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "f5f9c928_949f5adf",
+        "filename": "src/list_mgr/listmgr_filters.c",
+        "patchSetId": 17
+      },
+      "lineNbr": 400,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2017-04-26T15:57:40Z",
+      "side": 1,
+      "message": "This should return a bool, and result in callers stored in a bool as well.",
+      "revId": "003b47e6617919dd1dbffd3d3f76cd7e6a9677b1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "e7eb9867_038f8077",
+        "filename": "src/list_mgr/listmgr_filters.c",
+        "patchSetId": 17
+      },
+      "lineNbr": 418,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2017-04-26T15:57:40Z",
+      "side": 1,
+      "message": "indentation",
+      "revId": "003b47e6617919dd1dbffd3d3f76cd7e6a9677b1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "1b621f76_053b4e54",
         "filename": "src/list_mgr/listmgr_filters.c",
         "patchSetId": 17
@@ -19,6 +87,74 @@
         "endLine": 538,
         "endChar": 77
       },
+      "revId": "003b47e6617919dd1dbffd3d3f76cd7e6a9677b1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "3e5f7a7c_6c03ef2f",
+        "filename": "src/list_mgr/listmgr_filters.c",
+        "patchSetId": 17
+      },
+      "lineNbr": 555,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2017-04-26T15:57:40Z",
+      "side": 1,
+      "message": "missing break?",
+      "revId": "003b47e6617919dd1dbffd3d3f76cd7e6a9677b1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ad5e5299_94c43076",
+        "filename": "src/list_mgr/listmgr_filters.c",
+        "patchSetId": 17
+      },
+      "lineNbr": 582,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2017-04-26T15:57:40Z",
+      "side": 1,
+      "message": "No need for extra ()",
+      "revId": "003b47e6617919dd1dbffd3d3f76cd7e6a9677b1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "b6105526_85cd0328",
+        "filename": "src/list_mgr/listmgr_filters.c",
+        "patchSetId": 17
+      },
+      "lineNbr": 587,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2017-04-26T15:57:40Z",
+      "side": 1,
+      "message": "No need for extra ()",
+      "revId": "003b47e6617919dd1dbffd3d3f76cd7e6a9677b1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ff67d9ff_31a0284c",
+        "filename": "src/policies/policy_run.c",
+        "patchSetId": 17
+      },
+      "lineNbr": 828,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2017-04-26T15:57:40Z",
+      "side": 1,
+      "message": "You could declare \n\npolicy_rules_t *rule \u003d \u0026rules-\u003erules[i];\n\nand use it below. Might even be a const as well.",
       "revId": "003b47e6617919dd1dbffd3d3f76cd7e6a9677b1",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
