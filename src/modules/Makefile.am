@@ -7,6 +7,10 @@ librbh_mod_common_la_SOURCES=common_actions.c common_sched.c mod_internal.c mod_
 librbh_mod_common_la_LDFLAGS=-version-info 0:0:0
 librbh_mod_common_la_LIBADD=-lz
 
+pkglib_LTLIBRARIES+=librbh_mod_sched_ratelimit.la
+librbh_mod_sched_ratelimit_la_SOURCES=sched_ratelimit.c mod_internal.c mod_internal.h
+librbh_mod_sched_ratelimit_la_LDFLAGS=-version-info 0:0:0
+
 pkglib_LTLIBRARIES+=librbh_mod_alerter.la
 librbh_mod_alerter_la_SOURCES=alerter.c mod_internal.c mod_internal.h
 librbh_mod_alerter_la_LDFLAGS=-version-info 0:0:0
