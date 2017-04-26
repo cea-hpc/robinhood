@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "fa87ce53_2acf7e66",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 11
+      },
+      "lineNbr": 42,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-26T05:07:41Z",
+      "side": 1,
+      "message": "Yep! But I assumed that it was more readable like that. For a specific code that requires setgid set for example, S_ISGID would make sense though.\n\nAnd it\u0027s not uncommon to use the mode masks directly, it\u0027s even done in robinhood elsewhere:\n\n  ./modules/backup.c:1258:                mode \u003d st.st_mode \u0026 07777;\n  ./modules/backup.c:1292:        mode \u003d st.st_mode \u0026 07777;\n  ./modules/mod_internal.c:298:    cp_nfo.dst_fd \u003d open(dst, dst_oflags, cp_nfo.src_st.st_mode \u0026 07777);",
+      "parentUuid": "e94f89be_e1ba2dd0",
+      "revId": "e8ab447b72e5a7e6393c082e818b2c737f41fd86",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "2fc79bc5_aa58df8b",
         "filename": "src/modules/modeguard.c",
         "patchSetId": 11
@@ -30,6 +48,30 @@
       "writtenOn": "2017-04-25T10:43:11Z",
       "side": 1,
       "message": "(style) align arg",
+      "range": {
+        "startLine": 93,
+        "startChar": 25,
+        "endLine": 93,
+        "endChar": 27
+      },
+      "revId": "e8ab447b72e5a7e6393c082e818b2c737f41fd86",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "b8743e46_8bb8b8d2",
+        "filename": "src/modules/modeguard.c",
+        "patchSetId": 11
+      },
+      "lineNbr": 93,
+      "author": {
+        "id": 1003524
+      },
+      "writtenOn": "2017-04-26T05:07:41Z",
+      "side": 1,
+      "message": "oups too late but will be happy to bundle the fix in a future commit",
+      "parentUuid": "2fc79bc5_aa58df8b",
       "range": {
         "startLine": 93,
         "startChar": 25,
