@@ -4086,6 +4086,109 @@ function test_sched_limits
     (( c == 5 )) || error "5 actions expected (got $c)"
 }
 
+function test_sched_ratelim
+{
+    local config_file=$1
+
+	if (( $is_lhsm + $is_hsmlite == 0 )); then
+		echo "HSM test only: skipped"
+		set_skipped
+		return 1
+	fi
+
+    clean_logs
+
+    # Create test files (10KB each)
+    echo "Create test files..."
+    for i in {1..5}; do
+        dd if=/dev/zero of=$RH_ROOT/file1.$i bs=10K count=1 2>/dev/null
+    done
+    for i in {1..3}; do
+        dd if=/dev/zero of=$RH_ROOT/file2.$i bs=10K count=1 2>/dev/null
+        dd if=/dev/zero of=$RH_ROOT/file3.$i bs=10K count=1 2>/dev/null
+    done
+
+    # Limit processing to 2 files and 100KB per second
+    export ratelim_capacity=2
+    export ratelim_size="100KB"
+    export ratelim_refill="1000"
+
+    # Initial scan
+    echo "Initial scan..."
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log \
+        2>>rh_scan.log || error "scan error"
+    check_db_error rh_scan.log
+
+    # migrate 10K files, must be limited to 2/sec
+    $RH -f $RBH_CFG_DIR/$config_file --run=migration \
+        --target=class:test1 --once -l DEBUG -L rh_migr.log \
+        2>>rh_migr.log || error "starting run"
+    # Throttling based on entry count should have been reported
+    # (but not on size)
+    grep "Throttling after $ratelim_capacity actions" rh_migr.log ||
+        error "expected throttling on action count"
+    grep "Throttling after [0-9.]* KB" rh_migr.log &&
+        error "unexpected throttling on size"
+
+    grep "run summary" rh_migr.log || error "Found no policy run summary"
+    # extract info from run_summary
+    sum=$(grep "run summary" rh_migr.log | cut -d '|' -f 2 | cut -d ':' -f 2)
+    time=$(echo $sum | cut -d ';' -f 1 | sed -e s/.*=// -e s/s$// -e s/^0//)
+    # 5 entries to be migrated @2/sec => 3 sec run
+    ((time==3)) || error "Unexpected migration run time: $time != 3"
+
+    :> rh_migr.log
+
+    # Limit processing to 10 files and 10KB per second
+    export ratelim_capacity=10
+    export ratelim_size="10KB"
+
+    # migrate 10K files, must be limited to 10K/sec (1 file)
+    $RH -f $RBH_CFG_DIR/$config_file --run=migration \
+        --target=class:test2 --once -l DEBUG -L rh_migr.log \
+        2>>rh_migr.log || error "starting run"
+    # Throttling based on copy size should have been reported
+    # (but not on count)
+    grep "Throttling after $ratelim_capacity actions" rh_migr.log &&
+        error "unexpected throttling on action count"
+    grep "Throttling after [0-9.]* KB" rh_migr.log ||
+        error "expected throttling on size"
+
+    grep "run summary" rh_migr.log || error "Found no policy run summary"
+    # extract info from run_summary
+    sum=$(grep "run summary" rh_migr.log | cut -d '|' -f 2 | cut -d ':' -f 2)
+    time=$(echo $sum | cut -d ';' -f 1 | sed -e s/.*=// -e s/s$// -e s/^0//)
+    # 3 entries to be migrated @1/sec => at least 3 sec run
+    # (may be longer if the machine is loaded)
+    ((time >= 3)) || error "Unexpected migration run time: $time < 3"
+
+    :> rh_migr.log
+    # test the behavior when files are larger than the size limit
+    export ratelim_capacity=10
+    export ratelim_size="1KB"
+
+    # migrate 10K files, must be limited to 10K/sec (1 file)
+    $RH -f $RBH_CFG_DIR/$config_file --run=migration \
+        --target=class:test3 --once -l DEBUG -L rh_migr.log \
+        2>>rh_migr.log || error "starting run"
+    # Throttling based on copy size should have been reported
+    # (but not on count)
+    grep "Throttling after $ratelim_capacity actions" rh_migr.log &&
+        error "unexpected throttling on action count"
+    grep "Throttling after [0-9.]* KB" rh_migr.log ||
+        error "expected throttling on size"
+
+    grep "run summary" rh_migr.log || error "Found no policy run summary"
+    # extract info from run_summary
+    sum=$(grep "run summary" rh_migr.log | cut -d '|' -f 2 | cut -d ':' -f 2)
+    time=$(echo $sum | cut -d ';' -f 1 | sed -e s/.*=// -e s/s$// -e s/^0//)
+    # 3 entries to be migrated @1/sec => at least 3 sec run
+    # (may be longer if the machine is loaded)
+    ((time >= 3)) || error "Unexpected migration run time: $time < 3"
+
+    (( $NB_ERROR == 0 )) && echo OK
+}
+
 function test_basic_sm
 {
     local config_file=$1
@@ -8142,7 +8245,7 @@ function test_cfg_parsing
         sed -i "s/fs_type = .*;/fs_type = $FS_TYPE;/" $GEN_TEMPLATE
         sed -ie "s#rbh_test#$RH_DB#" $GEN_TEMPLATE
     elif [[ $flavor == "example"* ]]; then
-        if (( lhsm == 0 )) && [[ $flavor == *"lhsm"* ]]; then
+        if (( $is_lhsm == 0 )) && [[ $flavor == *"lhsm"* ]]; then
             echo "Example uses Lustre/HSM"
             set_skipped
             return 1
@@ -12866,10 +12969,11 @@ run_test 236h  test_prepost_sched test_prepost_sched.conf none auto_update \
     "" "post_sched_match=auto_update (no scheduler)"
 run_test 236i  test_prepost_sched test_prepost_sched.conf none force_update \
     common.max_per_run "post_sched_match=force_update"
-run_test 237   test_lhsm_archive test_lhsm1.conf "check sql query string in case of multiple AND/OR"
-run_test 238   test_multirule_select test_multirule.conf "check sql query string in case of multiple rules"
-run_test 239   test_rmdir_depth  test_rmdir_depth.conf "check sql query for rmdir with depth condition"
-run_test 240   test_prepost_cmd  test_prepost_cmd.conf "test pre/post_run_command"
+run_test 237   test_sched_ratelim test_ratelim.conf "Check action rate limitations"
+run_test 238   test_lhsm_archive test_lhsm1.conf "check sql query string in case of multiple AND/OR"
+run_test 239   test_multirule_select test_multirule.conf "check sql query string in case of multiple rules"
+run_test 240   test_rmdir_depth  test_rmdir_depth.conf "check sql query for rmdir with depth condition"
+run_test 241   test_prepost_cmd  test_prepost_cmd.conf "test pre/post_run_command"
 
 #### triggers ####
 
