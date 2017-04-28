@@ -4246,6 +4246,82 @@ function test_modeguard_sm_file
     return 0
 }
 
+function test_missing_files
+{
+    if (( $is_lhsm == 0 )); then
+        echo "Lustre/HSM test only: skipped"
+        set_skipped
+        return 1
+    fi
+
+    config_file=$1
+    MYDESTDIR=${RH_ROOT}/testdir1
+
+    clean_logs
+    rm -f rh_lhsm.log rh_scan.log
+
+    # Create 900 test files
+    if [ ! -d $MYDESTDIR ] ; then
+         mkdir $MYDESTDIR || error "test_missing_files - mkdir error"
+    fi
+
+    dd if=/dev/zero bs=1k count=2 of=${MYDESTDIR}/file.100 status=none
+    for i in $(seq 101 299); do
+        dd if=/dev/zero bs=1k count=2 of=${MYDESTDIR}/file.$i status=none
+        touch -r ${MYDESTDIR}/file.100 ${MYDESTDIR}/file.$i
+    done
+    sleep 2
+    dd if=/dev/zero bs=1k count=2 of=${MYDESTDIR}/file.300 status=none
+    for i in $(seq 301 999); do
+        dd if=/dev/zero bs=1k count=2 of=${MYDESTDIR}/file.$i status=none
+        touch -r ${MYDESTDIR}/file.300 ${MYDESTDIR}/file.$i
+    done
+
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log ||
+        error "scan error"
+    rm rh_scan.log
+
+    # remove some files
+    for i in $(seq 100 190) ; do
+         rm -f ${MYDESTDIR}/file.$i
+    done
+
+    # change md_update time of some entries to "disable" smart optimization
+    NOW=$(date +%s)
+    let NOW-=5
+    for i in $(seq 200 299) ; do
+        FID=$(lfs path2fid ${MYDESTDIR}/file.$i | sed -e s/"\["// -e s/"\]"//)
+        mysql $RH_DB -e "update ENTRIES set md_update=$NOW where id='$FID'"
+    done
+
+    # Run hsm_archive
+    $RH -f $RBH_CFG_DIR/$config_file --run=hsm_archive --once -l FULL -L rh_lhsm.log -p /tmp/rh.pid ||
+        error "lhsm archive error" &
+
+    sleep 10
+    if [ -f /tmp/rh.pid ] ; then
+        RHPID=$(cat /tmp/rh.pid)
+        ps -ef | grep -v grep | grep -q ${RHPID}
+        if [ $? -eq 0 ] && [ -n ${RHPID} ] ; then
+            kill -9 ${RHPID}
+        fi
+        wait
+        rm -f /tmp/rh.pid
+    fi
+
+    # cleanup lustre tree
+    rm -rf $MYDESTDIR
+
+    # Now verify the number of files archived
+    # count number of selects
+    SELS=$(grep "SELECT ENTRIES.id AS id" rh_lhsm.log | wc -l)
+    if [ $SELS -gt 6 ] ; then
+        error "test missing files - Too many selects"
+    else
+        return 0
+    fi
+}
+
 function grep_matched_rule
 {
     log_file=$1
@@ -12061,6 +12137,7 @@ run_test 232e  test_sched_limits test_sched1.conf cmd "check cmd line vs. max_pe
 run_test 233   test_basic_sm     test_basic.conf  "Test basic status manager"
 run_test 234   test_modeguard_sm_dir test_modeguard_dir.conf "Test modeguard status manager with directories"
 run_test 235   test_modeguard_sm_file test_modeguard_file.conf "Test modeguard status manager with files"
+run_test 239   test_missing_files test_missing_files.conf "Test HSM policy on missing files"
 
 
 #### triggers ####

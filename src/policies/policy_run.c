@@ -1885,9 +1885,26 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
                    "lstat() failed on %s. Skipping it.", fid_path);
 
         /* This entry has been processed and has probably removed */
-        if (rc == ENOENT)
-            /** @TODO remove entry from DB if errno = ENOENT ? */
+        if (rc == ENOENT) {
+            bool last;
+
+            // Get File attrs
+
+            /** @TODO Soft Remove entry from DB if errno = ENOENT
+             *  Should not archived files be SoftRemoved or just Removed ?
+             */
+
+            last = ATTR_MASK_TEST(new_attr_set, nlink) ?
+                     (ATTR(new_attr_set, nlink) <= 1) : 0;
+
+            if (smi->sm->softrm_filter_func != NULL
+                && smi->sm->softrm_filter_func(smi, &p_item->entry_id, new_attr_set))
+                ListMgr_SoftRemove(lmgr, &p_item->entry_id, new_attr_set);
+            else
+                ListMgr_Remove(lmgr, &p_item->entry_id, new_attr_set, last);
+
             return AS_MOVED;
+        }
         else
             return AS_STAT_FAILURE;
     }
