@@ -1,0 +1,90 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "13565953_caaf3d18",
+        "filename": "src/modules/ratelimit_sched.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 37,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-05-03T15:27:02Z",
+      "side": 1,
+      "message": "A possible improvement is to indicate what attribute is used for the capacity i.e count or volume.",
+      "revId": "dc901b694996353ba654002d673e8640cc8f9431",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "c79a3c16_1e51451e",
+        "filename": "src/modules/ratelimit_sched.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 101,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-05-03T15:27:02Z",
+      "side": 1,
+      "message": "is it sane to set the refill variable if getclock failed?\nWhat about:\n\n if (getclock(...) \u003d\u003d 0)\n   state-\u003erefill \u003d now;",
+      "range": {
+        "startLine": 101,
+        "startChar": 4,
+        "endLine": 101,
+        "endChar": 19
+      },
+      "revId": "dc901b694996353ba654002d673e8640cc8f9431",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "4745e51b_1999e26c",
+        "filename": "src/modules/ratelimit_sched.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 212,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-05-03T15:27:02Z",
+      "side": 1,
+      "message": "Use PT_DURATION for parsing time values.",
+      "range": {
+        "startLine": 212,
+        "startChar": 21,
+        "endLine": 212,
+        "endChar": 28
+      },
+      "revId": "dc901b694996353ba654002d673e8640cc8f9431",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "18431203_7f2fc33f",
+        "filename": "src/modules/ratelimit_sched.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 260,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-05-03T15:27:02Z",
+      "side": 1,
+      "message": "Not for now, but it will be right if the capacity is based on max volume per period.",
+      "range": {
+        "startLine": 260,
+        "startChar": 35,
+        "endLine": 260,
+        "endChar": 49
+      },
+      "revId": "dc901b694996353ba654002d673e8640cc8f9431",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
