@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "2b13dc9d_fb2cc616",
+        "filename": "src/policies/policy_run.c",
+        "patchSetId": 7
+      },
+      "lineNbr": 1908,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-05-04T14:30:34Z",
+      "side": 1,
+      "message": "(opportunistic comment) there used to be a noticeable speedup from having robinhood chdir into .lustre/fid and use relative path and/or use openat/fstatat, or did I dream us doing that?",
+      "revId": "3fb40fe0cba1b03896605c2b68d028af4210d00c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
