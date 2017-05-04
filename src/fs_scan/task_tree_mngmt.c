@@ -24,6 +24,7 @@
 #include "task_tree_mngmt.h"
 #include <string.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #define sP(_lock_)  pthread_spin_lock(&(_lock_))
 #define sV(_lock_)  pthread_spin_unlock(&(_lock_))
@@ -60,8 +61,9 @@ robinhood_task_t *CreateTask()
     if (p_task == NULL)
         return NULL;
 
-    /* zero all fields */
+    /* zero all fields, except fd */
     memset(p_task, 0, sizeof(robinhood_task_t));
+    p_task->fd = -1;
 
     /* initialize spin lock */
     pthread_spin_init(&p_task->child_list_lock, 0);
@@ -72,6 +74,8 @@ robinhood_task_t *CreateTask()
 /* Free task resources */
 int FreeTask(robinhood_task_t *p_task)
 {
+    if (p_task->fd != -1)
+        close(p_task->fd); /* check rc? */
     pthread_spin_destroy(&p_task->child_list_lock);
 
     /* put it back to the allocation pool */
