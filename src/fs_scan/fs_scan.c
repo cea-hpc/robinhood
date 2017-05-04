@@ -558,8 +558,8 @@ static int RecursiveTaskTermination(thread_scan_info_t *p_info,
             p_info->last_action = time(NULL);
 
             /* free the task */
-            DisplayLog(LVL_FULL, FSSCAN_TAG, "Freeing task %s",
-                       current_task->path);
+            DisplayLog(LVL_FULL, FSSCAN_TAG, "Freeing task %s fd %d",
+                       current_task->path, current_task->fd);
             FreeTask(current_task);
 
             current_task = maman;
@@ -661,8 +661,6 @@ static inline int check_entry_dev(dev_t entry_dev, dev_t *root_dev,
 
 static bool noatime_permitted = true;
 
-/* only used to get FID */
-#ifdef _HAVE_FID
 static int openat_noatime(int pfd, const char *name, int rddir)
 {
     int fd = -1;
@@ -693,7 +691,6 @@ static int openat_noatime(int pfd, const char *name, int rddir)
 
     return fd;
 }
-#endif
 
 static int open_noatime(const char *path, int rddir)
 {
@@ -742,7 +739,8 @@ static void check_dir_error(int rc)
 
 static int create_child_task(const char *childpath, struct stat *inode,
                              robinhood_task_t *parent,
-                             const char *scan_root)
+                             const char *scan_root,
+                             const char *entryname)
 {
     robinhood_task_t *p_task;
     int rc = 0;
@@ -759,7 +757,11 @@ static int create_child_task(const char *childpath, struct stat *inode,
     /* propagate partial_scan_root, unless it is specified */
     p_task->partial_scan_root = scan_root ? scan_root :
                                     parent->partial_scan_root;
-    rh_strncpy(p_task->path, childpath, RBH_PATH_MAX);
+    rh_strncpy(p_task->path, childpath, sizeof(p_task->path));
+    if (entryname)
+        rh_strncpy(p_task->relpath, entryname, sizeof(p_task->relpath));
+    else
+        assert(p_task->parent_task->fd == -1);
 
     /* set parent id */
     if ((rc = path2id(childpath, &p_task->dir_id, inode)) != 0)
@@ -857,7 +859,7 @@ static int process_one_entry(thread_scan_info_t *p_info,
      * Note: directories are pushed in Thr_scan(), after the closedir() call.
      */
     if (S_ISDIR(inode.st_mode)) {
-        rc = create_child_task(entry_path, &inode, p_task, NULL);
+        rc = create_child_task(entry_path, &inode, p_task, NULL, entry_name);
         if (rc)
             return rc;
     } else {
@@ -1014,10 +1016,13 @@ static int process_one_entry(thread_scan_info_t *p_info,
 #define OPENDIR_STR "opendir"
 #endif
 
-static inline DIR_T dir_open(const char *path)
+static inline DIR_T dir_open(const char *path, int pfd, const char *relpath)
 {
 #ifndef _NO_AT_FUNC
-    return open_noatime(path, true);
+    if (pfd != -1)
+        return openat_noatime(pfd, relpath, true);
+    else
+        return open_noatime(path, true);
 #else
     return opendir(path);
 #endif
@@ -1042,7 +1047,9 @@ static int process_one_dir(robinhood_task_t *p_task,
     /* hearbeat before opendir */
     p_info->last_action = time(NULL);
 
-    dirp = dir_open(p_task->path);
+    dirp = dir_open(p_task->path,
+                    p_task->parent_task ? p_task->parent_task->fd : -1,
+                    p_task->relpath);
     if (DIR_ERR(dirp)) {
         rc = -errno;
         DisplayLog(LVL_CRIT, FSSCAN_TAG,
@@ -1053,6 +1060,9 @@ static int process_one_dir(robinhood_task_t *p_task,
 
         return rc;
     }
+    DisplayLog(LVL_FULL, FSSCAN_TAG, "Setting task %s fd %d", p_task->path,
+               dirp);
+    p_task->fd = dirp;
 
     /* hearbeat before first readdir */
     p_info->last_action = time(NULL);
@@ -1097,8 +1107,6 @@ static int process_one_dir(robinhood_task_t *p_task,
                    p_task->path, strerror(rc));
         (*nb_errors)++;
     }
-    if (rc != EBADF)
-        close(dirp);
 #else
     /* read entries one by one */
     while (1) {
@@ -1137,9 +1145,6 @@ static int process_one_dir(robinhood_task_t *p_task,
             (*nb_errors)++;
 
     }   /* end of dir */
-
-    if (rc != EBADF)
-        closedir(dirp);
 #endif
     return rc;
 }
@@ -1196,7 +1201,7 @@ static int push_dir_list(robinhood_task_t *parent_task)
                    "sub-tree '%s'", new_task_path, fs_scan_config.dir_list[i]);
 
         rc = create_child_task(new_task_path, &inode,
-                               parent_task, fs_scan_config.dir_list[i]);
+                               parent_task, fs_scan_config.dir_list[i], NULL);
         free(new_task_path);
         if (rc)
             return rc;
