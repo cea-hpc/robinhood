@@ -30,6 +30,12 @@ typedef struct robinhood_task__ {
     /* absolute path of the directory to be read */
     char            path[RBH_PATH_MAX];
 
+    /* relative path of the directory from parent task */
+    char            relpath[RBH_NAME_MAX];
+
+    /* fd to directory, kept until the task is freed for child tasks */
+    int fd;
+
     /* the relative depth of the directory to be read */
     unsigned int    depth;
 
