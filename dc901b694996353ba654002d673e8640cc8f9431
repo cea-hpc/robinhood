@@ -42,6 +42,30 @@
     },
     {
       "key": {
+        "uuid": "5b7f30a4_aeb0f7c0",
+        "filename": "src/modules/ratelimit_sched.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 101,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2017-05-05T07:49:24Z",
+      "side": 1,
+      "message": "I\u0027m assuming that getclock won\u0027t fail here. I\u0027ll add an assert.\n\nThe possible errors are EFAULT (not possible here) and EINVAL (would be caught by the first call since the function always use the same clock type).",
+      "parentUuid": "c79a3c16_1e51451e",
+      "range": {
+        "startLine": 101,
+        "startChar": 4,
+        "endLine": 101,
+        "endChar": 19
+      },
+      "revId": "dc901b694996353ba654002d673e8640cc8f9431",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "4745e51b_1999e26c",
         "filename": "src/modules/ratelimit_sched.c",
         "patchSetId": 1
@@ -53,6 +77,30 @@
       "writtenOn": "2017-05-03T15:27:02Z",
       "side": 1,
       "message": "Use PT_DURATION for parsing time values.",
+      "range": {
+        "startLine": 212,
+        "startChar": 21,
+        "endLine": 212,
+        "endChar": 28
+      },
+      "revId": "dc901b694996353ba654002d673e8640cc8f9431",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "0bb87799_4e503d5e",
+        "filename": "src/modules/ratelimit_sched.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 212,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2017-05-05T07:49:24Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "4745e51b_1999e26c",
       "range": {
         "startLine": 212,
         "startChar": 21,
