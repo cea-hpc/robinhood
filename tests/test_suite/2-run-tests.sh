@@ -9294,6 +9294,47 @@ function test_reload
     return 0
 }
 
+function test_soft_remove
+{
+    if (( $is_lhsm == 0 )); then
+        echo "Lustre/HSM test only: skipped"
+        set_skipped
+        return 1
+    fi
+
+    config_file=$1
+
+    mkdir -p $RH_ROOT/dir1
+    mkdir -p $RH_ROOT/ignoretree
+
+    # create test files
+    for i in $(seq 1 5) ; do
+        dd if=/dev/zero bs=1M count=2 of=$RH_ROOT/dir1/file.$i status=none
+        # fake archive files
+        lfs hsm_set --archived $RH_ROOT/dir1/file.$i
+    done
+
+    $RH -f $RBH_CFG_DIR/$config_file --scan -O -L rh_scan.log
+    mv $RH_ROOT/dir1 $RH_ROOT/ignoretree
+    sleep 2
+    $RH -f $RBH_CFG_DIR/$config_file --scan -O -L rh_scan.log
+
+    # allow removed entries to be old enough to be removed
+    echo "sleeping for 10 seconds"
+    sleep 10
+
+    $RH -f $RBH_CFG_DIR/$config_file --run=hsm_remove -O -l FULL -L rh_scan.log
+
+    # cleanup
+    rm -rf $RH_ROOT/ignoretree/dir1
+    rmdir $RH_ROOT/ignoretree/dir1
+    rmdir $RH_ROOT/ignoretree
+
+    grep -q "hsm_remove | Error applying action on entry /mnt/lustre/dir1/file.1:" rh_scan.log &&
+        error "Trying to remove existing file"
+
+    return 0
+}
 
 #############################################################################
 
@@ -12118,6 +12159,7 @@ run_test 510    test_rbh_find_printf test_checker.conf "Test rbh-find with -prin
 run_test 511    archive_uuid1 test_uuid.conf "Test UUID presence while scanning"
 run_test 512    archive_uuid2 test_uuid.conf "Archive and undelete file with UUID using changelogs"
 run_test 513    test_reload   alert.conf "Reloading configuration (with alert policy)"
+run_test 514    test_soft_remove test_soft_rm.conf "Test Soft RM of existing fid"
 
 #### Tests by Sogeti ####
 run_test 600a test_alerts alert.conf "file1" 0 "TEST_ALERT_PATH_NAME"

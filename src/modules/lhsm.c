@@ -112,6 +112,15 @@ static int lhsm_init(struct sm_instance *smi, run_flags_t flags)
     return init_action_global_info();
 }
 
+static bool file_exists(const entry_id_t *p_id)
+{
+    char path[RBH_PATH_MAX];
+    struct stat md_stat;
+    BuildFidPath(p_id, path);
+
+    return !lstat(path, &md_stat);
+}
+
 /** Trigger an HSM action */
 static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
                        const attr_set_t *attrs, const action_params_t *params)
@@ -124,7 +133,7 @@ static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
     const char *data = NULL;
     int data_len = 0;
 
-    /* if archive_id is explicitely specified in action parameters, use it */
+    /* if archive_id is explicitly specified in action parameters, use it */
     rc = get_archive_id(params);
     if (rc == 0) {
         archive_id = rc;
@@ -167,6 +176,16 @@ static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
     DisplayLog(LVL_DEBUG, LHSM_TAG,
                "action %s, fid=" DFID ", archive_id=%u, parameters='%s'",
                hsm_user_action2name(action), PFID(p_id), archive_id, args->str);
+
+    // Do not call hsm_remove for existing file, action would fail
+    // just remove entry from SOFT_RM table
+    if ((action == HUA_REMOVE) && file_exists(p_id)) {
+        DisplayLog(LVL_DEBUG, LHSM_TAG,
+                   "Ignoring HSM_REMOVE request for existing file fid=" DFID,
+                   PFID(p_id));
+        rc = 0;
+        goto free_args;
+    }
 
     req = llapi_hsm_user_request_alloc(1, data_len);
     if (!req) {
