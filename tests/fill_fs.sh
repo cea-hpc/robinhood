@@ -40,7 +40,7 @@ else
 	for d in `seq 1 95`; do for s in `seq 1 95`; do
 		echo  "$ROOT/dir.$d/subdir.$s"
 		mkdir -p $ROOT/dir.$d/subdir.$s || exit 1
-		for f in `seq 1 100`; do
+		for f in `seq 1 $fpd`; do
 			touch $ROOT/dir.$d/subdir.$s/file.$f || exit 1
 		done
 	done; done
