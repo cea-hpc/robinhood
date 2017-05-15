@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "ad9174e5_3ac3bbd6",
+        "filename": "src/list_mgr/listmgr_filters.c",
+        "patchSetId": 18
+      },
+      "lineNbr": 400,
+      "author": {
+        "id": 1009999
+      },
+      "writtenOn": "2017-05-15T09:24:35Z",
+      "side": 1,
+      "message": "extend functionality to blocks",
+      "range": {
+        "startLine": 400,
+        "startChar": 12,
+        "endLine": 400,
+        "endChar": 27
+      },
+      "revId": "1c593b98e97273904d2b0254100910411480c906",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
