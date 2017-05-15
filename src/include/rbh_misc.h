@@ -79,9 +79,10 @@
 #define bool2str(_b_)   ((_b_) ? "yes" : "no")
 
 #define rh_strncpy(_s1, _s2, _sz) do { \
-        strncpy(_s1, _s2, _sz-1);      \
-        if (_sz > 0) \
-            (_s1)[_sz-1] = '\0'; \
+        if (_sz > 0) {                 \
+            strncpy(_s1, _s2, _sz-1);  \
+            (_s1)[_sz-1] = '\0';       \
+        }                              \
     } while (0)
 
 /**
