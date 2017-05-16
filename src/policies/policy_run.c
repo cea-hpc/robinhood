@@ -821,7 +821,15 @@ static void build_rule_filters(policy_info_t *policy,
      */
     if (rules->rule_count) {
         int i;
-        if (rules->rule_count > 1)
+        int valid_db_rules = 0;
+
+        for (i = 0; i < rules->rule_count; i++)
+            if (is_db_cond_valid(&policy->descr->rules.rules[i].condition,
+                                               policy->descr->status_mgr,
+                                               policy->time_modifier))
+                valid_db_rules++;
+
+        if (valid_db_rules > 1)
             lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_BEGIN_BLOCK);
 
         for (i = 0; i < rules->rule_count; i++) {
@@ -832,7 +840,7 @@ static void build_rule_filters(policy_info_t *policy,
                 if (rule->target_list[j]->matchable)
                     tc++;
             }
-            if (tc > 1 || rules->rule_count > 1)
+            if (tc > 1 || valid_db_rules > 1)
                 lmgr_simple_filter_add_block(p_filter,
                    rules->rule_count > 1
                    ? FILTER_FLAG_BEGIN_BLOCK | FILTER_FLAG_OR
@@ -863,10 +871,10 @@ static void build_rule_filters(policy_info_t *policy,
                 if (tc > 1)
                     lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
             }
-            if (tc > 1 || rules->rule_count > 1)
+            if (tc > 1 || valid_db_rules > 1)
                 lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
         }
-        if (rules->rule_count > 1)
+        if (valid_db_rules > 1)
             lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
     }
 }
