@@ -39,6 +39,24 @@
       "revId": "12c7ce4f7a411c74540a33ce8d701d34f851eee4",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "1c2bddd6_3861c2ce",
+        "filename": "src/list_mgr/listmgr_filters.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 400,
+      "author": {
+        "id": 1009999
+      },
+      "writtenOn": "2017-05-17T18:59:20Z",
+      "side": 1,
+      "message": "this function checks if the condition will be translated into SQL code, it is a duplication of some code from function\n\"append_simple_expr\";\nif node condition does not generate SQL code then any new block need to be discarded to avoid the syntax error caused by empty parenthesis bloks",
+      "parentUuid": "0ee9f277_ec44d858",
+      "revId": "12c7ce4f7a411c74540a33ce8d701d34f851eee4",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
