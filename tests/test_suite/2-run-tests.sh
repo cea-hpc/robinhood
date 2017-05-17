@@ -10491,6 +10491,22 @@ function fs_usage
     df -P "$RH_ROOT" | tail -n 1 | awk '{ print $(NF-1) }' | tr -d '%'
 }
 
+function wait_fs_empty
+{
+    # force df update
+    while (( 1 )); do
+        local elem=$(fs_usage)
+
+        if (( $elem > 20 )); then
+            echo "filesystem is still ${elem}% full. Waiting for df update..."
+            clean_caches
+            sleep 1
+        else
+            break
+        fi
+    done
+}
+
 ###########################################################
 ############### Purge Trigger Functions ###################
 ###########################################################
@@ -10509,6 +10525,10 @@ function trigger_purge_QUOTA_EXCEEDED
     if [ -z "$POSIX_MODE" ]; then
         $LFS setstripe -c 2 $RH_ROOT || echo "error setting stripe count=2"
     fi
+
+    # fs should be almost empty at this point
+    wait_fs_empty
+
     elem=$(fs_usage)
 
 	echo "1-Create Files ..."
@@ -10532,11 +10552,22 @@ function trigger_purge_QUOTA_EXCEEDED
         ((indice++))
     done
 
+    wait_stable_df
+
+    elem=$(fs_usage)
+    # set robinhood threshold according to effective df
+    export RBH_HIGH_THR="$(($elem-5))%"
+    export RBH_LOW_THR="$(($elem-10))%"
+    echo "setting high threshold = $RBH_HIGH_THR"
+    echo "setting low threshold = $RBH_LOW_THR"
+
     echo "2-Reading changelogs and Applying purge trigger policy..."
-	$RH -f $RBH_CFG_DIR/$config_file --scan --check-thresholds=purge -l DEBUG -L rh_purge.log --once
+	$RH -f $RBH_CFG_DIR/$config_file --scan --check-thresholds=purge -l DEBUG \
+        -L rh_purge.log --once 2>/dev/null
 
     countMigrLog=`grep "High threshold reached on Filesystem" rh_purge.log | wc -l`
     if (($countMigrLog == 0)); then
+        grep Filesystem rh_purge.log
         error "********** TEST FAILED **********"
     else
         echo "OK: test successful"
@@ -10545,12 +10576,11 @@ function trigger_purge_QUOTA_EXCEEDED
 
 function trigger_purge_OST_QUOTA_EXCEEDED
 {
-	# Function to test the trigger system when a quota is exceeded in OST filesytem (Lustre)
-	# 	trigger_purge_OST_QUOTA_EXCEEDED config_file
-	#=>
-	# config_file == config file name
-
-	config_file=$1
+    # Function to test the trigger system when a quota is exceeded in OST filesytem (Lustre)
+    #     trigger_purge_OST_QUOTA_EXCEEDED config_file
+    #=>
+    # config_file == config file name
+    local config_file=$1
 
     if [ -n "$POSIX_MODE" ]; then
         echo "No OST support for POSIX mode"
@@ -10558,27 +10588,29 @@ function trigger_purge_OST_QUOTA_EXCEEDED
         return 1
     fi
 
-	clean_logs
-    # make sure df is up to date
-    wait_stable_df
+    clean_logs
 
-	echo "1-Fullfilling OST#0 up to 80%..."
-	elem=`$LFS df $RH_ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
-	limit=80
-	indice=1
+    # fs should be almost empty at this point
+    wait_fs_empty
+
+    echo "1-Fullfilling OST#0 up to 80%..."
+    elem=`$LFS df $RH_ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
+    limit=80
+    indice=1
     while [ $elem -lt $limit ]
     do
         $LFS setstripe -o 0 $RH_ROOT/file.$indice -c 1 >/dev/null 2>/dev/null
         dd if=/dev/zero of=$RH_ROOT/file.$indice bs=10M count=1 \
             conv=sync >/dev/null 2>/dev/null
-        unset elem
-	    elem=`$LFS df $RH_ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
+        elem=`$LFS df $RH_ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
         [ "$DEBUG" = "1" ] && echo "used: $elem, target: $limit"
         ((indice++))
     done
 
+    wait_stable_df
+
     echo "2-Applying purge trigger policy..."
-	$RH -f $RBH_CFG_DIR/$config_file --scan --check-thresholds=purge -l DEBUG \
+    $RH -f $RBH_CFG_DIR/$config_file --scan --check-thresholds=purge -l DEBUG \
         -L rh_purge.log --once 2>/dev/null
 
     countMigrLog=`grep "High threshold reached on OST #0" rh_purge.log | wc -l`
@@ -10602,18 +10634,7 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
 
 	clean_logs
 
-        # force df update
-        while (( 1 )); do
-                elem=$(fs_usage)
-
-                if (( $elem > 20 )); then
-                        echo "filesystem is still ${elem}% full. waiting for df update..."
-        		clean_caches
-                        sleep 1
-                else
-                        break
-                fi
-        done
+    wait_fs_empty
 
 	echo "1-Create Files ..."
 	limit=80
@@ -10623,6 +10644,7 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
     dd_out=/tmp/dd.out.$$
     one_error=""
     dd_err_count=0
+    elem=$(fs_usage)
     while [ $elem -lt $limit ]
     do
         # write 2M to fulfill 2 stripes
@@ -10661,9 +10683,11 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
         ((indice++))
     done
 
+    wait_stable_df
 
     echo "2-Reading changelogs and Applying purge trigger policy..."
-	$RH -f $RBH_CFG_DIR/$config_file --scan --check-thresholds=purge -l DEBUG -L rh_purge.log --once
+	$RH -f $RBH_CFG_DIR/$config_file --scan --check-thresholds=purge -l DEBUG \
+        -L rh_purge.log --once 2>/dev/null
 
     countMigrLog=`grep "$usage exceeds high threshold" rh_purge.log | wc -l`
     if (($countMigrLog == 0)); then
