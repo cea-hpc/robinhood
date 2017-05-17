@@ -1,0 +1,73 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "606091e9_49c219fd",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 9319,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-05-17T13:19:23Z",
+      "side": 1,
+      "message": "Is this really needed?",
+      "range": {
+        "startLine": 9319,
+        "startChar": 4,
+        "endLine": 9319,
+        "endChar": 11
+      },
+      "revId": "68e38be83eff8c11b5c6a7d53abb702f9d2c3287",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "18cf017c_31d8df48",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 9324,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-05-17T13:19:23Z",
+      "side": 1,
+      "message": "Can you think of any way to fake rm_time so that sleeping is not needed (to speed up the test)? (I don\u0027t know enough about how rm_time is computed to think of one myself)",
+      "range": {
+        "startLine": 9324,
+        "startChar": 4,
+        "endLine": 9324,
+        "endChar": 12
+      },
+      "revId": "68e38be83eff8c11b5c6a7d53abb702f9d2c3287",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "8e7f46cf_00c108c2",
+        "filename": "tests/test_suite/cfg/test_soft_rm.conf",
+        "patchSetId": 1
+      },
+      "lineNbr": 9,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-05-17T13:19:23Z",
+      "side": 1,
+      "message": "and ignored file tree \"ignoretree\" ?",
+      "range": {
+        "startLine": 9,
+        "startChar": 8,
+        "endLine": 9,
+        "endChar": 40
+      },
+      "revId": "68e38be83eff8c11b5c6a7d53abb702f9d2c3287",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
