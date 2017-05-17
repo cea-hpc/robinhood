@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "c795bc50_46646de4",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 3
+      },
+      "lineNbr": 216,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-05-17T08:37:56Z",
+      "side": 1,
+      "message": "Redirect the stderr output to /dev/null, to avoid polluting the test log:\n cat: /sys/fs/lustre/version: No such file or directory\n cat: /sys/fs/lustre/version: No such file or directory",
+      "range": {
+        "startLine": 216,
+        "startChar": 15,
+        "endLine": 216,
+        "endChar": 41
+      },
+      "revId": "796c4fbebd7cfc1d70652efc6fdc8f875eea303a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
