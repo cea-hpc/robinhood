@@ -1,0 +1,44 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "eaf7023d_6867cca3",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 1
+      },
+      "lineNbr": 10,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-05-17T08:08:35Z",
+      "side": 1,
+      "message": "extra word",
+      "range": {
+        "startLine": 10,
+        "startChar": 0,
+        "endLine": 10,
+        "endChar": 3
+      },
+      "revId": "12c7ce4f7a411c74540a33ce8d701d34f851eee4",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "0ee9f277_ec44d858",
+        "filename": "src/list_mgr/listmgr_filters.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 400,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-05-17T08:08:35Z",
+      "side": 1,
+      "message": "I\u0027m not quite sure I understand what this function is supposed to do.\n\nGoing by the function name, it would be \"can this be expressed in db\", but why isn\u0027t a constant a valid condition? Why do you need either conditions of a binary to hold true, and not both?\n\nI *think* it\u0027s closer to \"do I need to check in db\", but then the name is a bit off and now it\u0027s no longer static it might use a comment",
+      "revId": "12c7ce4f7a411c74540a33ce8d701d34f851eee4",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
