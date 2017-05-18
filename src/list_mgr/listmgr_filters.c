@@ -397,9 +397,9 @@ static bool allow_null(unsigned int attr_index,
     return true;    /* allow, by default */
 }
 
-static bool is_db_cond_valid(bool_node_t *boolexpr,
-                            const sm_instance_t *smi,
-                            const time_modifier_t *time_mod)
+bool cond2sql_ok(bool_node_t *boolexpr,
+                      const sm_instance_t *smi,
+                      const time_modifier_t *time_mod)
 {
     unsigned int index = ATTR_INDEX_FLG_UNSPEC;
     int rc;
@@ -408,23 +408,46 @@ static bool is_db_cond_valid(bool_node_t *boolexpr,
     bool must_free;
     attr_mask_t tmp;
 
-    if (boolexpr->node_type != NODE_CONDITION)
-        return true;
+    switch (boolexpr->node_type) {
+    case NODE_UNARY_EXPR:
+        return cond2sql_ok(boolexpr->content_u.bool_expr.expr1,
+                                smi, time_mod);
+        break;
+    case NODE_CONDITION:
+        rc = criteria2filter(boolexpr->content_u.condition,
+                             &index, &comp, &val, &must_free, smi, time_mod);
 
-    rc = criteria2filter(boolexpr->content_u.condition,
-                         &index, &comp, &val, &must_free, smi, time_mod);
+        if (rc != 0 || (index & ATTR_INDEX_FLG_UNSPEC))
+            /* do nothing (equivalent to 'AND TRUE') */
+            return false;
 
-    if (rc != 0 || (index & ATTR_INDEX_FLG_UNSPEC))
-        /* do nothing (equivalent to 'AND TRUE') */
+        /* test readonly fields */
+        tmp = null_mask;
+        attr_mask_set_index(&tmp, index);
+
+        // free allocated memory
+        if (must_free)
+            MemFree((char *)val.value.val_str);
+
+        if (readonly_fields(tmp))
+            return false;
+        else
+            return true;
+        break;
+    case NODE_BINARY_EXPR:
+        return cond2sql_ok(boolexpr->content_u.bool_expr.expr1,
+                                 smi, time_mod)
+                || cond2sql_ok(boolexpr->content_u.bool_expr.expr2,
+                                    smi, time_mod);
+        break;
+    case NODE_CONSTANT:
         return false;
+        break;
+    }
 
-    /* test readonly fields */
-    tmp = null_mask;
-    attr_mask_set_index(&tmp, index);
-    if (readonly_fields(tmp))
-        return false;
-
-    return true;
+    // Should never arrive here
+    RBH_BUG("DB condition verification, found unknown case");
+    return false;
 }
 
 /* Extract simple pieces of expressions and append them to filter.
@@ -564,9 +587,9 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
 
             // check if expr1 and expr2 have valid DB filter
             // if not, do something about it
-            dbcond1 = is_db_cond_valid(boolexpr->content_u.bool_expr.expr1,
+            dbcond1 = cond2sql_ok(boolexpr->content_u.bool_expr.expr1,
                                        smi, time_mod);
-            dbcond2 = is_db_cond_valid(boolexpr->content_u.bool_expr.expr2,
+            dbcond2 = cond2sql_ok(boolexpr->content_u.bool_expr.expr2,
                                        smi, time_mod);
 
             if (dbcond1 && dbcond2) {

@@ -1268,6 +1268,13 @@ bool lmgr_batch_compat(attr_mask_t m1, attr_mask_t m2);
 /** Add begin or end block. */
 int lmgr_simple_filter_add_block(lmgr_filter_t *, enum filter_flags);
 
+/**
+ * Check if conditions can bi translated to SQL statement for DB query
+ */
+bool cond2sql_ok(bool_node_t *boolexpr,
+                      const struct sm_instance *smi,
+                      const struct time_modifier *time_mod);
+
 #endif
 
 /** @} */

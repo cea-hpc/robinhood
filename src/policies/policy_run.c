@@ -821,18 +821,47 @@ static void build_rule_filters(policy_info_t *policy,
      */
     if (rules->rule_count) {
         int i;
-        if (rules->rule_count > 1)
+        int valid_db_rules = 0;
+
+        /**
+         * Count how many rules can be translated to SQL query
+         */
+        for (i = 0; i < policy->descr->rules.rule_count; i++) {
+            int j, tc = 0;
+            /**
+             * Rule can be translated to SQL statement if any condition
+             * can be translated
+             * or targets class with report = yes
+             */
+            if (cond2sql_ok(&rules->rules[i].condition,
+                                 policy->descr->status_mgr,
+                                 policy->time_modifier))
+                valid_db_rules++;
+            else {
+                for(j = 0; j < policy->descr->rules.rules[i].target_count; j++)
+                    if (policy->descr->rules.rules[i].target_list[j]->matchable)
+                        tc++;
+                if ( tc > 0)
+                    valid_db_rules++;
+            }
+        }
+
+        if (valid_db_rules > 1)
             lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_BEGIN_BLOCK);
 
         for (i = 0; i < rules->rule_count; i++) {
             int j, tc = 0;
             rule_item_t *rule = &rules->rules[i];
+            bool cond_valid = cond2sql_ok(&rules->rules[i].condition,
+                                               policy->descr->status_mgr,
+                                               policy->time_modifier);
+
             /* count matchables fileclasses for current rule */
             for (j = 0; j < rule->target_count; j++) {
                 if (rule->target_list[j]->matchable)
                     tc++;
             }
-            if (tc > 1 || rules->rule_count > 1)
+            if (cond_valid && (tc > 1 || valid_db_rules > 1))
                 lmgr_simple_filter_add_block(p_filter,
                    rules->rule_count > 1
                    ? FILTER_FLAG_BEGIN_BLOCK | FILTER_FLAG_OR
@@ -863,10 +892,10 @@ static void build_rule_filters(policy_info_t *policy,
                 if (tc > 1)
                     lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
             }
-            if (tc > 1 || rules->rule_count > 1)
+            if (cond_valid && (tc > 1 || valid_db_rules > 1))
                 lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
         }
-        if (rules->rule_count > 1)
+        if (valid_db_rules > 1)
             lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
     }
 }
