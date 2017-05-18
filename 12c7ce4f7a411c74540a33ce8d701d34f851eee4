@@ -93,6 +93,24 @@
       "revId": "12c7ce4f7a411c74540a33ce8d701d34f851eee4",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "25a351e4_f9a4b96f",
+        "filename": "src/list_mgr/listmgr_filters.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 400,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-05-18T07:14:20Z",
+      "side": 1,
+      "message": "cond_need_db_translation, or something to that intent?",
+      "parentUuid": "105a2a92_1f194e44",
+      "revId": "12c7ce4f7a411c74540a33ce8d701d34f851eee4",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
