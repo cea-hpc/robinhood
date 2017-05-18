@@ -9448,6 +9448,86 @@ function test_reload
     return 0
 }
 
+function test_lhsm_archive
+{
+    # test_lhsm1.conf "check sql query string in case of multiple AND/OR"
+
+    if (( $is_lhsm == 0 )); then
+        echo "Lustre/HSM test only: skipped"
+        set_skipped
+        return 1
+    fi
+
+    config_file=$1
+    rm -f rh_archive.log
+
+    # run one pass lhsm_archive - need full scan first
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once 2>&1 > /dev/null
+    $RH -f $RBH_CFG_DIR/$config_file --run=lhsm_archive -L rh_archive.log -l FULL -O
+
+    # check
+    grep "AS id FROM ENTRIES" rh_archive.log |
+      grep "AND (((ENTRIES.lhsm_lstarc=0" |
+      grep -q "ENTRIES.last_mod IS NULL))) AND (ENTRIES.last_access" ||
+      error "lhsm_archive query begin blocks incorrect"
+
+    grep "Error 7 executing query" rh_archive.log > /dev/null &&
+      error "lhsm_archive DB query failure"
+
+    return 0
+}
+
+function test_multirule_select
+{
+    # test_multirule.conf "check sql query string in case of multiple rules"
+
+    config_file=$1
+    logfile=rh_multirule.log
+    rm -f $logfile
+
+    # run one pass lhsm_archive - need full scan first
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once 2>&1 > /dev/null
+    $RH -f $RBH_CFG_DIR/$config_file --run=cleanup -L $logfile -l FULL -O
+
+    # check
+    grep "AS id FROM ENTRIES" $logfile |
+      grep "OR ENTRIES.invalid IS NULL) AND ((((ENTRIES.last_access" |
+      grep "OR ENTRIES.last_mod IS NULL" |
+      grep -q "AND NOT (ENTRIES.fileclass LIKE BINARY '%+foo_files+%')" ||
+      error "multirule_select query block incorrect"
+
+    grep "Error 7 executing query" $logfile > /dev/null &&
+      error "multirule_select DB query failure"
+
+    return 0
+}
+
+
+function test_rmdir_depth
+{
+    # test_rmdir_depth.conf "check sql query for rmdir with depth condition"
+
+    config_file=$1
+    logfile=rh_rmdir.log
+    rm -f $logfile
+
+    export MATCH_PATH="$RH_ROOT"
+
+    # run one pass lhsm_archive - need full scan first
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once 2>&1 > /dev/null
+    $RH -f $RBH_CFG_DIR/$config_file --run=rmdir_empty -L $logfile -l FULL -O \
+        2>/dev/null
+
+    # make sure query succeeds
+
+    grep -q "SELECT ENTRIES.id AS id FROM ENTRIES WHERE ENTRIES.type='dir'" $logfile ||
+      error "rmdir depth check DB query failure"
+
+    grep "Error 7 executing query" $logfile > /dev/null &&
+      error "rmdir depth check DB query failure"
+
+    return 0
+}
 
 #############################################################################
 
@@ -12229,6 +12309,10 @@ run_test 236h  test_prepost_sched test_prepost_sched.conf none auto_update \
     "" "post_sched_match=auto_update (no scheduler)"
 run_test 236i  test_prepost_sched test_prepost_sched.conf none force_update \
     common.max_per_run "post_sched_match=force_update"
+run_test 237   test_lhsm_archive test_lhsm1.conf "check sql query string in case of multiple AND/OR"
+run_test 238   test_multirule_select test_multirule.conf "check sql query string in case of multiple rules"
+run_test 239   test_rmdir_depth  test_rmdir_depth.conf "check sql query for rmdir with depth condition"
+
 
 #### triggers ####
 
