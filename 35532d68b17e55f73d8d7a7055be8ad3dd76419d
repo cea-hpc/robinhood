@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "c6294ec2_5b0bfe7f",
+        "filename": "src/include/list_mgr.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 1272,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-05-18T14:13:01Z",
+      "side": 1,
+      "message": "(nitpick) be",
+      "range": {
+        "startLine": 1272,
+        "startChar": 27,
+        "endLine": 1272,
+        "endChar": 29
+      },
+      "revId": "35532d68b17e55f73d8d7a7055be8ad3dd76419d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
