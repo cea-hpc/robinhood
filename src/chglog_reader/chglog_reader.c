@@ -80,6 +80,11 @@ typedef struct reader_thr_info_t {
     /** last record id committed to database */
     unsigned long long last_committed_record;
 
+    /** last commit id updated in DB */
+    unsigned long long last_commit_update_id;
+    /** last time a commit was updated in DB */
+    unsigned long long last_commit_update_time;
+
     /** last record id cleared with changelog */
     unsigned long long last_cleared_record;
 
@@ -217,15 +222,51 @@ static int clear_changelog_records(reader_thr_info_t *p_info)
 }
 
 /**
+ * Store the last processed record (i.e. commited to the DB)
+ * at regular interval.
+ * @return true if the record id was saved, false in other cases.
+ */
+static bool store_last_commit(lmgr_t *lmgr, reader_thr_info_t *info,
+                              CL_REC_TYPE *logrec, bool force)
+{
+    int64_t delta_id = logrec->cr_index - info->last_commit_update_id;
+    time_t delta_sec = time(NULL) - info->last_commit_update_time;
+    char var_tmp[256];
+    char val_tmp[256];
+
+    /** check update delays */
+    if (!force && delta_id < cl_reader_config.commit_update_max_delta
+        && delta_sec < cl_reader_config.commit_update_max_delay)
+        return false;
+
+    snprintf(var_tmp, sizeof(var_tmp), "%s_%s", CL_LAST_COMMITTED,
+            cl_reader_config.mdt_def[info->thr_index].mdt_name);
+    snprintf(val_tmp, sizeof(val_tmp), "%llu", info->last_committed_record);
+
+    if (ListMgr_SetVar(lmgr, var_tmp, val_tmp)) {
+        DisplayLog(LVL_MAJOR, CHGLOG_TAG,
+                   "Failed to save last committed record for %s",
+                   cl_reader_config.mdt_def[info->thr_index].mdt_name);
+        return false;
+    }
+
+    info->last_commit_update_id = logrec->cr_index;
+    info->last_commit_update_time = time(NULL);
+
+    return true;
+}
+
+/**
  * DB callback function: this is called when a given ChangeLog record
  * has been successfully applied to the database.
  */
 static int log_record_callback(lmgr_t *lmgr, struct entry_proc_op_t *pop,
                                void *param)
 {
-    int rc;
     reader_thr_info_t *p_info = (reader_thr_info_t *)param;
     CL_REC_TYPE *logrec = pop->extra_info.log_record.p_log_rec;
+    bool saved;
+    int rc;
 
     /** Check that a log record is set for this entry
      * (should always be the case).
@@ -238,6 +279,10 @@ static int log_record_callback(lmgr_t *lmgr, struct entry_proc_op_t *pop,
 
     /* New highest committed record so far. */
     p_info->last_committed_record = logrec->cr_index;
+
+    /* Save the last committed record so robinhood doesn't get old records
+     * when restarting (especially if there are multiple changelog readers). */
+    saved = store_last_commit(lmgr, p_info, logrec, false);
 
     /* batching llapi_changelog_clear() calls.
      * clear the record in any of those cases:
@@ -260,19 +305,10 @@ static int log_record_callback(lmgr_t *lmgr, struct entry_proc_op_t *pop,
 
     rc = clear_changelog_records(p_info);
 
-    if ((rc == 0) && (p_info->last_committed_record != 0)) {
-        char var_tmp[256];
-        char val_tmp[256];
-        /* save the last committed record, so we don't get old records from
-         * other registrated readers when restarting */
-        sprintf(var_tmp, "%s_%s", CL_LAST_COMMITTED,
-                cl_reader_config.mdt_def[p_info->thr_index].mdt_name);
-        sprintf(val_tmp, "%llu", p_info->last_committed_record);
-        if (ListMgr_SetVar(lmgr, var_tmp, val_tmp))
-            DisplayLog(LVL_MAJOR, CHGLOG_TAG,
-                       "Failed to save last committed record for %s",
-                       cl_reader_config.mdt_def[p_info->thr_index].mdt_name);
-    }
+    /* Always save the last commit after clearing records. This avoids
+     * clearing records twice. */
+    if (!saved)
+        store_last_commit(lmgr, p_info, logrec, true);
 
     return rc;
 }

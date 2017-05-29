@@ -56,6 +56,10 @@ static void cl_reader_set_default_cfg(void *module_config)
     p_config->queue_max_size = 1000;
     p_config->queue_max_age = 5;    /* 5s */
     p_config->queue_check_interval = 1; /* every second */
+
+    p_config->commit_update_max_delay = 5;
+    p_config->commit_update_max_delta = 10000;
+
     p_config->mds_has_lu543 = false;
     p_config->mds_has_lu1331 = false;
 
@@ -78,6 +82,8 @@ static void cl_reader_write_default(FILE *output)
     print_line(output, 1, "queue_max_size   : 1000");
     print_line(output, 1, "queue_max_age    : 5s");
     print_line(output, 1, "queue_check_interval : 1s");
+    print_line(output, 1, "commit_update_max_delay : 5s");
+    print_line(output, 1, "commit_update_max_delta : 10k");
     print_line(output, 1, "mds_has_lu543    : no");
     print_line(output, 1, "mds_has_lu1331   : no");
 
@@ -125,9 +131,13 @@ static void cl_reader_write_template(FILE *output)
 
     print_line(output, 1, "force_polling    = yes ;");
     print_line(output, 1, "polling_interval = 1s ;");
+    print_line(output, 1, "# changelog batching parameters");
     print_line(output, 1, "queue_max_size   = 1000 ;");
     print_line(output, 1, "queue_max_age    = 5s ;");
     print_line(output, 1, "queue_check_interval = 1s ;");
+    print_line(output, 1, "# delays to update last committed record in the DB");
+    print_line(output, 1, "commit_update_max_delay = 5s ;");
+    print_line(output, 1, "commit_update_max_delta = 10k ;");
     fprintf(output, "\n");
 
     print_line(output, 1,
@@ -215,6 +225,7 @@ static int cl_reader_read_cfg(config_file_t config, void *module_config,
     static const char *cl_cfg_allow[] = {
         "force_polling", "polling_interval", "batch_ack_count",
         "queue_max_size", "queue_max_age", "queue_check_interval",
+        "commit_update_max_delay", "commit_update_max_delta",
         "mds_has_lu543", "mds_has_lu1331", MDT_DEF_BLOCK,
         NULL
     };
@@ -231,6 +242,10 @@ static int cl_reader_read_cfg(config_file_t config, void *module_config,
          &p_config->queue_max_age, 0},
         {"queue_check_interval", PT_DURATION, PFLG_NOT_NULL | PFLG_POSITIVE,
          &p_config->queue_check_interval, 0},
+        {"commit_update_max_delta", PT_INT64, PFLG_POSITIVE,
+         &p_config->commit_update_max_delta, 0},
+        {"commit_update_max_delay", PT_DURATION, PFLG_POSITIVE,
+         &p_config->commit_update_max_delay, 0},
         {"mds_has_lu543", PT_BOOL, 0, &p_config->mds_has_lu543, 0},
         {"mds_has_lu1331", PT_BOOL, 0, &p_config->mds_has_lu1331, 0},
         END_OF_PARAMS
@@ -338,6 +353,10 @@ static int cl_reader_reload_cfg(chglog_reader_config_t *cfg)
                       "%ld",);
     SCALAR_PARAM_UPDT(cfg, queue_check_interval, CHGLOG_CFG_BLOCK,
                       "queue_check_interval", "%ld",);
+    SCALAR_PARAM_UPDT(cfg, commit_update_max_delta, CHGLOG_CFG_BLOCK,
+                      "commit_update_max_delta", "%"PRIu64,);
+    SCALAR_PARAM_UPDT(cfg, commit_update_max_delay, CHGLOG_CFG_BLOCK,
+                      "commit_update_max_delay", "%ld",);
 
     if (cfg->mds_has_lu543 != cl_reader_config.mds_has_lu543)
         NO_PARAM_UPDT_MSG(CHGLOG_CFG_BLOCK, "mds_has_lu543");
