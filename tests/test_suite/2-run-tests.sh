@@ -11668,7 +11668,7 @@ function test_commit_update
             -L rh_chglogs.log 2>/dev/null || error "reading changelog"
 
     # count the number of updates of last commit
-    local commit_count=$(grep ChangelogLastCommit rh_chglogs.log | \
+    local commit_count=$(grep CL_LastCommit rh_chglogs.log | \
                          grep "INSERT INTO" | wc -l)
 
     # expected: nb change_log/5 (+ 1)
@@ -11699,7 +11699,7 @@ function test_commit_update
         error "No changelog_clear after 10s"
 
     # 1 update expected
-    commit_count=$(grep ChangelogLastCommit rh_chglogs.log | \
+    commit_count=$(grep CL_LastCommit_ rh_chglogs.log | \
                    grep "INSERT INTO" | wc -l)
 
     if (($commit_count != 1)); then

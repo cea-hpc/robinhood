@@ -645,6 +645,212 @@ static void display_policy_stats(const char *name, int flags)
     }
 }
 
+#ifdef HAVE_CHANGELOGS
+static int64_t read_int64_helper(const char *str)
+{
+    int64_t tmp = str2bigint(str);
+
+    if (tmp == -1LL) {
+        DisplayLog(LVL_CRIT, REPORT_TAG,
+                   "Warning: invalid int64 value from DB: '%s'", str);
+        return 0;
+    }
+    return tmp;
+}
+
+static void str2timeval(struct timeval *tv, char *str)
+{
+    char *save = NULL;
+
+    tv->tv_sec = tv->tv_usec = 0;
+
+    str = strtok_r(str, ".", &save);
+    if (!str)
+        return;
+    tv->tv_sec = read_int64_helper(str);
+
+    str = strtok_r(NULL, ".", &save);
+    if (!str)
+        return;
+    tv->tv_usec = read_int64_helper(str);
+}
+
+static void str2rec_info(char *str, uint64_t *rec_id, struct timeval *rec_time,
+                          struct timeval *step_time)
+{
+    char *save = NULL;
+    *rec_id = 0;
+    rec_time->tv_sec = rec_time->tv_usec = 0;
+    step_time->tv_sec = step_time->tv_usec = 0;
+
+    /* format is rec_id:rec_time:step_time */
+    str = strtok_r(str, ":", &save);
+    if (!str)
+        return;
+    *rec_id = read_int64_helper(str);
+
+    str = strtok_r(NULL, ":", &save);
+    if (!str)
+        return;
+    str2timeval(rec_time, str);
+
+    str = strtok_r(NULL, ":", &save);
+    if (!str)
+        return;
+    str2timeval(step_time, str);
+}
+
+/** Display stats for a given changelog reader and processing step */
+static int display_rec_stats(lmgr_t *lmgr, const char *name, const char *prefix,
+                             int index, int flags)
+{
+    char *varname = NULL;
+    char value[MAX_VAR_LEN];
+    int rc;
+    uint64_t rec_id = 0;
+    struct timeval tv_rec = {0};
+    struct timeval tv_step = {0};
+
+    if (asprintf(&varname, "%s_MDT%04X", prefix, index) == -1
+                 || varname == NULL)
+        return -ENOMEM;
+
+    rc = ListMgr_GetVar(lmgr, varname, value, sizeof(value));
+    free(varname);
+    if (rc == DB_NOT_EXISTS)
+        return -ENOENT;
+    else if (rc != DB_SUCCESS)
+        return -EIO;
+
+    str2rec_info(value, &rec_id, &tv_rec, &tv_step);
+
+    if (CSV(flags)) {
+        printf("MDT%04X, %s, rec_id=%"PRIu64", rec_time=%lu.%06lu, "
+               "step_time=%lu.%06lu\n", index, name, rec_id, tv_rec.tv_sec,
+               tv_rec.tv_usec, tv_step.tv_sec, tv_step.tv_usec);
+    } else {
+        struct tm t;
+        char t1[128];
+        char t2[128];
+
+        if (!NOHEADER(flags))
+            printf("Changelog stats for MDT%04X:\n", index);
+
+        strftime(t1, sizeof(t1), "%Y/%m/%d %T",
+                 localtime_r(&tv_rec.tv_sec, &t));
+        strftime(t2, sizeof(t2), "%Y/%m/%d %T",
+                 localtime_r(&tv_step.tv_sec, &t));
+
+        printf("    %s record: rec_id=%"PRIu64", rec_time=%s.%06lu, "
+               "step_time=%s.%06lu\n", name, rec_id, t1, tv_rec.tv_usec, t2,
+               tv_step.tv_usec);
+    }
+
+    return 0;
+}
+
+/** Display stats per changelog type for given MDT */
+static void display_cl_type_stats(lmgr_t *lmgr, int index, int flags)
+{
+    char *varname = NULL;
+    char value[1024];
+    time_t interval;
+    int i;
+
+    /* changelog stats */
+    if (asprintf(&varname, "%s_MDT%04X", CL_DIFF_INTERVAL, index) == -1
+        || varname == NULL)
+        return;
+
+    if (!NOHEADER(flags)) {
+        if (!CSV(flags)) {
+            printf("    Changelog stats per type (MDT%04X):\n", index);
+            printf("        %5s  %15s \t(%s)\t(%s)\n", "type", "total", "diff",
+                   "rate");
+        } else
+            printf("%7s, %11s, %12s, %8s, %s\n",
+                   "mdt", "record_type", "total", "diff", "rate (ops/sec)");
+    }
+
+    /* get diff interval */
+    if (ListMgr_GetVar(lmgr, varname, value, sizeof(value)) != DB_SUCCESS)
+        interval = 0;
+    else
+        interval = str2int(value);
+    free(varname);
+
+    for (i = 0; i < CL_LAST; i++) {
+        char *varname2;
+        char diff_str[256];
+        unsigned long long diff;
+        double rate;
+        int rc;
+
+        if (asprintf(&varname, "%s_MDT%04X_%s", CL_COUNT_PREFIX, index,
+                     changelog_type2str(i)) == -1 || varname == NULL)
+            continue;
+
+        if (asprintf(&varname2, "%s_MDT%04X_%s", CL_DIFF_PREFIX, index,
+                     changelog_type2str(i)) == -1 || varname2 == NULL) {
+            free(varname);
+            continue;
+        }
+
+        rc = ListMgr_GetVar(lmgr, varname, value, sizeof(value));
+        if (rc == DB_NOT_EXISTS)
+            strcpy(value, "0");
+        else if (rc != 0)
+            strcpy(value, "db_error");
+
+        if ((interval > 0)
+            && (ListMgr_GetVar(lmgr, varname2, diff_str, sizeof(value)) ==
+                DB_SUCCESS)) {
+            diff = str2bigint(diff_str);
+            rate = (0.0 + diff) / (0.0 + interval);
+        } else {
+            diff = 0;
+            rate = 0.0;
+        }
+
+        if (CSV(flags))
+            printf("MDT%04X, %11s, %12s, %8llu, %8.2f\n", index,
+                   changelog_type2str(i), value, diff, rate);
+        else if (diff != 0)
+            printf("        %5s: %15s \t(+%llu)\t(%.2f/sec)\n",
+                   changelog_type2str(i), value, diff, rate);
+        else if (read_int64_helper(value) > 0)
+            printf("        %5s: %15s\n", changelog_type2str(i), value);
+
+    }
+
+    if (!CSV(flags))
+        printf("\n");
+}
+
+static int display_changelog_stats(lmgr_t *lmgr, int index, int flags)
+{
+    int rc;
+
+    rc = display_rec_stats(lmgr, "last_read", CL_LAST_READ_REC, index, flags);
+    if (rc)
+        return rc;
+    rc = display_rec_stats(lmgr, "last_pushed", CL_LAST_PUSHED_REC, index,
+                           flags | OPT_FLAG_NOHEADER);
+    if (rc)
+        return rc;
+    rc = display_rec_stats(lmgr, "last_committed", CL_LAST_COMMITTED_REC, index,
+                           flags | OPT_FLAG_NOHEADER);
+    if (rc)
+        return rc;
+    rc = display_rec_stats(lmgr, "last_cleared", CL_LAST_CLEARED_REC, index,
+                           flags | OPT_FLAG_NOHEADER);
+
+    display_cl_type_stats(lmgr, index, flags);
+
+    return rc;
+}
+#endif /* HAVE_CHANGELOGS */
+
 static void report_activity(int flags)
 {
     char value[1024];
@@ -832,98 +1038,21 @@ static void report_activity(int flags)
         printf("\n");
 
 #ifdef HAVE_CHANGELOGS
-    /* changelog stats */
-    rc = ListMgr_GetVar(&lmgr, CL_LAST_READ_REC_ID, value, sizeof(value));
-    if (rc == DB_SUCCESS) {
-        unsigned int interval;
+    /* read and display stats for MDT indexes from 0 and stop after N indexes
+     * are not found. This allows a certain number of gaps in MDT indexes.
+     */
+    int allowed_gaps = 16;
 
-        if (CSV(flags))
-            printf("changelog_last_record_id, %s\n", value);
-        else {
-            printf("\nChangelog stats:\n\n");
-            printf("        Last read record id:      %s\n", value);
-        }
-
-        if (ListMgr_GetVar(&lmgr, CL_LAST_READ_REC_TIME, value, sizeof(value))
-            == DB_SUCCESS) {
-            if (CSV(flags))
-                printf("changelog_last_record_time, %s\n", value);
-            else
-                printf("        Last read record time:    %s\n", value);
-        }
-
-        if (ListMgr_GetVar(&lmgr, CL_LAST_READ_TIME, value, sizeof(value)) ==
-            DB_SUCCESS) {
-            if (CSV(flags))
-                printf("changelog_cl_recv_time, %s\n", value);
-            else
-                printf("        Last receive time:        %s\n", value);
-        }
-
-        if (ListMgr_GetVar(&lmgr, CL_LAST_COMMITTED, value, sizeof(value)) ==
-            DB_SUCCESS) {
-            if (CSV(flags))
-                printf("changelog_last_committed_id, %s\n", value);
-            else
-                printf("        Last committed record id: %s\n", value);
-        }
-
-        if (!CSV(flags)) {
-            printf("        Changelog stats:\n");
-            printf("                %5s  %15s \t(%s)\t(%s)\n", "type",
-                   "total", "diff", "rate");
-        } else
-            printf("%11s, %12s, %8s, %s\n",
-                   "record_type", "total", "diff", "rate (ops/sec)");
-
-        /* get diff interval */
-        if (ListMgr_GetVar(&lmgr, CL_DIFF_INTERVAL, value, sizeof(value)) !=
-            DB_SUCCESS)
-            interval = 0;
-        else
-            interval = str2int(value);
-
-        for (i = 0; i < CL_LAST; i++) {
-            char varname[256];
-            char varname2[256];
-            char diff_str[256];
-            unsigned long long diff;
-            double rate;
-
-            sprintf(varname, "%s_%s", CL_COUNT_PREFIX, changelog_type2str(i));
-            sprintf(varname2, "%s_%s", CL_DIFF_PREFIX, changelog_type2str(i));
-
-            rc = ListMgr_GetVar(&lmgr, varname, value, sizeof(value));
-            if (rc == DB_NOT_EXISTS)
-                strcpy(value, "0");
-            else if (rc != 0)
-                strcpy(value, "db_error");
-
-            if ((interval > 0)
-                && (ListMgr_GetVar(&lmgr, varname2, diff_str, sizeof(value)) ==
-                    DB_SUCCESS)) {
-                diff = str2bigint(diff_str);
-                rate = (0.0 + diff) / (0.0 + interval);
-            } else {
-                diff = 0;
-                rate = 0.0;
-            }
-
-            if (CSV(flags))
-                printf("%11s, %12s, %8llu, %8.2f\n", changelog_type2str(i),
-                       value, diff, rate);
-            else if (diff != 0)
-                printf("                %5s: %15s \t(+%llu)\t(%.2f/sec)\n",
-                       changelog_type2str(i), value, diff, rate);
-            else
-                printf("                %5s: %15s\n", changelog_type2str(i),
-                       value);
-
-        }
-
-        if (!CSV(flags))
-            printf("\n");
+    for (i = 0; allowed_gaps > 0; i++) {
+        rc = display_changelog_stats(&lmgr, i, flags);
+        if (rc == -ENOENT)
+            allowed_gaps--;
+        else if (rc != 0)
+            break;
     }
+
+    if (!CSV(flags))
+        printf("\n");
 #endif
 
     /* max usage */
