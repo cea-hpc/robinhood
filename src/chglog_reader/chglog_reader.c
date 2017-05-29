@@ -47,6 +47,40 @@
 /* for logs */
 #define CHGLOG_TAG  "ChangeLog"
 
+struct rec_stats {
+    /** index of the record */
+    uint64_t        rec_id;
+    /** timestamp of the record */
+    struct timeval  rec_time;
+    /** when the record reached the current processing step */
+    struct timeval  step_time;
+
+    /* to compute speed between reports */
+    uint64_t        last_report_rec_id;
+    struct timeval  last_report_rec_time;
+};
+
+/** convert changelog record stats to timeval */
+static void timeval_from_rec(struct timeval *tv, CL_REC_TYPE *logrec)
+{
+    tv->tv_sec = (time_t)cltime2sec(logrec->cr_time);
+    tv->tv_usec = (time_t)cltime2nsec(logrec->cr_time) / 1000;
+}
+
+/** update record stats */
+static void update_rec_stats(struct rec_stats *rs, CL_REC_TYPE *logrec)
+{
+    rs->rec_id = logrec->cr_index;
+    timeval_from_rec(&rs->rec_time, logrec);
+    gettimeofday(&rs->step_time, NULL);
+
+    /* if no record has been reported, save this one - 1 as the previous last */
+    if (rs->last_report_rec_id == 0) {
+        rs->last_report_rec_id = rs->rec_id - 1;
+        rs->last_report_rec_time = rs->rec_time;
+    }
+}
+
 /* reader thread info, one per MDT */
 typedef struct reader_thr_info_t {
     /** reader thread index */
@@ -68,28 +102,16 @@ typedef struct reader_thr_info_t {
     /** number of suppressed/merged records */
     unsigned long long suppressed_records;
 
-    /** time when the last line was read */
-    time_t last_read_time;
-
-    /** time of the last read record */
-    struct timeval last_read_record_time;
-
-    /** last read record id */
-    unsigned long long last_read_record;
-
-    /** last record id committed to database */
-    unsigned long long last_committed_record;
-
-    /** last commit id updated in DB */
-    unsigned long long last_commit_update_id;
-    /** last time a commit was updated in DB */
-    unsigned long long last_commit_update_time;
-
-    /** last record id cleared with changelog */
-    unsigned long long last_cleared_record;
-
+    /** last record read from the changelog */
+    struct rec_stats last_read;
     /** last record pushed to the pipeline */
-    unsigned long long last_pushed;
+    struct rec_stats last_push;
+    /** last record commited to the DB */
+    struct rec_stats last_commit;
+    /** last commit id saved to the DB */
+    struct rec_stats last_commit_update;
+    /** last record cleared from the changelog */
+    struct rec_stats last_clear;
 
     /* number of times the changelog has been reopened */
     unsigned int nb_reopen;
@@ -114,10 +136,6 @@ typedef struct reader_thr_info_t {
     ull_t cl_reported[CL_LAST]; /* last reported stat (for incremental diff) */
     time_t last_report;
 
-    /* to compute relative changelog speed
-     * (timeframe of read changelog since the last report) */
-    struct timeval last_report_record_time;
-    unsigned long long last_report_record_id;
     unsigned int last_reopen;
 
     /** On pre LU-1331 versions of Lustre, a CL_RENAME is always
@@ -186,39 +204,80 @@ static void free_extra_info2(void *ptr)
 static int clear_changelog_records(reader_thr_info_t *p_info)
 {
     int rc;
+    const char *reader_id;
 
-    if (p_info->last_committed_record == 0) {
+    if (p_info->last_commit.rec_id == 0) {
         /* No record was ever committed. Stop here because calling
          * llapi_changelog_clear() with record 0 will clear all
          * records, leading to a potential record loss. */
         return 0;
     }
 
+    reader_id = cl_reader_config.mdt_def[p_info->thr_index].reader_id;
+
     DisplayLog(LVL_DEBUG, CHGLOG_TAG,
-               "%s: acknowledging ChangeLog records up to #%llu",
-               p_info->mdtdevice, p_info->last_committed_record);
+               "%s: acknowledging ChangeLog records up to #%"PRIu64,
+               p_info->mdtdevice, p_info->last_commit.rec_id);
 
-    DisplayLog(LVL_FULL, CHGLOG_TAG, "llapi_changelog_clear('%s', '%s', %llu)",
-               p_info->mdtdevice,
-               cl_reader_config.mdt_def[p_info->thr_index].reader_id,
-               p_info->last_committed_record);
+    DisplayLog(LVL_FULL, CHGLOG_TAG, "llapi_changelog_clear('%s', '%s', %"PRIu64")",
+               p_info->mdtdevice, reader_id,
+               p_info->last_commit.rec_id);
 
-    rc = llapi_changelog_clear(p_info->mdtdevice,
-                               cl_reader_config.mdt_def[p_info->thr_index].
-                               reader_id, p_info->last_committed_record);
+    rc = llapi_changelog_clear(p_info->mdtdevice, reader_id,
+                               p_info->last_commit.rec_id);
 
     if (rc) {
         DisplayLog(LVL_CRIT, CHGLOG_TAG,
-                   "ERROR: llapi_changelog_clear(\"%s\", \"%s\", %llu) returned %d",
-                   p_info->mdtdevice,
-                   cl_reader_config.mdt_def[p_info->thr_index].reader_id,
-                   p_info->last_committed_record, rc);
-    } else {
-        p_info->last_cleared_record = p_info->last_committed_record;
+                   "ERROR: llapi_changelog_clear(\"%s\", \"%s\", %"PRIu64") "
+                   "returned %d", p_info->mdtdevice, reader_id,
+                   p_info->last_commit.rec_id, rc);
+        return rc;
     }
 
-    return rc;
+    /* update info about last cleared record */
+    p_info->last_clear.rec_id = p_info->last_commit.rec_id;
+    p_info->last_clear.rec_time =  p_info->last_commit.rec_time;
+    gettimeofday(&p_info->last_clear.step_time, NULL);
 
+    return 0;
+}
+
+/**
+ * Store the information about changelog processing
+ */
+static int store_rec_stats(lmgr_t *lmgr, const reader_thr_info_t *info,
+                           const char *var_prefix, const struct rec_stats *rs)
+{
+    const char *mdt = cl_reader_config.mdt_def[info->thr_index].mdt_name;
+    char *var = NULL;
+    char *val = NULL;
+    int rc;
+
+    if (asprintf(&var, "%s_%s", var_prefix, mdt) == -1 || var == NULL)
+        return errno ? -errno : -ENOMEM;
+
+    /* Format of value is rec_id:record_time(epoch.us):step_time(epoch.us) */
+    if (asprintf(&val, "%"PRIu64":%lu.%lu:%lu.%lu", rs->rec_id,
+                 rs->rec_time.tv_sec, rs->rec_time.tv_usec,
+                 rs->step_time.tv_sec, rs->step_time.tv_usec)  == -1
+        || val == NULL) {
+        rc = errno ? -errno : -ENOMEM;
+        goto out;
+    }
+
+    if (ListMgr_SetVar(lmgr, var, val)) {
+        DisplayLog(LVL_MAJOR, CHGLOG_TAG,
+                   "Failed to save %s record stats for %s", var_prefix, mdt);
+        rc = -EIO;
+        goto out;
+    }
+
+    rc = 0;
+
+out:
+    free(var);
+    free(val);
+    return rc;
 }
 
 /**
@@ -226,34 +285,134 @@ static int clear_changelog_records(reader_thr_info_t *p_info)
  * at regular interval.
  * @return true if the record id was saved, false in other cases.
  */
-static bool store_last_commit(lmgr_t *lmgr, reader_thr_info_t *info,
-                              CL_REC_TYPE *logrec, bool force)
+static bool store_last_commit(lmgr_t *lmgr, reader_thr_info_t *info, bool force)
 {
-    int64_t delta_id = logrec->cr_index - info->last_commit_update_id;
-    time_t delta_sec = time(NULL) - info->last_commit_update_time;
-    char var_tmp[256];
-    char val_tmp[256];
+    int64_t delta_id = info->last_commit.rec_id
+                       - info->last_commit_update.rec_id;
+    time_t delta_sec = info->last_commit.step_time.tv_sec
+                       - info->last_commit_update.step_time.tv_sec;
 
     /** check update delays */
     if (!force && delta_id < cl_reader_config.commit_update_max_delta
         && delta_sec < cl_reader_config.commit_update_max_delay)
         return false;
 
-    snprintf(var_tmp, sizeof(var_tmp), "%s_%s", CL_LAST_COMMITTED,
-            cl_reader_config.mdt_def[info->thr_index].mdt_name);
-    snprintf(val_tmp, sizeof(val_tmp), "%llu", info->last_committed_record);
-
-    if (ListMgr_SetVar(lmgr, var_tmp, val_tmp)) {
-        DisplayLog(LVL_MAJOR, CHGLOG_TAG,
-                   "Failed to save last committed record for %s",
-                   cl_reader_config.mdt_def[info->thr_index].mdt_name);
+    if (store_rec_stats(lmgr, info, CL_LAST_COMMITTED_REC, &info->last_commit))
         return false;
-    }
 
-    info->last_commit_update_id = logrec->cr_index;
-    info->last_commit_update_time = time(NULL);
+    info->last_commit_update.rec_id = info->last_commit.rec_id;
+    info->last_commit_update.rec_time = info->last_commit.rec_time;
+    gettimeofday(&info->last_commit_update.step_time, NULL);
 
     return true;
+}
+
+/** drop all old changelog stats */
+static void drop_deprecated_changelog_vars(lmgr_t *lmgr, const char *mdt)
+{
+    char *var = NULL;
+    int i;
+
+    if (asprintf(&var, "%s_%s", CL_LAST_COMMITTED, mdt) == -1
+        || var == NULL)
+        return;
+    ListMgr_SetVar(lmgr, var, NULL);
+    free(var);
+
+    ListMgr_SetVar(lmgr, CL_LAST_READ_REC_ID, NULL);
+    ListMgr_SetVar(lmgr, CL_LAST_READ_REC_TIME, NULL);
+    ListMgr_SetVar(lmgr, CL_LAST_READ_TIME, NULL);
+    ListMgr_SetVar(lmgr, CL_LAST_COMMITTED, NULL);
+    ListMgr_SetVar(lmgr, CL_DIFF_INTERVAL_OLD, NULL);
+
+    for (i = 0; i < CL_LAST; i++) {
+        if (asprintf(&var, "%s_%s", CL_COUNT_PREFIX_OLD, changelog_type2str(i))
+            == -1 || var == NULL)
+            continue;
+        ListMgr_SetVar(lmgr, var, NULL);
+        free(var);
+
+        if (asprintf(&var, "%s_%s", CL_DIFF_PREFIX_OLD, changelog_type2str(i))
+            == -1 || var == NULL)
+            continue;
+        ListMgr_SetVar(lmgr, var, NULL);
+        free(var);
+    }
+}
+
+
+/**
+ * Retrieve the old variable of last committed changelog record,
+ * and store it as the new name.
+ * @return 0 if the information is not available.
+ */
+static uint64_t retrieve_old_commit(lmgr_t *lmgr, const reader_thr_info_t *info)
+{
+    const char *mdt = cl_reader_config.mdt_def[info->thr_index].mdt_name;
+    char *var = NULL;
+    char val_str[128];
+    struct rec_stats rs = {0};
+    uint64_t rec_id;
+
+    if (asprintf(&var, "%s_%s", CL_LAST_COMMITTED, mdt) == -1
+        || var == NULL)
+        return 0;
+
+    if (ListMgr_GetVar(lmgr, var, val_str, sizeof(val_str)) != DB_SUCCESS) {
+        free(var);
+        return 0;
+    }
+
+    rec_id = str2bigint(val_str);
+    if (rec_id == -1LL)
+        rec_id = 0;
+
+    DisplayLog(LVL_EVENT, CHGLOG_TAG, "Old variable '%s' detected: replacing "
+               "it by '%s_%s'", var, CL_LAST_COMMITTED_REC, mdt);
+    free(var);
+    rs.rec_id = rec_id;
+
+    if (store_rec_stats(lmgr, info, CL_LAST_COMMITTED_REC, &rs) == 0)
+        /* don't drop old variables if the new one could not be set */
+        drop_deprecated_changelog_vars(lmgr, mdt);
+
+    return rec_id;
+}
+
+/**
+ * Retrieve last committed record for the given reader.
+ * @return 0 if the information is not available.
+ */
+static uint64_t retrieve_last_commit(lmgr_t *lmgr,
+                                     const reader_thr_info_t *info)
+{
+    const char *mdt = cl_reader_config.mdt_def[info->thr_index].mdt_name;
+    char val_str[MAX_VAR_LEN];
+    int64_t last_rec;
+    char *var = NULL;
+    char *sv = NULL;
+    char *tok;
+
+    if (asprintf(&var, "%s_%s", CL_LAST_COMMITTED_REC, mdt) == -1
+        || var == NULL)
+        return 0;
+
+    if (ListMgr_GetVar(lmgr, var, val_str, sizeof(val_str)) != DB_SUCCESS) {
+        free(var);
+        /* try with the old name */
+        return retrieve_old_commit(lmgr, info);
+    }
+    free(var);
+
+    tok = strtok_r(val_str, ":", &sv);
+    if (tok == NULL)
+        return 0;
+
+    last_rec = str2bigint(tok);
+    if (last_rec == -1LL)
+        last_rec = 0;
+
+    return last_rec;
 }
 
 /**
@@ -263,7 +422,7 @@ static bool store_last_commit(lmgr_t *lmgr, reader_thr_info_t *info,
 static int log_record_callback(lmgr_t *lmgr, struct entry_proc_op_t *pop,
                                void *param)
 {
-    reader_thr_info_t *p_info = (reader_thr_info_t *)param;
+    reader_thr_info_t *info = (reader_thr_info_t *)param;
     CL_REC_TYPE *logrec = pop->extra_info.log_record.p_log_rec;
     bool saved;
     int rc;
@@ -277,38 +436,38 @@ static int log_record_callback(lmgr_t *lmgr, struct entry_proc_op_t *pop,
         return EINVAL;
     }
 
-    /* New highest committed record so far. */
-    p_info->last_committed_record = logrec->cr_index;
+    /* update info about the last committed record */
+    update_rec_stats(&info->last_commit, logrec);
 
     /* Save the last committed record so robinhood doesn't get old records
      * when restarting (especially if there are multiple changelog readers). */
-    saved = store_last_commit(lmgr, p_info, logrec, false);
+    saved = store_last_commit(lmgr, info, false);
 
     /* batching llapi_changelog_clear() calls.
      * clear the record in any of those cases:
      *      - batch_ack_count = 1 (i.e. acknowledge every record).
-     *      - we reached the last read record.
+     *      - we reached the last pushed record.
      *      - if the delta to last cleared record is high enough.
      * do nothing in all other cases:
      */
     if ((cl_reader_config.batch_ack_count > 1)
-        && (logrec->cr_index < p_info->last_pushed)
-        && ((logrec->cr_index - p_info->last_cleared_record)
+        && (logrec->cr_index < info->last_push.rec_id)
+        && ((logrec->cr_index - info->last_clear.rec_id)
             < cl_reader_config.batch_ack_count)) {
-        DisplayLog(LVL_FULL, CHGLOG_TAG,
-                   "callback - %s cl_record: %llu, last_cleared: %llu, last_pushed: %llu",
-                   p_info->mdtdevice, logrec->cr_index,
-                   p_info->last_cleared_record, p_info->last_pushed);
+        DisplayLog(LVL_FULL, CHGLOG_TAG, "callback - %s cl_record: %llu, "
+                   "last_cleared: %"PRIu64", last_pushed: %"PRIu64,
+                   info->mdtdevice, logrec->cr_index,
+                   info->last_clear.rec_id, info->last_push.rec_id);
         /* do nothing, don't clear log now */
         return 0;
     }
 
-    rc = clear_changelog_records(p_info);
+    rc = clear_changelog_records(info);
 
     /* Always save the last commit after clearing records. This avoids
      * clearing records twice. */
     if (!saved)
-        store_last_commit(lmgr, p_info, logrec, true);
+        store_last_commit(lmgr, info, true);
 
     return rc;
 }
@@ -498,13 +657,14 @@ static void process_op_queue(reader_thr_info_t *p_info, bool push_all)
         DisplayLog(LVL_FULL, CHGLOG_TAG, "pushing cl record #%llu: age=%ld",
                    rec->cr_index,
                    time(NULL) - op->timestamp.changelog_inserted);
-        /* Push the entry to the pipeline */
-        p_info->last_pushed = rec->cr_index;
 
         /* Set parent_id+name from changelog record info, as they are used
          * in pipeline for stage locking. */
         set_name(rec, op);
         EntryProcessor_Push(op);
+
+        /* Push the entry to the pipeline */
+        update_rec_stats(&p_info->last_push, rec);
 
         p_info->op_queue_count--;
     }
@@ -1001,23 +1161,6 @@ static int process_log_rec(reader_thr_info_t *p_info, CL_REC_TYPE *p_rec)
     return 0;
 }
 
-static inline void cl_update_stats(reader_thr_info_t *info,
-                                   CL_REC_TYPE *p_rec)
-{
-    /* update thread info */
-    info->last_read_time = time(NULL);
-    info->nb_read++;
-    info->last_read_record = p_rec->cr_index;
-    info->last_read_record_time.tv_sec = (time_t)cltime2sec(p_rec->cr_time);
-    info->last_read_record_time.tv_usec = cltime2nsec(p_rec->cr_time) / 1000;
-
-    /* if no record has been read, save it as the previous last */
-    if (info->last_report_record_id == 0) {
-        info->last_report_record_id = info->last_read_record - 1;
-        info->last_report_record_time = info->last_read_record_time;
-    }
-}
-
 /* get a changelog line (with retries) */
 typedef enum { cl_ok, cl_continue, cl_stop } cl_status_e;
 
@@ -1029,18 +1172,17 @@ static cl_status_e cl_get_one(reader_thr_info_t *info, CL_REC_TYPE **pp_rec)
     rc = llapi_changelog_recv(info->chglog_hdlr, pp_rec);
 
     if (!EMPTY_STRING(log_config.changelogs_file) && rc != 0 && rc != 1) {
-        DisplayChangelogs
-            (">>> llapi_changelog_recv returned error %d (last record = %llu)",
-             rc, info->last_read_record);
+        DisplayChangelogs(">>> llapi_changelog_recv returned error %d "
+                          "(last record = %"PRIu64")", rc,
+                          info->last_read.rec_id);
         FlushLogs();
     }
 
     switch (rc) {
     case 0:
-        /* Successfully retrieved a record. Update thread info. pp_rec
-         * should never be NULL. */
-        cl_update_stats(info, *pp_rec);
-
+        /* Successfully retrieved a record. Update last read record. */
+        update_rec_stats(&info->last_read, *pp_rec);
+        info->nb_read++;
         return cl_ok;
 
     case 1:    /* EOF */
@@ -1075,7 +1217,7 @@ static cl_status_e cl_get_one(reader_thr_info_t *info, CL_REC_TYPE **pp_rec)
         info->nb_reopen++;
 
         rc = llapi_changelog_start(&info->chglog_hdlr, info->flags,
-                                   info->mdtdevice, info->last_read_record + 1);
+                                   info->mdtdevice, info->last_read.rec_id + 1);
         if (rc) {
             /* will try to recover from this error */
             rh_sleep(1);
@@ -1265,20 +1407,10 @@ int cl_reader_start(run_flags_t flags, int mdt_index)
             | CHANGELOG_FLAG_BLOCK;
 
         if (dbget) {
-            char lastcl_var[256];
-            char val_str[1024];
-
-            sprintf(lastcl_var, "%s_%s", CL_LAST_COMMITTED,
-                    cl_reader_config.mdt_def[i].mdt_name);
-            if (ListMgr_GetVar(&lmgr, lastcl_var, val_str, sizeof(val_str)) ==
-                DB_SUCCESS) {
-                last_rec = str2bigint(val_str);
-                if (last_rec == -1LL)
-                    last_rec = 0;
-                else
-                    /* start rec = last rec + 1 */
-                    last_rec++;
-            }
+            last_rec = retrieve_last_commit(&lmgr, info);
+            if (last_rec != 0)
+                /* start rec = last rec + 1 */
+                last_rec++;
         }
         DisplayLog(LVL_DEBUG, CHGLOG_TAG,
                    "Opening chglog for %s (start_rec=%llu)", mdtdevice,
@@ -1366,20 +1498,58 @@ int cl_reader_done(void)
     return 0;
 }
 
+/** Display record stats */
+static void show_rec_stats(const char *verb, const char *verb_ed,
+                           struct rec_stats *rs, time_t last_report)
+{
+    char rectime_str[256];
+    char steptime_str[256];
+    struct tm paramtm;
+    time_t now = time(NULL);
+
+    /* nothing processed, nothing to report */
+    if (rs->rec_id == 0)
+        return;
+
+    /* first convert tv_sec */
+    strftime(rectime_str, sizeof(rectime_str), "%Y/%m/%d %T",
+             localtime_r(&rs->rec_time.tv_sec, &paramtm));
+    strftime(steptime_str, sizeof(steptime_str), "%Y/%m/%d %T",
+             localtime_r(&rs->step_time.tv_sec, &paramtm));
+
+    /* then %06u appends microseconds (strftime only supports struct tm) */
+    DisplayLog(LVL_MAJOR, "STATS", "   last %s: rec_id=%"PRIu64", "
+               "rec_time=%s.%06lu, %s at %s.%06lu", verb_ed, rs->rec_id,
+               rectime_str, rs->rec_time.tv_usec, verb_ed, steptime_str,
+               rs->step_time.tv_usec);
+
+    /* compute speeds */
+    if (rs->last_report_rec_id != 0 && now > last_report) {
+        double interval = now - last_report;
+        double speed, ratio;
+
+        speed = (double)(rs->rec_id - rs->last_report_rec_id) / interval;
+
+        ratio = (double)((rs->rec_time.tv_sec + rs->rec_time.tv_usec * 0.000001)
+                         - (rs->last_report_rec_time.tv_sec
+                            + rs->last_report_rec_time.tv_usec * 0.000001))
+                / interval;
+        DisplayLog(LVL_MAJOR, "STATS", "       %s speed: %.2f rec/sec, "
+                   "log/real time ratio: %.2f", verb, speed, ratio);
+    }
+
+    rs->last_report_rec_id = rs->rec_id;
+    rs->last_report_rec_time = rs->rec_time;
+}
+
 /** dump changelog processing stats */
 int cl_reader_dump_stats(void)
 {
     unsigned int i, j;
     char tmp_buff[256];
     char *ptr;
-    struct tm paramtm;
-
-    /* ask threads to stop */
 
     for (i = 0; i < cl_reader_config.mdt_count; i++) {
-        double speed, speed2;
-        unsigned int interval, interval2 = 0;
-
         DisplayLog(LVL_MAJOR, "STATS", "ChangeLog reader #%u:", i);
 
         DisplayLog(LVL_MAJOR, "STATS", "   fs_name    =   %s", get_fsname());
@@ -1396,88 +1566,39 @@ int cl_reader_dump_stats(void)
         DisplayLog(LVL_MAJOR, "STATS", "   records pending     = %u",
                    reader_info[i].op_queue_count);
 
-        if (reader_info[i].nb_read) {
-            time_t now = time(NULL);
-
-            strftime(tmp_buff, 256, "%Y/%m/%d %T",
-                     localtime_r(&reader_info[i].last_read_time, &paramtm));
-            DisplayLog(LVL_MAJOR, "STATS", "   last received            = %s",
-                       tmp_buff);
-
-            strftime(tmp_buff, 256, "%Y/%m/%d %T",
-                     localtime_r(&reader_info[i].last_read_record_time.tv_sec,
-                                 &paramtm));
-            DisplayLog(LVL_MAJOR, "STATS",
-                       "   last read record time    = %s.%06u", tmp_buff,
-                       (unsigned int)reader_info[i].last_read_record_time.
-                       tv_usec);
-
-            DisplayLog(LVL_MAJOR, "STATS", "   last read record id      = %llu",
-                       reader_info[i].last_read_record);
-            DisplayLog(LVL_MAJOR, "STATS", "   last pushed record id    = %llu",
-                       reader_info[i].last_pushed);
-            DisplayLog(LVL_MAJOR, "STATS", "   last committed record id = %llu",
-                       reader_info[i].last_committed_record);
-            DisplayLog(LVL_MAJOR, "STATS", "   last cleared record id   = %llu",
-                       reader_info[i].last_cleared_record);
-
-            if (reader_info[i].last_report_record_id
-                && (now > reader_info[i].last_report)) {
-                interval = now - reader_info[i].last_report;
-                /* interval except time for reopening */
-                interval2 =
-                    interval - (reader_info[i].nb_reopen -
-                                reader_info[i].last_reopen)
-                    * cl_reader_config.polling_interval;
-
-                /* compute speed (rec/sec) */
-                speed =
-                    (double)(reader_info[i].last_read_record -
-                             reader_info[i].last_report_record_id) /
-                    (double)interval;
-                if ((interval2 != 0) && (interval2 != interval)) {
-                    speed2 =
-                        (double)(reader_info[i].last_read_record -
-                                 reader_info[i].last_report_record_id) /
-                        (double)interval2;
-                    DisplayLog(LVL_MAJOR, "STATS",
-                               "   read speed               = %.2f record/sec (%.2f incl. idle time)",
-                               speed2, speed);
-                } else
-                    DisplayLog(LVL_MAJOR, "STATS",
-                               "   read speed               = %.2f record/sec",
-                               speed);
-
-                /* compute relative speed (sec/sec) or (h/h) or (d/d) */
-                speed =
-                    (double)(reader_info[i].last_read_record_time.tv_sec +
-                             reader_info[i].last_read_record_time.tv_usec *
-                             0.000001 -
-                             reader_info[i].last_report_record_time.tv_sec -
-                             reader_info[i].last_report_record_time.tv_usec *
-                             0.000001) / (double)interval;
-                DisplayLog(LVL_MAJOR, "STATS",
-                           "   processing speed ratio   = %.2f", speed);
-            }
-
-        }
-
         if (reader_info[i].force_stop)
             DisplayLog(LVL_MAJOR, "STATS",
-                       "   status                   = terminating");
-        else if (interval2 == 0) {  /* spends its time polling */
-            /* more than a single record read? */
-            if (reader_info[i].last_read_record -
-                reader_info[i].last_report_record_id > 1)
-                DisplayLog(LVL_MAJOR, "STATS",
-                           "   status                   = almost idle");
-            else
-                DisplayLog(LVL_MAJOR, "STATS",
-                           "   status                   = idle");
-        } else if (reader_info[i].nb_reopen == reader_info[i].last_reopen)
+                       "   status              = terminating");
+        else if (reader_info[i].nb_reopen == reader_info[i].last_reopen)
             /* no reopen: it is busy reading changelogs */
             DisplayLog(LVL_MAJOR, "STATS",
-                       "   status                   = busy");
+                       "   status              = busy");
+        else if (time(NULL) - reader_info[i].last_report
+                 == (reader_info[i].nb_reopen - reader_info[i].last_reopen)
+                    * cl_reader_config.polling_interval) {
+            /* if the whole interval is the reopen time => it spends it time
+             * polling */
+            /* more than a single record read? */
+            if (reader_info[i].last_read.rec_id -
+                reader_info[i].last_read.last_report_rec_id > 1)
+                DisplayLog(LVL_MAJOR, "STATS",
+                           "   status              = almost idle");
+            else
+                DisplayLog(LVL_MAJOR, "STATS",
+                           "   status              = idle");
+        }
+
+        if (reader_info[i].nb_read > 0) {
+            show_rec_stats("receive", "received", &reader_info[i].last_read,
+                           reader_info[i].last_report);
+            show_rec_stats("push", "pushed", &reader_info[i].last_push,
+                           reader_info[i].last_report);
+            show_rec_stats("commit", "committed", &reader_info[i].last_commit,
+                           reader_info[i].last_report);
+            show_rec_stats("clear", "cleared", &reader_info[i].last_clear,
+                           reader_info[i].last_report);
+        }
+        /* last_report is updated by cl_reader_store_stats */
 
         DisplayLog(LVL_MAJOR, "STATS", "   ChangeLog stats:");
 
@@ -1504,48 +1625,28 @@ int cl_reader_dump_stats(void)
     return 0;
 }
 
-/** store changelog stats to the database */
-int cl_reader_store_stats(lmgr_t *lmgr)
+static void store_thread_info(lmgr_t *lmgr, reader_thr_info_t *info)
 {
-    unsigned int i;
+    const char *mdt = cl_reader_config.mdt_def[info->thr_index].mdt_name;
+    char *varname = NULL;
     char tmp_buff[256];
-    struct tm paramtm;
+    int i;
 
-    /* ask threads to stop */
-
-    if (cl_reader_config.mdt_count > 1)
-        DisplayLog(LVL_MAJOR, CHGLOG_TAG,
-                   "WARNING: more than 1 MDT changelog reader, only 1st reader stats will be stored in DB");
-    else if (cl_reader_config.mdt_count < 1)
-        return ENOENT;  /* nothing to be stored */
-
-    sprintf(tmp_buff, "%llu", reader_info[0].last_read_record);
-    ListMgr_SetVar(lmgr, CL_LAST_READ_REC_ID, tmp_buff);
-    reader_info[0].last_report_record_id = reader_info[0].last_read_record;
-
-    strftime(tmp_buff, 256, "%Y/%m/%d %T",
-             localtime_r(&reader_info[0].last_read_record_time.tv_sec,
-                         &paramtm));
-    sprintf(tmp_buff, "%s.%06u", tmp_buff,
-            (unsigned int)reader_info[0].last_read_record_time.tv_usec);
-    ListMgr_SetVar(lmgr, CL_LAST_READ_REC_TIME, tmp_buff);
-    reader_info[0].last_report_record_time =
-        reader_info[0].last_read_record_time;
-
-    strftime(tmp_buff, 256, "%Y/%m/%d %T",
-             localtime_r(&reader_info[0].last_read_time, &paramtm));
-    ListMgr_SetVar(lmgr, CL_LAST_READ_TIME, tmp_buff);
-
-    sprintf(tmp_buff, "%llu", reader_info[0].last_committed_record);
-    ListMgr_SetVar(lmgr, CL_LAST_COMMITTED, tmp_buff);
+    store_rec_stats(lmgr, info, CL_LAST_READ_REC, &info->last_read);
+    store_rec_stats(lmgr, info, CL_LAST_PUSHED_REC, &info->last_push);
+    store_rec_stats(lmgr, info, CL_LAST_CLEARED_REC, &info->last_clear);
+    /* CL_LAST_COMMITTED_REC is updated by entry processor callbacks */
 
     for (i = 0; i < CL_LAST; i++) {
-        /* get and set (increment) */
-        char varname[256];
         char last_val[256];
         unsigned long long last, current, diff;
 
-        sprintf(varname, "%s_%s", CL_COUNT_PREFIX, changelog_type2str(i));
+        /* CL counters format:  <prefix>_<mdt_name>_<event_name> */
+        if (asprintf(&varname, "%s_%s_%s", CL_COUNT_PREFIX, mdt,
+                     changelog_type2str(i)) == -1 || varname == NULL)
+            continue;
+
+        /* get and set (increment) */
         if (ListMgr_GetVar(lmgr, varname, last_val, sizeof(last_val)) !=
             DB_SUCCESS)
             last = 0;
@@ -1553,27 +1654,49 @@ int cl_reader_store_stats(lmgr_t *lmgr)
             last = str2bigint(last_val);
 
         /* diff = current - last_reported */
-        current = reader_info[0].cl_counters[i];
-        diff = current - reader_info[0].cl_reported[i];
+        current = info->cl_counters[i];
+        diff = current - info->cl_reported[i];
 
         /* new value = last + diff */
-        sprintf(tmp_buff, "%llu", last + diff);
+        snprintf(tmp_buff, sizeof(tmp_buff), "%llu", last + diff);
         if (ListMgr_SetVar(lmgr, varname, tmp_buff) == DB_SUCCESS)
             /* last_reported is now current */
-            reader_info[0].cl_reported[i] = current;
+            info->cl_reported[i] = current;
+        free(varname);
 
         /* save diff */
-        sprintf(varname, "%s_%s", CL_DIFF_PREFIX, changelog_type2str(i));
-        sprintf(tmp_buff, "%llu", diff);
+        if (asprintf(&varname, "%s_%s_%s", CL_DIFF_PREFIX, mdt,
+                     changelog_type2str(i)) == -1 || varname == NULL)
+            continue;
+        snprintf(tmp_buff, sizeof(tmp_buff), "%llu", diff);
         ListMgr_SetVar(lmgr, varname, tmp_buff);
+        free(varname);
     }
 
+    if (asprintf(&varname, "%s_%s", CL_DIFF_INTERVAL, mdt) == -1
+        || varname == NULL)
+        return;
+
     /* indicate diff interval */
-    sprintf(tmp_buff, "%lu", time(NULL) - reader_info[0].last_report);
-    ListMgr_SetVar(lmgr, CL_DIFF_INTERVAL, tmp_buff);
-    reader_info[0].last_report = time(NULL);
+    snprintf(tmp_buff, sizeof(tmp_buff), "%lu", time(NULL) - info->last_report);
+    ListMgr_SetVar(lmgr, varname, tmp_buff);
+    free(varname);
 
-    reader_info[0].last_reopen = reader_info[0].nb_reopen;
+    info->last_report = time(NULL);
+    info->last_reopen = info->nb_reopen;
+}
 
-    return 0;
+/** store changelog stats to the database */
+void cl_reader_store_stats(lmgr_t *lmgr)
+{
+    int i;
+
+    if (cl_reader_config.mdt_count < 1)
+        /* nothing to be stored */
+        return;
+
+    for (i = 0; i < cl_reader_config.mdt_count; i++)
+        store_thread_info(lmgr, &reader_info[i]);
+
+    /** @TODO if an old stat variable is detected, drop old values */
 }
