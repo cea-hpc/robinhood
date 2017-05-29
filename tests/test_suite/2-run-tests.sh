@@ -11622,6 +11622,95 @@ function test_changelog
     rm -f report.out find.out
 }
 
+# wait for changelog_clear until a given timeout
+# return 0 if change_clear occurs before the timeout
+# return 1 else
+function wait_changelog_clear
+{
+    local log=$1
+    local timeout=$2
+    local i=0
+
+    # changelog_clear indicate the changelog processing is done
+    while [ $i -lt $timeout ]; do
+        grep llapi_changelog_clear $log && return 0
+        sleep 1
+        ((i++))
+    done
+    # timeout
+    return 1
+}
+
+function test_commit_update
+{
+    local config_file=$1
+
+    clean_logs
+
+    if (( $no_log )); then
+            echo "Changelogs not supported on this config: skipped"
+            set_skipped
+            return 1
+    fi
+
+    # fill the changelog with 15 records
+    # as the max_delta is 5, we should have about 3 updates
+    echo "1. Creating initial objects..."
+    mkdir $RH_ROOT/dir.{1..15}
+
+    # count changelogs
+    local nb_log=$($LFS changelog lustre | wc -l)
+    echo "$nb_log pending changelogs"
+
+    # read the log and check last commit is updated every n records
+    echo "2. Reading changelogs..."
+        $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l FULL \
+            -L rh_chglogs.log 2>/dev/null || error "reading changelog"
+
+    # count the number of updates of last commit
+    local commit_count=$(grep ChangelogLastCommit rh_chglogs.log | \
+                         grep "INSERT INTO" | wc -l)
+
+    # expected: nb change_log/5 (+ 1)
+    ((expect=$nb_log/5))
+    if (($commit_count != $expect)) && (($commit_count != $expect + 1)); then
+        error "Unexpected count of commit id update in DB ($commit_count vs. $expect (+1))"
+    else
+        echo "OK: commit id updated $commit_count times"
+    fi
+
+    :>rh_chglogs.log
+    # now start in daemon mode (queue 1 changelog to init the last commit time)
+    mkdir $RH_ROOT/dir.16
+    $RH -f $RBH_CFG_DIR/$config_file --readlog -l FULL -L rh_chglogs.log \
+        -p rh.pid -d 2>/dev/null
+
+    # changelog_clear indicate the changelog processing is done
+    wait_changelog_clear rh_chglogs.log 5 ||
+        error "No changelog_clear after 5s"
+
+    :>rh_chglogs.log
+    # wait for the timeout delay and check the commit id is updated
+    # when a new changelog is read
+    sleep 3
+    touch $RH_ROOT/dir.17
+
+    wait_changelog_clear rh_chglogs.log 10 ||
+        error "No changelog_clear after 10s"
+
+    # 1 update expected
+    commit_count=$(grep ChangelogLastCommit rh_chglogs.log | \
+                   grep "INSERT INTO" | wc -l)
+
+    if (($commit_count != 1)); then
+        error "Unexpected count of commit id update in DB ($commit_count vs. 1)"
+    else
+        echo "OK: commit id updated"
+    fi
+
+    kill_from_pidfile
+}
+
 ###########################################################
 ############### End changelog functions ###################
 ###########################################################
@@ -12138,6 +12227,7 @@ run_test 120 posix_acmtime common.conf "Test for posix ctimes"
 run_test 121 db_schema_convert "" "Test DB schema conversion"
 run_test 122 random_names common.conf "Test random file names"
 run_test 123 test_acct_borderline acct.conf "yes" "Test borderline ACCT cases"
+run_test 124 test_commit_update commit_update.conf "Update of last committed changelog"
 
 #### policy matching tests  ####
 
