@@ -1090,16 +1090,30 @@ void ListMgr_CloseProfile(struct lmgr_profile_t *p_iter);
 #define SCAN_STATUS_INCOMPLETE "incomplete"
 #define SCAN_STATUS_PARTIAL    "partial"
 
-// Changelog statitics
-#define CL_LAST_READ_REC_ID    "ChangelogLastId"
-#define CL_LAST_READ_REC_TIME  "ChangelogLastRecTime"
-#define CL_LAST_READ_TIME     "ChangelogLastTime"
-#define CL_LAST_COMMITTED     "ChangelogLastCommit"
-#define CL_COUNT_PREFIX       "ChangelogCount" /* variable is
-                                                  <prefix>_<event_name> */
-#define CL_DIFF_INTERVAL      "ChangelogDiffInt"
-#define CL_DIFF_PREFIX        "ChangelogDiff"  /* variable is
-                                                  <prefix>_<event_name> */
+/* Old changelog statitics */
+#define CL_LAST_READ_REC_ID_OLD   "ChangelogLastId"
+#define CL_LAST_READ_REC_TIME_OLD "ChangelogLastRecTime"
+#define CL_LAST_READ_TIME_OLD     "ChangelogLastTime"
+#define CL_DIFF_INTERVAL_OLD      "ChangelogDiffInt"
+/* Old CL counters: <prefix>_<event_name> */
+#define CL_COUNT_PREFIX_OLD       "ChangelogCount"
+#define CL_DIFF_PREFIX_OLD        "ChangelogDiff"
+/* format for this one was <prefix>_<mdt_name> */
+#define CL_LAST_COMMITTED_OLD     "ChangelogLastCommit"
+
+/* New changelog statitics.
+ * Variable name is <name>_<mdt_name>
+ * Format of value is rec_id:rec_time(epoch.us):step_time(epoch.us)
+ */
+#define CL_LAST_READ_REC        "CL_LastRead"
+#define CL_LAST_PUSHED_REC      "CL_LastPushed"
+#define CL_LAST_COMMITTED_REC   "CL_LastCommit"
+#define CL_LAST_CLEARED_REC     "CL_LastCleared"
+#define CL_DIFF_INTERVAL        "CL_DiffInt"
+
+/* new CL counters:  <prefix>_<mdt_name>_<event_name> */
+#define CL_COUNT_PREFIX         "CL_Count"
+#define CL_DIFF_PREFIX          "CL_Diff"
 
 #define MAX_VAR_LEN     1024
 /**
