@@ -92,8 +92,11 @@ int cl_reader_done(void);
 /** dump changelog processing stats */
 int cl_reader_dump_stats(void);
 
-/** store changelog stats to db */
-int cl_reader_store_stats(lmgr_t *lmgr);
+/** store changelog stats to db.
+ * Must be called after cl_reader_dump_stats() as
+ * cl_reader_store_stats() updates last_report time
+ */
+void cl_reader_store_stats(lmgr_t *lmgr);
 
 /** config handlers */
 extern mod_cfg_funcs_t cl_reader_cfg_hdlr;

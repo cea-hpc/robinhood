@@ -56,7 +56,6 @@ static void cl_reader_set_default_cfg(void *module_config)
     p_config->queue_max_size = 1000;
     p_config->queue_max_age = 5;    /* 5s */
     p_config->queue_check_interval = 1; /* every second */
-
     p_config->commit_update_max_delay = 5;
     p_config->commit_update_max_delta = 10000;
 
