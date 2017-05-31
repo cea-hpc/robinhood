@@ -1,0 +1,106 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "b214604e_5fb96a22",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 79,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-05-31T15:15:42Z",
+      "side": 1,
+      "message": "Will we have 0 in rec_id on initialisation? Can that be a problem? If so we might want to make both *rec_id signed int64_t and use -1 as uninit value, unless this comes straight from llapi as uint64_t...\n(I just created a new changelog reader and the first id is 1, so once we start reading we\u0027re probably fine unless it loops back to 0)\n\nWell, this isn\u0027t new code anyway, probably fine.",
+      "revId": "815b79b256239e9bd7c941b1a04110689521a3a1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7db81ae4_101ec825",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 667,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-05-31T15:15:42Z",
+      "side": 1,
+      "message": "comment doesn\u0027t match code",
+      "revId": "815b79b256239e9bd7c941b1a04110689521a3a1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "230bb7fc_8238f9f2",
+        "filename": "src/include/list_mgr.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 1096,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-05-31T15:15:42Z",
+      "side": 1,
+      "message": "(nitpick/opinion) These don\u0027t get _OLD prefix? probably best to make sure nobody feels like using them?",
+      "revId": "815b79b256239e9bd7c941b1a04110689521a3a1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7d90f8d7_8650fe8b",
+        "filename": "src/robinhood/rbh_report.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 658,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-05-31T15:15:42Z",
+      "side": 1,
+      "message": "no reason this fails but str2bigint can return -1 as long long (64bit) but tv_sec is a uint32.. store in a temp variable to check for success?",
+      "revId": "815b79b256239e9bd7c941b1a04110689521a3a1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "e6e0c588_9a9483ba",
+        "filename": "src/robinhood/rbh_report.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 678,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-05-31T15:15:42Z",
+      "side": 1,
+      "message": "ditto with rec_id as uint64",
+      "revId": "815b79b256239e9bd7c941b1a04110689521a3a1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "4ffe8780_faaf208b",
+        "filename": "src/robinhood/rbh_report.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 1039,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-05-31T15:15:42Z",
+      "side": 1,
+      "message": "Doesn\u0027t rbh-report read the config too? Should know how many/which mdt are configured from config instead of guessing?",
+      "revId": "815b79b256239e9bd7c941b1a04110689521a3a1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
