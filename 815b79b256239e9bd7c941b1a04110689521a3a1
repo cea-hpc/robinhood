@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "211a9d9a_f7aac966",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 79,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-06-01T09:37:19Z",
+      "side": 1,
+      "message": "This variable is used for computing the changelog read speed.\nThe initial displayed speed is (last_read-(first_read-1))/time_interval\nThat\u0027s why we store rec_id - 1 and not 0 here.\nDoes it make sense?",
+      "parentUuid": "b214604e_5fb96a22",
+      "revId": "815b79b256239e9bd7c941b1a04110689521a3a1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "7db81ae4_101ec825",
         "filename": "src/chglog_reader/chglog_reader.c",
         "patchSetId": 3
@@ -30,6 +48,24 @@
       "writtenOn": "2017-05-31T15:15:42Z",
       "side": 1,
       "message": "comment doesn\u0027t match code",
+      "revId": "815b79b256239e9bd7c941b1a04110689521a3a1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ebbc5fda_b4882890",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 667,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-06-01T09:37:19Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "7db81ae4_101ec825",
       "revId": "815b79b256239e9bd7c941b1a04110689521a3a1",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -53,6 +89,24 @@
     },
     {
       "key": {
+        "uuid": "a950b71d_5d72d80a",
+        "filename": "src/include/list_mgr.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 1096,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-06-01T09:37:19Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "230bb7fc_8238f9f2",
+      "revId": "815b79b256239e9bd7c941b1a04110689521a3a1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "7d90f8d7_8650fe8b",
         "filename": "src/robinhood/rbh_report.c",
         "patchSetId": 3
@@ -64,6 +118,24 @@
       "writtenOn": "2017-05-31T15:15:42Z",
       "side": 1,
       "message": "no reason this fails but str2bigint can return -1 as long long (64bit) but tv_sec is a uint32.. store in a temp variable to check for success?",
+      "revId": "815b79b256239e9bd7c941b1a04110689521a3a1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "1a6898f7_a02fa192",
+        "filename": "src/robinhood/rbh_report.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 658,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-06-01T09:37:19Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "7d90f8d7_8650fe8b",
       "revId": "815b79b256239e9bd7c941b1a04110689521a3a1",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -87,6 +159,24 @@
     },
     {
       "key": {
+        "uuid": "c03328ab_fdcb9315",
+        "filename": "src/robinhood/rbh_report.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 678,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-06-01T09:37:19Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "e6e0c588_9a9483ba",
+      "revId": "815b79b256239e9bd7c941b1a04110689521a3a1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "4ffe8780_faaf208b",
         "filename": "src/robinhood/rbh_report.c",
         "patchSetId": 3
@@ -98,6 +188,24 @@
       "writtenOn": "2017-05-31T15:15:42Z",
       "side": 1,
       "message": "Doesn\u0027t rbh-report read the config too? Should know how many/which mdt are configured from config instead of guessing?",
+      "revId": "815b79b256239e9bd7c941b1a04110689521a3a1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ec523087_950b1f13",
+        "filename": "src/robinhood/rbh_report.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 1039,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-06-01T09:37:19Z",
+      "side": 1,
+      "message": "The rbh-report may run on a different node, with a simpler configuration.",
+      "parentUuid": "4ffe8780_faaf208b",
       "revId": "815b79b256239e9bd7c941b1a04110689521a3a1",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
