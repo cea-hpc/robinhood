@@ -231,6 +231,9 @@ function lustre_version
 LVERSION="$(lustre_version)"
 if [ -z "$POSIX_MODE" ]; then
     lustre_major=$(lustre_version major) || exit 1
+else
+    # avoid failing comparisons for POSIX mode
+    lustre_major=0
 fi
 
 if [[ -z "$NOLOG" || $NOLOG = "0" ]]; then
@@ -11895,6 +11898,93 @@ function test_commit_update
     kill_from_pidfile
 }
 
+function test_path_gc1
+{
+    local cfg=$RBH_CFG_DIR/$1
+
+    if [ -n "$POSIX_MODE" ]; then
+		echo "Cannot fully determine id for POSIX"
+		set_skipped
+		return 1
+    fi
+
+    mkdir $RH_ROOT/dir.1
+    mkdir $RH_ROOT/dir.2
+    touch $RH_ROOT/dir.1/file.1
+
+    local fid=$(get_id $RH_ROOT/dir.1/file.1)
+
+    # make robinhood discover this file
+    $RH -f $cfg --scan --once -l DEBUG -L rh_scan.log 2>/dev/null ||
+        error "scanning"
+    check_db_error rh_scan.log
+
+    # entry path is known
+    $REPORT -f $cfg -e $fid --csv | grep "^path," ||
+        error "unknown path for $fid"
+
+    # create a hardlink of it and run a partial scan
+    ln $RH_ROOT/dir.1/file.1 $RH_ROOT/dir.2/file.1 || error "hardlink failed"
+    $RH -f $cfg --scan=$RH_ROOT/dir.2 --once --no-gc -l DEBUG -L rh_scan.log \
+        2>/dev/null || error "scanning"
+    check_db_error rh_scan.log
+
+    # the following request did fails without LIMIT 1"
+    mysql $RH_DB -e "select one_path(id) from  NAMES;" ||
+        error "one_path function fails"
+
+    # query the DB to get all known entry paths
+    local paths=($(mysql $RH_DB -Bse "SELECT this_path(parent_id,name) FROM NAMES WHERE id='$fid'" | sort))
+
+    [[ ${paths[0]} == *"dir.1/file.1" ]] || error "Missing path dir.1/file.1, found: ${paths[0]}"
+    [[ ${paths[1]} == *"dir.2/file.1" ]] || error "Missing path dir.2/file.1, found: ${paths[1]}"
+
+    # partial GC is based on the timestamp of last path update
+    # this ensures the GC is not done the same second as entry discovery
+    # during first scan
+    sleep 1
+
+    # remove the first path and run a partial scan with GC
+    rm -f $RH_ROOT/dir.1/file.1
+    $RH -f $cfg --scan=$RH_ROOT/dir.1 --once -l DEBUG -L rh_scan.log \
+        2>/dev/null || error "scanning"
+    check_db_error rh_scan.log
+
+    # a single path is expected now
+    local cnt=$(mysql $RH_DB -Bse "SELECT count(*) FROM NAMES WHERE id='$fid'")
+    [[ $cnt == 1 ]] || error "unexpected path count: $cnt"
+
+    # check this path
+    local path=$($REPORT -f $cfg -e $fid --csv | grep "^path," | cut -d ',' -f 2 | tr -d " ")
+    [[ $path == "$RH_ROOT/dir.2/file.1" ]] || error "invalid remaining path $path"
+}
+
+function test_path_gc2
+{
+    local cfg=$RBH_CFG_DIR/$1
+
+    mkdir $RH_ROOT/dir.1
+    touch $RH_ROOT/dir.1/file.1
+    touch $RH_ROOT/dir.1/file.2
+
+    # make robinhood discover this file
+    $RH -f $cfg --scan --once -l DEBUG -L rh_scan.log 2>/dev/null ||
+        error "scanning"
+    check_db_error rh_scan.log
+
+    # remove one file and rename directory
+    rm $RH_ROOT/dir.1/file.2
+    mv $RH_ROOT/dir.1 $RH_ROOT/dir.2
+
+    # make sure the moved entry is eligible for GC (path update < scan time)
+    sleep 1
+
+    # GC fails if stored function doesn't support multiple paths
+    $RH -f $cfg --scan --once -l DEBUG -L rh_scan.log 2>/dev/null ||
+            error "scanning"
+    check_db_error rh_scan.log
+}
+
 ###########################################################
 ############### End changelog functions ###################
 ###########################################################
@@ -12494,6 +12584,8 @@ run_test 121 db_schema_convert "" "Test DB schema conversion"
 run_test 122 random_names common.conf "Test random file names"
 run_test 123 test_acct_borderline acct.conf "yes" "Test borderline ACCT cases"
 run_test 124 test_commit_update commit_update.conf "Update of last committed changelog"
+run_test 125a test_path_gc1 test_rm1.conf "Test namespace garbage collection with partial scans"
+run_test 125b test_path_gc2 test_rm1.conf "Test namespace garbage collection after rename"
 
 #### policy matching tests  ####
 
