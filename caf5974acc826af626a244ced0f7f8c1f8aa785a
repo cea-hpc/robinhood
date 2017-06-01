@@ -1,0 +1,55 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "42756b7e_1b504b87",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 384,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-06-01T11:24:24Z",
+      "side": 1,
+      "message": "What if g_regex_replace_literal() fails?",
+      "revId": "caf5974acc826af626a244ced0f7f8c1f8aa785a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "8137d29b_7ef6d45e",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 395,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-06-01T11:24:24Z",
+      "side": 1,
+      "message": "...",
+      "revId": "caf5974acc826af626a244ced0f7f8c1f8aa785a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "8f506e24_23c4a5a8",
+        "filename": "src/tools/lhsmtool_cmd.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 398,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-06-01T11:24:24Z",
+      "side": 1,
+      "message": "...",
+      "revId": "caf5974acc826af626a244ced0f7f8c1f8aa785a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
