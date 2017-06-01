@@ -2645,11 +2645,11 @@ static int create_func_onepath(db_conn_t *pconn, bool *affects_trig)
                        (NULL if id is not found) */
                     " DECLARE EXIT HANDLER FOR NOT FOUND RETURN CONCAT(pid,'/',p);"
                     " SELECT parent_id, name INTO pid, p from NAMES WHERE id=param"
-                    /* limit result to newest path only */
-                    " ORDER BY path_update DESC LIMIT 1;"
+                    /* limit result to 1 path only */
+                    " LIMIT 1;"
                     " LOOP"
                     " SELECT parent_id, name INTO pid, n from NAMES WHERE id=pid"
-                    " ORDER BY path_update DESC LIMIT 1;"
+                    " LIMIT 1;"
                     " SELECT CONCAT( n, '/', p) INTO p;" " END LOOP;" " END",
                     /* size of fullpath */
                     field_infos[ATTR_INDEX_fullpath].db_type_size,
@@ -2710,8 +2710,8 @@ static int create_func_thispath(db_conn_t *pconn, bool *affects_trig)
                 " SET p=n_arg;"
                 " LOOP"
                 " SELECT parent_id, name INTO pid, n from NAMES WHERE id=pid"
-                // limit result to newest path only
-                " ORDER BY path_update DESC LIMIT 1;"
+                /* limit result to 1 path only */
+                " LIMIT 1;"
                 " SELECT CONCAT( n, '/', p) INTO p;" " END LOOP;" " END",
                 /* size of name */
                 field_infos[ATTR_INDEX_name].db_type_size,

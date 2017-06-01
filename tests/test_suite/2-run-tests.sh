@@ -11791,6 +11791,57 @@ function test_commit_update
     kill_from_pidfile
 }
 
+function test_path_gc
+{
+    local cfg=$RBH_CFG_DIR/$1
+
+    mkdir $RH_ROOT/dir.1
+    mkdir $RH_ROOT/dir.2
+    touch $RH_ROOT/dir.1/file.1
+
+    local fid=$(get_id $RH_ROOT/dir.1/file.1)
+
+    ## make robinhood discover this file
+    $RH -f $cfg --scan --once -l DEBUG -L rh_scan.log 2>/dev/null ||
+        error "scanning"
+    check_db_error rh_scan.log
+
+    # entry path is known
+    $REPORT -f $cfg -e $fid --csv | grep "^path," ||
+        error "unknown path for $fid"
+
+    # create a hardlink of it and run a partial scan
+    ln $RH_ROOT/dir.1/file.1 $RH_ROOT/dir.2/file.1 || error "hardlink failed"
+    $RH -f $cfg --scan=$RH_ROOT/dir.2 --once --no-gc -l DEBUG -L rh_scan.log \
+        2>/dev/null || error "scanning"
+    check_db_error rh_scan.log
+
+    # query the DB to get all known entry paths
+    local paths=($(mysql $RH_DB -Bse "SELECT this_path(parent_id,name) FROM NAMES WHERE id='$fid'" | sort))
+
+    [[ ${paths[0]} == *"dir.1/file.1" ]] || error "Missing path dir.1/file.1, found: ${paths[0]}"
+    [[ ${paths[1]} == *"dir.2/file.1" ]] || error "Missing path dir.2/file.1, found: ${paths[1]}"
+
+    # partial GC is based on the timestamp of last path update
+    # this ensures the GC is not done the same second as entry discovery
+    # during first scan
+    sleep 1
+
+    # remove the first path and run a partial scan with GC
+    rm -f $RH_ROOT/dir.1/file.1
+    $RH -f $cfg --scan=$RH_ROOT/dir.1 --once -l DEBUG -L rh_scan.log \
+        2>/dev/null || error "scanning"
+    check_db_error rh_scan.log
+
+    # a single path is expected now
+    local cnt=$(mysql $RH_DB -Bse "SELECT count(*) FROM NAMES WHERE id='$fid'")
+    [[ $cnt == 1 ]] || error "unecpected path count: $cnt"
+
+    # check this path
+    local path=$($REPORT -f $cfg -e $fid --csv | grep "^path," | cut -d ',' -f 2 | tr -d " ")
+    [[ $path == "$RH_ROOT/dir.2/file.1" ]] || error "invalid remaining path $path"
+}
+
 ###########################################################
 ############### End changelog functions ###################
 ###########################################################
@@ -12308,6 +12359,7 @@ run_test 121 db_schema_convert "" "Test DB schema conversion"
 run_test 122 random_names common.conf "Test random file names"
 run_test 123 test_acct_borderline acct.conf "yes" "Test borderline ACCT cases"
 run_test 124 test_commit_update commit_update.conf "Update of last committed changelog"
+run_test 125 test_path_gc test_rm1.conf "Test namespace garbage collection with partial scans"
 
 #### policy matching tests  ####
 
