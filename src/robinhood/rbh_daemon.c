@@ -1765,7 +1765,7 @@ int main(int argc, char **argv)
      * first scan, then process changelogs, then migrate, then purge, etc.
      */
 
-    if (action_mask & ACTION_MASK_SCAN) {
+    if (!terminate_sig && action_mask & ACTION_MASK_SCAN) {
 
         /* Start FS scan */
         if (options.partial_scan)
@@ -1792,10 +1792,14 @@ int main(int argc, char **argv)
         if (options.flags & RUNFLG_ONCE) {
             FSScan_Wait();
             DisplayLog(LVL_MAJOR, MAIN_TAG, "FS Scan finished");
+            /* Did it finish because of a termination signal?
+             * If so, don't continue unless we get the shutdown mutex */
+            if (terminate_sig)
+                pthread_mutex_lock(&shutdown_mtx);
         }
     }
 #ifdef HAVE_CHANGELOGS
-    if (action_mask & ACTION_MASK_HANDLE_EVENTS) {
+    if (!terminate_sig && action_mask & ACTION_MASK_HANDLE_EVENTS) {
 
         /* Start reading changelogs */
         rc = cl_reader_start(options.flags, options.mdtidx);
@@ -1819,6 +1823,10 @@ int main(int argc, char **argv)
         if (options.flags & RUNFLG_ONCE) {
             cl_reader_wait();
             DisplayLog(LVL_MAJOR, MAIN_TAG, "Event Processing finished");
+            /* Did it finish because of a termination signal?
+             * If so, don't continue unless we get the shutdown mutex */
+            if (terminate_sig)
+                pthread_mutex_lock(&shutdown_mtx);
         }
     }
 #endif
@@ -1837,7 +1845,7 @@ int main(int argc, char **argv)
         running_mask = 0;
     }
 
-    if (action_mask & ACTION_MASK_RUN_POLICIES) {
+    if (!terminate_sig && action_mask & ACTION_MASK_RUN_POLICIES) {
         int i;
         /* allocate policy_run structure */
         policy_run = calloc(run_count, sizeof(policy_info_t));
