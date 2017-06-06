@@ -37,6 +37,24 @@
     },
     {
       "key": {
+        "uuid": "0bf90c81_c940a691",
+        "filename": "src/policies/policy_run.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1762,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-06-06T14:31:05Z",
+      "side": 1,
+      "message": "Ok, makes sense that way.\nOnce per policy run can be a lot though.. cf. standford running their modguard every min :D",
+      "parentUuid": "ee1b4f5b_aeaffa1b",
+      "revId": "002bbf9d7bc4e90be11033178bd099a6a70155df",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "df93630d_3455c2a7",
         "filename": "src/policies/policy_run.c",
         "patchSetId": 1
