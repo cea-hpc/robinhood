@@ -1,0 +1,72 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "2ab1660e_48502180",
+        "filename": "src/policies/policy_run.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1762,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-06-06T11:35:30Z",
+      "side": 1,
+      "message": "MAJOR for success too? for actions this is:\npol-\u003econfig-\u003ereport_actions ? LVL_EVENT : LVL_DEBUG",
+      "revId": "002bbf9d7bc4e90be11033178bd099a6a70155df",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "df93630d_3455c2a7",
+        "filename": "src/policies/policy_run.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1766,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-06-06T11:35:30Z",
+      "side": 1,
+      "message": "get rc and log if error? . . or/and possibly make this function non-void and abort/skip running policy if the pre command failed.",
+      "revId": "002bbf9d7bc4e90be11033178bd099a6a70155df",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "82706966_a30eff26",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 9551,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-06-06T11:35:30Z",
+      "side": 1,
+      "message": "dump file content or point to its path in log message?",
+      "revId": "002bbf9d7bc4e90be11033178bd099a6a70155df",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "07610999_f70bcf3d",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 9553,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-06-06T11:35:30Z",
+      "side": 1,
+      "message": "cleanup on error?\n\nI don\u0027t like filename being absolute and 100% deterministic, as can\u0027t run tests in parallel; not sure if it is worth parametrizing",
+      "revId": "002bbf9d7bc4e90be11033178bd099a6a70155df",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
