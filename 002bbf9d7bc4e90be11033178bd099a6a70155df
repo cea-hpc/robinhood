@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "ee1b4f5b_aeaffa1b",
+        "filename": "src/policies/policy_run.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1762,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-06-06T13:56:12Z",
+      "side": 1,
+      "message": "This action is only executed once per policy run, so it is expected to be displayed as frequently as \"Starting policy run\" (which is also MAJOR). I thought it is not a big spam and this action is likely interesting for the admin who defined it. That\u0027s why I displayed it as \u0027LVL_MAJOR\u0027. What do you think?",
+      "parentUuid": "2ab1660e_48502180",
+      "revId": "002bbf9d7bc4e90be11033178bd099a6a70155df",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "df93630d_3455c2a7",
         "filename": "src/policies/policy_run.c",
         "patchSetId": 1
@@ -30,6 +48,24 @@
       "writtenOn": "2017-06-06T11:35:30Z",
       "side": 1,
       "message": "get rc and log if error? . . or/and possibly make this function non-void and abort/skip running policy if the pre command failed.",
+      "revId": "002bbf9d7bc4e90be11033178bd099a6a70155df",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "c6b9f789_2f425ffd",
+        "filename": "src/policies/policy_run.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1766,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-06-06T13:56:12Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "df93630d_3455c2a7",
       "revId": "002bbf9d7bc4e90be11033178bd099a6a70155df",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -53,6 +89,24 @@
     },
     {
       "key": {
+        "uuid": "ca051787_9fd36282",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 9551,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-06-06T13:56:12Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "82706966_a30eff26",
+      "revId": "002bbf9d7bc4e90be11033178bd099a6a70155df",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "07610999_f70bcf3d",
         "filename": "tests/test_suite/2-run-tests.sh",
         "patchSetId": 1
@@ -64,6 +118,24 @@
       "writtenOn": "2017-06-06T11:35:30Z",
       "side": 1,
       "message": "cleanup on error?\n\nI don\u0027t like filename being absolute and 100% deterministic, as can\u0027t run tests in parallel; not sure if it is worth parametrizing",
+      "revId": "002bbf9d7bc4e90be11033178bd099a6a70155df",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "b8ee912a_4cc89a78",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 9553,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-06-06T13:56:12Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "07610999_f70bcf3d",
       "revId": "002bbf9d7bc4e90be11033178bd099a6a70155df",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
