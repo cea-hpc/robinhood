@@ -258,7 +258,6 @@ static bool ignore_entry(char *fullpath, char *name, unsigned int depth,
 #ifndef _HAVE_FID
     tmpid.inode = p_stat->st_ino;
     tmpid.fs_key = get_fskey();
-    tmpid.validator = p_stat->st_ctime;
 #endif
 
     rc = POLICY_NO_MATCH;
@@ -919,7 +918,6 @@ static int process_one_entry(thread_scan_info_t *p_info,
         if (!no_md) {
             op->entry_id.inode = inode.st_ino;
             op->entry_id.fs_key = get_fskey();
-            op->entry_id.validator = inode.st_ctime;
             op->entry_id_is_set = 1;
         } else
             op->entry_id_is_set = 0;
