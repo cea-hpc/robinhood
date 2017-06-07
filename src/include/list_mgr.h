@@ -638,13 +638,6 @@ int ListMgr_Exists(lmgr_t *p_mgr, const entry_id_t *p_id);
 #define VALID_NOSTRIPE -1   /* check if the stripe is empty */
 int ListMgr_CheckStripe(lmgr_t *p_mgr, const entry_id_t *p_id, int validator);
 
-/**
- * Insert new stripe info if it is not known yet,
- * or in case ListMgr_CheckStripe() returned DB_OUT_OF_DATE.
- */
-int ListMgr_SetStripe(lmgr_t *p_mgr, const entry_id_t *p_id,
-                      stripe_info_t *p_stripe_info,
-                      stripe_items_t *p_stripe_items);
 #endif
 
 /**
