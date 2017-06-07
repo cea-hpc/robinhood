@@ -416,25 +416,3 @@ int ListMgr_CheckStripe(lmgr_t *p_mgr, const entry_id_t *p_id, int validator)
                PFID(p_id), __func__, rc);
     return rc;
 }
-
-int ListMgr_SetStripe(lmgr_t *p_mgr, const entry_id_t *p_id,
-                      stripe_info_t *p_stripe_info,
-                      stripe_items_t *p_stripe_items)
-{
-    DEF_PK(pk);
-    int rc;
-#ifdef HAVE_LLAPI_FSWAP_LAYOUTS
-    int validator = (p_stripe_info ? p_stripe_info->validator : VALID_NOSTRIPE);
-#else
-    int validator = VALID(p_id);
-#endif
-
-    entry_id2pk(p_id, PTR_PK(pk));
- retry:
-    rc = insert_stripe_info(p_mgr, pk, validator, p_stripe_info, p_stripe_items,
-                            true);
-    if (lmgr_delayed_retry(p_mgr, rc))
-        goto retry;
-
-    return rc;
-}
