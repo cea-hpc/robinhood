@@ -2089,7 +2089,6 @@ int path2id(const char *path, entry_id_t *id, const struct stat *st)
     /* build id from dev/inode */
     id->inode = st->st_ino;
     id->fs_key = get_fskey();
-    id->validator = st->st_ctime;
 #endif
     return 0;
 }

@@ -119,8 +119,8 @@ static void test_subst_params(void)
     entry_id_t id = { 0x1234, 0x5678, 0xabcd };
     const char fid_str[] = "0x1234:0x5678:0xabcd";
 #else
-    /* fskey, inode, validator */
-    entry_id_t id = { 0x8BC1, 12345, 0x1 };
+    /* fskey, inode */
+    entry_id_t id = { 0x8BC1, 12345 };
     const char fid_str[] = "8BC1/12345";
 #endif
     struct rbh_params params = { 0 };
