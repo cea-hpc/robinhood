@@ -11811,6 +11811,7 @@ function wait_changelog_clear
 function test_commit_update
 {
     local config_file=$1
+    local err
 
     clean_logs
 
@@ -11832,7 +11833,12 @@ function test_commit_update
     # read the log and check last commit is updated every n records
     echo "2. Reading changelogs..."
         $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l FULL \
-            -L rh_chglogs.log 2>/dev/null || error "reading changelog"
+            -L rh_chglogs.log 2>/dev/null || err=1
+
+    if [[ -n "$err" ]]; then
+        error "reading changelog"
+        tail -n 100 rh_chglogs.log
+    fi
 
     # count the number of updates of last commit
     local commit_count=$(grep CL_LastCommit rh_chglogs.log | \
