@@ -199,25 +199,20 @@ function wait_stable_df
     done
 }
 
-# Prior to Lustre 2.10, the version of Lustre could be determined by
-# parsing the proc file /proc/fs/lustre/version
-# The format of the file was "lustre: <version>"
-function __legacy_lustre_version()
-{
-    grep -o "[1-9].*" /proc/fs/lustre/version
-}
-
 # Prints all, or part of Lustre's version
 #
 # lustre_version {all,major}
 function lustre_version
 {
-    local version
+    local version_file="/sys/fs/lustre/version"
+    # Support for older versions of Lustre
+    [ -f "$version_file" ] || version_file="${version_file/\/sys//proc}"
 
-    version="$(cat /sys/fs/lustre/version 2>/dev/null ||
-               __legacy_lustre_version)"
-    [ -n "$version" ] ||
-        { printf "Unable to determine Lustre's version\n" >&2 ; return 1; }
+    local version="$(grep -o "[1-9].*" "$version_file")"
+    if [ -z "$version" ]; then
+        printf "Unable to determine Lustre's version\n" >&2
+        return 1
+    fi
 
     case "${1:-all}" in
     all)
