@@ -10668,6 +10668,7 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
     dd_out=/tmp/dd.out.$$
     one_error=""
     dd_err_count=0
+    elem=$(fs_usage)
     while [ $elem -lt $limit ]
     do
         # write 2M to fulfill 2 stripes
