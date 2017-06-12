@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "49c36e7c_484a143d",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 3
+      },
+      "lineNbr": 208,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-06-12T15:02:25Z",
+      "side": 1,
+      "message": "(defect) must be version_file here",
+      "range": {
+        "startLine": 208,
+        "startChar": 46,
+        "endLine": 208,
+        "endChar": 53
+      },
+      "revId": "66b83db71e6a8f4967f3c60e3064b925c99114bc",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
