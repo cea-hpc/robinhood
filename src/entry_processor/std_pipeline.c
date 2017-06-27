@@ -828,15 +828,6 @@ int EntryProc_get_info_db(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
             && (logrec->cr_namelen == 0))
             attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_path_update);
 
-#if 0   /* XXX not to be done systematically: only on specific events? (CL_LAYOUT...) */
-#ifdef _LUSTRE
-        if ((type_clue == TYPE_NONE || type_clue == TYPE_FILE)
-            && logrec->cr_type != CL_CREATE)
-            /* to check if stripe_info is set for this entry (useless for CREATE) */
-            p_op->db_attr_need |= ATTR_MASK_stripe_info;
-#endif
-#endif
-
         if (entry_proc_conf.detect_fake_mtime)
             attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_creation_time);
 
