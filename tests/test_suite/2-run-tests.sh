@@ -6583,11 +6583,20 @@ function test_diff
 
     echo "2-diff ($policy_str)..."
     if [ "$flavor" = "diff" ]; then
-        $DIFF -f $RBH_CFG_DIR/$config_file -l FULL > report.out 2> rh_report.log || error "performing diff"
+        $DIFF -f $RBH_CFG_DIR/$config_file -l FULL > report.out \
+            2> rh_report.log || error "performing diff"
+    elif [ "$flavor" = "partdiff" ]; then
+        # the triggered bug returns a retryable error
+        # use a timeout to make this test finish
+        timeout 10 $DIFF -f $RBH_CFG_DIR/$config_file -l FULL \
+            --scan=$RH_ROOT/dir.1 > report.out 2> rh_report.log ||
+                error "performing partial diff"
     elif [ "$flavor" = "diffapply" ]; then
-        $DIFF --apply=db -f $RBH_CFG_DIR/$config_file -l FULL > report.out 2> rh_report.log || error "performing diff"
+        $DIFF --apply=db -f $RBH_CFG_DIR/$config_file -l FULL > report.out \
+            2> rh_report.log || error "performing diff"
     elif [ "$flavor" = "scan" ]; then
-        $RH -f $RBH_CFG_DIR/$config_file -l FULL --scan --once --diff=all -L rh_report.log > report.out || error "performing scan+diff"
+        $RH -f $RBH_CFG_DIR/$config_file -l FULL --scan --once --diff=all \
+            -L rh_report.log > report.out || error "performing scan+diff"
     fi
 
     [ "$DEBUG" = "1" ] && cat report.out
@@ -6595,13 +6604,22 @@ function test_diff
     # must get:
     # new entries dir.1/file.new and dir.new
     egrep '^++' report.out | grep -v '+++' | grep -E "name='file.new'|path='$RH_ROOT/dir.1/file.new'" | grep type=file || error "missing create dir.1/file.new"
-    egrep '^++' report.out | grep -v '+++' | grep -E "name='dir.new'|path='$RH_ROOT/dir.new'" | grep type=dir || error "missing create dir.new"
+    if [ "$flavor" != "partdiff" ]; then
+        egrep '^++' report.out | grep -v '+++' | grep -E "name='dir.new'|path='$RH_ROOT/dir.new'" | grep type=dir || error "missing create dir.new"
+    fi
     # rmd entries dir.1/b and dir.3
+    if [ "$flavor" = "partdiff" ]; then
+        rm_expect=1
+    else
+        rm_expect=2
+    fi
     nbrm=$(egrep -e '^--' report.out | grep -v -- '---' | wc -l)
-    [ $nbrm  -eq 2 ] || error "$nbrm/2 removal"
+    [ $nbrm  -eq $rm_expect ] || error "$nbrm/$rm_expect removal"
     # changes
     grep "^+[^ ]*"$(get_id "$RH_ROOT/dir.1") report.out  | grep mode= || error "missing chmod $RH_ROOT/dir.1"
-    grep "^+[^ ]*"$(get_id "$RH_ROOT/dir.2") report.out | grep owner=$testuser_str || error "missing chown $RH_ROOT/dir.2"
+    if [ "$flavor" != "partdiff" ]; then
+        grep "^+[^ ]*"$(get_id "$RH_ROOT/dir.2") report.out | grep owner=$testuser_str || error "missing chown $RH_ROOT/dir.2"
+    fi
     grep "^+[^ ]*"$(get_id "$RH_ROOT/dir.1/a") report.out | grep group=$testgroup_str || error "missing chgrp $RH_ROOT/dir.1/a"
     grep "^+[^ ]*"$(get_id "$RH_ROOT/dir.1/c") report.out | grep size= || error "missing size change $RH_ROOT/dir.1/c"
 
@@ -6619,7 +6637,7 @@ function test_diff
     [ -z old_file ] && error "missing path change $RH_ROOT/fname"
     [ -z new_file ] && error "missing path change $RH_ROOT/fname"
 
-    if [ $has_swap -eq 1 ]; then
+    if [ "$flavor" != "partdiff" ] && [ $has_swap -eq 1 ]; then
         grep "^+[^ ]*"$(get_id "$RH_ROOT/dir.2/e") report.out | grep stripe || error "missing stripe change $RH_ROOT/dir.2/e"
         grep "^+[^ ]*"$(get_id "$RH_ROOT/dir.2/f") report.out | grep stripe || error "missing stripe change $RH_ROOT/dir.2/f"
     fi
@@ -12537,6 +12555,7 @@ run_test 105     test_enoent test_pipeline.conf "readlog with continuous create/
 run_test 106a    test_diff info_collect2.conf "diff" "rbh-diff"
 run_test 106b    test_diff info_collect2.conf "diffapply" "rbh-diff --apply"
 run_test 106c    test_diff info_collect2.conf "scan" "robinhood --scan --diff"
+run_test 106d    test_diff info_collect2.conf "partdiff" "rbh-diff --scan=subdir"
 run_test 107a    test_completion test_completion.conf OK        "scan completion command"
 run_test 107b    test_completion test_completion.conf unmatched "wrong completion command (syntax error)"
 run_test 107c    test_completion test_completion.conf invalid_ctx_id "wrong completion command (using id)"

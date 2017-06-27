@@ -68,13 +68,13 @@ int ListMgr_CreateTag(lmgr_t * p_mgr, const char *tag_name,
             filter_from(p_mgr, &fcnt, from, &query_tab, &distinct, 0);
 
             if (distinct)
-                g_string_printf(req, "SELECT DISTINCT(%s.id) AS id",
+                g_string_append_printf(req, "SELECT DISTINCT(%s.id) AS id",
                                 table2name(query_tab));
             else
-                g_string_printf(req, "SELECT %s.id AS id",
+                g_string_append_printf(req, "SELECT %s.id AS id",
                                 table2name(query_tab));
 
-            g_string_append_printf(req, "FROM %s WHERE %s", from->str, where->str);
+            g_string_append_printf(req, " FROM %s WHERE %s", from->str, where->str);
         }
     }
 
