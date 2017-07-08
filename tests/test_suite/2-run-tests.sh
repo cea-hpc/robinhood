@@ -8872,6 +8872,24 @@ function test_rbh_find_printf
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%s\t%d\t%y")
     [[ $STR == "1024	1	f" ]] || error "unexpected rbh-find result (301): $STR"
 
+    # bash will not let us store \0 in a string, so test slightly differently and run again on error
+    FMT="\0\011\x0\42\x42\x25\x0a"
+    cmp <($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%p$FMT") \
+        <(printf "%s$FMT" "$srcfile")
+    if (( $? != 0 )); then
+        $FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%p$FMT" | cat -vT
+        error "unexpected rbh-find result (302): (see previous line)"
+    fi
+
+    cmp <($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -print0) \
+        <(printf "%s\0" "$srcfile")
+    if (( $? != 0 )); then
+        $FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -print0 | cat -vT
+        echo
+        error "unexpected rbh-find result (303): (see previous line)"
+    fi
+
+
     # Test module attributes
     STR=$($FIND $RH_ROOT/ -type f -f $RBH_CFG_DIR/$config_file -printf "%Rm{}" 2>&1)
     [[ $STR == *"Error: cannot extract module attribute name"* ]] || error "unexpected rbh-find result (400): $STR"
