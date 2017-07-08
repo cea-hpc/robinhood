@@ -239,6 +239,8 @@ int execute_shell_command(char **cmd, parse_cb_t cb_func, void *cb_arg)
     GSpawnFlags         flags = G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD;
     GIOChannel         *out_chan = NULL;
     GIOChannel         *err_chan = NULL;
+    struct io_chan_arg  out_args;
+    struct io_chan_arg  err_args;
     char               *log_cmd;
     int                 p_stdout;
     int                 p_stderr;
@@ -278,18 +280,14 @@ int execute_shell_command(char **cmd, parse_cb_t cb_func, void *cb_arg)
     g_child_watch_add_tothread(pid, watch_child_cb, &ctx);
 
     if (cb_func != NULL) {
-        struct io_chan_arg out_args = {
-            .ident    = STDOUT_FILENO,
-            .cb       = cb_func,
-            .udata    = cb_arg,
-            .exec_ctx = &ctx
-        };
-        struct io_chan_arg err_args = {
-            .ident    = STDERR_FILENO,
-            .cb       = cb_func,
-            .udata    = cb_arg,
-            .exec_ctx = &ctx
-        };
+        out_args.ident    = STDOUT_FILENO;
+        out_args.cb       = cb_func;
+        out_args.udata    = cb_arg;
+        out_args.exec_ctx = &ctx;
+        err_args.ident    = STDERR_FILENO;
+        err_args.cb       = cb_func;
+        err_args.udata    = cb_arg;
+        err_args.exec_ctx = &ctx;
 
         out_chan = g_io_channel_unix_new(p_stdout);
         err_chan = g_io_channel_unix_new(p_stderr);
