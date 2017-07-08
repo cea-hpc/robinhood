@@ -836,6 +836,7 @@ int check_fs_info(const char *path, const char *expected_type,
                    (uint64_t)parentmntstat.st_dev);
         goto out_free;
     }
+    free(tmp_buff);
 #ifdef _LUSTRE
     if (!strcmp(match_type, "lustre")) {
         char *ptr = strstr(match_fs, ":/");
