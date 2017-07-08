@@ -475,8 +475,11 @@ static const char *help_string =
     _B "%%Rm{lhsm.archive_id}" B_ ".\n" "            " _B "%%Ro" B_
     "\t Lustre OSTS\n" "            " _B "%%Rp" B_ "\t Lustre parent FID\n"
     "            " _B "\\\\" B_ "\t Escapes \\\n" "            " _B "\\n" B_
-    "\t Newline\n" "            " _B "\\t" B_ "\t Tab\n" "    " _B "-escaped" B_
-    " \t When -printf is used, escape unprintable characters.\n" "\n" _B
+    "\t Newline\n" "            " _B "\\t" B_ "\t Tab\n" "            " _B
+    "\\NNN" B_ " Byte with octal value NNN (1 to 3 digits)\n"
+    "            " _B "\\xHH" B_
+    " Byte with hexadecimal value HH (1 to 2 digits)\n" "    " _B "-escaped"
+    B_ " \t When -printf is used, escape unprintable characters.\n" "\n" _B
     "Actions:" B_ "\n" "    " _B "-exec" B_ " " _U "\"cmd\"" U_ "\n"
     "       Execute the given command for each matching entry. Unlike classical 'find',\n"
     "       cmd must be a single (quoted) shell param, not necessarily terminated with ';'.\n"
