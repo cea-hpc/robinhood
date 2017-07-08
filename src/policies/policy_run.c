@@ -2344,7 +2344,7 @@ static void log_action_success(const policy_info_t *pol,
 #define policy_ack(_q, _status, _pattrs, _tgt)  do {                 \
             unsigned long long feedback[AF_ENUM_COUNT];              \
             memset(feedback, 0, sizeof(feedback));   \
-            if (_status == AS_OK) {             \
+            if ((_status) == AS_OK) {             \
                 feedback[AF_NBR_OK] = 1;        \
                 feedback[AF_VOL_OK] = ATTR_MASK_TEST(_pattrs, size) ? \
                                       ATTR(_pattrs, size) : 0;        \
