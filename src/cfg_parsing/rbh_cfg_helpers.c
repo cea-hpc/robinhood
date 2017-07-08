@@ -572,7 +572,7 @@ int GetFloatParam(config_item_t block, const char *block_name,
     if (rc)
         return rc;
 
-    nb_read = sscanf(value, "%lf%256s", &val, tmpbuf);
+    nb_read = sscanf(value, "%lf%255s", &val, tmpbuf);
     if (nb_read < 1) {
         sprintf(err_msg, "Invalid value for '%s::%s', line %d: float expected.",
                 block_name, var_name, rh_config_GetItemLine(curr_item));
