@@ -212,13 +212,59 @@ static const char *append_time_format(const char *str, struct fchunk *chunk)
     return str;
 }
 
+/* Helper function to parse int escape codes (\NNN octal or \xHH hex)
+ * return the number of bytes read in str, or -1 if need a go-again for 0 */
+static int parse_escaped_int(const char *str, struct fchunk *chunk, int base)
+{
+    long int print_val;
+    char value_string[4], *endptr;
+    int numread;
+
+    if (base == 8) {
+        numread = 3;
+    } else if (base == 16) {
+        numread = 2;
+    } else {
+        RBH_BUG("Error: invalid base");
+    }
+
+    /* copy next few chars and try to read as int */
+    rh_strncpy(value_string, str, numread+1); /* +1 for final '\0' */
+    print_val = strtol(value_string, &endptr, base);
+    if (endptr == value_string) {
+        /* invalid hex */
+        return 0;
+    }
+
+    /* printf will copy any byte we put in format string unchanged,
+     * except for '\0' and '%'.
+     * '\0' is handled as a directive since printf will stop on a 0-byte
+     * even with a length specifier */
+    if (print_val == 0) {
+        /* if chunk->directive is already set, request a new chunk and
+         * parse this again */
+        if (chunk->directive)
+            return -1;
+        g_string_append(chunk->format, "%c");
+        chunk->directive = 'z';
+    } else if ((char)print_val == '%') {
+        g_string_append(chunk->format, "%%");
+    } else {
+        /* printf-agnostic character */
+        g_string_append_c(chunk->format, (char)print_val);
+    }
+
+    return endptr - value_string;
+}
+
 /* Analyze a format string, and find the next chunk. Each argument is
  * transformed into its real printf type. For instance "%s" means the
  * size, and is stored as an large integer in the database, needs to
  * be displayed as an "%zu". */
 static const char *extract_chunk(const char *str, struct fchunk *chunk)
 {
-    unsigned int directive = 0;
+    int rc;
+    chunk->directive = 0;
 
     while (*str) {
         if (*str != '%') {
@@ -238,12 +284,35 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
                     g_string_append_c(chunk->format, '\t');
                     break;
 
+                case 'x':
+                    rc = parse_escaped_int(str+1, chunk, 16);
+                    if (rc == 0) {
+                        DisplayLog(LVL_CRIT, FIND_TAG,
+                                   "Error: invalid \\x not followed by hex in format string");
+                        return NULL;
+                    }
+                    /* need a new chunk for \0, return back to \\ */
+                    if (rc == -1)
+                        return str - 1;
+                    str += rc;
+                    break;
+
                 case 0:
                     DisplayLog(LVL_CRIT, FIND_TAG,
                                "Error: lone \\ at end of format string");
                     return NULL;
 
                 default:
+                    /* check for octal value */
+                    if (*str >= '0' && *str <= '7') {
+                        rc = parse_escaped_int(str, chunk, 8);
+                        /* need a new chunk for \0, return back to \\ */
+                        if (rc == -1)
+                            return str - 1;
+                        str += rc - 1; /* -1 because no leading character */
+                        break;
+                    }
+
                     DisplayLog(LVL_CRIT, FIND_TAG,
                                "Error: unrecognized escape code \\%c", *str);
                     return NULL;
@@ -256,7 +325,7 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
             continue;
         }
 
-        if (directive) {
+        if (chunk->directive) {
             /* Already have a directive. Stop here. */
             return str;
         }
@@ -287,8 +356,7 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
             return NULL;
         }
 
-        directive = *str;
-        chunk->directive = directive;
+        chunk->directive = *str;
 
         switch (*str) {
         case 'A':
@@ -626,6 +694,10 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
 
                 printf(format, type);
             }
+            break;
+
+        case 'z':
+            printf(format, 0);
             break;
 
         case 'R':
