@@ -44,6 +44,7 @@
 #define LSCLASS_OPT 262
 #define ESCAPED_OPT 263
 #define INAME_OPT   264
+#define PRINT0_OPT  265
 
 static struct option option_tab[] = {
     {"user", required_argument, NULL, 'u'},
@@ -74,6 +75,7 @@ static struct option option_tab[] = {
     {"ls", no_argument, NULL, 'l'},
     {"print", no_argument, NULL, 'p'},
     {"printf", required_argument, NULL, PRINTF_OPT},
+    {"print0", no_argument, NULL, PRINT0_OPT},
     {"escaped", no_argument, NULL, ESCAPED_OPT},
     {"exec", required_argument, NULL, 'E'},
     /* TODO dry-run mode for exec ? */
@@ -479,7 +481,8 @@ static const char *help_string =
     "\\NNN" B_ " Byte with octal value NNN (1 to 3 digits)\n"
     "            " _B "\\xHH" B_
     " Byte with hexadecimal value HH (1 to 2 digits)\n" "    " _B "-escaped"
-    B_ " \t When -printf is used, escape unprintable characters.\n" "\n" _B
+    B_ " \t When -printf is used, escape unprintable characters.\n" "    " _B
+    "-print0" B_ " \t Print file name followed by a null character\n" "\n" _B
     "Actions:" B_ "\n" "    " _B "-exec" B_ " " _U "\"cmd\"" U_ "\n"
     "       Execute the given command for each matching entry. Unlike classical 'find',\n"
     "       cmd must be a single (quoted) shell param, not necessarily terminated with ';'.\n"
@@ -1524,6 +1527,16 @@ int main(int argc, char **argv)
             printf_str = optarg;
             if (neg) {
                 fprintf(stderr, "! (-not) unexpected before -printf option\n");
+                exit(1);
+            }
+            break;
+
+        case PRINT0_OPT:
+            prog_options.print = 0;
+            prog_options.printf = 1;
+            printf_str = "%p\\0";
+            if (neg) {
+                fprintf(stderr, "! (-not) unexpected before -print0 option\n");
                 exit(1);
             }
             break;
