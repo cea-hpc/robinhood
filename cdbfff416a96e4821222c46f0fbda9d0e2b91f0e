@@ -1,0 +1,158 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "da9b7687_4e683c06",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 1
+      },
+      "lineNbr": 14,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-07-10T14:56:11Z",
+      "side": 1,
+      "message": "In nightmarish filesystems, this can reach system limits. In this case this may be useful to make it a configurable behavior, to let the scan pass in this case. What do you think?",
+      "range": {
+        "startLine": 14,
+        "startChar": 1,
+        "endLine": 14,
+        "endChar": 40
+      },
+      "revId": "cdbfff416a96e4821222c46f0fbda9d0e2b91f0e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "75403d4b_da1c182b",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 1
+      },
+      "lineNbr": 17,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-07-10T14:56:11Z",
+      "side": 1,
+      "message": "I don\u0027t understand this part.",
+      "range": {
+        "startLine": 16,
+        "startChar": 29,
+        "endLine": 17,
+        "endChar": 30
+      },
+      "revId": "cdbfff416a96e4821222c46f0fbda9d0e2b91f0e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "6b972b9d_6b278927",
+        "filename": "src/fs_scan/fs_scan.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 755,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-07-10T14:56:11Z",
+      "side": 1,
+      "message": "sizeof(p_task-\u003epath)",
+      "revId": "cdbfff416a96e4821222c46f0fbda9d0e2b91f0e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "796a48eb_82f7fd18",
+        "filename": "src/fs_scan/fs_scan.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 756,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-07-10T14:56:11Z",
+      "side": 1,
+      "message": "sizeof(p_task-\u003erelpath)",
+      "revId": "cdbfff416a96e4821222c46f0fbda9d0e2b91f0e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "a920c097_b25e55b7",
+        "filename": "src/fs_scan/fs_scan.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1042,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-07-10T14:56:11Z",
+      "side": 1,
+      "message": "wrap to 80c",
+      "revId": "cdbfff416a96e4821222c46f0fbda9d0e2b91f0e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "79cbc1a0_06ed895c",
+        "filename": "src/fs_scan/fs_scan.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1053,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-07-10T14:56:11Z",
+      "side": 1,
+      "message": "wrap to 80c",
+      "revId": "cdbfff416a96e4821222c46f0fbda9d0e2b91f0e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "e4b5152e_52cd6ad2",
+        "filename": "src/fs_scan/fs_scan_types.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 34,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-07-10T14:56:11Z",
+      "side": 1,
+      "message": "Can this be a path or just the directory name?\nIf so, the size ifs actually RBH_NAME_MAX.",
+      "range": {
+        "startLine": 34,
+        "startChar": 28,
+        "endLine": 34,
+        "endChar": 31
+      },
+      "revId": "cdbfff416a96e4821222c46f0fbda9d0e2b91f0e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "37e60e61_7fb53be6",
+        "filename": "src/fs_scan/task_tree_mngmt.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 77,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-07-10T14:56:11Z",
+      "side": 1,
+      "message": "does close vs closedir matters?",
+      "revId": "cdbfff416a96e4821222c46f0fbda9d0e2b91f0e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
