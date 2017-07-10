@@ -1,0 +1,78 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "58b64eb9_b6ac2add",
+        "filename": "src/robinhood/rbh_find_printf.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 219,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-07-10T14:27:18Z",
+      "side": 1,
+      "message": "2 variables with almost the same name (print_char and printchar) is confusing and can lead to coding errors.",
+      "range": {
+        "startLine": 219,
+        "startChar": 13,
+        "endLine": 219,
+        "endChar": 23
+      },
+      "revId": "f0bfc3a4c7166b6962f6a581aa451527c8263313",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "79290eaa_2031d223",
+        "filename": "src/robinhood/rbh_find_printf.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 233,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-07-10T14:27:18Z",
+      "side": 1,
+      "message": "rh_strncpy macro does this.",
+      "revId": "f0bfc3a4c7166b6962f6a581aa451527c8263313",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "2db725ce_d4bef4b0",
+        "filename": "src/robinhood/rbh_find_printf.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 243,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-07-10T14:27:18Z",
+      "side": 1,
+      "message": "Is it safe to printf(print_char) instead of printf(\"%c\", print_char)?\nActually, I don\u0027t find where/when it is displayed. What is the directive in that case?",
+      "revId": "f0bfc3a4c7166b6962f6a581aa451527c8263313",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "b00a8c64_4d188bbf",
+        "filename": "src/robinhood/rbh_find_printf.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 250,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-07-10T14:27:18Z",
+      "side": 1,
+      "message": "Can this be used directly as %z in command line?",
+      "revId": "f0bfc3a4c7166b6962f6a581aa451527c8263313",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
