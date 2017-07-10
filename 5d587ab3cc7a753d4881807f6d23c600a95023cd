@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "aae86eb9_f006f900",
+        "filename": "src/policies/policy_matching.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1042,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-07-10T15:10:10Z",
+      "side": 1,
+      "message": "comment no longer matches what is actually done",
+      "range": {
+        "startLine": 1042,
+        "startChar": 8,
+        "endLine": 1042,
+        "endChar": 35
+      },
+      "revId": "5d587ab3cc7a753d4881807f6d23c600a95023cd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
