@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "4744dd80_bbecac34",
+        "filename": "src/robinhood/rbh_find.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 484,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-07-10T14:34:57Z",
+      "side": 1,
+      "message": "I know it was broken before your change (probably due to automatic code reindentation), but you could adopt a more readable indentation at least for the added lines (e.g. 1 line per option, or 1 line per output line...)\n\ne.g.\n  \"    \" _B \"-print0\" B_ \"\\t bla bla\\n\"\n  \"\\n\"\n  _B \"Actions\" ...",
+      "range": {
+        "startLine": 484,
+        "startChar": 70,
+        "endLine": 484,
+        "endChar": 72
+      },
+      "revId": "0ac8279a2f0c4b5562866880859ef00b4eb68d5f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
