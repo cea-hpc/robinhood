@@ -49,6 +49,30 @@
     },
     {
       "key": {
+        "uuid": "6b44cd56_f5fcd52e",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 1
+      },
+      "lineNbr": 14,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-07-10T17:47:41Z",
+      "side": 1,
+      "message": "Actually probably could just set it inconditionally to something a bit higher than default (limit is 1k by default, that\u0027s not very hard to reach)\n\nSetting it to 8k sounds reasonable, and folks with \"nightmarish filesystems\" can always increase further since they can figure where we have set it?\nJust need to make sure the error on EMFILE is clear enough, simple enough to set the limit to something very low to check...",
+      "parentUuid": "2c90303e_645d709b",
+      "range": {
+        "startLine": 14,
+        "startChar": 1,
+        "endLine": 14,
+        "endChar": 40
+      },
+      "revId": "cdbfff416a96e4821222c46f0fbda9d0e2b91f0e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "75403d4b_da1c182b",
         "filename": "/COMMIT_MSG",
         "patchSetId": 1
