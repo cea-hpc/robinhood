@@ -25,6 +25,30 @@
     },
     {
       "key": {
+        "uuid": "2c90303e_645d709b",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 1
+      },
+      "lineNbr": 14,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-07-10T15:35:22Z",
+      "side": 1,
+      "message": "Can suggest such nightmarish filesystems to raise open files limit...\nLimitNOFILE\u003d32768 in a comment in systemd service?\n\nI\u0027d rather not add more conditions to the code as it is, accessing the configuration from the bottom function does not seem obvious.",
+      "parentUuid": "da9b7687_4e683c06",
+      "range": {
+        "startLine": 14,
+        "startChar": 1,
+        "endLine": 14,
+        "endChar": 40
+      },
+      "revId": "cdbfff416a96e4821222c46f0fbda9d0e2b91f0e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "75403d4b_da1c182b",
         "filename": "/COMMIT_MSG",
         "patchSetId": 1
@@ -36,6 +60,30 @@
       "writtenOn": "2017-07-10T14:56:11Z",
       "side": 1,
       "message": "I don\u0027t understand this part.",
+      "range": {
+        "startLine": 16,
+        "startChar": 29,
+        "endLine": 17,
+        "endChar": 30
+      },
+      "revId": "cdbfff416a96e4821222c46f0fbda9d0e2b91f0e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5f2a22e9_7f554060",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 1
+      },
+      "lineNbr": 17,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-07-10T15:35:22Z",
+      "side": 1,
+      "message": "Just that if we want to use less memory on scan, we can remove task-\u003epath (fixed string of RBH_PATH_MAX bytes) because it is no longer strictly useful except for logging.\n\nIn practice it is going to be hard to do because it is needed if _NO_AT_FUNC",
+      "parentUuid": "75403d4b_da1c182b",
       "range": {
         "startLine": 16,
         "startChar": 29,
@@ -139,6 +187,30 @@
     },
     {
       "key": {
+        "uuid": "ef12f329_8582cb12",
+        "filename": "src/fs_scan/fs_scan_types.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 34,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-07-10T15:35:22Z",
+      "side": 1,
+      "message": "Just name within directory; ok.",
+      "parentUuid": "e4b5152e_52cd6ad2",
+      "range": {
+        "startLine": 34,
+        "startChar": 28,
+        "endLine": 34,
+        "endChar": 31
+      },
+      "revId": "cdbfff416a96e4821222c46f0fbda9d0e2b91f0e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "37e60e61_7fb53be6",
         "filename": "src/fs_scan/task_tree_mngmt.c",
         "patchSetId": 1
@@ -150,6 +222,24 @@
       "writtenOn": "2017-07-10T14:56:11Z",
       "side": 1,
       "message": "does close vs closedir matters?",
+      "revId": "cdbfff416a96e4821222c46f0fbda9d0e2b91f0e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9c09113e_1a11a2cc",
+        "filename": "src/fs_scan/task_tree_mngmt.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 77,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-07-10T15:35:22Z",
+      "side": 1,
+      "message": "close is a function that works on fd, closedir works on DIR*.\nI believe close is appropriate here",
+      "parentUuid": "37e60e61_7fb53be6",
       "revId": "cdbfff416a96e4821222c46f0fbda9d0e2b91f0e",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
