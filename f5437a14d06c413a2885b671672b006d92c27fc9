@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "b9475230_87363d6e",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 8853,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-07-10T15:06:35Z",
+      "side": 1,
+      "message": "Yes.",
+      "parentUuid": "5819f191_dd83e75a",
+      "revId": "f5437a14d06c413a2885b671672b006d92c27fc9",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "6b14358f_fd8559bf",
         "filename": "tests/test_suite/2-run-tests.sh",
         "patchSetId": 2
@@ -36,6 +54,24 @@
     },
     {
       "key": {
+        "uuid": "2d6ed446_efbb9610",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 8856,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-07-10T15:06:35Z",
+      "side": 1,
+      "message": "bleh, right. will reformat as \nif cmp \u003c(cmd1) \u003c(cmd2); then\n  cmd3;\n  errror \"...\"\nfi",
+      "parentUuid": "6b14358f_fd8559bf",
+      "revId": "f5437a14d06c413a2885b671672b006d92c27fc9",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "72aeed95_1fef9bd1",
         "filename": "tests/test_suite/2-run-tests.sh",
         "patchSetId": 2
@@ -47,6 +83,24 @@
       "writtenOn": "2017-07-10T15:02:06Z",
       "side": 1,
       "message": "missing test for print0",
+      "revId": "f5437a14d06c413a2885b671672b006d92c27fc9",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "c3237a61_c7183ec4",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 8858,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-07-10T15:06:35Z",
+      "side": 1,
+      "message": "ok",
+      "parentUuid": "72aeed95_1fef9bd1",
       "revId": "f5437a14d06c413a2885b671672b006d92c27fc9",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
