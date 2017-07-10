@@ -1,0 +1,55 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5819f191_dd83e75a",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 8853,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-07-10T15:02:06Z",
+      "side": 1,
+      "message": "Is this what you run?\n\n cmp \u003c(cmd1) \u003c(cmd2) || { cmd3; error \"...\" }",
+      "revId": "f5437a14d06c413a2885b671672b006d92c27fc9",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "6b14358f_fd8559bf",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 8856,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-07-10T15:02:06Z",
+      "side": 1,
+      "message": "error will have no effect if it is run in a subshell, isn\u0027t it?",
+      "revId": "f5437a14d06c413a2885b671672b006d92c27fc9",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "72aeed95_1fef9bd1",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 8858,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-07-10T15:02:06Z",
+      "side": 1,
+      "message": "missing test for print0",
+      "revId": "f5437a14d06c413a2885b671672b006d92c27fc9",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
