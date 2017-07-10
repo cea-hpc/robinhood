@@ -1040,11 +1040,12 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
             return POLICY_NO_MATCH;
 
         /* pool name is required */
-        CHECK_ATTR(p_entry_attr, stripe_info, no_warning);
-
-        rc = TestRegexp(p_triplet->val.str,
-                        ATTR(p_entry_attr, stripe_info).pool_name,
-                        cmpflg2regexpflg(p_triplet->flags));
+        if (!ATTR_MASK_TEST(p_entry_attr, stripe_info))
+            rc = EMPTY_STRING(p_triplet->val.str);
+        else
+            rc = TestRegexp(p_triplet->val.str,
+                            ATTR(p_entry_attr, stripe_info).pool_name,
+                            cmpflg2regexpflg(p_triplet->flags));
 
 #ifdef _DEBUG_POLICIES
         if (rc)
