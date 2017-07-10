@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "f17987e0_1b2d115f",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 242,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-07-10T15:07:04Z",
+      "side": 1,
+      "message": "Other fields (if there are) needs it to be initialized with {0} (it was previously implicit).\n\nPrefer 1 declaration per line.",
+      "revId": "395f4c5bb5b86e9cb7816cf38c4a5c77fa89bd94",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
