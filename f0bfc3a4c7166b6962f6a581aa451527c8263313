@@ -2,6 +2,23 @@
   "comments": [
     {
       "key": {
+        "uuid": "0e739913_f61b2140",
+        "filename": "src/robinhood/rbh_find.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 478,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-07-10T14:31:30Z",
+      "side": 1,
+      "message": "I know it was broken before your change (probably due to automatic code reindentation), but you could adopt a more readable indentation at least for the added lines (e.g. 1 line per option, or 1 line per output line...)",
+      "revId": "f0bfc3a4c7166b6962f6a581aa451527c8263313",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "58b64eb9_b6ac2add",
         "filename": "src/robinhood/rbh_find_printf.c",
         "patchSetId": 1
