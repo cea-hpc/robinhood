@@ -16,6 +16,24 @@
       "revId": "395f4c5bb5b86e9cb7816cf38c4a5c77fa89bd94",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "f7a74367_748138a1",
+        "filename": "src/common/rbh_cmd.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 242,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-07-10T15:14:18Z",
+      "side": 1,
+      "message": "There are no other fields, but ok to split into two lines.",
+      "parentUuid": "f17987e0_1b2d115f",
+      "revId": "395f4c5bb5b86e9cb7816cf38c4a5c77fa89bd94",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
