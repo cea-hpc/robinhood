@@ -2447,12 +2447,13 @@ int create_from_attrs(const attr_set_t *attrs_in,
     return 0;
 }
 
-bool path_check_update(const entry_id_t *p_id,
-                       const char *fid_path, attr_set_t *p_attrs,
-                       attr_mask_t attr_mask)
+enum path_check_return path_check_update(const entry_id_t *p_id,
+                                         const char *fid_path,
+                                         attr_set_t *p_attrs,
+                                         attr_mask_t attr_mask)
 {
 #ifndef _HAVE_FID
-    return false;
+    return PCR_NO_CHANGE;
 #else
     int rc;
     bool updated = false;
@@ -2467,6 +2468,12 @@ bool path_check_update(const entry_id_t *p_id,
             ATTR_MASK_SET(p_attrs, path_update);
             ATTR(p_attrs, path_update) = time(NULL);
             updated = true;
+        } else if (rc == -ENODATA) {
+            /* Entry has no path in namespace. It is likely a volatile,
+             * and should be ignored. */
+            DisplayLog(LVL_DEBUG, "PatchCheck", "Entry "DFID" has no path. "
+                       "It is likely a volatile", PFID(p_id));
+            return PCR_ORPHAN;
         } else if (rc != -ENOENT) {
             DisplayLog(LVL_MAJOR, "PathCheck",
                        "Failed to get parent+name for " DFID ": %s", PFID(p_id),
@@ -2486,7 +2493,7 @@ bool path_check_update(const entry_id_t *p_id,
                        PFID(p_id), strerror(-rc));
         }
     }
-    return updated;
+    return updated ? PCR_UPDATED : PCR_NO_CHANGE;
 #endif
 }
 
