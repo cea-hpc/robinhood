@@ -1319,9 +1319,13 @@ int EntryProc_get_info_fs(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
 
     }
     /* getattr needed */
-    if (NEED_GETPATH(p_op))
-        path_check_update(&p_op->entry_id, path, &p_op->fs_attrs,
-                          p_op->fs_attr_need);
+    if (NEED_GETPATH(p_op)) {
+        if (path_check_update(&p_op->entry_id, path, &p_op->fs_attrs,
+                              p_op->fs_attr_need) == PCR_ORPHAN) {
+            /* ignore entries not in the namespace */
+            return skip_record(p_op);
+        }
+    }
 #endif
 
     if (entry_proc_conf.detect_fake_mtime
