@@ -225,13 +225,19 @@ int create_from_attrs(const attr_set_t *attrs_in,
                       attr_set_t *attrs_out,
                       entry_id_t *new_id, bool overwrite, bool setstripe);
 
+enum path_check_return {
+    PCR_NO_CHANGE = 0, /**< no attribute updated */
+    PCR_UPDATED,    /**< at least an attribute is updated. */
+    PCR_ORPHAN,
+};
 /**
  * Update parent id, name and/or full path, according to attr_mask.
- * @return true if at least an attribute has been updated
+ * @return one of the values defined in enum path_check_return.
  */
-bool path_check_update(const entry_id_t *p_id,
-                       const char *fid_path, attr_set_t *p_attrs,
-                       attr_mask_t attr_mask);
+enum path_check_return path_check_update(const entry_id_t *p_id,
+                                         const char *fid_path,
+                                         attr_set_t *p_attrs,
+                                         attr_mask_t attr_mask);
 
 #ifdef _LUSTRE
 
@@ -273,14 +279,6 @@ int Lustre_GetFidFromPath(const char *fullpath, entry_id_t *p_id);
 int Lustre_GetFidByFd(int fd, entry_id_t *p_id);
 int Lustre_GetNameParent(const char *path, int linkno,
                          lustre_fid *pfid, char *name, int namelen);
-
-/**
- * Update parent id, name and/or full path, according to attr_mask.
- * @return true if at least one attribute has been updated
- */
-bool path_check_update(const entry_id_t *p_id,
-                       const char *fid_path, attr_set_t *p_attrs,
-                       attr_mask_t attr_mask);
 
 #define FID_IS_ZERO(_pf) (((_pf)->f_seq == 0) && ((_pf)->f_oid == 0))
 
