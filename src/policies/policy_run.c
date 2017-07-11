@@ -2168,8 +2168,19 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
                         (ATTR_MASK_fullpath | ATTR_MASK_name))) {
         DisplayLog(LVL_FULL, tag(policy), "Updating path info of "DFID,
                    PFID(&p_item->entry_id));
-        updated |= path_check_update(&p_item->entry_id, stat_path, new_attr_set,
-                                     updt_mask);
+        switch (path_check_update(&p_item->entry_id, stat_path, new_attr_set,
+                                  updt_mask)) {
+        case PCR_UPDATED:
+            updated = true;
+            break;
+
+        case PCR_NO_CHANGE:
+            break;
+
+        case PCR_ORPHAN:
+            /* no path to access it, handle it as if it had been moved */
+            return AS_MOVED;
+        }
     }
 
     /* retrieve up-to-date status from status manager if the scope relies

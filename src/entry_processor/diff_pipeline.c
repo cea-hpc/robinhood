@@ -422,9 +422,13 @@ int EntryProc_get_info_fs(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
 
 #if defined(_LUSTRE) && defined(_HAVE_FID)
     /* may be needed if parent information is missing */
-    if (NEED_GETPATH(p_op))
-        path_check_update(&p_op->entry_id, path, &p_op->fs_attrs,
-                          p_op->fs_attr_need);
+    if (NEED_GETPATH(p_op)) {
+        if (path_check_update(&p_op->entry_id, path, &p_op->fs_attrs,
+                              p_op->fs_attr_need) == PCR_ORPHAN) {
+            /* ignore entries not in the namespace */
+            goto skip_record;
+        }
+    }
 #endif
 
     if (entry_proc_conf.detect_fake_mtime
