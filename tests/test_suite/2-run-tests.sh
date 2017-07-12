@@ -11985,6 +11985,65 @@ function test_path_gc2
     check_db_error rh_scan.log
 }
 
+function test_scan_only
+{
+    local cfg=$RBH_CFG_DIR/$1
+
+    if [ -n "$POSIX_MODE" ]; then
+		echo "Cannot fully determine id for POSIX"
+		set_skipped
+		return 1
+    fi
+
+    # filesystem contains multiple directories,
+    # but the config restricts the scan only to some of them
+
+    mkdir -p $RH_ROOT/dir.1/dir.{1..3}
+    mkdir -p $RH_ROOT/dir.2/dir.{1..3}
+    mkdir -p $RH_ROOT/dir.3/dir.{1..3}
+    touch  $RH_ROOT/dir.{1..3}/dir.{1..3}/file.{1..5}
+
+    export SCAN_ONLY1=$RH_ROOT/dir.1/dir.2
+    export SCAN_ONLY2=$RH_ROOT/dir.3
+
+    local SCAN_SET=($(find $SCAN_ONLY1) $(find $SCAN_ONLY2))
+
+    # scan all (initial scan)
+    $RH -f $cfg --scan --once -l DEBUG -L rh_scan.log 2>/dev/null ||
+        error "scanning"
+    check_db_error rh_scan.log
+
+    $REPORT -q -f $cfg --dump > rh_report.log
+    # check there are all expected entry from $SCAN_ONLY1 and $SCAN_ONLY2
+    for f in ${SCAN_SET[*]}; do
+        grep -q -e " $f\$" rh_report.log || error "Missing $f in robinhood DB"
+    done
+    # only directories between root and scanned subdirs are also queried
+    # i.e. $RH_ROOT/dir.1
+    dir=$(grep -v "$SCAN_ONLY1" rh_report.log | grep -v "$SCAN_ONLY2" \
+                | awk '{print $(NF)}')
+    [[ "$dir" == "$RH_ROOT/dir.1" ]] || error "unexpected entries in dump: $dir"
+
+    # GC needs 1s delay with previous scan
+    sleep 1
+    # scan again (causes GC)
+    $RH -f $cfg --scan --once -l DEBUG -L rh_scan.log 2>/dev/null ||
+        error "scanning"
+    check_db_error rh_scan.log
+
+    $REPORT -q -f $cfg --dump > rh_report.log
+    # check there are all expected entry from $SCAN_ONLY1 and $SCAN_ONLY2
+    for f in ${SCAN_SET[*]}; do
+        grep -q -e " $f\$" rh_report.log || error "Missing $f in robinhood DB"
+    done
+    # only directories between root and scanned subdirs are also queried
+    dir=$(grep -v "$SCAN_ONLY1" rh_report.log | grep -v "$SCAN_ONLY2" \
+                | awk '{print $(NF)}')
+    [[ "$dir" == "$RH_ROOT/dir.1" ]] || error "unexpected entries in dump: $dir"
+
+}
+
+
 ###########################################################
 ############### End changelog functions ###################
 ###########################################################
@@ -12586,6 +12645,7 @@ run_test 123 test_acct_borderline acct.conf "yes" "Test borderline ACCT cases"
 run_test 124 test_commit_update commit_update.conf "Update of last committed changelog"
 run_test 125a test_path_gc1 test_rm1.conf "Test namespace garbage collection with partial scans"
 run_test 125b test_path_gc2 test_rm1.conf "Test namespace garbage collection after rename"
+run_test 126  test_scan_only test_scan_only.conf "Scan on a subset of directories"
 
 #### policy matching tests  ####
 

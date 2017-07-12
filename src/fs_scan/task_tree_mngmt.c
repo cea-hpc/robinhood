@@ -57,13 +57,14 @@ robinhood_task_t *CreateTask()
     GET_PREALLOC(p_task, tasks_pool, nb_tasks_prealloc,
                  robinhood_task_t, next_task, mutex_spool, stat_mem_tach);
 
-    if (p_task != NULL) {
-        /* zero all fields */
-        memset(p_task, 0, sizeof(robinhood_task_t));
+    if (p_task == NULL)
+        return NULL;
 
-        /* initialize spin lock */
-        pthread_spin_init(&p_task->child_list_lock, 0);
-    }
+    /* zero all fields */
+    memset(p_task, 0, sizeof(robinhood_task_t));
+
+    /* initialize spin lock */
+    pthread_spin_init(&p_task->child_list_lock, 0);
 
     return p_task;
 }

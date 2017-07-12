@@ -261,6 +261,7 @@ static void fs_scan_cfg_set_default(void *module_config)
 
     conf->ignore_list = NULL;
     conf->ignore_count = 0;
+    conf->dir_list = NULL;
     conf->completion_command = NULL;
 }
 
@@ -281,8 +282,42 @@ static void fs_scan_cfg_write_default(FILE *output)
     print_line(output, 1, "spooler_check_interval :  1min");
     print_line(output, 1, "nb_prealloc_tasks      :   256");
     print_line(output, 1, "ignore                 :  NONE");
+    print_line(output, 1, "dir_list               :  NONE");
     print_line(output, 1, "completion_command     :  NONE");
     print_end_block(output, 0);
+}
+
+/** add an item to the ignore list of the configuration */
+static int add_ignore_item(fs_scan_config_t *conf, config_item_t item,
+                           const char *blk_name, char *msg_out)
+{
+    conf->ignore_list = realloc(conf->ignore_list,
+                           (conf->ignore_count + 1) * sizeof(whitelist_item_t));
+    if (conf->ignore_list == NULL)
+        return ENOMEM;
+
+    conf->ignore_count++;
+
+    /* analyze and fill boolean expression */
+    return GetBoolExpr(item, blk_name,
+                       &conf->ignore_list[conf->ignore_count - 1].bool_expr,
+                       &conf->ignore_list[conf->ignore_count - 1].attr_mask,
+                       msg_out, NULL);
+}
+
+/** add a directroy to the scan list of the configuration */
+static int add_scan_dir(fs_scan_config_t *conf, const char *val,
+                        const char *blk_name, char *msg_out)
+{
+    conf->dir_list = realloc(conf->dir_list,
+                             (conf->dir_count + 1) * sizeof(char *));
+    if (conf->dir_list == NULL)
+        return ENOMEM;
+
+    conf->dir_list[conf->dir_count] = strdup(val);
+    conf->dir_count++;
+
+    return 0;
 }
 
 #define critical_err_check(_ptr_, _blkname_) do { if (!_ptr_) {\
@@ -295,7 +330,7 @@ static void fs_scan_cfg_write_default(FILE *output)
 static int fs_scan_cfg_read(config_file_t config, void *module_config,
                             char *msg_out)
 {
-    int rc, blc_index;
+    int rc, index;
     fs_scan_config_t *conf = (fs_scan_config_t *) module_config;
     bool scan_intl_set = false;
     time_t scan_intl = 0;
@@ -305,7 +340,7 @@ static int fs_scan_cfg_read(config_file_t config, void *module_config,
         "scan_interval", "min_scan_interval", "max_scan_interval",
         "scan_retry_delay", "nb_threads_scan", "scan_op_timeout",
         "exit_on_timeout", "spooler_check_interval", "nb_prealloc_tasks",
-        "completion_command",
+        "completion_command", "scan_only",
         IGNORE_BLOCK, NULL
     };
 
@@ -370,44 +405,50 @@ static int fs_scan_cfg_read(config_file_t config, void *module_config,
         conf->max_scan_interval = scan_intl;
     }
 
-    /* Find and parse "ignore" blocks */
-    for (blc_index = 0; blc_index < rh_config_GetNbItems(fsscan_block);
-         blc_index++) {
-        char *block_name;
-        config_item_t curr_item =
-            rh_config_GetItemByIndex(fsscan_block, blc_index);
+    /* Find and parse "ignore" blocks and "scan_only" directives */
+    for (index = 0; index < rh_config_GetNbItems(fsscan_block);
+         index++) {
+        config_item_t curr_item;
+        int extra = 0;
+        char *name;
+        char *val;
+
+        curr_item = rh_config_GetItemByIndex(fsscan_block, index);
         critical_err_check(curr_item, FSSCAN_CONFIG_BLOCK);
 
-        if (rh_config_ItemType(curr_item) != CONFIG_ITEM_BLOCK)
-            continue;
+        switch (rh_config_ItemType(curr_item)) {
+        case CONFIG_ITEM_VAR:
+            rc = rh_config_GetKeyValue(curr_item, &name, &val, &extra);
+            if (rc)
+                return EINVAL;
 
-        block_name = rh_config_GetBlockName(curr_item);
-        critical_err_check(curr_item, FSSCAN_CONFIG_BLOCK);
+            /* process only scan_only directives */
+            if (strcasecmp(name, "scan_only") != 0)
+                continue;
 
-        if (!strcasecmp(block_name, IGNORE_BLOCK)) {
-            if (conf->ignore_count == 0)
-                conf->ignore_list =
-                    (whitelist_item_t *) malloc(sizeof(whitelist_item_t));
-            else
-                conf->ignore_list =
-                    (whitelist_item_t *) realloc(conf->ignore_list,
-                                                 (conf->ignore_count + 1)
-                                                 * sizeof(whitelist_item_t));
-
-            conf->ignore_count++;
-
-            /* analyze boolean expression */
-            rc = GetBoolExpr(curr_item, block_name,
-                             &conf->ignore_list[conf->ignore_count -
-                                                1].bool_expr,
-                             &conf->ignore_list[conf->ignore_count -
-                                                1].attr_mask, msg_out, NULL);
-
+            rc = add_scan_dir(conf, val, name, msg_out);
             if (rc)
                 return rc;
+            break;
 
+        case CONFIG_ITEM_BLOCK:
+            name = rh_config_GetBlockName(curr_item);
+
+            /* process only ignore blocks */
+            if (strcasecmp(name, IGNORE_BLOCK) != 0)
+                continue;
+
+            rc = add_ignore_item(conf, curr_item, name, msg_out);
+            if (rc)
+                return rc;
+            break;
+
+        default:
+            /* other cases: ignore */
+            continue;
         }
-    }   /* Loop on subblocks */
+
+    }   /* Loop on sub-items */
 
     CheckUnknownParameters(fsscan_block, FSSCAN_CONFIG_BLOCK, fsscan_allowed);
 
@@ -460,15 +501,31 @@ static void update_ignore(whitelist_item_t *old_items, unsigned int old_count,
 
 }   /* end update_ignore */
 
-static void free_ignore(whitelist_item_t *p_items, unsigned int count)
+static void free_ignore(whitelist_item_t *p_items, int count)
 {
-    unsigned int i;
+    int i;
+
+    if (p_items == NULL)
+        return;
 
     for (i = 0; i < count; i++)
         FreeBoolExpr(&p_items[i].bool_expr, false);
 
-    if ((count > 0) && (p_items != NULL))
-        free(p_items);
+    free(p_items);
+}
+
+static void free_scan_dirs(char **list, int count)
+{
+    int i;
+
+    if (list == NULL)
+        return;
+
+    /* last list item is NULL */
+    for (i = 0;  i < count; i++)
+        free(list[i]);
+
+    free(list);
 }
 
 static int fs_scan_cfg_reload(fs_scan_config_t *conf)
@@ -626,13 +683,17 @@ static void *fs_scan_cfg_new(void)
 
 static void fs_scan_cfg_free(void *cfg)
 {
-    if (cfg != NULL) {
-        fs_scan_config_t *conf = (fs_scan_config_t *) cfg;
+    fs_scan_config_t *conf;
 
-        /* free conf structure */
-        if (conf->ignore_list != NULL)
-            free_ignore(conf->ignore_list, conf->ignore_count);
-    }
+    if (cfg == NULL)
+        return;
+
+    conf = (fs_scan_config_t *) cfg;
+
+    free_ignore(conf->ignore_list, conf->ignore_count);
+    free_scan_dirs(conf->dir_list, conf->dir_count);
+
+    free(cfg);
 }
 
 mod_cfg_funcs_t fs_scan_cfg_hdlr = {

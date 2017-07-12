@@ -42,6 +42,10 @@ typedef struct robinhood_task__ {
     /* parent task */
     struct robinhood_task__ *parent_task;
 
+    /* partial scan root, in case of partial scans
+     * or restricted scans */
+    const char *partial_scan_root;
+
     /* lock for protecting the child list
      * and the task_finished boolean.
      */

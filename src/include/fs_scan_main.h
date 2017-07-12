@@ -67,6 +67,10 @@ typedef struct fs_scan_config_t {
     whitelist_item_t *ignore_list;
     unsigned int    ignore_count;
 
+    /** list of directories to scan (if different from fs_root) */
+    char          **dir_list;
+    unsigned int    dir_count;
+
     char          **completion_command;
 
 } fs_scan_config_t;
