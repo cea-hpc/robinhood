@@ -741,7 +741,8 @@ static void check_dir_error(int rc)
 }
 
 static int create_child_task(const char *childpath, struct stat *inode,
-                             robinhood_task_t *parent)
+                             robinhood_task_t *parent,
+                             const char *scan_root)
 {
     robinhood_task_t *p_task;
     int rc = 0;
@@ -755,6 +756,9 @@ static int create_child_task(const char *childpath, struct stat *inode,
     }
 
     p_task->parent_task = parent;
+    /* propagate partial_scan_root, unless it is specified */
+    p_task->partial_scan_root = scan_root ? scan_root :
+                                    parent->partial_scan_root;
     rh_strncpy(p_task->path, childpath, RBH_PATH_MAX);
 
     /* set parent id */
@@ -853,7 +857,7 @@ static int process_one_entry(thread_scan_info_t *p_info,
      * Note: directories are pushed in Thr_scan(), after the closedir() call.
      */
     if (S_ISDIR(inode.st_mode)) {
-        rc = create_child_task(entry_path, &inode, p_task);
+        rc = create_child_task(entry_path, &inode, p_task, NULL);
         if (rc)
             return rc;
     } else {
@@ -1140,6 +1144,67 @@ static int process_one_dir(robinhood_task_t *p_task,
     return rc;
 }
 
+/**
+ * If scan is restricted to a list of subdirectories, create 1 task
+ * per subdirectory.
+ */
+static int push_dir_list(robinhood_task_t *parent_task)
+{
+    int i, rc;
+
+    for (i = 0; i < fs_scan_config.dir_count; i++) {
+        const char *dir = fs_scan_config.dir_list[i];
+        char *new_task_path;
+        const char *next_name;
+        const char *next_slash;
+        struct stat inode;
+        char name[RBH_NAME_MAX];
+
+        /* check path */
+        if (strncmp(parent_task->path, dir, strlen(parent_task->path))) {
+            DisplayLog(LVL_CRIT, FSSCAN_TAG,
+                       "ERROR: %s is supposed to be under %s",
+                       dir, parent_task->path);
+            return -EINVAL;
+        }
+
+        /* push the first level of subdirectory */
+        next_name = dir + strlen(parent_task->path);
+        while (*next_name == '/')
+            next_name++;
+        next_slash = strchr(next_name, '/');
+        if (next_slash) {
+            /* length without final '\0' */
+            ptrdiff_t len = next_slash - next_name;
+
+            strncpy(name, next_name, len);
+            name[len] = '\0';
+        } else
+            strcpy(name, next_name);
+
+        if (asprintf(&new_task_path, "%s/%s", parent_task->path, name) < 0)
+            return -ENOMEM;
+
+        if (lstat(new_task_path, &inode) == -1) {
+            rc = -errno;
+            DisplayLog(LVL_MAJOR, FSSCAN_TAG, "Failed to stat directory '%s'",
+                       new_task_path);
+            return rc;
+        }
+
+        DisplayLog(LVL_FULL, FSSCAN_TAG, "Pushing dir '%s' to reach "
+                   "sub-tree '%s'", new_task_path, fs_scan_config.dir_list[i]);
+
+        rc = create_child_task(new_task_path, &inode,
+                               parent_task, fs_scan_config.dir_list[i]);
+        free(new_task_path);
+        if (rc)
+            return rc;
+    }
+
+    return 0;
+}
+
 static int process_one_task(robinhood_task_t *p_task,
                             thread_scan_info_t *p_info,
                             unsigned int *nb_entries, unsigned int *nb_errors)
@@ -1178,21 +1243,22 @@ static int process_one_task(robinhood_task_t *p_task,
 
     /* As long as the current task path is (strictly)
      * upper than partial scan root: just lookup, no readdir */
-     if (partial_scan_root && (strlen(p_task->path)
-                               < strlen(partial_scan_root))) {
+     if (p_task->partial_scan_root &&
+         (strlen(p_task->path) < strlen(p_task->partial_scan_root))) {
         char name[RBH_NAME_MAX + 1];
         const char *next_name, *next_slash;
 
         /* check path */
-        if (strncmp(p_task->path, partial_scan_root, strlen(p_task->path))) {
+        if (strncmp(p_task->path, p_task->partial_scan_root,
+            strlen(p_task->path))) {
             DisplayLog(LVL_CRIT, FSSCAN_TAG,
                        "ERROR: %s is supposed to be under %s",
-                       partial_scan_root, p_task->path);
+                       p_task->partial_scan_root, p_task->path);
             (*nb_errors)++;
             return -EINVAL;
         }
 
-        next_name = partial_scan_root + strlen(p_task->path);
+        next_name = p_task->partial_scan_root + strlen(p_task->path);
         while (*next_name == '/')
             next_name++;
         next_slash = strchr(next_name, '/');
@@ -1205,10 +1271,18 @@ static int process_one_task(robinhood_task_t *p_task,
         } else
             strcpy(name, next_name);
 
-        DisplayLog(LVL_FULL, FSSCAN_TAG, "Partial scan: processing '%s' in %s",
+        DisplayLog(LVL_DEBUG, FSSCAN_TAG, "Partial scan: processing '%s' in %s",
                    name, p_task->path);
 
         rc = process_one_entry(p_info, p_task, name, -1);
+        if (rc) {
+            (*nb_errors)++;
+            return rc;
+        }
+    } else if (p_task->depth == 0 && fs_scan_config.dir_count > 0) {
+        /* If scan is restricted to subdirectories, create child tasks under
+         * mother task */
+        rc = push_dir_list(p_task);
         if (rc) {
             (*nb_errors)++;
             return rc;
@@ -1575,7 +1649,6 @@ void Robinhood_StopScanModule(void)
                        "WARNING: not able to update scan stats");
         }
     }
-
 }
 
 /* Start a scan of the filesystem.
@@ -1620,15 +1693,15 @@ static int StartScan(void)
 
     if (partial_scan_root) {
         /* check that partial_root is under FS root */
-        if (strncmp
-            (global_config.fs_path, partial_scan_root,
-             strlen(global_config.fs_path))) {
+        if (strncmp(global_config.fs_path, partial_scan_root,
+                    strlen(global_config.fs_path))) {
             V(lock_scan);
             DisplayLog(LVL_CRIT, FSSCAN_TAG,
                        "ERROR scan root %s is not under fs root %s",
                        partial_scan_root, global_config.fs_path);
             return -1;
         }
+        p_parent_task->partial_scan_root = partial_scan_root;
     }
 
     /* always start at the root to get info about parent dirs */
@@ -1728,7 +1801,6 @@ static void *Thr_scan_recovery(void *arg_thread)
 
     /* terminate and free current task */
     st = RecursiveTaskTermination(p_info, p_info->current_task, false);
-
     if (st) {
         DisplayLog(LVL_CRIT, FSSCAN_TAG,
                    "CRITICAL ERROR: RecursiveTaskTermination returned %d", st);
