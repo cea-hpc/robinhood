@@ -278,8 +278,7 @@ static void *global_cfg_new(void)
 
 static void global_cfg_free(void *cfg)
 {
-    if (cfg != NULL)
-        free(cfg);
+    free(cfg);
 }
 
 /** structure with config handling functions */
