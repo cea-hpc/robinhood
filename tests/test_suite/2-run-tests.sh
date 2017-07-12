@@ -4549,9 +4549,9 @@ function test_action_check
     local elapsed=$(($t1-$t0))
     local nb_check=$(grep "Updating status of" rh_migr.log | wc -l)
     if (( $elapsed < $ACT_TIMEO && $nb_check > 0 )); then
-        error "No action check should be done after $enlasped sec < $ACT_TIMEO"
+        error "No action check should be done after $elapsed sec < $ACT_TIMEO"
     else
-        echo "Enlapsed: $elapsed, nb_check=$nb_check"
+        echo "Elapsed: $elapsed, nb_check=$nb_check"
     fi
 
     # next check is after 10 sec
@@ -4567,7 +4567,7 @@ function test_action_check
     if (( $nb_check != $FCOUNT )); then
         error "All actions should have been checked now (elapsed: $elapsed, nb_check=$nb_check)"
     else
-        echo "Enlapsed: $elapsed, nb_check=$nb_check, $nb_sync changed to 'synchro'"
+        echo "Elapsed: $elapsed, nb_check=$nb_check, $nb_sync changed to 'synchro'"
     fi
 
     # wait for all files to be synchro
