@@ -8669,6 +8669,12 @@ function test_rbh_find_printf
 
     clean_logs
 
+    # use rh_cksum.sh from scripts directory
+    if [ -d "../../src/robinhood" ]; then
+        export PATH="$PATH:../../scripts/"
+    # else use the installed one
+    fi
+
     echo "Initial scan of empty filesystem"
     $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
 
