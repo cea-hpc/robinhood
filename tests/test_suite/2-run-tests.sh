@@ -11110,30 +11110,50 @@ function purge_OST
 		$LFS setstripe  -p lustre.$POOL2 $RH_ROOT/file.$i -c 1 >/dev/null 2>/dev/null
 	done
 
+    # file with no pool (stripe to OST0 so it is not eligible to purge in test
+    # 614b)
+    $LFS setstripe -c 1 -o 0 $RH_ROOT/file.5  >/dev/null 2>/dev/null
+
 	sleep 1
-	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once \
+        2>/dev/null
+    # stripe info should not be missing to check entry pool name
+    grep "attribute is missing for checking fileset" rh_scan.log &&
+        error "Missing stripe info to match pool-based fileclass"
+
 
 	# use robinhood for flushing
 	if (( $is_hsmlite + $is_lhsm > 0 )); then
 		echo "2bis-Archiving files"
-		$RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing Archiving files"
+		$RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log \
+            2>/dev/null || error "executing Archiving files"
         (( $is_lhsm > 0 )) && wait_done 60
 	fi
 
-	echo "Reading changelogs and Applying purge policy..."
-	$RH -f $RBH_CFG_DIR/$config_file --scan $purgeOpt -l DEBUG -L rh_purge.log --once
+    $RH -f $RBH_CFG_DIR/$config_file --readlog --once -L rh_chglogs.log \
+        -l DEBUG 2>/dev/null
+    grep "attribute is missing for checking fileset" rh_chglogs.log &&
+        error "Missing stripe info to match pool-based fileclass"
 
-	nbError=0
+	echo "Scan and apply purge policy..."
+	$RH -f $RBH_CFG_DIR/$config_file --scan $purgeOpt -l FULL -L rh_purge.log \
+        --once 2>/dev/null
+    # stripe info should not be missing to check entry pool name
+    grep "attribute is missing for checking fileset" rh_purge.log &&
+        error "Missing stripe info to match pool-based fileclass"
+
+    # stripe should not have been updated during the 2nd scan
+    grep "INSERT INTO STRIPE" rh_purge.log && error "No stripe update expected"
+
 	nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
 	if (( $nb_purge != $needPurge )); then
 	    error "********** TEST FAILED (Log): $nb_purge files purged, but $needPurge expected"
-        ((nbError++))
 	fi
 
-	if (($nbError == 0 )); then
+	if (($NB_ERROR == 0 )); then
         echo "OK: test successful"
     else
-        error "********** TEST FAILED **********"
+        echo "********** TEST FAILED **********"
     fi
 }
 

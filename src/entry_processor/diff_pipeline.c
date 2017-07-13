@@ -597,6 +597,16 @@ int EntryProc_report_diff(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
         p_op->fs_attrs.attr_mask =
             attr_mask_and(&p_op->fs_attrs.attr_mask, &tmp);
 
+#ifdef _LUSTRE
+        if (p_op->db_stripe_ok) {
+            ATTR_MASK_UNSET(&p_op->fs_attrs, stripe_info);
+            if (ATTR_MASK_TEST(&p_op->fs_attrs, stripe_items)) {
+                ATTR_MASK_UNSET(&p_op->fs_attrs, stripe_items);
+                free_stripe_items(&ATTR(&p_op->fs_attrs, stripe_items));
+            }
+        }
+#endif
+
         /* nothing changed => noop */
         if (attr_mask_is_null(p_op->fs_attrs.attr_mask)) {
             /* no op */

@@ -173,6 +173,8 @@ typedef struct entry_proc_op_t {
     attr_set_t      db_attrs;
     /* attrs from FS (new) */
     attr_set_t      fs_attrs;
+    /* true if the striping in DB is up-to-date (do not require a DB update)*/
+    bool            db_stripe_ok;
 
     op_extra_info_t extra_info;
     free_func_t     extra_info_free_func;
