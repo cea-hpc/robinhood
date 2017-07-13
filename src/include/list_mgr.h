@@ -638,6 +638,8 @@ int ListMgr_Exists(lmgr_t *p_mgr, const entry_id_t *p_id);
 #define VALID_NOSTRIPE -1   /* check if the stripe is empty */
 int ListMgr_CheckStripe(lmgr_t *p_mgr, const entry_id_t *p_id, int validator);
 
+void free_stripe_items(stripe_items_t *p_stripe_items);
+
 #endif
 
 /**
