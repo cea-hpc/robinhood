@@ -711,17 +711,6 @@ void check_and_warn_fake_mtime(const struct entry_proc_op_t *p_op)
 }
 
 #ifdef _LUSTRE
-static void clear_stripe_info(attr_set_t *attrs)
-{
-    ATTR_MASK_UNSET(attrs, stripe_info);
-    if (ATTR_MASK_TEST(attrs, stripe_items)) {
-        /* free stripe structure */
-        if (ATTR(attrs, stripe_items).stripe)
-            MemFree(ATTR(attrs, stripe_items).stripe);
-        ATTR_MASK_UNSET(attrs, stripe_items);
-    }
-}
-
 void check_stripe_info(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
 {
 #ifdef HAVE_LLAPI_FSWAP_LAYOUTS
@@ -752,15 +741,21 @@ void check_stripe_info(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
                 attr_mask_set_index(&p_op->fs_attr_need,
                                     ATTR_INDEX_stripe_items);
             }
-        } else  /* stripe is OK, don't update stripe items */
-            clear_stripe_info(&p_op->fs_attrs);
+        } else {
+            /* Keep any stripe info in fs_attrs structure, so it is available
+             * for matching.
+             * However, flag it so they are not updated in DB. */
+             p_op->db_stripe_ok = true;
+        }
 
 #ifdef HAVE_LLAPI_FSWAP_LAYOUTS
     } else if (ListMgr_CheckStripe(lmgr, &p_op->entry_id,
                                    ATTR(&p_op->fs_attrs, stripe_info).validator)
                == DB_SUCCESS) {
-        /* don't update */
-        clear_stripe_info(&p_op->fs_attrs);
+        /* Keep the stripe info in fs_attrs structure, so it is available
+         * for matching.
+         * However, flag it so they are not updated in DB. */
+         p_op->db_stripe_ok = true;
     } else  /* keep stripe info in fs_attrs, as it must be updated */
         DisplayLog(LVL_DEBUG, ENTRYPROC_TAG,
                    DFID ": stripe information has changed",
