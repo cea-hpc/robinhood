@@ -2014,6 +2014,50 @@ int str_subst(char *str_in_out, const char *to_be_replaced,
     return 0;
 }
 
+/** escape every special character in a regex
+ *
+ * \param dest      the string to copy the escaped regex to
+ * \param dest_size the size of dest (including the terminating char)
+ * \param src       the null terminated string representing the regex to
+ *                  escape
+ * \param charset   a string that contains every char to escape
+ *
+ * \return          0 on success, -error_code on error
+ */
+int str_escape_charset(char *dest, size_t dest_size, const char *src,
+                       char *charset)
+{
+    size_t last_idx = 0;
+    size_t escape_size = 0;
+
+    for (size_t idx = 0; idx < strlen(src); idx++) {
+        /* Is this a special character ? */
+        char *token = strchr(charset, src[idx]);
+        if (token == NULL)
+            continue;
+
+        /* Is there enough space left to escape the next token? */
+        if (idx + escape_size + 2 > dest_size)
+            return -ENOBUFS;
+
+        /* Copy from last position in src to the current one */
+        strncpy(&dest[last_idx + escape_size], &src[last_idx],
+                idx - last_idx);
+        /* Add an escape char */
+        dest[idx + escape_size] = '\\';
+
+        /* Update internals */
+        escape_size++;
+        last_idx = idx;
+    }
+    if (strlen(src) + escape_size + 1 > dest_size)
+        return -ENOBUFS;
+
+    /* Copy the rest of src (including the terminating char) */
+    strcpy(&dest[last_idx + escape_size], &src[last_idx]);
+    return 0;
+}
+
 /**
  * extract relative path from full path
  */

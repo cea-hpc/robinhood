@@ -483,6 +483,19 @@ static inline void subst_char(char *str, char c1, char c2)
             *curr = c2;
 }
 
+/** escape every special character in a regex
+ *
+ * \param dest      the string to copy the escaped regex to
+ * \param dest_size the size of dest (including the terminating char)
+ * \param src       the null terminated string representing the regex to
+ *                  escape
+ * \param charset   a string that contains every char to escape
+ *
+ * \return          0 on success, -error_code on error
+ */
+int str_escape_charset(char *dest, size_t dest_size, const char *src,
+                       char *charset);
+
 /**
  * Callback function to parse command output.
  * The function can freely modify line contents
