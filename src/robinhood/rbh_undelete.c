@@ -154,6 +154,47 @@ static inline void display_version(const char *bin_name)
     printf("\n");
 }
 
+/** escape every special characters in a regex
+ *
+ * \param dest		the string to copy the escaped regex to
+ * \param dest_size	the size of dest (including the terminating char)
+ * \param src		the null terminated string reprsenting the regex to
+ *			        escape
+ * \param charset	a string that contains every char to escape
+ *
+ * \return 0 on success, -error_code on error
+ */
+static int escape_charset(char *dest, size_t dest_size, const char *src,
+                          char *charset)
+{
+    size_t last_idx = 0;
+    size_t escape_size = 0;
+
+    for (size_t idx = 0; idx < strlen(src); idx++) {
+        /* Is this a special character ? */
+        char *token = strchr(charset, src[idx]);
+        if (token == NULL)
+            continue;
+
+        /* Is there enough space left to escape the next token? */
+        if (idx + escape_size + 2 > dest_size)
+            return -ENOBUFS;
+
+        /* Copy from last position in src to the current one */
+        strncpy(&dest[last_idx + escape_size], &src[last_idx],
+                idx - last_idx);
+        /* Add an escape char */
+        dest[idx + escape_size] = '\\';
+
+        /* Update internals */
+        escape_size++;
+        last_idx = idx;
+    }
+    /* Copy the rest of src (including the terminating char) */
+    strcpy(&dest[last_idx + escape_size], &src[last_idx]);
+    return 0;
+}
+
 /*
  * Append global filters on path
  * \param do_display [in] display filters?
@@ -164,6 +205,7 @@ static int mk_path_filter(lmgr_filter_t *filter, bool do_display,
 {
     filter_value_t fv;
     char path_regexp[RBH_PATH_MAX] = "";
+    char tmp[RBH_PATH_MAX] = "";
     size_t len;
 
     /* is a filter on path specified? */
@@ -180,16 +222,17 @@ static int mk_path_filter(lmgr_filter_t *filter, bool do_display,
         if (path_filter[len - 1] == '/')
             path_filter[len - 1] = '\0';
 
-        /* as this is a RLIKE matching, shell regexp must be replaced by perl:
-         * [abc] => OK
-         * '*' => '.*'
-         * '?' => '.'
-         */
-        str_subst(path_filter, "*", ".*");
-        str_subst(path_filter, "?", ".");
+        /* Special characters in a POSIX extended regex: .[{}()\*+?|^$
+         *
+         * Escape POSIX ERE special characters that have no meaning in a
+         * globbing pattern. */
+        escape_charset(tmp, RBH_PATH_MAX, path_filter, ".^$+(){}\\|");
+        /* Translate those that have a different meaning */
+        str_subst(tmp, "*", ".*");
+        str_subst(tmp, "?", ".");
 
         /* match 'path$' OR 'path/.*' */
-        snprintf(path_regexp, RBH_PATH_MAX, "%s($|/.*)", path_filter);
+        snprintf(path_regexp, RBH_PATH_MAX, "%s($|/.*)", tmp);
         fv.value.val_str = path_regexp;
 
         lmgr_simple_filter_add(filter, ATTR_INDEX_fullpath, RLIKE, fv, 0);

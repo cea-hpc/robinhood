@@ -9558,6 +9558,64 @@ function test_reload
     return 0
 }
 
+function escape_chars
+{
+    config_file=$1
+    local special_charset='^$+(){}\\\\|.'
+    local target_command="$2"
+    local command
+
+    # Create files with special characters
+    declare -a files
+    while read -n1 char; do
+        # Some of the special characters make up for a valid pattern
+        # when they are alone and unescaped but not when they are doubled
+        files+=("$RH_ROOT/file-${char}${char}")
+    done < <(printf "$special_charset")
+
+    touch "${files[@]}"
+
+    case "$target_command" in
+    undelete)
+        if (( $is_lhsm == 0 )); then
+            echo "Lustre/HSM test only: skipped"
+            set_skipped
+            return 1
+        fi
+
+        command="$UNDELETE -f $RBH_CFG_DIR/$config_file -R"
+        # Archive -> scan -> remove -> scan
+        for file in "${files[@]}"; do
+            lfs hsm_archive "$file"
+        done
+        for file in "${files[@]}"; do
+            wait_hsm_state "$file" 0x00000009
+        done
+        $RH -f $RBH_CFG_DIR/$config_file --scan --once 2>&1 > /dev/null
+        rm -f "${files[@]}"
+        sleep 1 # For some reason, this is needed
+        $RH -f $RBH_CFG_DIR/$config_file --scan --once 2>&1 > /dev/null
+        ;;
+    *)
+        # Unknown command
+        error "unknown command '$command'"
+        ;;
+    esac
+
+    for file in "${files[@]}"; do
+        $command "$file" ||
+            error "'$command' failed to run on '$file'"
+        case "$target_command" in
+        undelete)
+            [ -e "$file" ] || error "'$file' was not undeleted"
+            ;;
+        *)
+            # Nothing to check
+            ;;
+        esac
+    done
+}
+
 function test_lhsm_archive
 {
     # test_lhsm1.conf "check sql query string in case of multiple AND/OR"
@@ -12780,6 +12838,7 @@ run_test 510    test_rbh_find_printf test_checker.conf "Test rbh-find with -prin
 run_test 511    archive_uuid1 test_uuid.conf "Test UUID presence while scanning"
 run_test 512    archive_uuid2 test_uuid.conf "Archive and undelete file with UUID using changelogs"
 run_test 513    test_reload   alert.conf "Reloading configuration (with alert policy)"
+run_test 514    escape_chars    common.conf undelete "escape special characters in filters"
 
 #### Tests by Sogeti ####
 run_test 600a test_alerts alert.conf "file1" 0 "TEST_ALERT_PATH_NAME"
