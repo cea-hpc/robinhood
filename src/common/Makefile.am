@@ -1,4 +1,5 @@
 AM_CFLAGS= $(CC_OPT) $(DB_CFLAGS) $(PURPOSE_CFLAGS)
+AM_LDFLAGS=-ldl
 
 noinst_LTLIBRARIES=libcommontools.la
 

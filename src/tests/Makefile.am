@@ -1,5 +1,5 @@
-AM_CFLAGS= -static $(CC_OPT) $(DB_CFLAGS) $(PURPOSE_CFLAGS)
-AM_LDFLAGS= -lpthread -static
+AM_CFLAGS= $(CC_OPT) $(DB_CFLAGS) $(PURPOSE_CFLAGS)
+AM_LDFLAGS= -lpthread
 
 # See autotools/m4/ax_valgrind_check.m4 for documentation
 @VALGRIND_CHECK_RULES@
