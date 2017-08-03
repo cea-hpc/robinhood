@@ -102,6 +102,7 @@ if [[ -z "$PURPOSE" || $PURPOSE = "TMP"* ]]; then
     is_lhsm=0
     is_hsmlite=0
     shook=0
+    extra_dir=0
     PURPOSE="TMP_FS_MGR"
     STATUS_MGR=none
     # get include for this flavor
@@ -112,6 +113,7 @@ elif [[ $PURPOSE = "LUSTRE_HSM" ]]; then
     is_lhsm=1
     is_hsmlite=0
     shook=0
+    extra_dir=0
     STATUS_MGR=lhsm
     # get include for this flavor
     cp -f ${RBH_TEMPLATE_DIR}/includes/lhsm.inc $RBH_TEST_POLICIES || exit 1
@@ -124,6 +126,7 @@ elif [[ $PURPOSE = "BACKUP" ]]; then
     is_lhsm=0
     shook=0
     is_hsmlite=1
+    extra_dir=0
     STATUS_MGR=backup
     # get include for this flavor
     cp -f ${RBH_TEMPLATE_DIR}/includes/backup.inc $RBH_TEST_POLICIES || exit 1
@@ -144,9 +147,10 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
     is_lhsm=0
     is_hsmlite=1
     shook=1
+    extra_dir=3
     STATUS_MGR=shook
     # get include for this flavor
-    INCLUDE="${RBH_TEMPLATE_DIR}/includes/shook.inc"
+    cp -f ${RBH_TEMPLATE_DIR}/includes/shook.inc $RBH_TEST_POLICIES || exit 1
     # change policy names to the test framework names
     sed -e "s/shook_archive/migration/" -i $RBH_TEST_POLICIES
     sed -e "s/shook_release/purge/" -i $RBH_TEST_POLICIES
@@ -527,8 +531,8 @@ function migration_test
 	if (( $is_lhsm != 0 )); then
 	    $REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR --csv -q --count-min=1 > report.out
         [ "$DEBUG" = "1" ] && cat report.out
-        check_status_count report.out archiving 0
-        check_status_count report.out archived 0
+        check_status_count report.out file archiving 0
+        check_status_count report.out file archived 0
     fi
 
 	echo "4-Sleeping $sleep_time seconds..."
@@ -547,7 +551,7 @@ function migration_test
 	if (( $is_lhsm != 0 )); then
 	    $REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR --csv -q --count-min=1 > report.out
         [ "$DEBUG" = "1" ] && cat report.out
-        check_status_count report.out archiving $expected_migr
+        check_status_count report.out file archiving $expected_migr
 
 		wait_done 60 || error "Migration timeout"
         # get completion log
@@ -556,7 +560,7 @@ function migration_test
         # should be archived now
 	    $REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR --csv -q --count-min=1 > report.out
         [ "$DEBUG" = "1" ] && cat report.out
-        check_status_count report.out synchro $expected_migr
+        check_status_count report.out file synchro $expected_migr
     fi
 
     rm -f report.out
@@ -1814,79 +1818,86 @@ function purge_test
 
 function test_custom_purge
 {
-	config_file=$1
-	sleep_time=$2
-	policy_str="$3"
+    config_file=$1
+    sleep_time=$2
+    policy_str="$3"
 
-	clean_logs
+    clean_logs
 
-	# initial scan
-	echo "Populating filesystem..."
-	for i in `seq 1 10`; do
-		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
-	done
+    # initial scan
+    echo "Populating filesystem..."
+    for i in `seq 1 10`; do
+        dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=10 >/dev/null 2>/dev/null || error "writing file.$i"
+    done
     # create malicious file names to test vulnerability
     touch "$RH_ROOT/foo1 \`pkill -9 $CMD\`" || error "couldn't create file"
     touch "$RH_ROOT/foo2 ; exit 1" || error "couldn't create file"
     touch "$RH_ROOT/foo3' ';' 'exit' '1'" || error "couldn't create file"
 
-	echo "Initial scan..."
-	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log
-	check_db_error rh_scan.log
+    echo "Initial scan..."
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log
+    check_db_error rh_scan.log
 
     if (( $is_lhsm != 0 )); then
         # Archive files to be able to release them afterward
         flush_data
         $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "flushing data to backend"
+    	grep "run summary" rh_migr.log
 
         echo "Waiting for end of data migration..."
         wait_done 120 || error "Migration timeout"
         echo "update db content..."
         $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "reading chglog"
+
+    elif (( $shook != 0 )); then
+	# need archive before release
+        echo "Archiving data..."
+        $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "flushing data to backend"
+    	grep "run summary" rh_migr.log
     fi
 
-	echo "Sleeping $sleep_time seconds..."
-	sleep $sleep_time
+    echo "Sleeping $sleep_time seconds..."
+    sleep $sleep_time
 
     if [ -z "$POSIX_MODE" ]; then
         fsname=$(df $RH_ROOT/. | xargs | awk '{print $(NF-5)}' | awk -F '/' '{print $(NF)}')
     else
         fsname=$(df $RH_ROOT/. | xargs | awk '{print $(NF-5)}')
     fi
-	if (( $no_log == 0 )); then
-		# get fids of entries
-		fids=()
-		for i in `seq 1 10`; do
-			fids[$i]=$(get_id "$RH_ROOT/file.$i")
+    if (( $no_log == 0 )); then
+        # get fids of entries
+        fids=()
+        for i in `seq 1 10`; do
+            fids[$i]=$(get_id "$RH_ROOT/file.$i")
         done
         i=11
         for f in  "$RH_ROOT/foo1 \`pkill -9 $CMD\`" "$RH_ROOT/foo2 ; exit 1" "$RH_ROOT/foo3' ';' 'exit' '1'" ; do
-			fids[$i]=$(get_id "$f")
+            fids[$i]=$(get_id "$f")
             ((i=$i+1))
         done
         [ "$DEBUG" = "1" ] && echo "fsname=$fsname, fids=${fids[*]}"
     fi
 
-	echo "Applying purge policy ($policy_str)..."
-	$RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT -l FULL -L rh_purge.log --once || error "purging files"
-	check_db_error rh_purge.log
+    echo "Applying purge policy ($policy_str)..."
+    $RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT -l FULL -L rh_purge.log --once || error "purging files"
+    check_db_error rh_purge.log
 
-	nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
-	if (($nb_purge != 13)); then
-		error "********** TEST FAILED: 13 purge actions expected, $nb_purge done"
-	else
-		echo "OK: 13 actions done"
-	fi
+    nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
+    if (($nb_purge != 13)); then
+        error "********** TEST FAILED: 13 purge actions expected, $nb_purge done"
+    else
+        echo "OK: 13 actions done"
+    fi
 
-	# checking that the custom command was called for each file
-	for  i in `seq 1 10`; do
-		line=$(grep "action: cmd" rh_purge.log | grep 'rm_script' | grep $RH_ROOT/file.$i)
+    # checking that the custom command was called for each file
+    for  i in `seq 1 10`; do
+        line=$(grep "action: cmd" rh_purge.log | grep 'rm_script' | grep $RH_ROOT/file.$i)
         if [ -z "$line" ]; then
             error "No action found on $RH_ROOT/file.$i"
             continue
         fi
         # split args
-	#2016/05/10 10:17:08 [5529/4] purge | [0x200000400:0x133ac:0x0]: action: cmd(./rm_script lustre 0x200000400:0x133ac:0x0 /mnt/lustre/file.1)
+    #2016/05/10 10:17:08 [5529/4] purge | [0x200000400:0x133ac:0x0]: action: cmd(./rm_script lustre 0x200000400:0x133ac:0x0 /mnt/lustre/file.1)
         args=($(echo "$line" | sed -e "s/.*rm_script//" -e "s/)$//"))
         fn=${args[0]}
         id=${args[1]}
@@ -1901,13 +1912,13 @@ function test_custom_purge
         [ $p = $RH_ROOT/file.$i ] || error "invalid path $p != $RH_ROOT/file.$i"
 
         [ -f $RH_ROOT/file.$i ] && error "$RH_ROOT/file.$i still exists after purge command"
-	done
+    done
 
     # same test for special file names
     i=11
     for f in  "$RH_ROOT/foo1 \`pkill -9 $CMD\`" "$RH_ROOT/foo2 ; exit 1" "$RH_ROOT/foo3' ';' 'exit' '1'" ; do
         f0=$(echo "$f" | awk '{print $1}')
-		line=$(grep "action: cmd" rh_purge.log | grep 'rm_script' | grep "$f0")
+        line=$(grep "action: cmd" rh_purge.log | grep 'rm_script' | grep "$f0")
         if [ -z "$line" ]; then
             error "No action found on $f"
             continue
@@ -1932,7 +1943,7 @@ function test_custom_purge
         ((i=$i+1))
     done
 
-	return 0
+    return 0
 }
 
 
@@ -4118,9 +4129,9 @@ function test_basic_sm
     $REPORT -f $RBH_CFG_DIR/$config_file --status-info=touch --csv -q \
             --count-min=1 > rh_report.log
     [ "$DEBUG" = "1" ] && cat rh_report.log
-    check_status_count rh_report.log "ok" 0
-    check_status_count rh_report.log "failed" 0
-    check_status_count rh_report.log "" $nb_all
+    check_status_count rh_report.log file "ok" 0
+    check_status_count rh_report.log file "failed" 0
+    check_status_count rh_report.log file "" $nb_all
 
     # make sure md_update of scan < now
     sleep 1
@@ -4137,8 +4148,8 @@ function test_basic_sm
     $REPORT -f $RBH_CFG_DIR/$config_file --status-info=touch --csv -q \
             --count-min=1 > rh_report.log
     [ "$DEBUG" = "1" ] && cat rh_report.log
-    check_status_count rh_report.log "ok" $nb_files_ok
-    check_status_count rh_report.log "failed" $nb_files_error
+    check_status_count rh_report.log file "ok" $nb_files_ok
+    check_status_count rh_report.log file "failed" $nb_files_error
 
     return 0
 }
@@ -4164,12 +4175,12 @@ function test_modeguard_sm_dir
         chmod g+s,o-w $RH_ROOT/dir.$i.ok || error "chmod dir.$i.ok"
     done
     for i in $(seq 1 2 ${nb_dir_invalid}); do
-        mkdir $RH_ROOT/dir.$i.invalid || error "creating dir.$i.ok"
-        chmod g-s,o-w $RH_ROOT/dir.$i.invalid || error "chmod dir.$i.ok"
+        mkdir $RH_ROOT/dir.$i.invalid || error "creating dir.$i.invalid"
+        chmod g-s,o-w $RH_ROOT/dir.$i.invalid || error "chmod dir.$i.invalid"
     done
     for i in $(seq 2 2 ${nb_dir_invalid}); do
-        mkdir $RH_ROOT/dir.$i.invalid || error "creating dir.$i.ok"
-        chmod g+s,o+w $RH_ROOT/dir.$i.invalid || error "chmod dir.$i.ok"
+        mkdir $RH_ROOT/dir.$i.invalid || error "creating dir.$i.invalid"
+        chmod g+s,o+w $RH_ROOT/dir.$i.invalid || error "chmod dir.$i.invalid"
     done
 
     echo "2-Scanning"
@@ -4181,8 +4192,8 @@ function test_modeguard_sm_dir
     $REPORT -f $RBH_CFG_DIR/$config_file --status-info=modeguard --csv -q \
             --count-min=1 > rh_report.log
     [ "$DEBUG" = "1" ] && cat rh_report.log
-    check_status_count rh_report.log "ok" $nb_dir_ok
-    check_status_count rh_report.log "invalid" $nb_dir_invalid
+    check_status_count rh_report.log "dir" "ok" $nb_dir_ok
+    check_status_count rh_report.log "dir" "invalid" $((nb_dir_invalid+extra_dir))
 
     # make sure md_update of scan < now
     sleep 1
@@ -4212,8 +4223,8 @@ function test_modeguard_sm_dir
     $REPORT -f $RBH_CFG_DIR/$config_file --status-info=modeguard --csv -q \
             --count-min=1 > rh_report.log
     [ "$DEBUG" = "1" ] && cat rh_report.log
-    check_status_count rh_report.log "ok" $nb_all
-    check_status_count rh_report.log "invalid" 0
+    check_status_count rh_report.log dir "ok" $nb_all
+    check_status_count rh_report.log dir "invalid" $extra_dir
 
     return 0
 }
@@ -4256,8 +4267,8 @@ function test_modeguard_sm_file
     $REPORT -f $RBH_CFG_DIR/$config_file --status-info=modeguard --csv -q \
             --count-min=1 > rh_report.log
     [ "$DEBUG" = "1" ] && cat rh_report.log
-    check_status_count rh_report.log "ok" $nb_file_ok
-    check_status_count rh_report.log "invalid" $nb_file_invalid
+    check_status_count rh_report.log file "ok" $nb_file_ok
+    check_status_count rh_report.log file "invalid" $nb_file_invalid
 
     # make sure md_update of scan < now
     sleep 1
@@ -4287,8 +4298,8 @@ function test_modeguard_sm_file
     $REPORT -f $RBH_CFG_DIR/$config_file --status-info=modeguard --csv -q \
             --count-min=1 > rh_report.log
     [ "$DEBUG" = "1" ] && cat rh_report.log
-    check_status_count rh_report.log "ok" $nb_all
-    check_status_count rh_report.log "invalid" 0
+    check_status_count rh_report.log file "ok" $nb_all
+    check_status_count rh_report.log file "invalid" 0
 
     return 0
 }
@@ -4854,132 +4865,132 @@ function test_ost_order
 
 function test_trigger_check
 {
-	config_file=$1
-	max_count=$2
-	max_vol_mb=$3
-	policy_str="$4"
-	target_count=$5
-	target_fs_vol=$6
-	target_user_vol=$7
-	max_user_vol=$8
-        target_user_count=$9
+    config_file=$1
+    max_count=$2
+    max_vol_mb=$3
+    policy_str="$4"
+    target_count=$5
+    target_fs_vol=$6
+    target_user_vol=$7
+    max_user_vol=$8
+    target_user_count=$9
 
-	clean_logs
+    clean_logs
 
     wait_stable_df
 
-	if (( $is_hsmlite != 0 )); then
+    if (( $is_hsmlite != 0 )); then
         # this mode may create an extra inode in filesystem: initial scan
         # to take it into account
-		$RH -f $RBH_CFG_DIR/$config_file --scan --once -l MAJOR -L rh_scan.log || error "executing $CMD --scan"
-		check_db_error rh_scan.log
+        $RH -f $RBH_CFG_DIR/$config_file --scan --once -l MAJOR -L rh_scan.log || error "executing $CMD --scan"
+        check_db_error rh_scan.log
     fi
 
-	# triggers to be checked
-	# - inode count > max_count
-	# - fs volume	> max_vol
-	# - root quota  > user_quota
+    # triggers to be checked
+    # - inode count > max_count
+    # - fs volume    > max_vol
+    # - root quota  > user_quota
 
-	# initial inode count
-	empty_count=`df -i $RH_ROOT/ | xargs | awk '{print $(NF-3)}'`
+    # initial inode count
+    empty_count=`df -i $RH_ROOT/ | xargs | awk '{print $(NF-3)}'`
     empty_count_user=0
 
-#	((file_count=$max_count-$empty_count))
-	file_count=$max_count
+#    ((file_count=$max_count-$empty_count))
+    file_count=$max_count
 
-	# compute file size to exceed max vol and user quota
-	empty_vol=`df -k $RH_ROOT  | xargs | awk '{print $(NF-3)}'`
-	((empty_vol=$empty_vol/1024))
+    # compute file size to exceed max vol and user quota
+    empty_vol=`df -k $RH_ROOT  | xargs | awk '{print $(NF-3)}'`
+    ((empty_vol=$empty_vol/1024))
 
-	if (( $empty_vol < $max_vol_mb )); then
-		((missing_mb=$max_vol_mb-$empty_vol))
-	else
-		missing_mb=0
-	fi
-
-	if (($missing_mb < $max_user_vol )); then
-		missing_mb=$max_user_vol
-	fi
-
-	# file_size = missing_mb/file_count + 1
-	((file_size=$missing_mb/$file_count + 1 ))
-
-	echo "$file_count files missing, $file_size MB each"
-
-	#create test tree of archived files (file_size MB each)
-	for i in `seq 1 $file_count`; do
-		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=$file_size  >/dev/null 2>/dev/null || error "writing $RH_ROOT/file.$i"
-
-		if (( $is_lhsm != 0 )); then
-			flush_data
-			$LFS hsm_archive $RH_ROOT/file.$i
-		fi
-	done
-
-	if (( $is_lhsm != 0 )); then
-		wait_done 60 || error "Copy timeout"
-	fi
-
-	# wait for df sync
-    wait_stable_df
-
-	if (( $is_hsmlite != 0 )); then
-        # scan and sync
-		$RH -f $RBH_CFG_DIR/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
-		check_db_error rh_migr.log
+    if (( $empty_vol < $max_vol_mb )); then
+        ((missing_mb=$max_vol_mb-$empty_vol))
     else
-	  # scan
-  	  $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log
-  		check_db_error rh_chglogs.log
+        missing_mb=0
     fi
 
-	# check purge triggers
-	$RH -f $RBH_CFG_DIR/$config_file --check-thresholds=purge --once -l FULL -L rh_purge.log
+    if (($missing_mb < $max_user_vol )); then
+        missing_mb=$max_user_vol
+    fi
 
-	((expect_count=$empty_count+$file_count-$target_count))
-	((expect_vol_fs=$empty_vol+$file_count*$file_size-$target_fs_vol))
-	((expect_vol_user=$file_count*$file_size-$target_user_vol))
-	((expect_count_user=$file_count+$empty_count_user-$target_user_count))
+    # file_size = missing_mb/file_count + 1
+    ((file_size=$missing_mb/$file_count + 1 ))
 
-	echo "over trigger limits: $expect_count entries, $expect_vol_fs MB, $expect_vol_user MB for user root, $expect_count_user entries for user root"
+    echo "$file_count files missing, $file_size MB each"
 
-	nb_release=`grep "$REL_STR" rh_purge.log | wc -l`
+    #create test tree of archived files (file_size MB each)
+    for i in `seq 1 $file_count`; do
+        dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=$file_size  >/dev/null 2>/dev/null || error "writing $RH_ROOT/file.$i"
 
-	count_trig=`grep " entries must be processed in Filesystem" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
-	[ -n "$count_trig" ] || count_trig=0
+        if (( $is_lhsm != 0 )); then
+            flush_data
+            $LFS hsm_archive $RH_ROOT/file.$i
+        fi
+    done
 
-	vol_fs_trig=`grep " blocks (x512) must be processed on Filesystem" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
-	((vol_fs_trig_mb=$vol_fs_trig/2048)) # /2048 == *512/1024/1024
+    if (( $is_lhsm != 0 )); then
+        wait_done 60 || error "Copy timeout"
+    fi
 
-	vol_user_trig=`grep " blocks (x512) must be processed for user" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
-	((vol_user_trig_mb=$vol_user_trig/2048)) # /2048 == *512/1024/1024
+    # wait for df sync
+    wait_stable_df
 
-	cnt_user_trig=`grep " files to be processed for user" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
-	[ -n "$cnt_user_trig" ] || cnt_user_trig=0
+    if (( $is_hsmlite != 0 )); then
+        # scan and sync
+        $RH -f $RBH_CFG_DIR/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
+        check_db_error rh_migr.log
+    else
+      # scan
+        $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log
+          check_db_error rh_chglogs.log
+    fi
 
-	echo "triggers reported: $count_trig entries (global), $cnt_user_trig entries (user), $vol_fs_trig_mb MB (global), $vol_user_trig_mb MB (user)"
+    # check purge triggers
+    $RH -f $RBH_CFG_DIR/$config_file --check-thresholds=purge --once -l FULL -L rh_purge.log
 
-	# check then was no actual purge
-	if (($nb_release > 0)); then
-		error ": $nb_release files released, no purge expected"
-	elif (( $count_trig != $expect_count )); then
-		error ": trigger reported $count_trig files over threshold, $expect_count expected"
-	elif (( $vol_fs_trig_mb != $expect_vol_fs )); then
-		error ": trigger reported $vol_fs_trig_mb MB over threshold, $expect_vol_fs expected"
-	elif (( $vol_user_trig_mb != $expect_vol_user )); then
-		error ": trigger reported $vol_user_trig_mb MB over threshold, $expect_vol_user expected"
+    ((expect_count=$empty_count+$file_count-$target_count+$extra_dir))
+    ((expect_vol_fs=$empty_vol+$file_count*$file_size-$target_fs_vol))
+    ((expect_vol_user=$file_count*$file_size-$target_user_vol))
+    ((expect_count_user=$file_count+$empty_count_user-$target_user_count+$extra_dir))
+
+    echo "over trigger limits: $expect_count entries, $expect_vol_fs MB, $expect_vol_user MB for user root, $expect_count_user entries for user root"
+
+    nb_release=`grep "$REL_STR" rh_purge.log | wc -l`
+
+    count_trig=`grep " entries must be processed in Filesystem" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
+    [ -n "$count_trig" ] || count_trig=0
+
+    vol_fs_trig=`grep " blocks (x512) must be processed on Filesystem" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
+    ((vol_fs_trig_mb=$vol_fs_trig/2048)) # /2048 == *512/1024/1024
+
+    vol_user_trig=`grep " blocks (x512) must be processed for user" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
+    ((vol_user_trig_mb=$vol_user_trig/2048)) # /2048 == *512/1024/1024
+
+    cnt_user_trig=`grep " files to be processed for user" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
+    [ -n "$cnt_user_trig" ] || cnt_user_trig=0
+
+    echo "triggers reported: $count_trig entries (global), $cnt_user_trig entries (user), $vol_fs_trig_mb MB (global), $vol_user_trig_mb MB (user)"
+
+    # check then was no actual purge
+    if (($nb_release > 0)); then
+        error ": $nb_release files released, no purge expected"
+    elif (( $count_trig != $expect_count )); then
+        error ": trigger reported $count_trig files over threshold, $expect_count expected"
+    elif (( $vol_fs_trig_mb != $expect_vol_fs )); then
+        error ": trigger reported $vol_fs_trig_mb MB over threshold, $expect_vol_fs expected"
+    elif (( $vol_user_trig_mb != $expect_vol_user )); then
+        error ": trigger reported $vol_user_trig_mb MB over threshold, $expect_vol_user expected"
         elif ((  $cnt_user_trig != $expect_count_user )); then
                 error ": trigger reported $cnt_user_trig files over threshold, $expect_count_user expected"
 
-	else
-		echo "OK: all checks successful"
-	fi
+    else
+        echo "OK: all checks successful"
+    fi
 }
 
 function check_released
 {
-	if (($is_lhsm != 0)); then
-		$LFS hsm_state $1 | grep released || return 1
+    if (($is_lhsm != 0)); then
+        $LFS hsm_state $1 | grep released || return 1
     elif (($shook != 0 )); then
         # check that nb blocks is 0
         bl=`stat -c "%b" $1`
@@ -4989,10 +5000,10 @@ function check_released
         st=`getfattr -n security.shook_state $1 --only-values 2>/dev/null`
         [ "$DEBUG" = "1" ] && echo "$1: status $st"
         [[ "x$st" = "xreleased" ]] || return 1
-	else
-		[ -f $1 ] && return 1
-	fi
-	return 0
+    else
+        [ -f $1 ] && return 1
+    fi
+    return 0
 }
 
 function wait_run_count
@@ -5250,8 +5261,8 @@ function fileclass_test
     check_find $RH_ROOT "-f $cfg -b -class even_and_B -lsclass" 2
     check_find $RH_ROOT "-f $cfg -class even* -lsclass" 6
     check_find $RH_ROOT "-f $cfg -b -class even* -lsclass" 6
-    check_find $RH_ROOT "-f $cfg -not -class even* -lsclass" 14
-    check_find $RH_ROOT "-f $cfg -b -not -class even* -lsclass" 14
+    check_find $RH_ROOT "-f $cfg -not -class even* -lsclass" $((14+extra_dir))
+    check_find $RH_ROOT "-f $cfg -b -not -class even* -lsclass" $((14+extra_dir))
 }
 
 function test_info_collect
@@ -5305,6 +5316,9 @@ function test_info_collect
     # (all close are suppressed)
     ((db_expect=7))
     close_expect=4
+
+   # special directories inserted to the database
+   ((db_expect+=$extra_dirs))
 
 	if (( $no_log == 0 )); then
         if (( $nb_close != $close_expect )); then
@@ -6280,10 +6294,11 @@ function random_names
 function check_status_count
 {
     report=$1
-    status=$2
-    count=$3
+    type=$2
+    status=$3
+    count=$4
 
-    nst=$(grep -E "^([ ]*)$status" $report | cut -d ',' -f 3 | tr -d ' ')
+    nst=$(grep -E "^([ ]*)$status" $report | grep $type | cut -d ',' -f 3 | tr -d ' ')
     [ -z "$nst" ] && nst=0
 
     [ "$DEBUG" = "1" ] && echo "$status: $nst"
@@ -6324,7 +6339,7 @@ function test_compress
     # check file status
     $REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR -q > report.out
     [ "$DEBUG" = "1" ] && cat report.out
-    check_status_count report.out new 4
+    check_status_count report.out file new 4
 
     # check how a child entries is archived
     $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log
@@ -6333,7 +6348,7 @@ function test_compress
     # check file status
     $REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR -q  > report.out
     [ "$DEBUG" = "1" ] && cat report.out
-    check_status_count report.out synchro 4
+    check_status_count report.out file synchro 4
 
     # no compressed file names expected xxxx__<fid>z
     name_comp=$(find $BKROOT -type f -name "*z" | wc -l)
@@ -6364,9 +6379,9 @@ function test_compress
     # check file status
     $REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR -q  > report.out
     [ "$DEBUG" = "1" ] && cat report.out
-    check_status_count report.out synchro 2
-    check_status_count report.out modified 2
-    check_status_count report.out new 3
+    check_status_count report.out file synchro 2
+    check_status_count report.out file modified 2
+    check_status_count report.out file new 3
 
     # archive all dirty data and check status
     $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log
@@ -6375,7 +6390,7 @@ function test_compress
     # check file status
     $REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR -q  > report.out
     [ "$DEBUG" = "1" ] && cat report.out
-    check_status_count report.out synchro 7
+    check_status_count report.out file synchro 7
 
     # check backend files
     name_comp=$(find $BKROOT -type f -name "*z" | wc -l)
@@ -6403,8 +6418,8 @@ function test_compress
     # check file status
     $REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR -q  > report.out
     [ "$DEBUG" = "1" ] && cat report.out
-    check_status_count report.out synchro 5
-    check_status_count report.out modified 2
+    check_status_count report.out file synchro 5
+    check_status_count report.out file modified 2
 
     $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log
     check_db_error rh_migr.log
@@ -6426,7 +6441,7 @@ function test_compress
     # check file status
     $REPORT -f $RBH_CFG_DIR/$config_file --status-info $STATUS_MGR -q  > report.out
     [ "$DEBUG" = "1" ] && cat report.out
-    check_status_count report.out synchro 7
+    check_status_count report.out file synchro 7
 
     # test disaster recovery with compressed files
     local before=/tmp/before.$$
@@ -6517,7 +6532,8 @@ function test_enoent
 
     # TODO add addl checks here
 
-	$REPORT -f $RBH_CFG_DIR/$config_file --dump-all -cq > report.out || error "report cmd failed"
+	$REPORT -f $RBH_CFG_DIR/$config_file --dump-all -cq | \
+        grep -v "\.shook" > report.out
     lines=$(cat report.out | wc -l)
     [ "$DEBUG" = "1" ] && cat report.out
     (($lines == 0)) || error "no entries expected after create/rm"
@@ -7267,13 +7283,15 @@ function stripe_update
     # case 1 (all Lustre versions): create an unstriped file, then stripe it
     create_nostripe $RH_ROOT/file.1 || error "creating unstriped file"
     run_scan_cmd $config_file $flavor
-    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+    # FIXME: there are getstripe for shook locks...
+    fid=$(get_id "$RH_ROOT/file.1")
+    [ $getstripe = 0 ] && egrep "$fid.*Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "" "stripe_count=0" 1
     check_stripe $config_file $RH_ROOT/file.1 "none"
 
     # no update expected for second run
     scan_check_no_update $config_file $flavor
-    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+    [ $getstripe = 0 ] && egrep "$fid.*Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe" "stripe" 0 # no stripe change expected
     check_stripe $config_file $RH_ROOT/file.1 "none"
 
@@ -7288,14 +7306,14 @@ function stripe_update
     [ "$DEBUG" = "1" ] && echo "$RH_ROOT/file.1: ost$idx"
     [ "$DEBUG" = "1" ] && [ "$has_gen" = "1" ] && echo "$RH_ROOT/file.1: gen $($LFS getstripe -g $RH_ROOT/file.1)"
     run_scan_cmd $config_file $flavor
-    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+    [ $getstripe = 0 ] && egrep "$fid.*Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe_count=0" "stripe_count=1" 1
     check_stripe $config_file $RH_ROOT/file.1 "ost#$idx"
 
     # no update expected for second run
     [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$RH_ROOT/file.1: gen $($LFS getstripe -g $RH_ROOT/file.1)"
     scan_check_no_update $config_file $flavor
-    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+    [ $getstripe = 0 ] && egrep "$fid.*Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe" "stripe" 0 # no stripe change expected
     check_stripe $config_file $RH_ROOT/file.1 "ost#$idx"
 
@@ -7313,14 +7331,15 @@ function stripe_update
     $LFS swap_layouts $RH_ROOT/file.1 $RH_ROOT/file.2 || error "swapping file layouts"
     [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$RH_ROOT/file.1: gen $($LFS getstripe -g $RH_ROOT/file.1)"
     run_scan_cmd $config_file $flavor
-    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+# FIXME getfid
+    [ $getstripe = 0 ] && egrep "$fid.*Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripes={ost#$idx" "stripes={ost#$idx2" 1
     check_stripe $config_file $RH_ROOT/file.1 "ost#$idx2"
 
     # no update expected for second run
     [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$RH_ROOT/file.1: gen $($LFS getstripe -g $RH_ROOT/file.1)"
     scan_check_no_update $config_file $flavor
-    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+    [ $getstripe = 0 ] && egrep "$fid.*Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe" "stripe" 0 # no stripe change expected
     check_stripe $config_file $RH_ROOT/file.1 "ost#$idx2"
 
@@ -7330,13 +7349,13 @@ function stripe_update
     $LFS swap_layouts $RH_ROOT/file.1 $RH_ROOT/file.3 || error "swapping file layouts"
     [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$RH_ROOT/file.1: gen $($LFS getstripe -g $RH_ROOT/file.1)"
     run_scan_cmd $config_file $flavor
-    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+    [ $getstripe = 0 ] && egrep "$fid.*Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe_count=1" "stripe_count=0" 1
     check_stripe $config_file $RH_ROOT/file.1 "none"
 
     [ "$DEBUG" = "1" ] &&  [ "$has_gen" = "1" ] && echo "$RH_ROOT/file.1: gen $($LFS getstripe -g $RH_ROOT/file.1)"
     scan_check_no_update $config_file $flavor
-    [ $getstripe = 0 ] && egrep "Getstripe=1" rh.log && error "No getstripe operation expected"
+    [ $getstripe = 0 ] && egrep "$fid.*Getstripe=1" rh.log && error "No getstripe operation expected"
     [ $diff = 1 ] && check_stripe_diff "stripe" "stripe" 0 # no stripe change expected
     check_stripe $config_file $RH_ROOT/file.1 "none"
 
@@ -7679,9 +7698,9 @@ function test_hardlinks
 
 function test_hl_count
 {
-	config_file=$1
-    dcount=3
-    fcount=2
+	local config_file=$1
+    local dcount=3
+    local fcount=2
 
     clean_logs
     # populate file system with simple files
@@ -7701,11 +7720,11 @@ function test_hl_count
 
     # reports to be checked:
     #   dump report (9 entries, no root)
-    (($($REPORT -f $RBH_CFG_DIR/$config_file -D -q | wc -l) == $ino )) || error "wrong count in 'rbh-report -D' output"
+    (($($REPORT -f $RBH_CFG_DIR/$config_file -D -q | wc -l) == ($ino+$extra_dir) )) || error "wrong count in 'rbh-report -D' output"
     #   dump report with path filter (3 entries)
     (($($REPORT -f $RBH_CFG_DIR/$config_file -D -q -P $RH_ROOT/dir.1 | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-report -D -P <path>' output"
     #   dump find output (whole FS) (10 entries, incl. root)
-    (($($FIND -f $RBH_CFG_DIR/$config_file -nobulk | wc -l) == $ino + 1))  || error "wrong count in 'rbh-find' output"
+    (($($FIND -f $RBH_CFG_DIR/$config_file -nobulk | wc -l) == $ino + 1 + $extra_dir))  || error "wrong count in 'rbh-find' output"
     #   dump find output (subdir: 3 entries)
     (($($FIND -f $RBH_CFG_DIR/$config_file $RH_ROOT/dir.1 -nobulk | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-find <path>' output"
 
@@ -7713,7 +7732,7 @@ function test_hl_count
     $REPORT -f $RBH_CFG_DIR/$config_file -icq > report.out
     [ "$DEBUG" = "1" ] && cat report.out
     typeValues="dir;file"
-  	countValues="$dcount;$(($dcount * $fcount))"
+  	countValues="$(($dcount+$extra_dir));$(($dcount * $fcount))"
     # type counts are in 2nd column
    	colSearch=2
 	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i' output"
@@ -7734,11 +7753,11 @@ function test_hl_count
     # rescan
    	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scanning $RH_ROOT"
 
-    paths=$(( $dcount * $fcount * 2 + $dcount ))
+    paths=$(( $dcount * $fcount * 2 + $dcount + $extra_dir ))
     paths_subdir=$(($fcount * 2 + 1))
 
     #   dump report (still 9 entries, no root)
-    (($($REPORT -f $RBH_CFG_DIR/$config_file -D -q | wc -l) == $ino )) || error "wrong count in 'rbh-report -D' output"
+    (($($REPORT -f $RBH_CFG_DIR/$config_file -D -q | wc -l) == $ino + $extra_dir )) || error "wrong count in 'rbh-report -D' output"
     #   dump report with path filter (still 3 entries)
     (($($REPORT -f $RBH_CFG_DIR/$config_file -D -q -P $RH_ROOT/dir.1 | wc -l) == $ino_subdir )) || error "wrong count in 'rbh-report -D -P <path>' output"
     #   dump find output (whole FS) (
@@ -7749,7 +7768,7 @@ function test_hl_count
     #   dump summary (9 entries)
     $REPORT -f $RBH_CFG_DIR/$config_file -icq > report.out
     [ "$DEBUG" = "1" ] && cat report.out
-  	countValues="$dcount;$(($dcount * $fcount))"
+  	countValues="$(($dcount + $extra_dir));$(($dcount * $fcount))"
 	find_allValuesinCSVreport report.out $typeValues $countValues $colSearch || error "wrong count in 'rbh-report -i' output"
 
     #   dump summary with path filter (3 entries)
@@ -9247,9 +9266,9 @@ function test_find
 
     # 2) test find at several levels
     echo "checking find list at all levels..."
-    check_find "" "-f $cfg" 12 # should return all (including root)
-    check_find "" "-f $cfg -b" 12 # should return all (including root)
-    check_find $RH_ROOT "-f $cfg" 12 # should return all (including root)
+    check_find "" "-f $cfg" $((12+extra_dir)) # should return all (including root)
+    check_find "" "-f $cfg -b" $((12+extra_dir)) # should return all (including root)
+    check_find $RH_ROOT "-f $cfg" $((12+extra_dir)) # should return all (including root)
     check_find $RH_ROOT/file.1 "-f $cfg" 1 # should return only the file
     check_find $RH_ROOT/dir.1 "-f $cfg" 1  # should return dir.1
     check_find $RH_ROOT/dir.2 "-f $cfg" 8  # should return dir.2 + its content
@@ -9261,9 +9280,9 @@ function test_find
 
     # 3) test -td / -tf
     echo "testing type filter (-type d)..."
-    check_find "" "-f $cfg -type d" 6 # should return all (including root)
-    check_find "" "-f $cfg -type d -b" 6 # should return all (including root)
-    check_find $RH_ROOT "-f $cfg -type d" 6 # 6 including root
+    check_find "" "-f $cfg -type d" $((6+extra_dir)) # should return all (including root)
+    check_find "" "-f $cfg -type d -b" $((6+extra_dir)) # should return all (including root)
+    check_find $RH_ROOT "-f $cfg -type d" $((6+extra_dir)) # 6 including root
     check_find $RH_ROOT/dir.2 "-f $cfg -type d" 4 # 4 including dir.2
     check_find $RH_ROOT/dir.2/dir.2 "-f $cfg -type d" 2 # 2 including dir.2/dir.2
     check_find $RH_ROOT/dir.1 "-f $cfg -type d" 1
@@ -9286,7 +9305,7 @@ function test_find
     check_find "" "-f $cfg -name dir.*" 5 # 5
     check_find "" "-f $cfg -name dir.* -b" 5 # 5
     check_find $RH_ROOT "-f $cfg -name dir.*" 5 # 5
-    check_find $RH_ROOT "-f $cfg -not -name dir.*" 7 # all except 5
+    check_find $RH_ROOT "-f $cfg -not -name dir.*" $((7+extra_dir)) # all except 5
     check_find $RH_ROOT/dir.2 "-f $cfg -name dir.*" 4 # 4 including dir.2
     check_find $RH_ROOT/dir.2/dir.2 "-f $cfg -name dir.*" 2 # 2 including dir.2/dir.2
     check_find $RH_ROOT/dir.1 "-f $cfg -name dir.*" 1
@@ -9304,10 +9323,10 @@ function test_find
     check_find $RH_ROOT "-f $cfg -b -iname Dir.*" 5
     check_find $RH_ROOT "-f $cfg -iname dir.*" 5 # match all "dir.*"
     check_find $RH_ROOT "-f $cfg -b -iname dir.*" 5
-    check_find $RH_ROOT "-f $cfg -not -iname Dir.*" 7 # all (12) except 5
-    check_find $RH_ROOT "-f $cfg -b -not -iname Dir.*" 7
-    check_find $RH_ROOT "-f $cfg -not -iname dir.*" 7 # all (12) except 5
-    check_find $RH_ROOT "-f $cfg -b -not -iname dir.*" 7
+    check_find $RH_ROOT "-f $cfg -not -iname Dir.*" $((7+extra_dir)) # all (12) except 5
+    check_find $RH_ROOT "-f $cfg -b -not -iname Dir.*" $((7+extra_dir))
+    check_find $RH_ROOT "-f $cfg -not -iname dir.*" $((7+extra_dir))
+    check_find $RH_ROOT "-f $cfg -b -not -iname dir.*" $((7+extra_dir))
 
     echo "testing size filter..."
     check_find "" "-f $cfg -type f -size +2k" 2
@@ -9324,21 +9343,21 @@ function test_find
     check_find $RH_ROOT "-f $cfg -user daemon" 1
     check_find $RH_ROOT "-f $cfg -user bin" 1
     check_find $RH_ROOT "-f $cfg -user adm" 0
-    check_find $RH_ROOT "-f $cfg -not -user adm" 12
-    check_find $RH_ROOT "-f $cfg -not -user daemon" 11
-    check_find $RH_ROOT "-f $cfg -not -user bin" 11
+    check_find $RH_ROOT "-f $cfg -not -user adm" $((12+extra_dir))
+    check_find $RH_ROOT "-f $cfg -not -user daemon" $((11+extra_dir))
+    check_find $RH_ROOT "-f $cfg -not -user bin" $((11+extra_dir))
 
     check_find $RH_ROOT "-f $cfg -group bin" 1
     check_find $RH_ROOT "-f $cfg -group wheel" 1
     check_find $RH_ROOT "-f $cfg -group sys" 0
-    check_find $RH_ROOT "-f $cfg -not -group sys" 12
-    check_find $RH_ROOT "-f $cfg -not -group bin" 11
-    check_find $RH_ROOT "-f $cfg -not -group wheel" 11
+    check_find $RH_ROOT "-f $cfg -not -group sys" $((12+extra_dir))
+    check_find $RH_ROOT "-f $cfg -not -group bin" $((11+extra_dir))
+    check_find $RH_ROOT "-f $cfg -not -group wheel" $((11+extra_dir))
 
     check_find $RH_ROOT "-f $cfg -user daemon -group bin" 1
     check_find $RH_ROOT "-f $cfg -user daemon -group wheel" 0
     check_find $RH_ROOT "-f $cfg -user daemon -not -group wheel" 1
-    check_find $RH_ROOT "-f $cfg -not -user daemon -not -group wheel" 10
+    check_find $RH_ROOT "-f $cfg -not -user daemon -not -group wheel" $((10+extra_dir))
     check_find $RH_ROOT "-f $cfg -not -user daemon -not -group wheel -type f" 4
 
     if [ -z "$POSIX_MODE" ]; then
@@ -9352,24 +9371,24 @@ function test_find
 
     echo "testing mtime filter..."
     check_find "" "-f $cfg -mtime +1d" 0  #none
-    check_find "" "-f $cfg -mtime -1d" 12 #all
+    check_find "" "-f $cfg -mtime -1d" $((12+extra_dir)) #all
     check_find "" "-f $cfg -mtime +1d -b" 0  #none
-    check_find "" "-f $cfg -mtime -1d -b" 12 #all
+    check_find "" "-f $cfg -mtime -1d -b" $((12+extra_dir)) #all
     # change last day
     check_find $RH_ROOT "-f $cfg -mtime +1d" 0  #none
-    check_find $RH_ROOT "-f $cfg -mtime -1d" 12 #all
+    check_find $RH_ROOT "-f $cfg -mtime -1d" $((12+extra_dir)) #all
     # the same with another syntax
     check_find $RH_ROOT "-f $cfg -mtime +1" 0  #none
-    check_find $RH_ROOT "-f $cfg -mtime -1" 12 #all
+    check_find $RH_ROOT "-f $cfg -mtime -1" $((12+extra_dir)) #all
     # without 2 hour
     check_find $RH_ROOT "-f $cfg -mtime +2h" 0  #none
-    check_find $RH_ROOT "-f $cfg -mtime -2h" 12 #all
+    check_find $RH_ROOT "-f $cfg -mtime -2h" $((12+extra_dir)) #all
     # the same with another syntax
     check_find $RH_ROOT "-f $cfg -mtime +120m" 0  #none
-    check_find $RH_ROOT "-f $cfg -mtime -120m" 12 #all
+    check_find $RH_ROOT "-f $cfg -mtime -120m" $((12+extra_dir)) #all
     # the same with another syntax
     check_find $RH_ROOT "-f $cfg -mmin +120" 0  #none
-    check_find $RH_ROOT "-f $cfg -mmin -120" 12 #all
+    check_find $RH_ROOT "-f $cfg -mmin -120" $((12+extra_dir)) #all
 
     # restore default striping
     if [ -z "$POSIX_MODE" ]; then
@@ -9448,7 +9467,7 @@ function test_du
     nb_link=$($DU -f $cfg -t l -c $RH_ROOT | awk '{print $1}')
     nb_dir=$($DU -f $cfg -t d -c $RH_ROOT | awk '{print $1}')
     [[ $nb_file = 8 ]] || error "found $nb_file files/8"
-    [[ $nb_dir = 6 ]] || error "found $nb_dir dirs/6"
+    [[ $nb_dir = $((6+extra_dir)) ]] || error "found $nb_dir dirs/$((6+extra_dir))"
     [[ $nb_link = 2 ]] || error "found $nb_link links/2"
 
 }
@@ -9971,7 +9990,7 @@ function test_alerts
     export ALERT_CLASS=$testKey
 
 	echo "2-Scanning filesystem..."
-	$RH -f $RBH_CFG_DIR/$config_file --scan --run=alert -l MAJOR -I --once || error "scan+alert error"
+	$RH -f $RBH_CFG_DIR/$config_file --scan --run=alert -l MAJOR --once || error "scan+alert error"
 
 	echo "3-Checking results..."
 	logFile=/tmp/rh_alert.log
@@ -10259,7 +10278,7 @@ function test_migration
     countLink=`find $BKROOT -type l -not -name "*.lov" | wc -l`
     count=$(($countFile+$countLink))
     if (($count != $countFinal)); then
-        error "********** TEST FAILED (File System): $count files migrated, but $countFinal expected"
+        error "********** TEST FAILED (File System): $count files migrated ($countFile files, $countLink symlinks), but $countFinal expected"
     fi
 
     check_migrate_arr $migrate_arr
@@ -11012,8 +11031,8 @@ function test_purge_tmp_fs_mgr
     purgeOpt=$5
 
 
-	if (( $is_lhsm > 0 )); then
-		echo "No link purge for Lustre/HSM"
+    if (( $shook != 0 )) || (( $is_lhsm != 0 )); then
+		echo "No link purge for HSM modes"
 		set_skipped
 		return 1
 	fi
@@ -11577,7 +11596,7 @@ function test_report_generation_1
 	logFile=report.out
 
     typeValues="dir;file;symlink"
-    countValues="8;6;5"
+    countValues="$((8+extra_dir));6;5"
     colSearch=2
     [ "$DEBUG" = "1" ] && cat report.out
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS statistics (--fs-info)"
@@ -11603,7 +11622,7 @@ function test_report_generation_1
 	echo -e "\n 5-User statistics of root..."
 	$REPORT -f $RBH_CFG_DIR/$config_file --user-info -u root --csv > report.out || error "performing User statistics (--user)"
     typeValues="root.*dir;root.*file;root.*symlink"
-    countValues="2;5;3"
+    countValues="$((2+extra_dir));5;3"
 	colSearch=3
     [ "$DEBUG" = "1" ] && cat report.out
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating FS User statistics (--user)"
@@ -11699,7 +11718,7 @@ function test_report_generation_1
 	colSearch=1
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating entries for one user 'root'(--dump-user)"
 	typeValue="root.*[root|testgroup]"
-	if (( $(grep $typeValue $logFile | wc -l) != 10 )) ; then
+	if (( $(grep $typeValue $logFile | wc -l) != 10 + extra_dir )) ; then
 		 error "validating entries for one user 'root'(--dump-user)"
 	fi
 	# launch another scan ..........................
@@ -11977,6 +11996,9 @@ function test_commit_update
     local nb_log=$($LFS changelog lustre | wc -l)
     echo "$nb_log pending changelogs"
 
+    # extra dirs depending on the mode
+    ((nb_log+=$extra_dir))
+
     # read the log and check last commit is updated every n records
     echo "2. Reading changelogs..."
         $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l FULL \
@@ -11987,7 +12009,7 @@ function test_commit_update
                          grep "INSERT INTO" | wc -l)
 
     # expected: nb change_log/5 (+ 1)
-    ((expect=$nb_log/5))
+    ((expect=$nb_log/5+1))
     if (($commit_count != $expect)) && (($commit_count != $expect + 1)); then
         error "Unexpected count of commit id update in DB ($commit_count vs. $expect (+1))"
     else
@@ -12264,48 +12286,49 @@ function get_nb_stat
 
 function TEST_OTHER_PARAMETERS_2
 {
-	# Test for many parameters
-	# 	TEST_OTHER_PARAMETERS_2 config_file
-	#=>
-	# config_file == config file name
+    # Test for many parameters
+    #     TEST_OTHER_PARAMETERS_2 config_file
+    #=>
+    # config_file == config file name
 
-	config_file=$1
+    config_file=$1
 
     if (( ($is_hsmlite == 0) && ($is_lhsm == 0) )); then
-		echo "No TEST_OTHER_PARAMETERS_2 for this purpose: skipped"
-		set_skipped
-		return 1
-	fi
+        echo "No TEST_OTHER_PARAMETERS_2 for this purpose: skipped"
+        set_skipped
+        return 1
+    fi
 
-	clean_logs
+    clean_logs
 
-	echo "Create Files ..."
+    echo "Create Files ..."
     for i in `seq 1 5` ; do
-    	dd if=/dev/zero of=$RH_ROOT/file.$i bs=10M count=1 >/dev/null \
+        dd if=/dev/zero of=$RH_ROOT/file.$i bs=10M count=1 >/dev/null \
             2>/dev/null || error "writing file.$i"
-	done
+    done
     for i in `seq 6 10` ; do
-    	touch $RH_ROOT/file.$i
-	done
+        touch $RH_ROOT/file.$i
+    done
 
-	sleep 1
-	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once \
+    sleep 1
+    $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log --once \
         2>/dev/null
 
-	echo "Migrate files"
-	$RH -f $RBH_CFG_DIR/$config_file --run=migration -l DEBUG -L rh_migr.log \
+    echo "Migrate files"
+    $RH -f $RBH_CFG_DIR/$config_file --run=migration -l DEBUG -L rh_migr.log \
         2>/dev/null &
-	pid=$!
+    pid=$!
 
+    t0=$(date +%s.%N)
     if (( $is_lhsm > 0 )); then
         sleep 2
         wait_done 60
     else
-	    sleep 5
+        sleep 5
     fi
 
     nbError=0
-	count=`find $BKROOT -type f -not -name "*.lov" | wc -l`
+    count=`find $BKROOT -type f -not -name "*.lov" | wc -l`
     if (( $count != 10 )); then
         error "********** TEST FAILED (File System): $count files migrated,"\
               "but 10 expected"
@@ -12319,29 +12342,31 @@ function TEST_OTHER_PARAMETERS_2
               "but 10 expected"
         ((nbError++))
     fi
+    t1=$(date +%s.%N)
 
-    #comptage du nombre de "STATS"
+    # count the number of "STATS" dump
     nb_Stats=$(get_nb_stat rh_migr.log)
 
-	echo "Sleep 5.5 seconds"
-	usleep 5500000
+    local stime=$(echo "5500000-(1000000*($t1-$t0))"| bc -l)
+    echo "Sleep $stime useconds"
+    usleep $stime
 
-    #comptage du nombre de "STATS"
+    # count the number of "STATS" dump
     nb_Stats2=$(get_nb_stat rh_migr.log)
-	if (( $nb_Stats2 != $nb_Stats + 1 )); then
+    if (( $nb_Stats2 != $nb_Stats + 1 )); then
         error "********** TEST FAILED (Stats): $nb_Stats2 \"STATS\" detected,"\
               "but $nb_Stats + 1 \"STATS\" expected"
         ((nbError++))
     fi
 
-	count=`find $BKROOT -type f  -not -name "*.lov" | wc -l`
+    count=`find $BKROOT -type f  -not -name "*.lov" | wc -l`
     if (( $count != 10 )); then
         error "********** TEST FAILED (File System): $count files migrated, "\
               "but 10 expected"
         ((nbError++))
     fi
 
-	if (($nbError == 0 )); then
+    if (($nbError == 0 )); then
         echo "OK: test successful"
     else
         error "********** TEST FAILED **********"
@@ -12504,7 +12529,7 @@ function TEST_OTHER_PARAMETERS_4
     if (( $count != 0 )); then
         error "********** TEST FAILED (File System): $count files migrated, but 0 expected"
         ((nbError++))
-    elif grep "Failed to initialize status manager backup" rh_migr.log > /dev/null; then
+    elif grep "Failed to initialize status manager $STATUS_MGR" rh_migr.log > /dev/null; then
         echo "OK: backend not initialized"
     else
         error "Backend initialization SHOULD have FAILED"
@@ -12800,7 +12825,7 @@ run_test 214a  check_disabled  common.conf  purge      "no purge if not defined 
 run_test 214b  check_disabled  common.conf  migration  "no migration if not defined in config"
 run_test 214c  check_disabled  common.conf  rmdir      "no rmdir if not defined in config"
 run_test 214d  check_disabled  common.conf  hsm_remove "hsm_rm is enabled by default"
-run_test 214e  check_disabled  common.conf  class      "no class matching if none defined in config"
+run_test 214e  check_disabled  common_noclass.conf  class      "no class matching if none defined in config"
 run_test 215	mass_softrm    test_rm1.conf 11 1000    "rm are detected between 2 scans"
 run_test 216   test_maint_mode test_maintenance.conf 30 45 5 "pre-maintenance mode"
 run_test 217	migrate_symlink test1.conf 6 		"symlink migration"
