@@ -41,7 +41,7 @@ librbh_mod_backup_la_LDFLAGS=-version-info 0:0:0
 endif
 if SHOOK
 pkglib_LTLIBRARIES+=librbh_mod_shook.la
-librbh_mod_shook_la_SOURCES=shook.c backup.c mod_internal.h
+librbh_mod_shook_la_SOURCES=shook.c backup.c mod_internal.c mod_internal.h
 librbh_mod_shook_la_CFLAGS=$(AM_CFLAGS) -DHAVE_SHOOK
-librbh_mod_shook_la_LDFLAGS=-version-info 0:0:0
+librbh_mod_shook_la_LDFLAGS=-version-info 0:0:0 -lshooksvr
 endif
