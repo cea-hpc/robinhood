@@ -4086,6 +4086,33 @@ function test_sched_limits
     (( c == 5 )) || error "5 actions expected (got $c)"
 }
 
+function test_sched_ratelim
+{
+    local config_file=$1
+
+    clean_logs
+
+    # Create test files
+    touch $RH_ROOT/file.{1..10}
+
+    # Limit processing to 2 files per second
+    export ratelim_capacity=2
+    export ratelim_refill="1s"
+
+    # Initial scan
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log ||
+        error "scan error"
+
+    check_db_error rh_scan.log
+
+    $RH -f $RBH_CFG_DIR/$config_file --run=migration --once -l DEBUG -L rh_migr.log ||
+        error "starting run"
+
+    [ "$DEBUG" = "1" ] && grep "run summary" rh_migr.log
+
+    cat rh_scan.log rh_migr.log
+}
+
 function test_basic_sm
 {
     local config_file=$1
@@ -12846,6 +12873,8 @@ run_test 236h  test_prepost_sched test_prepost_sched.conf none auto_update \
     "" "post_sched_match=auto_update (no scheduler)"
 run_test 236i  test_prepost_sched test_prepost_sched.conf none force_update \
     common.max_per_run "post_sched_match=force_update"
+run_test 236j  test_sched_ratelim test_ratelim.conf \
+    "Check action rate limitations"
 run_test 237   test_lhsm_archive test_lhsm1.conf "check sql query string in case of multiple AND/OR"
 run_test 238   test_multirule_select test_multirule.conf "check sql query string in case of multiple rules"
 run_test 239   test_rmdir_depth  test_rmdir_depth.conf "check sql query for rmdir with depth condition"

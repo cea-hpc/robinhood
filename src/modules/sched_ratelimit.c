@@ -241,7 +241,7 @@ static int sched_tbf_cfg_update(void *sched_data, void *cfg)
 
 /** configuration handlers for "rate_limit" scheduler */
 static const ctx_cfg_funcs_t sched_tbf_cfg_funcs = {
-    .module_name     = "rate_limit scheduler",
+    .module_name     = "tbf scheduler",
     .new             = sched_tbf_cfg_new,
     .free            = sched_tbf_cfg_free,
     .set_default     = sched_tbf_cfg_set_default,
@@ -253,7 +253,7 @@ static const ctx_cfg_funcs_t sched_tbf_cfg_funcs = {
 
 /** "rate_limit" scheduler definition */
 static action_scheduler_t sched_tbf = {
-    .sched_name         = "rate_limit",
+    .sched_name         = "tbf",
     .sched_cfg_funcs    = &sched_tbf_cfg_funcs,
     .sched_init_func    = sched_tbf_init,
     .sched_reset_func   = sched_tbf_reset,
@@ -263,7 +263,7 @@ static action_scheduler_t sched_tbf = {
 /** get a common scheduler by name */
 action_scheduler_t *mod_get_scheduler(const char *sched_name)
 {
-    if (strcmp(sched_name, "common.rate_limit") == 0)
+    if (strcmp(sched_name, "rate_limit.tbf") == 0)
         return &sched_tbf;
 
     return NULL;
