@@ -19,6 +19,7 @@
 
 #include "rbh_misc.h"
 #include "rbh_logs.h"
+#include "backup.h"
 #include <shook_svr.h>
 
 static file_status_t shook2rbh_status(shook_state st)
@@ -47,7 +48,7 @@ static file_status_t shook2rbh_status(shook_state st)
  * and convert it to robinhood status.
  * @return 0 on success, <0 on error.
  */
-int ShookGetStatus(const char *path, file_status_t *p_status)
+int rbh_shook_status(const char *path, file_status_t *p_status)
 {
     shook_state st;
     int rc;
@@ -74,7 +75,7 @@ int ShookGetStatus(const char *path, file_status_t *p_status)
     return 0;
 }
 
-int ShookRecoverById(const entry_id_t *p_id, file_status_t *p_status)
+int rbh_shook_recov_by_id(const entry_id_t *p_id, file_status_t *p_status)
 {
     int rc;
     shook_state st;

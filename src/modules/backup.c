@@ -24,6 +24,7 @@
 #include "xplatform_print.h"
 #include "Memory.h"
 #include "rbh_basename.h"
+#include "backup.h"
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -48,10 +49,12 @@
 #define OLD_BACKUP_BLOCK "Backend"
 
 #ifdef HAVE_SHOOK
+#define MOD_NAME "shook"
 #define TAG "Shook"
 #define BACKUP_BLOCK "shook_config"
 #define BKL_TAG "shook_cfg"
 #else
+#define MOD_NAME "backup"
 #define TAG "Backup"
 #define BACKUP_BLOCK "backup_config"
 #define BKL_TAG "backup_cfg"
@@ -110,7 +113,7 @@ static void backup_cfg_write_default(FILE *output)
     print_line(output, 1, "copy_timeout  : 6h");
     print_line(output, 1, "compress      : no");
 #ifdef HAVE_SHOOK
-    print_line(output, 1, "shook_cfg     : \"/etc/shook.cfg\"")
+    print_line(output, 1, "shook_cfg     : \"/etc/shook.cfg\"");
 #endif
         print_line(output, 1, "recovery_action: <mandatory>");
 
@@ -264,21 +267,6 @@ static const mod_cfg_funcs_t backup_cfg_hdlr = {
 
 /* -------------- status management stuff ------------- */
 
-/** set of managed status */
-typedef enum {
-    STATUS_UNKNOWN = 0, /* undetermined status */
-    STATUS_NEW, /* file does not exists in the backend */
-    STATUS_MODIFIED, /* file has been modified since it was stored in
-                      * the backend */
-    STATUS_RESTORE_RUNNING, /* file is being retrieved */
-    STATUS_ARCHIVE_RUNNING, /* file is being archived */
-    STATUS_SYNCHRO, /* file has been synchronized in HSM, file can be purged */
-    STATUS_RELEASED,    /* file is released (nothing to do). */
-    STATUS_RELEASE_PENDING, /* file is being released */
-
-    STATUS_COUNT    /* number of possible file status */
-} file_status_t;
-
 /* XXX /!\ Must match file_status_t order */
 static const char *backup_status_list[] =
     { "new", "modified", "retrieving", "archiving",
@@ -385,100 +373,6 @@ static int backup_init(struct sm_instance *smi, run_flags_t flags)
 
     return 0;
 }
-
-#if 0 /* FIXME RBH V3 */
-/** @TODO te be called by get_status function, changelog callback, etc. */
-static bool backup_ignore(const entry_id_t *p_id, attr_set_t *p_attrs)
-{
-#ifndef HAVE_SHOOK
-    /* ignore nothing */
-    return false;
-#else
-    /* if we don't know the full path, but the name looks like
-     * an ignored entry, get the path */
-    if (!ATTR_MASK_TEST(p_attrs, fullpath)
-        && ATTR_MASK_TEST(p_attrs, name)) {
-        if (!strcmp(ATTR(p_attrs, name), SHOOK_DIR)
-            || !strcmp(ATTR(p_attrs, name), lock_dirname)
-            || !strcmp(ATTR(p_attrs, name), restripe_dirname)
-            || !strncmp(SHOOK_LOCK_PREFIX, ATTR(p_attrs, name),
-                        strlen(SHOOK_LOCK_PREFIX))
-            || !strncmp(RESTRIPE_SRC_PREFIX, ATTR(p_attrs, name),
-                        strlen(RESTRIPE_SRC_PREFIX))
-            || !strncmp(RESTRIPE_TGT_PREFIX, ATTR(p_attrs, name),
-                        strlen(RESTRIPE_TGT_PREFIX))) {
-            if (Lustre_GetFullPath(p_id, ATTR(p_attrs, fullpath), RBH_PATH_MAX)
-                != 0)
-                /* ignore, by default */
-                return true;
-            else
-                /* continue with path checking */
-                ATTR_MASK_SET(p_attrs, fullpath);
-        } else  /* no possible match */
-            return false;
-    }
-
-    if (ATTR_MASK_TEST(p_attrs, fullpath)) {
-        /* check lock file */
-        if (!fnmatch
-            ("*/" LOCK_DIR "/" SHOOK_LOCK_PREFIX "*", ATTR(p_attrs, fullpath),
-             0)) {
-            /* skip the entry */
-            DisplayLog(LVL_DEBUG, TAG, "%s is a shook lock",
-                       ATTR(p_attrs, fullpath));
-            /** @TODO raise special event for the file: LOCK/UNLOCK */
-            return true;
-        }
-        /* check lock dir */
-        else if (!fnmatch("*/" LOCK_DIR, ATTR(p_attrs, fullpath), 0)) {
-            /* skip the entry */
-            DisplayLog(LVL_DEBUG, TAG, "%s is a shook lock dir",
-                       ATTR(p_attrs, fullpath));
-            return true;
-        }
-        /* check restripe dir */
-        else if (!fnmatch("*/" RESTRIPE_DIR, ATTR(p_attrs, fullpath), 0)) {
-            /* skip the entry */
-            DisplayLog(LVL_DEBUG, TAG, "%s is a shook restripe dir",
-                       ATTR(p_attrs, fullpath));
-            return true;
-        }
-    }
-
-    /* match '.shook' directory */
-    if (p_attrs && ATTR_MASK_TEST(p_attrs, name)
-        && ATTR_MASK_TEST(p_attrs, type)) {
-        if (!strcmp(STR_TYPE_DIR, ATTR(p_attrs, type)) &&
-            !strcmp(SHOOK_DIR, ATTR(p_attrs, name))) {
-            /* skip the entry */
-            DisplayLog(LVL_DEBUG, TAG, "\"%s\" is a shook dir",
-                       ATTR(p_attrs, name));
-            return true;
-        }
-    }
-
-    /* if the removed entry is a restripe source,
-     * we MUST NOT remove the backend entry
-     * as it will be linked to the restripe target
-     */
-    if ((ATTR_MASK_TEST(p_attrs, fullpath)
-         && !fnmatch("*/" RESTRIPE_DIR "/" RESTRIPE_SRC_PREFIX "*",
-                     ATTR(p_attrs, fullpath), 0))
-        || (ATTR_MASK_TEST(p_attrs, name)
-            && !strncmp(RESTRIPE_SRC_PREFIX, ATTR(p_attrs, name),
-                        strlen(RESTRIPE_SRC_PREFIX)))) {
-        DisplayLog(LVL_DEBUG, TAG,
-                   "Removing shook stripe source %s: no removal in backend!",
-                   ATTR_MASK_TEST(p_attrs, fullpath) ? ATTR(p_attrs,
-                                                            fullpath) :
-                   ATTR(p_attrs, name));
-        return true;
-    }
-
-    return false;
-#endif
-}
-#endif
 
 typedef enum {
     FOR_LOOKUP,
@@ -830,6 +724,92 @@ static int entry_fs_path(const entry_id_t *p_id, const attr_set_t *p_attrs,
     return 0;
 }
 
+/** Called by get_status function, changelog callback, etc. */
+static bool backup_ignore(const entry_id_t *p_id, const attr_set_t *attrs)
+{
+#ifndef HAVE_SHOOK
+    /* ignore nothing */
+    return false;
+#else
+    /* if we don't know the full path, but the name looks like
+     * an ignored entry, ignore it */
+    if (!ATTR_MASK_TEST(attrs, fullpath) && ATTR_MASK_TEST(attrs, name)) {
+        if (!strcmp(ATTR(attrs, name), SHOOK_DIR)
+            || !strcmp(ATTR(attrs, name), lock_dirname)
+            || !strcmp(ATTR(attrs, name), restripe_dirname)
+            || !strncmp(SHOOK_LOCK_PREFIX, ATTR(attrs, name),
+                        strlen(SHOOK_LOCK_PREFIX))
+            || !strncmp(RESTRIPE_SRC_PREFIX, ATTR(attrs, name),
+                        strlen(RESTRIPE_SRC_PREFIX))
+            || !strncmp(RESTRIPE_TGT_PREFIX, ATTR(attrs, name),
+                        strlen(RESTRIPE_TGT_PREFIX))) {
+
+            /* no fullpath attr and name looks like something to ignore */
+            DisplayLog(LVL_DEBUG, TAG,
+                       "Special entry '%s' ignored by shook",
+                       ATTR(attrs, name));
+
+            return true;
+        } else  /* no possible match */
+            return false;
+    }
+
+    if (ATTR_MASK_TEST(attrs, fullpath)) {
+        if (!fnmatch("*/" LOCK_DIR "/" SHOOK_LOCK_PREFIX "*",
+                     ATTR(attrs, fullpath), 0)) {
+            /* lock file */
+            DisplayLog(LVL_DEBUG, TAG, "%s is a shook lock",
+                       ATTR(attrs, fullpath));
+            /** raise special event for the file: LOCK/UNLOCK? */
+            return true;
+        } else if (!fnmatch("*/" LOCK_DIR, ATTR(attrs, fullpath), 0)) {
+            /* lock dir */
+            DisplayLog(LVL_DEBUG, TAG, "%s is a shook lock dir",
+                       ATTR(attrs, fullpath));
+            return true;
+        } else if (!fnmatch("*/" RESTRIPE_DIR, ATTR(attrs, fullpath), 0)) {
+            /* restripe dir */
+            DisplayLog(LVL_DEBUG, TAG, "%s is a shook restripe dir",
+                       ATTR(attrs, fullpath));
+            return true;
+        }
+    }
+
+    /* match '.shook' directory */
+    if (attrs && ATTR_MASK_TEST(attrs, name)
+        && ATTR_MASK_TEST(attrs, type)) {
+        if (!strcmp(STR_TYPE_DIR, ATTR(attrs, type)) &&
+            !strcmp(SHOOK_DIR, ATTR(attrs, name))) {
+            /* skip the entry */
+            DisplayLog(LVL_DEBUG, TAG, "\"%s\" is a shook dir",
+                       ATTR(attrs, name));
+            return true;
+        }
+    }
+
+    /* if the removed entry is a restripe source,
+     * we MUST NOT remove the backend entry
+     * as it will be linked to the restripe target
+     */
+    if ((ATTR_MASK_TEST(attrs, fullpath)
+         && !fnmatch("*/" RESTRIPE_DIR "/" RESTRIPE_SRC_PREFIX "*",
+                     ATTR(attrs, fullpath), 0))
+        || (ATTR_MASK_TEST(attrs, name)
+            && !strncmp(RESTRIPE_SRC_PREFIX, ATTR(attrs, name),
+                        strlen(RESTRIPE_SRC_PREFIX)))) {
+        DisplayLog(LVL_DEBUG, TAG,
+                   "Removing shook stripe source %s: no removal in backend!",
+                   ATTR_MASK_TEST(attrs, fullpath) ? ATTR(attrs,
+                                                            fullpath) :
+                   ATTR(attrs, name));
+        return true;
+    }
+
+    return false;
+#endif
+}
+
+
 /**
  * Get the status for an entry.
  * \param[in] p_id pointer to entry id
@@ -866,9 +846,12 @@ static int backup_status(struct sm_instance *smi,
                    ATTR(p_attrs_in, type));
         return -ENOTSUP;
     }
-#ifdef HAVE_SHOOK
-    /* @TODO: ignore shook special entries */
 
+    /* ignore special entries */
+    if (backup_ignore(p_id, p_attrs_in))
+        return -ENOTSUP;
+
+#ifdef HAVE_SHOOK
     /* check status from libshook.
      * return if status != ONLINE
      * else, continue checking.
@@ -878,22 +861,23 @@ static int backup_status(struct sm_instance *smi,
 
     BuildFidPath(p_id, fidpath);
 
-    rc = ShookGetStatus(fidpath, &status);
+    rc = rbh_shook_status(fidpath, &status);
     if (rc)
         return rc;
 
     /* if status is 'release_pending' or 'restore_running',
      * check timeout. */
     if (status == STATUS_RELEASE_PENDING || status == STATUS_RESTORE_RUNNING) {
-        rc = ShookRecoverById(p_id, &status);
+        rc = rbh_shook_recov_by_id(p_id, &status);
         if (rc < 0)
             return rc;
     }
 
     if (status != STATUS_SYNCHRO) {
         DisplayLog(LVL_FULL, TAG, "shook reported status<>online: %d", status);
-        ATTR_MASK_SET(p_attrs_changed, status);
-        ATTR(p_attrs_changed, status) = status;
+        rc = set_backup_status(smi, p_attrs_changed, status);
+        if (rc)
+            return rc;
 
         /* set backend path if it is not known */
         if (!ATTR_MASK_INFO_TEST(p_attrs_in, smi, ATTR_BK_PATH)
@@ -902,7 +886,6 @@ static int backup_status(struct sm_instance *smi,
             if (rc)
                 return rc;
         }
-
         return 0;
     }
     /* else: must compare status with backend */
@@ -1054,18 +1037,16 @@ static proc_action_e backup_softrm_filter(struct sm_instance *smi,
      * we MUST NOT remove the backend entry
      * as it will be linked to the restripe target
      */
-    /** @TODO adapt to RBHv3 */
-    else if ((ATTR_FSorDB_TEST(p_op, fullpath)
+    else if ((ATTR_MASK_TEST(attrs, fullpath)
               && !fnmatch("*/" RESTRIPE_DIR "/" RESTRIPE_SRC_PREFIX "*",
-                          ATTR_FSorDB(p_op, fullpath), 0))
-             || (ATTR_FSorDB_TEST(p_op, name)
-                 && !strncmp(RESTRIPE_SRC_PREFIX, ATTR_FSorDB(p_op, name),
+                          ATTR(attrs, fullpath), 0))
+             || (ATTR_MASK_TEST(attrs, name)
+                 && !strncmp(RESTRIPE_SRC_PREFIX, ATTR(attrs, name),
                              strlen(RESTRIPE_SRC_PREFIX)))) {
-        DisplayLog(LVL_DEBUG, ENTRYPROC_TAG,
+        DisplayLog(LVL_DEBUG, TAG,
                    "Removing shook stripe source %s: no remove in backend!",
-                   ATTR_FSorDB_TEST(p_op, fullpath) ? ATTR_FSorDB(p_op,
-                                                                  fullpath) :
-                   ATTR_FSorDB(p_op, name));
+                   ATTR_MASK_TEST(attrs, fullpath) ?  ATTR(attrs, fullpath) :
+                       ATTR(attrs, name));
         return PROC_ACT_NONE;
     }
 #endif
@@ -1075,11 +1056,43 @@ static proc_action_e backup_softrm_filter(struct sm_instance *smi,
     return PROC_ACT_SOFTRM_ALWAYS;
 }
 
+static bool backup_ignore_2attrs(const entry_id_t *id,
+                                 const attr_set_t *favor_attrs,
+                                 const attr_set_t *second_attrs)
+{
+    /* favor matching of fullpath, then fresh attributes */
+    if (ATTR_MASK_TEST(favor_attrs, fullpath))
+        return backup_ignore(id, favor_attrs);
+
+    if (ATTR_MASK_TEST(second_attrs, fullpath))
+        return backup_ignore(id, second_attrs);
+
+    if (ATTR_MASK_TEST(favor_attrs, name))
+        return backup_ignore(id, favor_attrs);
+
+    if (ATTR_MASK_TEST(second_attrs, name))
+        return backup_ignore(id, second_attrs);
+
+    return false;
+}
+
 static int backup_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
                         const entry_id_t *id, const attr_set_t *attrs,
                         attr_set_t *refreshed_attrs, bool *getit,
                         proc_action_e *rec_action)
 {
+    /* favor fresh attributes with fullpath */
+    if (backup_ignore_2attrs(id, refreshed_attrs, attrs)) {
+        *getit = false;
+
+        if ((logrec->cr_type == CL_UNLINK)
+             && (logrec->cr_flags & CLF_UNLINK_LAST)) {
+            /* special file can be cleaned from DB when deleted */
+            *rec_action = PROC_ACT_RM_ALL;
+        }
+
+        return 0;
+    }
     /* If this is a CREATE record, we know its status is NEW
      * (except if it is already set to another value) */
     if (logrec->cr_type == CL_CREATE || logrec->cr_type == CL_SOFTLINK) {
@@ -1121,15 +1134,14 @@ static int backup_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
         *getit = true;
     }
 
-    /** @FIXME */
-    if (p_op->db_exists) {
-        /* if the old name is a restripe file, update the status */
-        if (!strncmp(RESTRIPE_TGT_PREFIX, ATTR(&p_op->db_attrs, name),
-                     strlen(RESTRIPE_TGT_PREFIX))) {
-            p_op->fs_attr_need |= ATTR_MASK_status;
-            DisplayLog(LVL_DEBUG, TAG,
-                       "Getstatus needed because entry was a restripe target");
-        }
+    /* if the old name is a restripe file, update the status */
+    if (ATTR_MASK_TEST(attrs, name)
+        && !strncmp(RESTRIPE_TGT_PREFIX, ATTR(attrs, name),
+                    strlen(RESTRIPE_TGT_PREFIX))) {
+        *getit = true;
+        DisplayLog(LVL_DEBUG, TAG,
+                   "Getstatus needed because entry was a restripe target:"
+                   " '%s'", ATTR(attrs, name));
     }
 #endif
 
@@ -1398,6 +1410,7 @@ static int copy_action_precheck(sm_instance_t *smi, const entry_id_t *p_id,
     /* check the status */
     if (status_equal(smi, p_attrs, STATUS_NEW)) {
         /* check the entry does not already exist */
+        errno = 0;
         if ((lstat(bkpath, &void_stat) == 0) || (errno != ENOENT)) {
             rc = -errno;
             DisplayLog(LVL_MAJOR, TAG,
@@ -1687,7 +1700,7 @@ static int wrap_file_copy(sm_instance_t *smi,
 static bool backup_check_action_name(const char *name)
 {
     if (strcasecmp(name, "archive") &&
-#ifdef _HAVE_SHOOK
+#ifdef HAVE_SHOOK
         strcasecmp(name, "release") &&
 #endif
         /* special values for deleted entries (for backup_remove) */
@@ -1754,9 +1767,8 @@ static int remove_executor(sm_instance_t *smi, const policy_action_t *action,
 
     if (ATTR_MASK_INFO_TEST(p_attrs, smi, ATTR_BK_PATH))
         backend_path = BKPATH(p_attrs, smi);
-    else
+    else {
         /* if there is no backend path, try to guess */
-    {
         int lvl_log;
 
         if (ATTR_MASK_TEST(p_attrs, type)
@@ -1785,6 +1797,43 @@ static int remove_executor(sm_instance_t *smi, const policy_action_t *action,
     return rc;
 }
 
+/** executor for release actions */
+static int release_executor(sm_instance_t *smi, const policy_action_t *action,
+                            const entry_id_t *p_id, attr_set_t *p_attrs,
+                            const action_params_t *params, post_action_e *after,
+                            db_cb_func_t db_cb_fn, void *db_cb_arg)
+{
+    int rc;
+
+    /* make sure the entry has a backend path */
+    if (!ATTR_MASK_INFO_TEST(p_attrs, smi, ATTR_BK_PATH)) {
+        DisplayLog(LVL_MAJOR, TAG, "Can't release a file that has no path in"
+                   " backend");
+        return -EINVAL;
+    }
+    if (!ATTR_MASK_TEST(p_attrs, type)) {
+        DisplayLog(LVL_MAJOR, TAG, "Missing mandatory attribute 'type' in %s()",
+                   __func__);
+        return -EINVAL;
+    }
+    if (strcmp(ATTR(p_attrs, type), STR_TYPE_FILE) != 0) {
+        DisplayLog(LVL_MAJOR, TAG, "Unsupported type for release operation: %s",
+                   ATTR(p_attrs, type));
+        return -ENOTSUP;
+    }
+
+    /* set default for 'after', so it can be overriden in release action */
+    *after = PA_UPDATE;
+
+    rc = action_helper(action, "release", p_id, p_attrs, params,
+                       smi, NULL, after, db_cb_fn, db_cb_arg);
+
+    if (rc)
+        return rc;
+
+    return set_backup_status(smi, p_attrs, STATUS_RELEASED);
+}
+
 /** Wrap command execution */
 static int backup_common_executor(sm_instance_t *smi, const char *implements,
                                   const policy_action_t *action,
@@ -1801,6 +1850,10 @@ static int backup_common_executor(sm_instance_t *smi, const char *implements,
     } else if (!strcmp(implements, "removed")
                || !strcmp(implements, "deleted")) {
         return remove_executor(smi, action, p_id, p_attrs, params, after,
+                               db_cb_fn, db_cb_arg);
+
+    } else if (!strcmp(implements, "release")) {
+        return release_executor(smi, action, p_id, p_attrs, params, after,
                                db_cb_fn, db_cb_arg);
     } else {
         DisplayLog(LVL_CRIT, TAG,
@@ -2579,7 +2632,7 @@ static int rbh_shook_recov_file(const char *fspath, size_t size)
     if (rc) {
         DisplayLog(LVL_CRIT, TAG,
                    "ERROR could not set original size %" PRI_SZ " for '%s': %s",
-                   bk_stat->st_size, fspath, strerror(rc));
+                   size, fspath, strerror(rc));
         return rc;
     }
 
@@ -2587,19 +2640,10 @@ static int rbh_shook_recov_file(const char *fspath, size_t size)
 }
 
 /** action function */
-int rbh_shook_release(const entry_id_t *p_id, attr_set_t *p_attrs)
+static int rbh_shook_release(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
+                            const action_params_t *params, post_action_e *after,
+                            db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
-    int rc;
-    obj_type_t entry_type;
-
-    /* if status is not determined, retrieve it */
-    if (!ATTR_MASK_TEST(p_attrs, status)) {
-        DisplayLog(LVL_DEBUG, TAG, "Status not provided to backup_release()");
-        rc = backup_get_status(p_id, p_attrs, p_attrs);
-        if (rc)
-            return rc;
-    }
-
     /* is it the good type? */
     if (!ATTR_MASK_TEST(p_attrs, type)) {
         DisplayLog(LVL_MAJOR, TAG, "Missing mandatory attribute 'type' in %s()",
@@ -2607,21 +2651,14 @@ int rbh_shook_release(const entry_id_t *p_id, attr_set_t *p_attrs)
         return -EINVAL;
     }
 
-    entry_type = ListMgr2PolicyType(ATTR(p_attrs, type));
-    if (entry_type != TYPE_FILE) {
+    if (strcmp(ATTR(p_attrs, type), STR_TYPE_FILE) != 0) {
         DisplayLog(LVL_MAJOR, TAG, "Unsupported type for release operation: %s",
                    ATTR(p_attrs, type));
         return -ENOTSUP;
     }
 
-    return shook_release(get_fsname(), p_id);
+    return shook_release(get_fsname(), p_entry_id);
 }
-#endif
-
-#ifdef HAVE_SHOOK
-#define MOD_NAME "shook"
-#else
-#define MOD_NAME "backup"
 #endif
 
 /** Status manager for backup or shook (2 builds with different flags) */
@@ -2652,7 +2689,13 @@ static status_manager_t backup_sm = {
     /* no action callback as it has an executor */
 
     /* fields for checking if entries must be inserted to SOFTRM */
+#ifdef HAVE_SHOOK
+    /* need name to check shook special files */
+    .softrm_filter_mask = {.std = ATTR_MASK_type | ATTR_MASK_name,
+                           .status = SMI_MASK(0)},
+#else
     .softrm_filter_mask = {.std = ATTR_MASK_type, .status = SMI_MASK(0)},
+#endif
     .softrm_filter_func = backup_softrm_filter,
 
     /** needed attributes for undelete in addition to POSIX and fullpath:
@@ -2680,6 +2723,11 @@ status_manager_t *mod_get_status_manager(void)
 
 action_func_t mod_get_action(const char *action_name)
 {
-    /* none implemented */
+#ifdef HAVE_SHOOK
+    if (strcmp(action_name, "shook.release") == 0)
+        return rbh_shook_release;
+#endif
+
+    /* unknown function */
     return NULL;
 }

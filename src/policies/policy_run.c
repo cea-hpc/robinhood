@@ -2183,6 +2183,10 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
         }
     }
 
+    /* status matching must be done with up-to-date attrbutes,
+     * and missing attrs from DB */
+    ListMgr_MergeAttrSets(new_attr_set, &p_item->entry_attr, false);
+
     /* retrieve up-to-date status from status manager if the scope relies
      * on it */
     if (smi != NULL && smi->sm->get_status_func != NULL
@@ -2191,8 +2195,8 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
         DisplayLog(LVL_FULL, tag(policy), "Updating status info of "DFID,
                    PFID(&p_item->entry_id));
         /* update entry status */
-        rc = smi->sm->get_status_func(smi, &p_item->entry_id,
-                                      new_attr_set, new_attr_set);
+        rc = smi->sm->get_status_func(smi, &p_item->entry_id, new_attr_set,
+                                      new_attr_set);
         if (rc != 0) {
             DisplayLog(LVL_MAJOR, tag(policy),
                        "Failed to get status for " DFID
