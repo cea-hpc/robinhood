@@ -1627,23 +1627,6 @@ int EntryProc_pre_apply(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
         DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error acknowledging stage %s",
                    stage_info->stage_name);
     return rc;
-
-#ifdef HAVE_SHOOK
- skip_record:
-#ifdef HAVE_CHANGELOGS
-    if (p_op->extra_info.is_changelog_record)
-        /* do nothing on DB but ack the record */
-        rc = EntryProcessor_Acknowledge(p_op, STAGE_CHGLOG_CLR, false);
-    else
-#endif
-        /* remove the operation from pipeline */
-        rc = EntryProcessor_Acknowledge(p_op, -1, true);
-
-    if (rc)
-        DisplayLog(LVL_CRIT, ENTRYPROC_TAG, "Error %d acknowledging stage.",
-                   rc);
-    return rc;
-#endif
 }
 
 /**
