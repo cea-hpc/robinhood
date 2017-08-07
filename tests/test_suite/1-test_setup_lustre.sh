@@ -94,6 +94,11 @@ for f in $list; do
     [[ -n "$f" ]] && echo 0 > $f
 done
 
+# lazy statfs make tests fail
+for f in $(ls /proc/fs/lustre/llite/*/lazystatfs); do
+    echo 1 > $f;
+done
+
 # create testuser
 getent passwd testuser || useradd testuser || exit 1
 
