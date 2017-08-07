@@ -155,6 +155,9 @@ build_shook="OFF"
 AC_ARG_ENABLE([lustre], AS_HELP_STRING([--disable-lustre],
               [Disable all lustre specific features]),
               [support_lustre="$enableval"],[support_lustre="yes"])
+AC_ARG_ENABLE([shook], AS_HELP_STRING([--disable-shook],
+              [Disable build of shook specific modules]),
+              [support_shook="$enableval"],[support_shook="yes"])
 
 # default input option is --scan
 INPUT_OPT="--scan"
@@ -352,13 +355,15 @@ if test "x$support_lustre" = "xyes" ; then
             build_lhsm="ON"
         fi
 
-        # test if library is available for shook mode
-        AC_CHECK_LIB([shooksvr], [shook_release], [have_shook="yes"])
-        # fix with dynamic module management
-        if test "x$have_shook" = "xyes"; then
-            PURPOSE_LDFLAGS="-lshooksvr" # FIXME only the module must be linked against it
-            #AC_DEFINE([HAVE_SHOOK], [1], [libshook is available]) # specified in module compil flags
-            build_shook="ON"
+        if test "x$support_shook" = "xyes" ; then
+            # test if library is available for shook mode
+            AC_CHECK_LIB([shooksvr], [shook_release], [have_shook="yes"])
+            # fix with dynamic module management
+            if test "x$have_shook" = "xyes"; then
+                PURPOSE_LDFLAGS="-lshooksvr" # FIXME only the module must be linked against it
+                #AC_DEFINE([HAVE_SHOOK], [1], [libshook is available]) # specified in module compil flags
+                build_shook="ON"
+            fi
         fi
     fi
 
