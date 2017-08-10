@@ -1100,6 +1100,14 @@ void EntryProcessor_DumpCurrentStages(void)
                            pipeline[i].nb_current_entries,
                            pipeline[i].nb_processed_entries,
                            pipeline[i].total_processed, tpe);
+
+            /* reset stats so the displayed performance is per period */
+            memset(&pipeline[i].total_processing_time, 0,
+                   sizeof(pipeline[i].total_processing_time));
+            pipeline[i].total_processed = 0;
+            pipeline[i].total_batched_entries = 0;
+            pipeline[i].nb_batches = 0;
+
             V(pipeline[i].stage_mutex);
 
             if (!rh_list_empty(&pipeline[i].entries))
