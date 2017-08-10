@@ -1409,6 +1409,10 @@ int cl_reader_start(run_flags_t flags, int mdt_index)
             ((one_shot
               || cl_reader_config.force_polling) ? 0 : CHANGELOG_FLAG_FOLLOW)
             | CHANGELOG_FLAG_BLOCK;
+#ifdef HAVE_FLEX_CL
+        /* more efficient: avoid structure remapping in liblustreapi */
+        info->flags |= CHANGELOG_FLAG_JOBID;
+#endif
 
         if (dbget) {
             last_rec = retrieve_last_commit(&lmgr, info);
