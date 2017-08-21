@@ -116,9 +116,13 @@
 #define unlikely(x)     (x)
 #endif
 
+#ifndef MEMBER_SIZE
 #define MEMBER_SIZE(_type, _member) sizeof(((_type *)0)->_member)
+#endif
 
+#ifndef ARRAY_SIZE
 #define ARRAY_SIZE(_array) (sizeof(_array) / sizeof((_array)[0]))
+#endif
 
 /**
  * Send a mail
