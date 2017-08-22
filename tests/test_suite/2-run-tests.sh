@@ -4537,7 +4537,7 @@ function test_checker
     # default dataversion is mtime+size
     # use data_version with lustre 2.4+
     if [ $FS_TYPE = "lustre" ]; then
-        $LFS help | grep -q data_version && export RBH_CKSUM_DV_CMD="lfs data_version"
+        $LFS --list-commands | grep -q data_version && export RBH_CKSUM_DV_CMD="lfs data_version"
     fi
 
     # create initial version of files
@@ -6674,7 +6674,7 @@ function test_diff
     # is swap layout feature available?
     has_swap=0
     if [ -z "$POSIX_MODE" ]; then
-        $LFS help | grep swap_layout > /dev/null && has_swap=1
+        $LFS --list-commands | grep swap_layout > /dev/null && has_swap=1
         # if so invert stripe for e and f
         if [ $has_swap -eq 1 ]; then
             $LFS swap_layouts $RH_ROOT/dir.2/e  $RH_ROOT/dir.2/f || error "lfs swap_layouts"
@@ -7183,7 +7183,7 @@ function test_layout
     flavor=$2
 
     has_swap=0
-    $LFS help | grep swap_layout > /dev/null && has_swap=1
+    $LFS --list-commands | grep swap_layout > /dev/null && has_swap=1
 
     if (( $has_swap == 0 )); then
         echo "Layout change no supported on this config: skipped"
@@ -7346,7 +7346,7 @@ function stripe_update
     fi
 
     has_swap=0
-    $LFS help | grep swap_layout > /dev/null && has_swap=1
+    $LFS --list-commands | grep swap_layout > /dev/null && has_swap=1
     getstripe=1 # allow getstripe
     [ $has_swap = 1 ] && getstripe=0 # no getstripe expected
     diff=0
@@ -7463,7 +7463,7 @@ function stripe_no_update
     fi
 
     has_swap=0
-    $LFS help | grep swap_layout > /dev/null && has_swap=1
+    $LFS --list-commands | grep swap_layout > /dev/null && has_swap=1
     getstripe=1 # allow getstripe
     [ $has_swap = 1 ] && getstripe=0 # no getstripe expected
     # only diff1 and 3 should display stripe changes
