@@ -203,15 +203,21 @@ int EntryProc_get_info_db(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
         attr_mask_unset_index(&p_op->db_attr_need, ATTR_INDEX_dircount);
     }
 
+    /* don't get stripe for non-files */
+    if (ATTR_MASK_TEST(&p_op->fs_attrs, type)
+        && strcmp(ATTR(&p_op->fs_attrs, type), STR_TYPE_FILE) != 0) {
+        attr_mask_unset_index(&p_op->db_attr_need, ATTR_INDEX_stripe_info);
+        attr_mask_unset_index(&p_op->db_attr_need, ATTR_INDEX_stripe_items);
+        attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_info);
+        attr_mask_unset_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_items);
+    }
+
     /* no readlink for non symlinks */
-    if (ATTR_MASK_TEST(&p_op->fs_attrs, type)) {    /* likely */
-        if (!strcmp(ATTR(&p_op->fs_attrs, type), STR_TYPE_LINK)) {
+    if (ATTR_MASK_TEST(&p_op->fs_attrs, type)) {
+        if (!strcmp(ATTR(&p_op->fs_attrs, type), STR_TYPE_LINK))
             /* check if symlink's contents is known */
             attr_mask_set_index(&p_op->db_attr_need, ATTR_INDEX_link);
-            /* no stripe for symlinks */
-            attr_mask_unset_index(&p_op->db_attr_need, ATTR_INDEX_stripe_info);
-            attr_mask_unset_index(&p_op->db_attr_need, ATTR_INDEX_stripe_items);
-        } else
+        else
             attr_mask_unset_index(&p_op->db_attr_need, ATTR_INDEX_link);
     }
 
