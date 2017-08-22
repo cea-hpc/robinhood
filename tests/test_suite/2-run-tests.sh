@@ -12804,7 +12804,7 @@ run_test 214e  check_disabled  common.conf  class      "no class matching if non
 run_test 215	mass_softrm    test_rm1.conf 11 1000    "rm are detected between 2 scans"
 run_test 216   test_maint_mode test_maintenance.conf 30 45 5 "pre-maintenance mode"
 run_test 217	migrate_symlink test1.conf 6 		"symlink migration"
-run_test 218	test_rmdir 	rmdir.conf 11 		"rmdir policies"
+run_test 218	test_rmdir 	rmdir.conf 6 		"rmdir policies"
 run_test 219    test_rmdir_mix RemovingDir_Mixed.conf 11 "mixed rmdir policies"
 # test sort order by last_archive, last_mod, creation
 # check order of application
