@@ -5385,7 +5385,7 @@ function test_info_collect
             --once 2>/dev/null || error "scan"
 		nb_cr=0
 	else
-        [ "$DEBUG" = "1" ] && $LFS changelog lustre
+        [ "$DEBUG" = "1" ] && $LFS changelog lustre-MDT0000
 		echo "1-Reading changelogs..."
 		#$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
 		$RH -f $RBH_CFG_DIR/$config_file --readlog -l FULL -L rh_chglogs.log  \
@@ -8640,7 +8640,7 @@ function recov_filters
     fi
 
     if [[ $flavor == since ]]; then
-        [ "$DEBUG" = "1" ] && $LFS changelog lustre
+        [ "$DEBUG" = "1" ] && $LFS changelog lustre-MDT0000
         # don't update non-modified objects
 		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_scan.log  --once 2>/dev/null || error "reading changelogs"
     else
@@ -12077,7 +12077,7 @@ function test_commit_update
     mkdir $RH_ROOT/dir.{1..15}
 
     # count changelogs
-    local nb_log=$($LFS changelog lustre | wc -l)
+    local nb_log=$($LFS changelog lustre-MDT0000 | wc -l)
     echo "$nb_log pending changelogs"
 
     # read the log and check last commit is updated every n records
