@@ -12882,10 +12882,10 @@ run_test 126  test_scan_only test_scan_only.conf "Scan on a subset of directorie
 #### policy matching tests  ####
 
 run_test 200	path_test test_path.conf 2 "path matching policies"
-run_test 201	migration_test test1.conf 11 11 "last_mod>10s"
-run_test 202	migration_test test2.conf 5  11 "last_mod>10s and name == \"*[0-5]\""
-run_test 203	migration_test test3.conf 5  11 "complex policy with filesets"
-run_test 204	migration_test test3.conf 10 21 "complex policy with filesets"
+run_test 201	migration_test test1.conf 11 6 "last_mod>5s"
+run_test 202	migration_test test2.conf 5  6 "last_mod>5s and name == \"*[0-5]\""
+run_test 203	migration_test test3.conf 5  6 "complex policy with filesets"
+run_test 204	migration_test test3.conf 10 11 "complex policy with filesets"
 run_test 205	xattr_test test_xattr.conf 2 "xattr-based fileclass definition"
 run_test 206	purge_test test_purge.conf 11 16 "last_access > 15s"
 run_test 207	purge_size_filesets test_purge2.conf 2 3 "purge policies using size-based filesets"
@@ -12898,7 +12898,7 @@ run_test 211	test_pools test_pools.conf 1 "class matching with condition on pool
 run_test 212a	link_unlink_remove_test test_rm1.conf 1 11 "deferred hsm_remove"
 run_test 212b   test_hsm_remove         test_rm1.conf 2 11 "deciding softrm for removed entries"
 run_test 212c   test_lhsm_remove        test_rm1.conf 4 11 "test archive_id parameter for lhsm_remove"
-run_test 213	migration_test_single test1.conf 11 11 "simple migration policy"
+run_test 213	migration_test_single test1.conf 11 6 "simple migration policy"
 run_test 214a  check_disabled  common.conf  purge      "no purge if not defined in config"
 run_test 214b  check_disabled  common.conf  migration  "no migration if not defined in config"
 run_test 214c  check_disabled  common.conf  rmdir      "no rmdir if not defined in config"
@@ -12906,7 +12906,7 @@ run_test 214d  check_disabled  common.conf  hsm_remove "hsm_rm is enabled by def
 run_test 214e  check_disabled  common.conf  class      "no class matching if none defined in config"
 run_test 215	mass_softrm    test_rm1.conf 11 1000    "rm are detected between 2 scans"
 run_test 216   test_maint_mode test_maintenance.conf 30 45 5 "pre-maintenance mode"
-run_test 217	migrate_symlink test1.conf 11 		"symlink migration"
+run_test 217	migrate_symlink test1.conf 6 		"symlink migration"
 run_test 218	test_rmdir 	rmdir.conf 11 		"rmdir policies"
 run_test 219    test_rmdir_mix RemovingDir_Mixed.conf 11 "mixed rmdir policies"
 # test sort order by last_archive, last_mod, creation
