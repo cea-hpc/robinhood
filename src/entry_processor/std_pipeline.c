@@ -919,9 +919,27 @@ int EntryProc_get_info_db(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
              * it now from the NAMES table, given the parent FID and the
              * filename. */
             p_op->get_fid_from_db = 0;
-            rc = ListMgr_Get_FID_from_Path(lmgr, &logrec->cr_pfid,
-                                           rh_get_cl_cr_name(logrec),
-                                           &p_op->entry_id);
+
+            if (ATTR_MASK_TEST(&p_op->fs_attrs, name)) {
+                /* name was previously copied to the fs attributes */
+                rc = ListMgr_Get_FID_from_Path(lmgr, &logrec->cr_pfid,
+                                               ATTR(&p_op->fs_attrs, name),
+                                               &p_op->entry_id);
+            } else {
+                /* Use the name from changelog. It may not be null-terminated
+                 * so copy it to a temporary buffer. */
+                char *tmp_name;
+
+                if (asprintf(&tmp_name, "%.*s", logrec->cr_namelen,
+                             rh_get_cl_cr_name(logrec)) == -1) {
+                    rc = -1;
+                } else {
+                    rc = ListMgr_Get_FID_from_Path(lmgr, &logrec->cr_pfid,
+                                                   tmp_name, &p_op->entry_id);
+
+                    free(tmp_name);
+                }
+            }
 
             if (!rc) {
                 if (!fid_is_sane(&logrec->cr_pfid))
@@ -983,11 +1001,12 @@ int EntryProc_get_info_db(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
         p_op->fs_attr_need = attr_mask_or(&p_op->fs_attr_need, &tmp);
 
         char tmp_buf[RBH_NAME_MAX];
-        DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "RECORD: %s " DFID " %#x %s => "
+        DisplayLog(LVL_DEBUG, ENTRYPROC_TAG, "RECORD: %s " DFID " %#x %.*s => "
                    "getstripe=%u, getattr=%u, getpath=%u, readlink=%u"
                    ", getstatus(%s)",
                    changelog_type2str(logrec->cr_type), PFID(&p_op->entry_id),
                    logrec->cr_flags & CLF_FLAGMASK,
+                   logrec->cr_namelen ? logrec->cr_namelen : 6,
                    logrec->cr_namelen ? rh_get_cl_cr_name(logrec) : "<null>",
                    NEED_GETSTRIPE(p_op) ? 1 : 0, NEED_GETATTR(p_op) ? 1 : 0,
                    NEED_GETPATH(p_op) ? 1 : 0, NEED_READLINK(p_op) ? 1 : 0,

@@ -615,11 +615,14 @@ static void dump_op_queue(reader_thr_info_t *p_info, int debug_level, int num)
 static void set_name(CL_REC_TYPE *logrec, entry_proc_op_t *p_op)
 {
     /* is there entry name in log rec? */
-    if (logrec->cr_namelen == 0)
+    if (logrec->cr_namelen == 0) {
+        ATTR(&p_op->fs_attrs, name)[0] = 0;
         return;
+    }
     ATTR_MASK_SET(&p_op->fs_attrs, name);
     rh_strncpy(ATTR(&p_op->fs_attrs, name), rh_get_cl_cr_name(logrec),
-               sizeof(ATTR(&p_op->fs_attrs, name)));
+               MIN2(sizeof(ATTR(&p_op->fs_attrs, name)),
+                    logrec->cr_namelen + 1));
 
     /* parent id is always set when name is (Cf. comment in lfs.c) */
     if (fid_is_sane(&logrec->cr_pfid)) {
