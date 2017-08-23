@@ -9962,9 +9962,9 @@ function test_alerts
 		sleep $sleepTime
 	fi
 	# specific optional action after sleep process ..........
-	if [ $testKey == "last_access_1min" ]; then
+	if [ $testKey == "last_access_5s" ]; then
 		head $RH_ROOT/dir1/file.1 > /dev/null || error "opening $RH_ROOT/dir1/file.1"
-	elif [ $testKey == "last_mod_1min" ]; then
+	elif [ $testKey == "last_mod_5s" ]; then
 		echo "data" > $RH_ROOT/dir1/file.1 || error "writing in $RH_ROOT/dir1/file.1"
 	fi
 
@@ -9992,11 +9992,11 @@ function test_alerts
 			expectedEntry="file.1;file.2"
 			occur=2
 			;;
-		last_access_1min)
+		last_access_5s)
 			expectedEntry="file.1 "
 			occur=1
 			;;
-		last_mod_1min)
+		last_mod_5s)
 			expectedEntry="file.1 "
 			occur=1
 			;;
@@ -12938,8 +12938,8 @@ run_test 600a test_alerts alert.conf "file1" 0 "TEST_ALERT_PATH_NAME"
 run_test 600b test_alerts alert.conf "type_file" 0 "TEST_ALERT_TYPE"
 run_test 600c test_alerts alert.conf "root_owner" 0 "TEST_ALERT_OWNER"
 run_test 600d test_alerts alert.conf "size10k" 0 "TEST_ALERT_SIZE"
-run_test 600e test_alerts alert.conf "last_access_1min" 60 "TEST_ALERT_LAST_ACCESS"
-run_test 600f test_alerts alert.conf "last_mod_1min" 60 "TEST_ALERT_LAST_MODIFICATION"
+run_test 600e test_alerts alert.conf "last_access_5s" 6 "TEST_ALERT_LAST_ACCESS"
+run_test 600f test_alerts alert.conf "last_mod_5s" 6 "TEST_ALERT_LAST_MODIFICATION"
 run_test 600g test_alerts_OST alert_ost.conf "ost1" "TEST_ALERT_OST"
 run_test 600h test_alerts alert.conf "extended_attribute" 0 "TEST_ALERT_EXTENDED_ATTRIBUT"
 run_test 600i test_alerts alert.conf "nonempty_dir" 0 "TEST_ALERT_DIRCOUNT"
