@@ -185,6 +185,17 @@ static inline int negate_match(int rc)
         return rc;
 }
 
+#ifdef _DEBUG_POLICIES
+#define CHECK_ATTR(_pset_, _attr_, _no_trace) do {            \
+                    if (!ATTR_MASK_TEST(_pset_, _attr_)) {     \
+                        DisplayLog(LVL_MAJOR, POLICY_TAG,  \
+                            "Missing attribute '%s' for evaluating "   \
+                            "boolean expression on "       \
+                             DFID, (#_attr_), PFID(p_entry_id)); \
+                        return POLICY_MISSING_ATTR;            \
+                    }                                          \
+             } while (0)
+#else
 #define CHECK_ATTR(_pset_, _attr_, _no_trace) do {            \
                     if (!ATTR_MASK_TEST(_pset_, _attr_)) {     \
                         if (!(_no_trace))                      \
@@ -195,6 +206,8 @@ static inline int negate_match(int rc)
                         return POLICY_MISSING_ATTR;            \
                     }                                          \
              } while (0)
+#endif
+
 
 static filter_comparator_t Policy2FilterComparator(compare_direction_t comp,
                                                    enum compare_flags flags)
@@ -881,7 +894,6 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
             return bool2policy_match(!rc);
 
     case CRITERIA_TYPE:
-
         /* type is required */
         CHECK_ATTR(p_entry_attr, type, no_warning);
 
@@ -891,6 +903,10 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
         else
             rc = !strcmp(ATTR(p_entry_attr, type), typedb);
 
+#ifdef _DEBUG_POLICIES
+        printf(DFID" %s type %s\n", PFID(p_entry_id),
+               rc ? "matches" : "doesn't match", typedb);
+#endif
         if (p_triplet->op == COMP_EQUAL)
             return bool2policy_match(rc);
         else
@@ -1098,17 +1114,30 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
                 RBH_BUG
                     ("status criteria with no status manager in the context");
 
-            if (!ATTR_MASK_STATUS_TEST(p_entry_attr, smi->smi_index))
+            if (!ATTR_MASK_STATUS_TEST(p_entry_attr, smi->smi_index)) {
                 /* compare with empty string */
                 rc = EMPTY_STRING(p_triplet->val.str);
-            else
+#ifdef _DEBUG_POLICIES
+                printf(DFID" status is not set\n", PFID(p_entry_id));
+#endif
+            } else
                 rc = !strcmp(p_triplet->val.str,
                              STATUS_ATTR(p_entry_attr, smi->smi_index));
+#ifdef _DEBUG_POLICIES
+        printf(DFID" %s status %s\n", PFID(p_entry_id),
+               rc ? "matches" : "doesn't match", p_triplet->val.str);
+#endif
+            /* tolerant mode: if the value was missing and doesn't match:
+             * return POLICY_MISSING_ATTR */
+            if (rc == 0 && no_warning &&
+                !ATTR_MASK_STATUS_TEST(p_entry_attr, smi->smi_index))
+                return POLICY_MISSING_ATTR;
 
             if (p_triplet->op == COMP_EQUAL)
                 return bool2policy_match(rc);
             else
                 return bool2policy_match(!rc);
+
         }
         break;
 
