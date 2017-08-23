@@ -1395,7 +1395,7 @@ int EntryProc_get_info_fs(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
          * remove needed status from mask and append the updated one. */
         p_op->fs_attr_need.status &= ~all_status_mask();
         /* XXX this fails if scope attributes are missing */
-        add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true,
+        add_matching_scopes_mask(&p_op->entry_id, &merged_attrs, true,
                                  &p_op->fs_attr_need.status);
 
         i = 0;
