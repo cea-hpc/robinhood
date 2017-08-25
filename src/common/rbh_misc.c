@@ -1029,6 +1029,7 @@ int CheckLastFS(void)
     int rc;
     lmgr_t lmgr;
     char value[1024];
+    char str_id[128];
 
     rc = ListMgr_InitAccess(&lmgr);
     if (rc) {
@@ -1065,6 +1066,43 @@ int CheckLastFS(void)
                    "Error %d retrieving variable 'FS_path'", rc);
     }
 
+    /* can't check root id if not initialized */
+    if (fs_key == 0)
+        goto out;
+
+    snprintf(str_id, sizeof(str_id), DFID_NOBRACE, PFID(&root_id));
+
+    rc = ListMgr_GetVar(&lmgr, ROOT_ID_VAR, value, sizeof(value));
+    if (rc == DB_SUCCESS) {
+        if (strcmp(str_id, value) != 0) {
+            DisplayLog(LVL_CRIT, "CheckFS",
+                       "Root id changed! Previous value: '%s', new value: '%s'",
+                       value, str_id);
+            DisplayLog(LVL_CRIT, "CheckFS",
+                       "Drop the database and restart the daemon.");
+            rc = -1;
+        } else {
+            DisplayLog(LVL_DEBUG, "CheckFS",
+                       "Root id '%s' matches previous value.",
+                       str_id);
+            rc = 0;
+        }
+    } else if (rc == DB_NOT_EXISTS) {
+        DisplayLog(LVL_FULL, "CheckFS", ROOT_ID_VAR "='%s'.",
+                   str_id);
+        rc = ListMgr_SetVar(&lmgr, ROOT_ID_VAR, str_id);
+        if (rc)
+            DisplayLog(LVL_CRIT, "CheckFS",
+                       "Error %d setting variable '"ROOT_ID_VAR"'%s", rc,
+                       rc == DB_NOT_EXISTS ?
+                       " (likely: database schema is not created yet, and you have a read-only DB access)."
+                       : "");
+    } else {
+        DisplayLog(LVL_CRIT, "CheckFS",
+                   "Error %d retrieving variable '"ROOT_ID_VAR"'", rc);
+    }
+
+out:
     ListMgr_CloseAccess(&lmgr);
     return rc;
 }
