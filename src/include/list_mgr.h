@@ -1059,6 +1059,7 @@ void ListMgr_CloseProfile(struct lmgr_profile_t *p_iter);
                                                        */
 
 #define FS_PATH_VAR         "FS_Path"
+#define ROOT_ID_VAR         "RootId"
 #define USAGE_MAX_VAR       "MaxUsage"
 #define SCAN_INTERVAL_VAR   "ScanInterval"
 #define NEXT_MAINT_VAR      "NextMaintenance"
