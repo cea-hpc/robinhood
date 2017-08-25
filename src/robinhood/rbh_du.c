@@ -426,6 +426,14 @@ static const char *opt2type(const char *type_opt)
 static int retrieve_root_id(entry_id_t *root_id)
 {
     int rc;
+    char value[1024];
+
+    /* try to get root id from DB */
+    rc = ListMgr_GetVar(&lmgr, ROOT_ID_VAR, value, sizeof(value));
+    if (rc == DB_SUCCESS)
+        if (sscanf(value, SFID, RFID(root_id)) == FID_SCAN_CNT)
+            return 0;
+
     rc = Path2Id(global_config.fs_path, root_id);
     if (rc)
         DisplayLog(LVL_MAJOR, DU_TAG, "Can't access filesystem's root %s: %s",

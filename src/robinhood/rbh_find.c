@@ -1035,6 +1035,15 @@ static int dircb(wagon_t *id_list, attr_set_t *attr_list,
 static int retrieve_root_id(entry_id_t *root_id)
 {
     int rc;
+    char value[1024];
+
+    /* try to get root id from DB */
+    rc = ListMgr_GetVar(&lmgr, ROOT_ID_VAR, value, sizeof(value));
+    if (rc == DB_SUCCESS)
+        if (sscanf(value, SFID, RFID(root_id)) == FID_SCAN_CNT)
+            return 0;
+
+    /* else, try to retrieve it from filesystem */
     rc = Path2Id(global_config.fs_path, root_id);
     if (rc)
         DisplayLog(LVL_MAJOR, FIND_TAG, "Can't access filesystem's root %s: %s",
