@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "6dcaa81e_f1922aee",
+        "filename": "src/modules/common_sched.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 202,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2017-08-25T11:27:45Z",
+      "side": 1,
+      "message": "extern? as comment says, it is not defined here",
+      "revId": "e48d3245a8be37cd1b629d7834b93261922b46b6",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "1b103771_c56a6eae",
+        "filename": "src/modules/sched_ratelimit.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 28,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2017-08-25T11:27:45Z",
+      "side": 1,
+      "message": "What about -1? What would be the implications (added value \u0026 weird behavior)?",
+      "revId": "e48d3245a8be37cd1b629d7834b93261922b46b6",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
