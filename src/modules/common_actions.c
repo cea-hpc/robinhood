@@ -36,6 +36,7 @@ static int common_unlink(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
                          db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     const char *path = NULL;
+    bool invalidate = false;
 
     *after = PA_UPDATE;
 
@@ -44,11 +45,31 @@ static int common_unlink(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
     else
         return EINVAL;
 
+    // str2bool returns
+    // 1 true
+    // 0 false
+    // -1 if str is NULL or param is not valid
+    if (str2bool(rbh_param_get(params, "invalidate_dbentry")) > 0) {
+        invalidate = true;
+    }
+
     if (unlink(path) != 0 && errno != ENOENT)
         return errno;
 
-    /* 1 less link */
-    *after = PA_RM_ONE;
+    if (invalidate) {
+#ifdef ATTR_INDEX_invalid
+        /* let GC or Changelog take care of this */
+        ATTR_MASK_SET(p_attrs, invalid);
+        ATTR(p_attrs, invalid) = true;
+        *after = PA_UPDATE;
+#else
+        *after = PA_NONE;
+#endif
+    }
+    else {
+      /* 1 less link */
+      *after = PA_RM_ONE;
+    }
     return 0;
 }
 
