@@ -11,10 +11,12 @@
  */
 
 include("../config.php");
-
+include("../common.php");
+include("../plugin.php");
 
 foreach($CHARTJS as $conf => $val)
 {
         echo "$conf=$val;\n";
 }
 
+echo plugins_call("jscript", "<!--Javascript from plugins-->");
