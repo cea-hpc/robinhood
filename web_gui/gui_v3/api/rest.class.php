@@ -4,6 +4,10 @@
  * http://coreymaynard.com/blog/creating-a-restful-api-with-php/
  */
 
+require_once("robinhood.php");
+require_once("../common.php");
+require_once("../plugin.php");
+
 abstract class API
 {
         /**
@@ -85,6 +89,7 @@ abstract class API
 
         public function processAPI() {
                 if (method_exists($this, $this->endpoint)) {
+                        plugins_call("api_process", array($this->endpoint, $this->args));
                         return $this->_response($this->{$this->endpoint}($this->args));
                 }
                 return $this->_response("No Endpoint: $this->endpoint", 404);

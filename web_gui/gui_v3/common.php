@@ -239,9 +239,12 @@ function build_filter($args, $filter, $self='$SELF') {
  * Build SQLRequest from REST args
  *
  * @param array $args REST args (=>README.txt)
+ * @param array $self User identity 
+ * @param string $table mysql table
+ * @param string $join mysql table to join
  * @return array String,Array with sql request and array of filter
  */
-function build_advanced_filter($args, $self='$SELF') {
+function build_advanced_filter($args, $self='$SELF', $table, $join=false) {
         global $db;
         global $DB_LASTERROR;
         global $DB_NAME;
@@ -259,9 +262,12 @@ function build_advanced_filter($args, $self='$SELF') {
         $shortcuts['AVG'] = "_avg";
 
         $sqlrequest = "SELECT ";
-        $result = $db->query("select column_name,column_type from information_schema.columns where table_name = 'ACCT_STAT' AND TABLE_SCHEMA = '$DB_NAME';");
+	$ttable = "table_name ='$table'";
+	if ($join)
+		$ttable = $ttable." OR table_name='$join'";
+        $result = $db->query("SELECT column_name,column_type,table_name FROM information_schema.columns WHERE ($ttable) AND TABLE_SCHEMA = '$DB_NAME';");
         if ($result->rowCount() <1) {
-                $DB_LASTERROR = 'Something goes wrong with db schema: ACCT_STAT doesn\'t exist';
+                $DB_LASTERROR = 'Something goes wrong with db schema: $TABLE doesn\'t exist';
                 exit;
         }
         if ($result->rowCount() > 0) {
@@ -274,13 +280,18 @@ function build_advanced_filter($args, $self='$SELF') {
                                 $grouptype="GROUP_CONCAT";
                         elseif (strstr($row[1],"enum")!=false)
                                 $grouptype="GROUP_CONCAT";
-                        $select[$row[0]] = $grouptype;
+			if ($join)
+	                        $select[$row[2].'.'.$row[0]] = $grouptype;
+			else
+				$select[$row[0]] = $grouptype;
                 }
                 $i=0;
                 foreach ($args as $arg) {
                         if (strstr($arg,".")!=false) {
                                 $prop = explode(".",$arg);
                                 $field = $prop[0];
+				if ($join && $field=="id")
+					$field=$table.".".$field;
                                 unset($prop[0]);
                                 if (array_key_exists($field, $fields)) {
                                         if (in_array("group", $prop)) {
@@ -303,7 +314,7 @@ function build_advanced_filter($args, $self='$SELF') {
                                                 unset($select[$field]);
                                         }
                                         if (in_array("filter", $prop)) {
-                                                $filter[$field] = $args[$i+1];
+						$filter[$field] = $args[$i+1];
                                         }
                                 }
                         }
@@ -335,7 +346,9 @@ function build_advanced_filter($args, $self='$SELF') {
                                 $first = false;
                         }
                 }
-                $sqlrequest = $sqlrequest." FROM ACCT_STAT ";
+                $sqlrequest = $sqlrequest." FROM $table ";
+		if ($join)
+			 $sqlrequest = $sqlrequest." LEFT JOIN $join ON $table.id = $join.id ";
                 //build where
                 if (sizeof($filter)!=0)
                         $sqlrequest = $sqlrequest." WHERE ";
@@ -353,7 +366,6 @@ function build_advanced_filter($args, $self='$SELF') {
                         $sqlrequest = $sqlrequest." GROUP BY ".implode(",",$group);
 
         }
-
         return array($sqlrequest, $values);
 }
 
@@ -385,4 +397,42 @@ function l($text)
 function getFilePermission($file) {
         $length = strlen(decoct(fileperms($file)))-3;
         return substr(decoct(fileperms($file)),$length);
+}
+
+
+/**
+ *
+ * Set form values from url
+ *
+ * @return string javascript which set the form value
+ */
+function setFormValues() {
+
+        $js="<script>\n";
+        foreach ($_GET as $k => $v) {
+                if (startsWith($k,"form")) {
+                    $js.="document.getElementById('$k').value='$v';\n";
+                }
+        }
+        $js.="</script>\n";
+        return $js;
+}
+
+
+/**
+ *
+ * Call a specific graph from URL parameter
+ *
+ * @return string javascript which set the graph call
+ */
+function callGraph() {
+
+        $js="<script>\n";
+        foreach ($_GET as $k => $v) {
+                if ($k=="callGraph") {
+                    $js.="GetGraph('$v');\n";
+                }
+        }
+        $js.="</script>\n";
+        return $js;
 }
