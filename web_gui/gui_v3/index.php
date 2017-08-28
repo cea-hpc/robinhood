@@ -11,8 +11,10 @@
  * accept its terms.
  */
 
+
 require_once "config.php";
 require_once "common.php";
+require_once "plugin.php";
 
 ?>
 
@@ -23,25 +25,25 @@ require_once "common.php";
 ?>
 <html lang="en">
 <head>
-<title>Robinhood Report</title>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="css/bootstrap.css">
-<link rel="stylesheet" href="css/dataTables.bootstrap.css">
-<link rel="stylesheet" href="css/dashboard.css">
-<link rel="stylesheet" href="css/bootstrap-datetimepicker.css">
-<link rel="stylesheet" href="css/bootstrap-slider.css">
-<script src="js/jquery-2.2.4.min.js"></script>
-<script src="js/bootstrap.min.js"></script>
-<script src="js/Chart.bundle.js"></script>
-<script src="js/jquery.dataTables.js"></script>
-<script src="js/filesize.dataTables.js"></script>
-<script src="js/moment.js"></script>
-<script src="js/bootstrap-datetimepicker.min.js"></script>
-<script src="js/bootstrap-slider.js"></script>
-<script src="customjs/param.php"></script>
-<script src="customjs/newgui.js"></script>
-
+    <title>Robinhood Report</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="css/bootstrap.css">
+    <link rel="stylesheet" href="css/dataTables.bootstrap.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/bootstrap-datetimepicker.css">
+    <link rel="stylesheet" href="css/bootstrap-slider.css">
+    <script src="js/jquery-2.2.4.min.js"></script>
+    <script src="js/bootstrap.min.js"></script>
+    <script src="js/Chart.bundle.js"></script>
+    <script src="js/jquery.dataTables.js"></script>
+    <script src="js/filesize.dataTables.js"></script>
+    <script src="js/moment.js"></script>
+    <script src="js/bootstrap-datetimepicker.min.js"></script>
+    <script src="js/bootstrap-slider.js"></script>
+    <script src="customjs/param.php"></script>
+    <script src="customjs/newgui.js"></script>
+    <?php echo plugins_call("ui_header", "<!--header from plugins-->"); ?>
 </head>
 
 <?php
@@ -95,6 +97,8 @@ foreach ($fields as $field) {
 }
 
 echo '<li><a href="#"  onclick="GetGraph(\'Files\')">Files</a></li>';
+
+echo plugins_call("ui_menu_top", "<!--Data from plugins-->\n");
 ?>
 
           </ul>
@@ -116,38 +120,6 @@ echo '<li><a href="#"  onclick="GetGraph(\'Files\')">Files</a></li>';
                 <input type="text" class="form-control" id="formFilename" name="filename" placeholder="Filename">
             </fieldset>
 
-
-<!--
-            <fieldset class="form-group">
-            <label>Create date range</label>
-            <div class='input-group date' id='datetimepicker6'>
-                <input type='text' class="form-control" name="mindate" />
-                <span class="input-group-addon">
-                    <span class="glyphicon glyphicon-calendar"></span>
-                </span>
-            </div>
-            <div class='input-group date' id='datetimepicker7'>
-                <input type='text' class="form-control" name="maxdate" />
-                <span class="input-group-addon">
-                    <span class="glyphicon glyphicon-calendar"></span>
-                </span>
-            </div>
-            <fieldset>
-<script type="text/javascript">
-$(function () {
-        $('#datetimepicker6').datetimepicker();
-        $('#datetimepicker7').datetimepicker({
-                useCurrent: false //Important! See issue #1075
-        });
-        $("#datetimepicker6").on("dp.change", function (e) {
-                $('#datetimepicker7').data("DateTimePicker").minDate(e.date);
-        });
-        $("#datetimepicker7").on("dp.change", function (e) {
-                $('#datetimepicker6').data("DateTimePicker").maxDate(e.date);
-        });
-});
-</script>
--->
             <fieldset class="form-group">
             <label>Size range</label>
             <input id="ex1" data-slider-id='ex1Slider' type="text" name=minsize />
@@ -179,16 +151,25 @@ $('#ex2').slider({
 
 </script>
 
+<?php
+    echo plugins_call("ui_form_filter", "<!--Data from plugins-->");
+?>
+
             <button type="button" id="filter" class="btn btn-primary" data-loading-text="Loading..." autocomplete="off" onclick="GetGraph(lastGet)">Filter</button>
             <button type="button" class="btn btn-primary" onclick="CleanForm();GetGraph(lastGet)">Clean</button>
     </form>
+
+
+<?php
+    echo plugins_call("ui_menu_bottom", "<!--data from plugins-->\n");
+?>
 
 </div>
 
 <div class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main"> <!-- Graph/Data Div-->
     <div id="messagebox"></div> <!-- MessageBox Div-->
-    <canvas style="max-height:640px; min-height:320px" id="ctx"></canvas> <!-- Canvas for Graph -->
-    <table id="datalist" class="table table-striped table-bordered" width="100%"></table> <!-- Datalist-->
+    <div id="main_content">
+    </div>
 </div> <!-- Graph Div end-->
 </div>
 </div>
@@ -208,8 +189,10 @@ if ($DB_LASTERROR!="") {
         echo "<script>$(msg_danger(\"PDO Database error: $DB_LASTERROR\"))</script>";
 }
 
-
-
+/* Load values in the filder is parameters are set */
+echo setFormValues();
+/* Load a specific graph is the parameter is set */
+echo callGraph();
 ?>
 
 </body>
