@@ -4,6 +4,10 @@
  * http://coreymaynard.com/blog/creating-a-restful-api-with-php/
  */
 
+require_once("robinhood.php");
+require_once("../common.php");
+require_once("../plugin.php");
+
 abstract class API
 {
         /**
@@ -40,9 +44,6 @@ abstract class API
          * Allow for CORS, assemble and pre-process the data
          */
         public function __construct($request) {
-                header("Access-Control-Allow-Orgin: *");
-                header("Access-Control-Allow-Methods: *");
-                header("Content-Type: application/json");
 
                 $this->args = explode('/', rtrim($request, '/'));
                 $this->endpoint = array_shift($this->args);
@@ -85,6 +86,7 @@ abstract class API
 
         public function processAPI() {
                 if (method_exists($this, $this->endpoint)) {
+                        plugins_call("api_process", array($this->endpoint, $this->args));
                         return $this->_response($this->{$this->endpoint}($this->args));
                 }
                 return $this->_response("No Endpoint: $this->endpoint", 404);
@@ -92,7 +94,13 @@ abstract class API
 
         private function _response($data, $status = 200) {
                 global $JSON_OPTIONS;
+                header("Access-Control-Allow-Orgin: *");
+                header("Access-Control-Allow-Methods: *");
+                header(plugins_call("api_header_type","Content-Type: application/json"));
                 header("HTTP/1.1 " . $status . " " . $this->_requestStatus($status));
+                $response_data = plugins_call("api_response", $data);
+                if ($response_data!=$data)
+                    return $response_data;
                 return json_encode($data, $JSON_OPTIONS);
         }
 

@@ -13,6 +13,7 @@
 
 require_once "../config.php";
 require_once "../common.php";
+require_once "../plugin.php";
 require_once 'rest.class.php';
 
 class MyAPI extends API
@@ -61,8 +62,6 @@ class MyAPI extends API
 
         if ($this->method == 'GET') {
 
-
-
             $content_requested = $this->verb;
 
             switch ($content_requested) {
@@ -81,6 +80,7 @@ class MyAPI extends API
                     $data[$sqldata['varname']] = $sqldata['value'];
                 }
                 break;
+
             case 'acct':
                 $self='$SELF';
                 if (!check_access("native_acct")) {
@@ -88,11 +88,27 @@ class MyAPI extends API
                     if (!$self)
                         return "Permission denied";
                 }
-                $fullfilter = build_advanced_filter($this->args, $self);
+                $fullfilter = build_advanced_filter($this->args, $self, "ACCT_STAT");
                 $req = $db->prepare($fullfilter[0]);
                 $req->execute($fullfilter[1]);
                 $data = $req->fetchall(PDO::FETCH_ASSOC);
                 break;
+
+            case 'files':
+                    $self='$SELF';
+                    if (!check_access("native_files")) {
+                            $self = check_self_access("native_files");
+                    if (!$self)
+                        return "Permission denied";
+                }
+                $fullfilter = build_advanced_filter($this->args, $self, "NAMES", "ENTRIES");
+                $req = $db->prepare($fullfilter[0]);
+                $req->execute($fullfilter[1]);
+                $data = $req->fetchall(PDO::FETCH_ASSOC);
+                break;
+
+            default:
+                 $data = plugins_call("api_native", [$content_requested, $this->args]);
             }
             return $data;
 
@@ -130,7 +146,9 @@ class MyAPI extends API
                 $fullfilter = build_filter($this->args, array('uid'=>'uid', 'gid'=>'gid','maxsize'=>'SUM(size)', 'minsize'=>'SUM(size)'), $self);
                 $sqlfilter=$fullfilter[0];
                 $havingfilter=$fullfilter[2];
-                $req = $db->prepare("SELECT $content_requested, SUM(size) AS ssize, SUM(count) AS scount FROM ACCT_STAT $sqlfilter GROUP BY $content_requested $havingfilter");
+                $sqlreq = "SELECT $content_requested, SUM(size) AS ssize, SUM(count) AS scount FROM ACCT_STAT $sqlfilter GROUP BY $content_requested $havingfilter";
+                $sqlreq = plugins_call("graph_presql_uid", $sqlreq);
+                $req = $db->prepare($sqlreq);
                 $req->execute($fullfilter[1]);
                 while($sqldata = $req->fetch(PDO::FETCH_ASSOC)) {
                     $labels[] = $sqldata[$content_requested];
@@ -147,6 +165,8 @@ class MyAPI extends API
                 );
                 $data['datasets'][] = array('data'=>$size, 'backgroundColor'=>$color, 'label'=>'size', 'unit'=>'size');
                 $data['datasets'][] = array('data'=>$count, 'backgroundColor'=>$color, 'label'=>'count', 'unit'=>'count');
+
+                $data = plugins_call("graph_postdata_uid", $data);
                 break;
 
             case 'Sizes':
@@ -155,8 +175,10 @@ class MyAPI extends API
                 $ssize = array("sz0","sz1","sz32","sz1K","sz32K","sz1M","sz32M","sz1G","sz32G","sz1T");
                 $select_str = "SUM(sz0) AS ssz0";
                 foreach ($ssize as $ssz)
-                    $select_str = $select_str.", SUM($ssz) AS s$ssz";
-                $req = $db->prepare("SELECT $select_str FROM ACCT_STAT $sqlfilter;");
+                        $select_str = $select_str.", SUM($ssz) AS s$ssz";
+                $sqlreq = "SELECT $select_str FROM ACCT_STAT $sqlfilter;";
+                $sqlreq = plugins_call("graph_presql_sizes", $sqlreq);
+                $req = $db->prepare($sqlreq);
                 $req->execute($fullfilter[1]);
                 while($sqldata = $req->fetch(PDO::FETCH_ASSOC)) {
                     foreach ($ssize as $ssz) {
@@ -174,6 +196,7 @@ class MyAPI extends API
                 );
                 $data['datasets'][] = array('data'=>$count, 'backgroundColor'=>$color, 'label'=>'Number of files', 'unit'=>'count');
 
+                $data = plugins_call("graph_postdata_sizes", $data);
                 break;
 
             case 'Files':
