@@ -60,5 +60,16 @@ $DB_PASSWD   = "";
 //$CHARTJS['animationChart'] = "false";
 //CHARTJS['showAllTooltipsChart'] = "true";
 
+/*****************************
+ *        Plugins            *
+ *****************************/
+
+//$PLUGINS_REG = array();
+
+//$PLUGINS_REG[]="stackgraph";
+//$PLUGINS_REG[]="colorgraph";
+//$PLUGINS_REG[]="plugdisplay";
+//$PLUGINS_REG[]="fsinfo";
+//$PLUGINS_REG[]="browser";
 
 ?>

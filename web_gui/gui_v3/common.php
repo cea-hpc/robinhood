@@ -20,8 +20,8 @@
  * @return bool "startsWith" or false is needle not a string
  */
 function startsWith($haystack, $needle) {
-        // search backwards starting from haystack length characters from the end
-        return $needle === "" || strrpos($haystack, $needle, -strlen($haystack)) !== false;
+    // search backwards starting from haystack length characters from the end
+    return $needle === "" || strrpos($haystack, $needle, -strlen($haystack)) !== false;
 }
 
 /**
@@ -33,8 +33,8 @@ function startsWith($haystack, $needle) {
  * @return bool "endsWith" or false is needle not a string
  */
 function endsWith($haystack, $needle) {
-        // search forward starting from end minus needle length characters
-        return $needle === "" || (($temp = strlen($haystack) - strlen($needle)) >= 0 && strpos($haystack, $needle, $temp) !== false);
+    // search forward starting from end minus needle length characters
+    return $needle === "" || (($temp = strlen($haystack) - strlen($needle)) >= 0 && strpos($haystack, $needle, $temp) !== false);
 }
 
 /**
@@ -47,10 +47,10 @@ function endsWith($haystack, $needle) {
  */
 function formatSizeNumber( $number, $precision=2 )
 {
-        $base = log($number, 1024);
-        $suffixes = array('B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZT', 'YT');
+    $base = log($number, 1024);
+    $suffixes = array('B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZT', 'YT');
 
-        return round(pow(1024, $base - floor($base)), $precision) .' '. $suffixes[floor($base)];
+    return round(pow(1024, $base - floor($base)), $precision) .' '. $suffixes[floor($base)];
 }
 
 
@@ -61,30 +61,30 @@ function formatSizeNumber( $number, $precision=2 )
  * @return array array of columns names as string
  */
 function get_acct_columns($all=false) {
-        global $FIELD_LIST;
-        global $DB_LASTERROR;
-        global $DB_NAME;
-        global $db;
-        $final = array();
-        if (!$db)
-                return $final;
-        $result = $db->query("select column_name from information_schema.columns where table_name = 'ACCT_STAT' AND TABLE_SCHEMA = '$DB_NAME';");
-        if ($result->rowCount() <1) {
-                $DB_LASTERROR = 'Something goes wrong with db schema: ACCT_STAT doesn\'t exist';
-                return $final;
-        }
-        if ($result->rowCount() > 0) {
-                while ($row = $result->fetch()) {
-                        if (array_key_exists($row[0], $FIELD_LIST) and !$all) {
-                                if (!in_array($FIELD_LIST[$row[0]], $final) and $FIELD_LIST[$row[0]]) {
-                                        $final[] = $FIELD_LIST[$row[0]];
-                                }
-                        } else {
-                                $final[] = $row[0];
-                        }
+    global $FIELD_LIST;
+    global $DB_LASTERROR;
+    global $DB_NAME;
+    global $db;
+    $final = array();
+    if (!$db)
+        return $final;
+    $result = $db->query("select column_name from information_schema.columns where table_name = 'ACCT_STAT' AND TABLE_SCHEMA = '$DB_NAME';");
+    if ($result->rowCount() <1) {
+        $DB_LASTERROR = 'Something goes wrong with db schema: ACCT_STAT doesn\'t exist';
+        return $final;
+    }
+    if ($result->rowCount() > 0) {
+        while ($row = $result->fetch()) {
+            if (array_key_exists($row[0], $FIELD_LIST) and !$all) {
+                if (!in_array($FIELD_LIST[$row[0]], $final) and $FIELD_LIST[$row[0]]) {
+                    $final[] = $FIELD_LIST[$row[0]];
                 }
+            } else {
+                $final[] = $row[0];
+            }
         }
-        return array_unique($final);
+    }
+    return array_unique($final);
 }
 
 /**
@@ -96,20 +96,20 @@ function get_acct_columns($all=false) {
  */
 function check_access($part)
 {
-        GLOBAl $ACCESS_LIST;
-        $user='';
-        if (isset($_SERVER['PHP_AUTH_USER'])) {
-                $user = $_SERVER['PHP_AUTH_USER'];
-        } else {
-                $user='$NOAUTH';
-        }
-        if (in_array('*', $ACCESS_LIST[$part]))
-                return $user;
-        if (in_array('$AUTH', $ACCESS_LIST[$part]))
-                return $user;
-        if (in_array($user, $ACCESS_LIST[$part]))
-                return $user;
-        return False;
+    GLOBAl $ACCESS_LIST;
+    $user='';
+    if (isset($_SERVER['PHP_AUTH_USER'])) {
+        $user = $_SERVER['PHP_AUTH_USER'];
+    } else {
+        $user='$NOAUTH';
+    }
+    if (in_array('*', $ACCESS_LIST[$part]))
+        return $user;
+    if (in_array('$AUTH', $ACCESS_LIST[$part]))
+        return $user;
+    if (in_array($user, $ACCESS_LIST[$part]))
+        return $user;
+    return False;
 }
 
 /**
@@ -123,16 +123,16 @@ function check_access($part)
  */
 function check_self_access($part)
 {
-        GLOBAl $ACCESS_LIST;
-        $user='';
-        if (isset($_SERVER['PHP_AUTH_USER'])) {
-                $user = $_SERVER['PHP_AUTH_USER'];
-        } else {
-                return False;
-        }
-        if (in_array('$SELF', $ACCESS_LIST[$part]))
-                return $user;
+    GLOBAl $ACCESS_LIST;
+    $user='';
+    if (isset($_SERVER['PHP_AUTH_USER'])) {
+        $user = $_SERVER['PHP_AUTH_USER'];
+    } else {
         return False;
+    }
+    if (in_array('$SELF', $ACCESS_LIST[$part]))
+        return $user;
+    return False;
 }
 
 /**
@@ -142,7 +142,7 @@ function check_self_access($part)
  * @return string "#RRGGBB"
  */
 function rand_color() {
-        return sprintf('#%06X', mt_rand(0, 0xFFFFFF));
+    return sprintf('#%06X', mt_rand(0, 0xFFFFFF));
 }
 
 /**
@@ -153,23 +153,23 @@ function rand_color() {
  * @return string "#RRGGBB"
  */
 function string_color($str){
-        return '#'.substr(md5($str), 0, 6);
+    return '#'.substr(md5($str), 0, 6);
 }
 
 
 function get_filter_from_list($datalist, $term)
 {
-        $i = array_search($term, $datalist);
-        if ($i==false) {
-                return false;
-        }
-        if ($i+1<count($datalist)) {
-                if ($datalist[$i+1]=='')
-                        return False;
-                else
-                        return $datalist[$i+1];
-        }
+    $i = array_search($term, $datalist);
+    if ($i==false) {
         return false;
+    }
+    if ($i+1<count($datalist)) {
+        if ($datalist[$i+1]=='')
+            return False;
+        else
+            return $datalist[$i+1];
+    }
+    return false;
 }
 
 /**
@@ -181,57 +181,57 @@ function get_filter_from_list($datalist, $term)
  * @return array String,Array with sql request and array of filter
  */
 function build_filter($args, $filter, $self='$SELF') {
-        $sqlfilter = "";
-        $havingfilter = "";
-        $values = array();
+    $sqlfilter = "";
+    $havingfilter = "";
+    $values = array();
 
-        //Ensure uid if present for self usage
-        if ($self!='$SELF')
-                $filter['uid']='uid';
+    //Ensure uid if present for self usage
+    if ($self!='$SELF')
+        $filter['uid']='uid';
 
-        foreach ($filter as $k => $v) {
-                $op="LIKE";
-                if (startsWith($k,"min"))
-                        $op=">";
-                if (startsWith($k,"max"))
-                        $op="<";
-                if(get_filter_from_list($args,$k)) {
-                        $val = get_filter_from_list($args,$k);
-                        if ($v!='offset') {
-                                if (strstr($v,"(")!=false){
-                                        if ($havingfilter!="")
-                                                $havingfilter = $havingfilter." AND ";
-                                        $havingfilter = $havingfilter."$v $op :k_$k ";
-                                }else{
-                                        if ($sqlfilter!="")
-                                                $sqlfilter = $sqlfilter." AND ";
-                                        $sqlfilter = $sqlfilter."$v $op :k_$k ";
-                                }
-                        }
-                        $values["k_$k"] = $val;
-                } elseif ($self!='$SELF' && $k=='uid') {
-                        if ($v!='offset') {
-                                if (strstr($v,"(")!=false){
-                                        if ($havingfilter!="")
-                                                $havingfilter = $havingfilter." AND ";
-                                        $havingfilter = $havingfilter."$v $op :k_$k ";
-                                }else{
-                                        if ($sqlfilter!="")
-                                                $sqlfilter = $sqlfilter." AND ";
-                                        $sqlfilter = $sqlfilter."$v $op :k_$k ";
-                                }
-                        }
-                        $values["k_$k"] = $self;
+    foreach ($filter as $k => $v) {
+        $op="LIKE";
+        if (startsWith($k,"min"))
+            $op=">";
+        if (startsWith($k,"max"))
+            $op="<";
+        if(get_filter_from_list($args,$k)) {
+            $val = get_filter_from_list($args,$k);
+            if ($v!='offset') {
+                if (strstr($v,"(")!=false){
+                    if ($havingfilter!="")
+                        $havingfilter = $havingfilter." AND ";
+                    $havingfilter = $havingfilter."$v $op :k_$k ";
+                }else{
+                    if ($sqlfilter!="")
+                        $sqlfilter = $sqlfilter." AND ";
+                    $sqlfilter = $sqlfilter."$v $op :k_$k ";
                 }
+            }
+            $values["k_$k"] = $val;
+        } elseif ($self!='$SELF' && $k=='uid') {
+            if ($v!='offset') {
+                if (strstr($v,"(")!=false){
+                    if ($havingfilter!="")
+                        $havingfilter = $havingfilter." AND ";
+                    $havingfilter = $havingfilter."$v $op :k_$k ";
+                }else{
+                    if ($sqlfilter!="")
+                        $sqlfilter = $sqlfilter." AND ";
+                    $sqlfilter = $sqlfilter."$v $op :k_$k ";
+                }
+            }
+            $values["k_$k"] = $self;
         }
+    }
 
-        if ($sqlfilter != "")
-                $sqlfilter = " WHERE ".$sqlfilter;
+    if ($sqlfilter != "")
+        $sqlfilter = " WHERE ".$sqlfilter;
 
-        if ($havingfilter != "")
-                $havingfilter = " HAVING ".$havingfilter;
+    if ($havingfilter != "")
+        $havingfilter = " HAVING ".$havingfilter;
 
-        return array($sqlfilter, $values, $havingfilter);
+    return array($sqlfilter, $values, $havingfilter);
 }
 
 /**
@@ -239,122 +239,136 @@ function build_filter($args, $filter, $self='$SELF') {
  * Build SQLRequest from REST args
  *
  * @param array $args REST args (=>README.txt)
+ * @param array $self User identity
+ * @param string $table mysql table
+ * @param string $join mysql table to join
  * @return array String,Array with sql request and array of filter
  */
-function build_advanced_filter($args, $self='$SELF') {
-        global $db;
-        global $DB_LASTERROR;
-        global $DB_NAME;
-        $shortcuts = array();
-        $fields = array();
-        $select = array();
-        $filter = array();
-        $group = array();
-        $values = array();
+function build_advanced_filter($args, $self='$SELF', $table, $join=false) {
+    global $db;
+    global $DB_LASTERROR;
+    global $DB_NAME;
+    $shortcuts = array();
+    $fields = array();
+    $select = array();
+    $filter = array();
+    $group = array();
+    $values = array();
 
-        $shortcuts['GROUP_CONCAT'] = "_set";
-        $shortcuts['COUNT'] = "_count";
-        $shortcuts['MAX'] = "_max";
-        $shortcuts['MIN'] = "_min";
-        $shortcuts['AVG'] = "_avg";
+    $shortcuts['GROUP_CONCAT'] = "_set";
+    $shortcuts['COUNT'] = "_count";
+    $shortcuts['MAX'] = "_max";
+    $shortcuts['MIN'] = "_min";
+    $shortcuts['AVG'] = "_avg";
 
-        $sqlrequest = "SELECT ";
-        $result = $db->query("select column_name,column_type from information_schema.columns where table_name = 'ACCT_STAT' AND TABLE_SCHEMA = '$DB_NAME';");
-        if ($result->rowCount() <1) {
-                $DB_LASTERROR = 'Something goes wrong with db schema: ACCT_STAT doesn\'t exist';
-                exit;
+    $sqlrequest = "SELECT ";
+    $ttable = "table_name ='$table'";
+
+    if ($join)
+        $ttable = $ttable." OR table_name='$join'";
+
+    $result = $db->query("SELECT column_name,column_type,table_name FROM information_schema.columns WHERE ($ttable) AND TABLE_SCHEMA = '$DB_NAME';");
+    if ($result->rowCount() <1) {
+        $DB_LASTERROR = 'Something goes wrong with db schema: $TABLE doesn\'t exist';
+        exit;
+    }
+    if ($result->rowCount() > 0) {
+        while ($row = $result->fetch()) {
+            $fields[$row[0]] = $row[1];
+            $grouptype = false;
+            if (strstr($row[1],"int")!=false)
+                $grouptype="SUM";
+            elseif (strstr($row[1],"var")!=false)
+                $grouptype="GROUP_CONCAT";
+            elseif (strstr($row[1],"enum")!=false)
+                $grouptype="GROUP_CONCAT";
+            if ($join)
+                $select[$row[2].'.'.$row[0]] = $grouptype;
+            else
+                $select[$row[0]] = $grouptype;
         }
-        if ($result->rowCount() > 0) {
-                while ($row = $result->fetch()) {
-                        $fields[$row[0]] = $row[1];
-                        $grouptype = false;
-                        if (strstr($row[1],"int")!=false)
-                                $grouptype="SUM";
-                        elseif (strstr($row[1],"var")!=false)
-                                $grouptype="GROUP_CONCAT";
-                        elseif (strstr($row[1],"enum")!=false)
-                                $grouptype="GROUP_CONCAT";
-                        $select[$row[0]] = $grouptype;
+        $i=0;
+        foreach ($args as $arg) {
+            if (strstr($arg,".")!=false) {
+                $prop = explode(".",$arg);
+                $field = $prop[0];
+                if ($join && $field=="id")
+                    $field=$table.".".$field;
+                unset($prop[0]);
+                if (array_key_exists($field, $fields)) {
+                    if (in_array("group", $prop)) {
+                        $group[]=$field;
+                        unset($select[$field]);
+                    }
+                    if (in_array("count", $prop)) {
+                        $select[$field]="COUNT";
+                    }
+                    if (in_array("max", $prop)) {
+                        $select[$field]="MAX";
+                    }
+                    if (in_array("min", $prop)) {
+                        $select[$field]="MIN";
+                    }
+                    if (in_array("avg", $prop)) {
+                        $select[$field]="AVG";
+                    }
+                    if (in_array("remove", $prop)) {
+                        unset($select[$field]);
+                    }
+                    if (in_array("filter", $prop)) {
+                        $filter[$field] = $args[$i+1];
+                    }
                 }
-                $i=0;
-                foreach ($args as $arg) {
-                        if (strstr($arg,".")!=false) {
-                                $prop = explode(".",$arg);
-                                $field = $prop[0];
-                                unset($prop[0]);
-                                if (array_key_exists($field, $fields)) {
-                                        if (in_array("group", $prop)) {
-                                                $group[]=$field;
-                                                unset($select[$field]);
-                                        }
-                                        if (in_array("count", $prop)) {
-                                                $select[$field]="COUNT";
-                                        }
-                                        if (in_array("max", $prop)) {
-                                                $select[$field]="MAX";
-                                        }
-                                        if (in_array("min", $prop)) {
-                                                $select[$field]="MIN";
-                                        }
-                                        if (in_array("avg", $prop)) {
-                                                $select[$field]="AVG";
-                                        }
-                                        if (in_array("remove", $prop)) {
-                                                unset($select[$field]);
-                                        }
-                                        if (in_array("filter", $prop)) {
-                                                $filter[$field] = $args[$i+1];
-                                        }
-                                }
-                        }
-                        $i++;
-                }
-
-                //Allow user to see only his own data
-                if ($self!='$SELF')
-                        $filter['uid'] = $self;
-
-                //build select
-                if (sizeof($group)!=0)
-                        $sqlrequest = $sqlrequest."".implode(", ",$group);
-                $first = true;
-                foreach ($select as $k => $v) {
-                        if($v && sizeof($group)!=0) {
-                                $attr= "";
-                                if ($v=="GROUP_CONCAT")
-                                        $attr="DISTINCT ";
-                                $ext= "";
-                                if (array_key_exists($v, $shortcuts))
-                                        $ext = $shortcuts[$v];
-                                $sqlrequest = $sqlrequest.", $v($attr$k) AS $k$ext";
-                        } elseif (sizeof($group)==0) {
-                                if ($first)
-                                        $sqlrequest = $sqlrequest."$k";
-                                else
-                                        $sqlrequest = $sqlrequest.", $k";
-                                $first = false;
-                        }
-                }
-                $sqlrequest = $sqlrequest." FROM ACCT_STAT ";
-                //build where
-                if (sizeof($filter)!=0)
-                        $sqlrequest = $sqlrequest." WHERE ";
-                $first = true;
-                foreach ($filter as $k => $v) {
-                        if (!$first)
-                                $sqlrequest = $sqlrequest." AND ";
-                        $sqlrequest = $sqlrequest."$k LIKE :k_$k ";
-                        $values["k_$k"] = str_replace('*', '%', $v);
-                        $first=false;
-                }
-
-                //build group by
-                if (sizeof($group)!=0)
-                        $sqlrequest = $sqlrequest." GROUP BY ".implode(",",$group);
-
+            }
+            $i++;
         }
 
-        return array($sqlrequest, $values);
+        //Allow user to see only his own data
+        if ($self!='$SELF')
+            $filter['uid'] = $self;
+
+        //build select
+        if (sizeof($group)!=0)
+            $sqlrequest = $sqlrequest."".implode(", ",$group);
+        $first = true;
+        foreach ($select as $k => $v) {
+            if($v && sizeof($group)!=0) {
+                $attr= "";
+                if ($v=="GROUP_CONCAT")
+                    $attr="DISTINCT ";
+                $ext= "";
+                if (array_key_exists($v, $shortcuts))
+                    $ext = $shortcuts[$v];
+                $sqlrequest = $sqlrequest.", $v($attr$k) AS $k$ext";
+            } elseif (sizeof($group)==0) {
+                if ($first)
+                    $sqlrequest = $sqlrequest."$k";
+                else
+                    $sqlrequest = $sqlrequest.", $k";
+                $first = false;
+            }
+        }
+        $sqlrequest = $sqlrequest." FROM $table ";
+        if ($join)
+            $sqlrequest = $sqlrequest." LEFT JOIN $join ON $table.id = $join.id ";
+        //build where
+        if (sizeof($filter)!=0)
+            $sqlrequest = $sqlrequest." WHERE ";
+        $first = true;
+        foreach ($filter as $k => $v) {
+            if (!$first)
+                $sqlrequest = $sqlrequest." AND ";
+            $sqlrequest = $sqlrequest."$k LIKE :k_$k ";
+            $values["k_$k"] = str_replace('*', '%', $v);
+            $first=false;
+        }
+
+        //build group by
+        if (sizeof($group)!=0)
+            $sqlrequest = $sqlrequest." GROUP BY ".implode(",",$group);
+
+    }
+    return array($sqlrequest, $values);
 }
 
 /**
@@ -366,13 +380,13 @@ function build_advanced_filter($args, $self='$SELF') {
  */
 function l($text)
 {
-        global $lang;
-        if (array_key_exists($text, $lang)) {
-                return $lang[$text];
-        } elseif (endsWith($text,"_status")) {
-                return ucfirst(str_replace("_", " ", $text));
-        }
-        return $text;
+    global $lang;
+    if (array_key_exists($text, $lang)) {
+        return $lang[$text];
+    } elseif (endsWith($text,"_status")) {
+        return ucfirst(str_replace("_", " ", $text));
+    }
+    return $text;
 }
 
 /**
@@ -383,6 +397,44 @@ function l($text)
  * @return string File permissions in "xxx" format
  */
 function getFilePermission($file) {
-        $length = strlen(decoct(fileperms($file)))-3;
-        return substr(decoct(fileperms($file)),$length);
+    $length = strlen(decoct(fileperms($file)))-3;
+    return substr(decoct(fileperms($file)),$length);
+}
+
+
+/**
+ *
+ * Set form values from url
+ *
+ * @return string javascript which set the form value
+ */
+function setFormValues() {
+
+    $js="<script>\n";
+    foreach ($_GET as $k => $v) {
+        if (startsWith($k,"form")) {
+            $js.="document.getElementById('$k').value='$v';\n";
+        }
+    }
+    $js.="</script>\n";
+    return $js;
+}
+
+
+/**
+ *
+ * Call a specific graph from URL parameter
+ *
+ * @return string javascript which set the graph call
+ */
+function callGraph() {
+
+    $js="<script>\n";
+    foreach ($_GET as $k => $v) {
+        if ($k=="callGraph") {
+            $js.="GetGraph('$v');\n";
+        }
+    }
+    $js.="</script>\n";
+    return $js;
 }
