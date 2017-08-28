@@ -220,9 +220,17 @@ function loadDataGraph(item, queryString, taskID) {
  **************************************/
 //GetGraph and Table Data async
 function GetGraph(item){
+
+    //Set the main_content frame
+    document.getElementById("main_content").innerHTML = `
+            
+    <canvas style="max-height:640px; min-height:320px" id="ctx"></canvas> <!-- Canvas for Graph -->
+    <table id="datalist" class="table table-striped table-bordered" width="100%"></table> <!-- Datalist-->
+            
+    `
+
     $('#filter').button('loading');
     lastGet=item;
-    $('#messagebox').html("");
     //Get filter
     var queryString="";
     var myForm = document.getElementById("filterform");
@@ -313,7 +321,7 @@ function GetGraph(item){
                        columns: data.columns,
                        columnDefs: data.columnsDefs
             } );
-            //Load the whole table in backgroup
+            //Load the whole table in background
             tableDataCount = data.limited;
             loadDataTable(item, queryString, tableDataTaskId);
             });

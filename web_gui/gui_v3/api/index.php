@@ -12,6 +12,7 @@
 
 require_once("robinhood.php");
 require_once("../common.php");
+require_once("../plugin.php");
 
 if (!check_access("api-ro"))
         return "Permission denied";
@@ -21,6 +22,7 @@ if (!array_key_exists('request', $_REQUEST)) {
 }
 
 try {
+        plugins_call("api_preprocess", $_REQUEST['request']);
         $API = new MyAPI($_REQUEST['request']);
         echo $API->processAPI();
 } catch (Exception $e) {

@@ -17,6 +17,7 @@ jquery: MIT
 Datatables.js: MIT
 graphjs: MIT
 bootstrap: MIT
+bootstrap-treeview: Apache Licence 2
 
 II - Installation
 =================
@@ -102,7 +103,7 @@ Functions provided by the API
         -return datas as json using graphjs datasets format
     *<server-url>/api/data/(uid/gid/files/*_status)
         -return datas as json using datatables.js format
-    *<server-url>/api/native/fields.operator1.operator2/...
+    *<server-url>/api/native/table/fields.operator1.operator2/...
             ex: native/acct/gid.group/size.avg/ #return average size by group
             ex: ... (see bellow)
         -return direct data from ACCT_STAT
@@ -111,18 +112,24 @@ native syntax:
 
 <server-url>/api/: baseURL
 native: request type
-acct: table requested (acct or var)
+acct: table requested (acct, var or files)
 list of request / separated:
     *field.operator/operator_parameter
     *...
 operators:
-    *group -Group result
-    *max -Get the max value when group is used
-    *min -Get the min value when group is used
-    *count -Get number of entries when group is used
-    *avg -Get average when group is used
-    *remove -Hide field from result
-    *filter -Filter result with sql "LIKE" (mandatory parameter, wildcard: *)
+    *group      -Group result
+    *max        -Get the max value when group is used
+    *min        -Get the min value when group is used
+    *count      -Get number of entries when group is used
+    *avg        -Get average when group is used
+    *sum        -Get sum when group is used
+    *remove     -Hide field from result
+    *filter     -Filter result with sql "LIKE" (mandatory parameter, wildcard: *)
+    *nfilter    -Filter result with sql "NOT LIKE" (mandatory parameter, wildcard: *)
+    *equal      -Filter result with sql "=" (mandatory parameter)
+    *less       -Filter result with sql "<" (mandatory parameter)
+    *bigger     -Filter result with sql ">" (mandatory parameter)
+    *soundslike -Filter result with sql "SOUNDS LIKE" (mandatory parameter)
 
 <server-url>/api/native/acct request all the table:
 [
@@ -218,16 +225,46 @@ All together:
         "sz1T": "0"
     },...
 
-V - TODO
+V - Web UID & Plugins
+====================
+5.1 Link to a specific graph with filters
+
+You can set the filter by passing parameters:
+http://hostname/robinhood/index.php?formUID=ROBIN&formFilename=HOOD
+will preset the UID and Filename filter to ROBIN and HOOD
+
+You can choose the graph to display:
+http://hostname/robinhood/index.php?formUID=user&callGraph=Sizes (uid, gid, Sizes, Files, ...)
+
+5.2 Plugins
+
+Please refer to the README.txt in plugins folder for development
+
+VI - TODO
 ========
 
 *Improve REST api
 *Move from graph/data to native for graph and datatable
 *Allow custom query directly in the interface
-*Remove all php from index.php
+*Move builtin graphs in plugins (Files, ...)
 
-VI - Changelog
+VII - Changelog
 ==============
+
+v0.2 @ 24/09/2017
+    -Add plugins
+        -stackgraph (group small values)
+        -fsinfo (display robinhood vars)
+        -browser (browse the filesystem)
+        -colorgraph (set readable colors)
+        -ldapauth (use ldap for data access)
+        -interactive (run custom query from ui)
+    -Allow users to request a specific page
+         and filters by settings parameter
+         in the url
+    -Improve UI
+    -Add native/files API request
+    -Upgrade libs
 
 v0.1 @ 09/09/2016:
    -Ready for landing (robinhood 3.0-rc2)
