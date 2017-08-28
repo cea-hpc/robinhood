@@ -32,6 +32,9 @@ $ACCESS_LIST['datatables'] = array();
 $ACCESS_LIST['graphs'] = array();
 $ACCESS_LIST['native_vars'] = array();
 $ACCESS_LIST['native_acct'] = array();
+$ACCESS_LIST['native_files'] = array();
+
+/* Beware, by default everyone can access to everything */
 
 //Web GUI with graphs and lists
 $ACCESS_LIST['webgui'][] = '*';
@@ -44,6 +47,7 @@ $ACCESS_LIST['graphs'][] = '*';
 //Native (raw data)
 $ACCESS_LIST['native_vars'][] = '*';
 $ACCESS_LIST['native_acct'][] = '*';
+$ACCESS_LIST['native_files'][] = '*';
 
 /*****************************
 *        General parameters  *
@@ -110,6 +114,22 @@ default:
 include_once 'lang/sys.php';
 include_once 'lang/'.$lang_file;
 
+
+/*****************************
+ *        Plugins            *
+ *****************************/
+
+$PLUGINS_REG = array();
+$PLUGINS_INST = array();
+
+$PLUGINS_REG[]="stackgraph";
+$PLUGINS_REG[]="colorgraph";
+$PLUGINS_REG[]="plugdisplay";
+$PLUGINS_REG[]="fsinfo";
+$PLUGINS_REG[]="browser";
+$PLUGINS_REG[]="console";
+//This plugin required a valid ldap conf.
+//$PLUGINS_REG[]="ldapauth";
 
 /*****************************
  *        Local config        *
