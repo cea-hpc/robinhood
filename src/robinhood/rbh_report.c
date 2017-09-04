@@ -1082,6 +1082,104 @@ static void report_activity(int flags)
 typedef enum { DUMP_ALL, DUMP_USR, DUMP_GROUP, DUMP_OST,
         DUMP_STATUS } type_dump;
 
+/**
+ * Build filter on path.
+ * Initialize the filter if it is not already initialized.
+ */
+static int append_path_filter(lmgr_filter_t *filter, bool *initialized)
+{
+    filter_value_t fv;
+    char path_regexp[RBH_PATH_MAX] = "";
+    char tmp[RBH_PATH_MAX] = "";
+    size_t len;
+    int rc;
+
+    if ((initialized != NULL) && !(*initialized)) {
+        lmgr_simple_filter_init(filter);
+        *initialized = true;
+    }
+
+    len = strlen(path_filter);
+    /* remove last slash */
+    if (path_filter[len - 1] == '/') {
+        path_filter[len - 1] = '\0';
+        len--;
+    }
+
+    /* If the filter is root, skip filter creation. */
+    if (strcmp(path_filter, global_config.fs_path) == 0)
+        return 0;
+
+    /* If the length of the specified path is less than
+     * the length of the FS root, it has no chance to be
+     * in it.
+     * However we can be permissive if the path is an upper
+     * level directory e.g. list entries of "/mnt/lustre"
+     * if the option is -P "/mnt".
+     */
+    if (len < strlen(global_config.fs_path)) {
+        /* be permissive if the path is an upper level directory */
+        if (strncmp(path_filter, global_config.fs_path, len) == 0
+            && global_config.fs_path[len] == '/') {
+            fprintf(stderr, "WARNING: '%s' is a top level directory of '%s'. "
+                    "Filter ignored.\n", path_filter, global_config.fs_path);
+            return 0;
+        } else {
+            fprintf(stderr, "ERROR: '%s' is not under filesystem root '%s'.\n",
+                    path_filter, global_config.fs_path);
+            return -EINVAL;
+        }
+    }
+
+    /* Special characters in a POSIX extended regex: .[{}()\*+?|^$
+     *
+     * Escape POSIX ERE special characters that have no meaning in a
+     * globbing pattern. */
+    /* Don't escape characters in the FS root as list manager does
+     * an exact check on it using strcmp, which is not regexp aware. */
+    rc = str_escape_charset(tmp, sizeof(tmp),
+                            path_filter + strlen(global_config.fs_path),
+                            ".^$+(){}\\|");
+    if (rc < 0) {
+        DisplayLog(LVL_CRIT, REPORT_TAG,
+                   "Error %d: '%s' is too big to be properly escaped",
+                   rc, path_filter);
+        return rc;
+    }
+
+    /* Translate those that have a different meaning */
+    str_subst(tmp, "*", ".*");
+    str_subst(tmp, "?", ".");
+
+    /* match 'path$' OR 'path/.*' */
+    snprintf(path_regexp, sizeof(path_regexp), "%s%s($|/.*)",
+             global_config.fs_path, tmp);
+    fv.value.val_str = path_regexp;
+
+    return lmgr_simple_filter_add(filter, ATTR_INDEX_fullpath, RLIKE, fv, 0);
+}
+
+/**
+ * Build filter on fileclass.
+ * Initialize the filter if it is not already initialized.
+ */
+static int append_class_filter(lmgr_filter_t *filter, bool *initialized)
+{
+    filter_value_t fv;
+
+    if ((initialized != NULL) && !(*initialized)) {
+        lmgr_simple_filter_init(filter);
+        *initialized = true;
+    }
+
+    fv.value.val_str = class_filter;
+
+    /* list manager as a specific fileclass management,
+     * as fileclass attr may be a list of fileclasses */
+    return lmgr_simple_filter_add(filter, ATTR_INDEX_fileclass, LIKE, fv, 0);
+}
+
+
 /*
  * Append global filters on path, class...
  * \param do_display [in] display filters?
@@ -1090,52 +1188,25 @@ typedef enum { DUMP_ALL, DUMP_USR, DUMP_GROUP, DUMP_OST,
 static int mk_global_filters(lmgr_filter_t *filter, bool do_display,
                              bool *initialized)
 {
-    filter_value_t fv;
-    char path_regexp[RBH_PATH_MAX] = "";
-    size_t len;
+    int rc;
 
     /* is a filter on path specified? */
     if (!EMPTY_STRING(path_filter)) {
-        if ((initialized != NULL) && !(*initialized)) {
-            lmgr_simple_filter_init(filter);
-            *initialized = true;
-        }
         if (do_display)
             printf("filter path: %s\n", path_filter);
 
-        len = strlen(path_filter);
-        /* remove last slash */
-        if (path_filter[len - 1] == '/')
-            path_filter[len - 1] = '\0';
-
-        /* as this is a RLIKE matching, shell regexp must be replaced by perl:
-         * [abc] => OK
-         * '*' => '.*'
-         * '?' => '.'
-         */
-        str_subst(path_filter, "*", ".*");
-        str_subst(path_filter, "?", ".");
-
-        /* match 'path$' OR 'path/.*' */
-        snprintf(path_regexp, RBH_PATH_MAX, "%s($|/.*)", path_filter);
-
-        fv.value.val_str = path_regexp;
-        lmgr_simple_filter_add(filter, ATTR_INDEX_fullpath, RLIKE, fv, 0);
+        rc = append_path_filter(filter, initialized);
+        if (rc)
+            return rc;
     }
 
     if (!EMPTY_STRING(class_filter)) {
-        if ((initialized != NULL) && !(*initialized)) {
-            lmgr_simple_filter_init(filter);
-            *initialized = true;
-        }
         if (do_display)
             printf("filter class: %s\n", class_format(class_filter));
 
-        fv.value.val_str = class_filter;
-
-        /* list manager as a specific fileclass management,
-         * as fileclass attr may be a list of fileclasses */
-        lmgr_simple_filter_add(filter, ATTR_INDEX_fileclass, LIKE, fv, 0);
+        rc = append_class_filter(filter, initialized);
+        if (rc)
+            return rc;
     }
 
     return 0;

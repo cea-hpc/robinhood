@@ -9712,7 +9712,7 @@ function escape_chars
             return 1
         fi
 
-        command="$UNDELETE -f $RBH_CFG_DIR/$config_file -R"
+        command="$UNDELETE -f $RBH_CFG_DIR/$config_file -R {}"
         # Archive -> scan -> remove -> scan
         for file in "${files[@]}"; do
             $LFS hsm_archive "$file"
@@ -9725,6 +9725,10 @@ function escape_chars
         sleep 1 # Garbage collection is based on scan epoch time
         $RH -f $RBH_CFG_DIR/$config_file --scan --once 2>&1 > /dev/null
         ;;
+    report)
+        command="$REPORT -f $RBH_CFG_DIR/$config_file -P {} --fs-info"
+        $RH -f $RBH_CFG_DIR/$config_file --scan --once 2>&1 > /dev/null
+        ;;
     *)
         # Unknown command
         error "unknown command '$command'"
@@ -9732,17 +9736,22 @@ function escape_chars
     esac
 
     for file in "${files[@]}"; do
-        $command "$file" ||
+        printf '%q' "$file" | xargs -I{} $command > out.log 2> err.log ||
             error "'$command' failed to run on '$file'"
+
         case "$target_command" in
         undelete)
             [ -e "$file" ] || error "'$file' was not undeleted"
+            ;;
+        report)
+            check_db_error out.log
             ;;
         *)
             # Nothing to check
             ;;
         esac
     done
+    rm -f out.log err.log
 }
 
 function test_lhsm_archive
@@ -13059,7 +13068,8 @@ run_test 510    test_rbh_find_printf test_checker.conf "Test rbh-find with -prin
 run_test 511    archive_uuid1 test_uuid.conf "Test UUID presence while scanning"
 run_test 512    archive_uuid2 test_uuid.conf "Archive and undelete file with UUID using changelogs"
 run_test 513    test_reload   alert.conf "Reloading configuration (with alert policy)"
-run_test 514    escape_chars    common.conf undelete "escape special characters in filters"
+run_test 514    escape_chars    common.conf undelete    "escape special characters in filters"
+run_test 515    escape_chars    common.conf report      "escape special characters in filters"
 
 #### Tests by Sogeti ####
 run_test 600a test_alerts alert.conf "file1" 0 "TEST_ALERT_PATH_NAME"
