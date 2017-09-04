@@ -1092,7 +1092,9 @@ static int mk_global_filters(lmgr_filter_t *filter, bool do_display,
 {
     filter_value_t fv;
     char path_regexp[RBH_PATH_MAX] = "";
+    char tmp[RBH_PATH_MAX] = "";
     size_t len;
+    int rc;
 
     /* is a filter on path specified? */
     if (!EMPTY_STRING(path_filter)) {
@@ -1108,18 +1110,26 @@ static int mk_global_filters(lmgr_filter_t *filter, bool do_display,
         if (path_filter[len - 1] == '/')
             path_filter[len - 1] = '\0';
 
-        /* as this is a RLIKE matching, shell regexp must be replaced by perl:
-         * [abc] => OK
-         * '*' => '.*'
-         * '?' => '.'
-         */
-        str_subst(path_filter, "*", ".*");
-        str_subst(path_filter, "?", ".");
+        /* Special characters in a POSIX extended regex: .[{}()\*+?|^$
+         *
+         * Escape POSIX ERE special characters that have no meaning in a
+         * globbing pattern. */
+        rc = str_escape_charset(tmp, sizeof(tmp), path_filter, ".^$+(){}\\|");
+        if (rc < 0) {
+            DisplayLog(LVL_CRIT, REPORT_TAG,
+                       "Error %d: '%s' is too big to be properly escaped",
+                       rc, path_filter);
+            return rc;
+        }
+
+        /* Translate those that have a different meaning */
+        str_subst(tmp, "*", ".*");
+        str_subst(tmp, "?", ".");
 
         /* match 'path$' OR 'path/.*' */
-        snprintf(path_regexp, RBH_PATH_MAX, "%s($|/.*)", path_filter);
-
+        snprintf(path_regexp, sizeof(path_regexp), "%s($|/.*)", tmp);
         fv.value.val_str = path_regexp;
+
         lmgr_simple_filter_add(filter, ATTR_INDEX_fullpath, RLIKE, fv, 0);
     }
 
