@@ -38,7 +38,13 @@
 %endif
 
 # target install dir for web gui
-%define installdir_www  /var/www
+%if %{defined suse_version}
+%define installdir_www /srv/www
+%define confdir_www /apache2
+%else
+%define installdir_www /var/www
+%define confdir_www /httpd
+%endif
 
 ###### end of macro definitions #####
 
@@ -59,7 +65,7 @@ Prefix: %{_prefix}
 Release: @RELEASE@%{?config_dependant}%{?dist}
 
 Summary: Robinhood - Policy engine and reporting tool for large filesystems
-License: CeCILL-C
+License: CECILL-C
 Group: Applications/System
 Url: http://robinhood.sourceforge.net
 Source0: @PACKAGE@-%{version}.tar.gz
@@ -67,6 +73,13 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires: glib2-devel >= 2.16
 BuildRequires: libattr-devel
 BuildRequires: mailx
+BuildRequires: automake
+BuildRequires: libtool
+%if %{defined suse_version}
+BuildRequires: libmysqlclient-devel
+%else
+BuildRequires: mysql-devel
+%endif
 %if %{with_systemd}
 %if %{defined suse_version}
 BuildRequires: systemd-rpm-macros
@@ -82,9 +95,9 @@ BuildRequires: %{lpackage} >= %{lversion}
 BuildRequires: %{lpackage}
 %endif
 %endif
-%if %{with mysql}
-BuildRequires: /usr/include/mysql/mysql.h
-%endif
+#%if %{with mysql}
+#BuildRequires: /usr/include/mysql/mysql.h
+#%endif
 
 %description
 Robinhood is a tool for monitoring and applying policies to file system entries.
@@ -138,7 +151,7 @@ Policy engine for POSIX filesystems.
 
 %if %{with common_rpms}
 %package adm
-Summary: admin/config helper for Robinhood PolicyEngine
+Summary: Admin/Config helper for Robinhood PolicyEngine
 Group: Applications/System
 Release: @RELEASE@.noarch
 
@@ -194,6 +207,11 @@ Annex tools for robinhood.
 
 
 %build
+libtoolize --force --copy
+autoheader
+aclocal
+automake --add-missing --copy $am_opt
+autoconf
 ./configure %{lswitch} %{?configure_flags} --mandir=%{_mandir} --libdir=%{_libdir}
 make %{?_smp_mflags}
 
@@ -209,7 +227,9 @@ install -m 644 doc/templates/includes/*.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robin
 install -m 644 doc/templates/*.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates/
 
 mkdir $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig
+%if (0%{?fedora} || 0%{?rhel})
 install -m 644 scripts/sysconfig_robinhood $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/robinhood
+%endif
 
 install -m 644 scripts/ld.so.robinhood.conf $RPM_BUILD_ROOT/%{_sysconfdir}/ld.so.conf.d/robinhood.conf
 
@@ -217,8 +237,8 @@ install -m 644 scripts/ld.so.robinhood.conf $RPM_BUILD_ROOT/%{_sysconfdir}/ld.so
 mkdir -p $RPM_BUILD_ROOT/%{installdir_www}/robinhood
 cp -r web_gui/gui_v3/* $RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
 cp    web_gui/gui_v3/api/.htaccess $RPM_BUILD_ROOT/%{installdir_www}/robinhood/api/.
-mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/httpd/conf.d/
-install -m 644 web_gui/robinhood.conf $RPM_BUILD_ROOT/%{_sysconfdir}/httpd/conf.d/.
+mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/%{confdir_www}/conf.d/
+install -m 644 web_gui/robinhood.conf $RPM_BUILD_ROOT/%{_sysconfdir}/%{confdir_www}/conf.d/.
 %endif
 
 rm -f $RPM_BUILD_ROOT/%{_libdir}/robinhood/librbh_mod_*.a
@@ -234,6 +254,9 @@ cp -a doc/templates $RPM_BUILD_ROOT/%{_datadir}/robinhood/doc
 mkdir -p  $RPM_BUILD_ROOT/%{_unitdir}
 install -m 444 scripts/robinhood.service $RPM_BUILD_ROOT/%{_unitdir}/robinhood.service
 install -m 444 scripts/robinhood@.service $RPM_BUILD_ROOT/%{_unitdir}/robinhood@.service
+%if %{defined suse_version}
+ln -s /usr/sbin/service %{buildroot}%{_sbindir}/rcrobinhood 
+%endif
 
 %if %{with lustre}
 %post lustre
@@ -348,9 +371,17 @@ rm -rf $RPM_BUILD_ROOT
 %files webgui
 
 # set apache permissions
+%if %{defined suse_version}
+%defattr(640, root, www, 750)
+%else
 %defattr(640, root, apache, 750)
+%endif
+
 %{installdir_www}/robinhood
-%config(noreplace) %{_sysconfdir}/httpd/conf.d/robinhood.conf
+%config(noreplace) %{_sysconfdir}/%{confdir_www}/conf.d/robinhood.conf
+%dir %{installdir_www}
+%dir %{_sysconfdir}/%{confdir_www}/conf.d
+%dir %{_sysconfdir}/%{confdir_www}
 
 
 %files tests
@@ -401,16 +432,29 @@ rm -rf $RPM_BUILD_ROOT
 
 %{_mandir}/man1/*
 
+%if (0%{?fedora} || 0%{?rhel})
 %config(noreplace) %{_sysconfdir}/sysconfig/robinhood
+%endif
 
 %dir %{_sysconfdir}/robinhood.d
 %dir %{_sysconfdir}/robinhood.d/includes
 %dir %{_sysconfdir}/robinhood.d/templates
 
+%dir %{_libdir}/robinhood
+
+%if %{defined suse_version}
+/usr/sbin/rcrobinhood 
+%endif
+
+
 %{_sysconfdir}/ld.so.conf.d/robinhood.conf
 
 %config %{_sysconfdir}/robinhood.d/includes/*.inc
 %config %{_sysconfdir}/robinhood.d/templates/*.conf
+
+%if %{defined suse_version}
+%config %{_sysconfdir}/ld.so.conf.d/robinhood.conf
+%endif
 
 %if %{with_systemd}
 %{_unitdir}/robinhood.service
