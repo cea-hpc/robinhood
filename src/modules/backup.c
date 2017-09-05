@@ -2609,30 +2609,50 @@ static recov_status_t backup_recover(struct sm_instance *smi,
 }
 
 #ifdef HAVE_SHOOK
-#error "FIXME recovery action"
-/** recovery function
-    XXX used to be called like this:
-    rc = shook_recov_file(fspath, (*compressed && ATTR_MASK_TEST(attrs, size))?
-                          ATTR(attrs, size) : bk_stat->st_size);
-    => must be turned to a standard function prototype.
-*/
-static int rbh_shook_recov_file(const char *fspath, size_t size)
+/**
+ * recovery function (instead of dummy copy)
+ */
+static int rbh_shook_recov_file(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
+                                const action_params_t *params, post_action_e *after,
+                                db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     int rc;
+    size_t sz;
+    const char *path;
 
-    /* set the file in "released" state */
-    rc = shook_set_status(fspath, SS_RELEASED);
-    if (rc) {
-        DisplayLog(LVL_CRIT, TAG, "ERROR setting released state for '%s': %s",
-                   fspath, strerror(-rc));
-        return rc;
+    path = rbh_param_get(params, TARGET_PATH_PARAM);
+    if (path == NULL) {
+        /* target path */
+        DisplayLog(LVL_CRIT, __func__, "Missing mandatory parameter '%s' to "
+                   "recover file.", TARGET_PATH_PARAM);
+        return -EINVAL;
     }
 
-    rc = truncate(fspath, size) ? errno : 0;
+    if (!ATTR_MASK_TEST(p_attrs, size)) {
+        DisplayLog(LVL_MAJOR, __func__, "Warning: missing attribute 'size' to "
+                   "recover file. Restoring '%s' to 0 length.",
+                   path);
+        sz = 0;
+    } else {
+        sz = ATTR(p_attrs, size);
+    }
+
+    DisplayLog(LVL_DEBUG, __func__, "Restoring '%s' with size %"PRI_SZ,
+               path, sz);
+
+    rc = truncate(path, sz) ? -errno : 0;
     if (rc) {
         DisplayLog(LVL_CRIT, TAG,
                    "ERROR could not set original size %" PRI_SZ " for '%s': %s",
-                   size, fspath, strerror(rc));
+                   sz, path, strerror(rc));
+        return rc;
+    }
+
+    /* set the file in "released" state */
+    rc = shook_set_status(path, SS_RELEASED);
+    if (rc) {
+        DisplayLog(LVL_CRIT, TAG, "ERROR setting released state for '%s': %s",
+                   path, strerror(-rc));
         return rc;
     }
 
@@ -2726,6 +2746,8 @@ action_func_t mod_get_action(const char *action_name)
 #ifdef HAVE_SHOOK
     if (strcmp(action_name, "shook.release") == 0)
         return rbh_shook_release;
+    if (strcmp(action_name, "shook.recover") == 0)
+        return rbh_shook_recov_file;
 #endif
 
     /* unknown function */
