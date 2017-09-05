@@ -6,7 +6,7 @@ AM_LDFLAGS= -lpthread -rpath $(pkglibdir)
 #FS_CFLAGS=-DLUSTRE_VERSION=\"$(LVERSION)\"
 #endif
 
-DATE=`date '+%F %T'`
+DATE=`date --utc --date @$${SOURCE_DATE_EPOCH:-$$(date +%s)} '+%F %T'`
 MISC_FLAGS="-DCOMPIL_DATE=\"$(DATE)\""
 
 noinst_LTLIBRARIES=librbhhelpers.la
