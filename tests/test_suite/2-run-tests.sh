@@ -5423,7 +5423,7 @@ function test_info_collect
     close_expect=4
 
    # special directories inserted to the database
-   ((db_expect+=$extra_dirs))
+   ((db_expect+=$extra_dir))
 
 	if (( $no_log == 0 )); then
         if (( $nb_close != $close_expect )); then

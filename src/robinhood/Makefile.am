@@ -26,7 +26,7 @@ all_libs += ./librbhhelpers.la ../list_mgr/liblistmgr.la \
             ../common/libcommontools.la ../cfg_parsing/libconfigparsing.la
 
 #sbin_PROGRAMS=robinhood rbh-report rbh-diff rbh-recov rbh-undelete rbh-import rbh-rebind
-sbin_PROGRAMS=robinhood rbh-report rbh-diff rbh-undelete
+sbin_PROGRAMS=robinhood rbh-report rbh-diff rbh-undelete rbh-rebind
 bin_PROGRAMS=rbh-find rbh-du
 
 # dependencies:
@@ -38,7 +38,7 @@ rbh_diff_DEPENDENCIES=$(all_libs)
 #rbh_recov_DEPENDENCIES=$(all_libs)
 rbh_undelete_DEPENDENCIES=$(all_libs)
 #rbh_import_DEPENDENCIES=$(all_libs)
-#rbh_rebind_DEPENDENCIES=$(all_libs)
+rbh_rebind_DEPENDENCIES=$(all_libs)
 #
 robinhood_SOURCES=rbh_daemon.c
 robinhood_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
@@ -72,9 +72,9 @@ rbh_undelete_LDFLAGS=-rdynamic $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE
 #rbh_import_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
 #rbh_import_LDFLAGS=-rdynamic $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS) $(AM_LDFLAGS)
 #
-#rbh_rebind_SOURCES=rbh_rebind.c
-#rbh_rebind_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
-#rbh_rebind_LDFLAGS=-rdynamic $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS) $(AM_LDFLAGS)
+rbh_rebind_SOURCES=rbh_rebind.c
+rbh_rebind_CFLAGS=$(AM_CFLAGS) $(FS_CFLAGS) $(MISC_FLAGS)
+rbh_rebind_LDFLAGS=-rdynamic $(all_libs) $(DB_LDFLAGS) $(FS_LDFLAGS) $(PURPOSE_LDFLAGS) $(AM_LDFLAGS)
 
 new: clean all
 

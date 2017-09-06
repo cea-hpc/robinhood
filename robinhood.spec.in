@@ -394,18 +394,7 @@ rm -rf $RPM_BUILD_ROOT
 %doc COPYING
 %doc ChangeLog
 
-# everythink in sbin, except rbh-config which is in adm
-%if %{with shook}
-#%exclude %{_sbindir}/rbh-rebind
-#%{_sbindir}/rbh-import
-#%{_sbindir}/rbh-recov
-%endif
-
 %if %{with backup}
-# NOT ADAPTED TO v3 YET
-#%{_sbindir}/rbh-import
-#%{_sbindir}/rbh-recov
-#%{_sbindir}/rbh-rebind
 %{_sbindir}/rbhext_*
 %endif
 
@@ -413,6 +402,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_sbindir}/rbh-report
 %{_sbindir}/rbh-diff
 %{_sbindir}/rbh-undelete
+%{_sbindir}/rbh-rebind
 %{_sbindir}/rbh_cksum.sh
 %{_bindir}/rbh-du
 %{_bindir}/rbh-find
@@ -448,9 +438,6 @@ rm -rf $RPM_BUILD_ROOT
 %files tools
 %if %{with lhsm}
 %{_sbindir}/lhsmtool_cmd
-%endif
-%if %{with shook}
-#%{_sbindir}/rbh-rebind
 %endif
 %endif
 
