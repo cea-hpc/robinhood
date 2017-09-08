@@ -600,7 +600,7 @@ static void dump_op_queue(reader_thr_info_t *p_info, int debug_level, int num)
         return;
 
     rh_list_for_each_entry_reverse(op, &p_info->op_queue, list) {
-        dump_record(debug_level, op->extra_info.log_record.mdt,
+        dump_record(debug_level, p_info->mdtdevice,
                     op->extra_info.log_record.p_log_rec);
 
         if (num != -1) {
@@ -972,8 +972,6 @@ static CL_REC_TYPE *create_fake_rename_record(const reader_thr_info_t *p_info,
 }
 #endif
 
-#define mdtname(_info) (cl_reader_config.mdt_def[(_info)->thr_index].mdt_name)
-
 /**
  * This handles a single log record.
  */
@@ -982,7 +980,7 @@ static int process_log_rec(reader_thr_info_t *p_info, CL_REC_TYPE *p_rec)
     unsigned int opnum;
 
     /* display the log record in debug mode */
-    dump_record(LVL_DEBUG, mdtname(p_info), p_rec);
+    dump_record(LVL_DEBUG, p_info->mdtdevice, p_rec);
 
     /* update stats */
     opnum = p_rec->cr_type;
@@ -999,8 +997,8 @@ static int process_log_rec(reader_thr_info_t *p_info, CL_REC_TYPE *p_rec)
     if (can_ignore_record(p_info, p_rec)) {
         DisplayLog(LVL_FULL, CHGLOG_TAG, "Ignoring event %s",
                    changelog_type2str(opnum));
-        DisplayChangelogs("(ignored redundant record %s:%llu)", mdtname(p_info),
-                          p_rec->cr_index);
+        DisplayChangelogs("(ignored redundant record %s:%llu)",
+                          p_info->mdtdevice, p_rec->cr_index);
         p_info->suppressed_records++;
         llapi_changelog_free(&p_rec);
         goto done;
@@ -1014,7 +1012,7 @@ static int process_log_rec(reader_thr_info_t *p_info, CL_REC_TYPE *p_rec)
             /* Should never happen. */
             DisplayLog(LVL_CRIT, CHGLOG_TAG,
                        "Got 2 CL_RENAME in a row without a CL_EXT.");
-            dump_record(LVL_CRIT, mdtname(p_info), p_rec);
+            dump_record(LVL_CRIT, p_info->mdtdevice, p_rec);
             dump_op_queue(p_info, LVL_CRIT, 32);
 
             /* Discarding bogus entry. */
@@ -1100,7 +1098,7 @@ static int process_log_rec(reader_thr_info_t *p_info, CL_REC_TYPE *p_rec)
         if (!p_info->cl_rename) {
             /* Should never happen. */
             DisplayLog(LVL_CRIT, CHGLOG_TAG, "Got CL_EXT without a CL_RENAME.");
-            dump_record(LVL_CRIT, mdtname(p_info), p_rec);
+            dump_record(LVL_CRIT, p_info->mdtdevice, p_rec);
             dump_op_queue(p_info, LVL_CRIT, 32);
 
             /* Discarding bogus entry. */
