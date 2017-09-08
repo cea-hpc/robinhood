@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "2da69de8_47565c86",
+        "filename": "src/modules/common_sched.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 202,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-09-08T11:48:29Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "6dcaa81e_f1922aee",
+      "revId": "e48d3245a8be37cd1b629d7834b93261922b46b6",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "1b103771_c56a6eae",
         "filename": "src/modules/sched_ratelimit.c",
         "patchSetId": 4
@@ -30,6 +48,24 @@
       "writtenOn": "2017-08-25T11:27:45Z",
       "side": 1,
       "message": "What about -1? What would be the implications (added value \u0026 weird behavior)?",
+      "revId": "e48d3245a8be37cd1b629d7834b93261922b46b6",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "c7d7a537_2e93676b",
+        "filename": "src/modules/sched_ratelimit.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 28,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-09-08T11:48:29Z",
+      "side": 1,
+      "message": "Complex because current config parsing functions return \u003e\u003d 0 value on success and \u003c 0 on failure. So they are no adapted to parse a value of \"-1\".",
+      "parentUuid": "1b103771_c56a6eae",
       "revId": "e48d3245a8be37cd1b629d7834b93261922b46b6",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
