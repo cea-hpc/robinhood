@@ -4135,7 +4135,7 @@ function test_sched_ratelim
     sum=$(grep "run summary" rh_migr.log | cut -d '|' -f 2 | cut -d ':' -f 2)
     time=$(echo $sum | cut -d ';' -f 1 | sed -e s/.*=// -e s/s$// -e s/^0//)
     # 5 entries to be migrated @2/sec => 3 sec run
-    ((time==3)) || error "Unexpected migration run time: $time != 3"
+    ((time >= 3)) || error "Unexpected migration run time: $time < 3"
 
     :> rh_migr.log
 
