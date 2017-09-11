@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "d4e7b8b8_a93369f2",
+        "filename": "web_gui/gui_v3/config.php",
+        "patchSetId": 8
+      },
+      "lineNbr": 131,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-09-11T13:02:13Z",
+      "side": 1,
+      "message": "requires",
+      "range": {
+        "startLine": 131,
+        "startChar": 14,
+        "endLine": 131,
+        "endChar": 22
+      },
+      "revId": "27d1c5efe2318f2570702f4573c562cbdcb05c39",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
