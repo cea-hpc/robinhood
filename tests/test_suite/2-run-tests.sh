@@ -155,6 +155,9 @@ elif [[ $PURPOSE = "SHOOK" ]]; then
     sed -e "s/shook_release/purge/" -i $RBH_TEST_POLICIES
     sed -e "s/shook_remove/hsm_remove/" -i $RBH_TEST_POLICIES
     mkdir -p $BKROOT
+else
+    echo "Invalid PURPOSE '$PURPOSE'" >&2
+    exit 1
 fi
 
 # Compatibility macros. Some lfs setstripe options changed in Lustre
