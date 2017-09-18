@@ -1,0 +1,61 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "f2fe3d90_40543043",
+        "filename": "src/robinhood/rbh_report.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1108,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-09-18T10:56:31Z",
+      "side": 1,
+      "message": "The overflow issue might be fixed by:\n\nif (strcmp(path_filter, global_config.fs_path) \u003d\u003d 0)\n    /* The filter is root, skip filter creation */\n    return 0;\nelse if (strncmp(path_filter, global_config.fs_path,\n         strlen(global_config.fs_path)) \u003d\u003d 0)\n    /* The filter starts with root */\n    path_filter \u003d \u0026path_filter[strlen(global_config.fs_path);\n\nWould that be acceptable?",
+      "revId": "e0367aa44f770d1039efff624b4f7fde13bdb1be",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "39e8376f_4b65d1bf",
+        "filename": "src/robinhood/rbh_report.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1118,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-09-18T10:56:31Z",
+      "side": 1,
+      "message": "(defect) the user might provide a path shorter that what is expected",
+      "range": {
+        "startLine": 1118,
+        "startChar": 24,
+        "endLine": 1118,
+        "endChar": 55
+      },
+      "revId": "e0367aa44f770d1039efff624b4f7fde13bdb1be",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "81348056_9dc4e072",
+        "filename": "src/robinhood/rbh_report.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1118,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-09-18T10:56:31Z",
+      "side": 1,
+      "message": "(style) alignment",
+      "revId": "e0367aa44f770d1039efff624b4f7fde13bdb1be",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
