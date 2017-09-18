@@ -1,0 +1,44 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "12c99b51_558b74ce",
+        "filename": "src/robinhood/rbh_report.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 1122,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-09-18T13:27:02Z",
+      "side": 1,
+      "message": "There is an issue if there are several \u0027/\u0027 at the end of the path provided on the command line. But the issue exists prior to the patch, so it is probably fine to ignore for now.",
+      "revId": "ed3a6d13ab2a63ca9fcf94ab4b276655f576a0bb",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "72d8168a_934c0412",
+        "filename": "src/robinhood/rbh_report.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 1127,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2017-09-18T13:27:02Z",
+      "side": 1,
+      "message": "(style) unneeded else",
+      "range": {
+        "startLine": 1127,
+        "startChar": 8,
+        "endLine": 1127,
+        "endChar": 16
+      },
+      "revId": "ed3a6d13ab2a63ca9fcf94ab4b276655f576a0bb",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
