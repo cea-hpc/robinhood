@@ -1370,7 +1370,10 @@ static void dump_entries(type_dump type, int int_arg, char *str_arg,
     lmgr_simple_filter_init(&filter);
 
     /* append global filters */
-    mk_global_filters(&filter, !NOHEADER(flags), NULL);
+    if (mk_global_filters(&filter, !NOHEADER(flags), NULL) != 0) {
+        DisplayLog(LVL_CRIT, REPORT_TAG, "ERROR: Failed to build filter");
+        return;
+    }
 
     /* what do we dump? */
     switch (type) {
@@ -1552,7 +1555,10 @@ static void report_fs_info(int flags)
     opt.force_no_acct = FORCE_NO_ACCT(flags);
 
     /* append global filters */
-    mk_global_filters(&filter, !NOHEADER(flags), &is_filter);
+    if (mk_global_filters(&filter, !NOHEADER(flags), &is_filter) != 0) {
+        DisplayLog(LVL_CRIT, REPORT_TAG, "ERROR: Failed to build filter");
+        return;
+    }
 
     if (is_filter)
         it = ListMgr_Report(&lmgr, fs_info, FSINFOCOUNT,
@@ -1804,7 +1810,10 @@ static void report_usergroup_info(char *name, int flags)
     }
 
     /* append global filters */
-    mk_global_filters(&filter, !NOHEADER(flags), &is_filter);
+    if (mk_global_filters(&filter, !NOHEADER(flags), &is_filter) != 0) {
+        DisplayLog(LVL_CRIT, REPORT_TAG, "ERROR: Failed to build filter");
+        return;
+    }
 
     it = ListMgr_Report(&lmgr, user_info, field_count,
                         SPROF(flags) ? &size_profile : NULL,
@@ -1894,7 +1903,10 @@ static void report_topdirs(unsigned int count, int flags)
     }
 
     /* append global filters */
-    mk_global_filters(&filter, !NOHEADER(flags), NULL);
+    if (mk_global_filters(&filter, !NOHEADER(flags), NULL) != 0) {
+        DisplayLog(LVL_CRIT, REPORT_TAG, "ERROR: Failed to build filter");
+        return;
+    }
 
     if (SORT_BY_AVGSIZE(flags))
         sorttype.attr_index = ATTR_INDEX_avgsize;
@@ -1982,7 +1994,10 @@ static void report_topsize(unsigned int count, int flags)
     lmgr_simple_filter_add(&filter, ATTR_INDEX_type, EQUAL, fv, 0);
 
     /* append global filters */
-    mk_global_filters(&filter, !NOHEADER(flags), NULL);
+    if (mk_global_filters(&filter, !NOHEADER(flags), NULL) != 0) {
+        DisplayLog(LVL_CRIT, REPORT_TAG, "ERROR: Failed to build filter");
+        return;
+    }
 
     /* order by size desc */
     sorttype.attr_index = ATTR_INDEX_size;
@@ -2080,7 +2095,10 @@ static void report_oldest(obj_type_t type, unsigned int count, int flags)
     lmgr_simple_filter_add(&filter, ATTR_INDEX_type, EQUAL, fv, 0);
 
     /* append global filters */
-    mk_global_filters(&filter, !NOHEADER(flags), NULL);
+    if (mk_global_filters(&filter, !NOHEADER(flags), NULL) != 0) {
+        DisplayLog(LVL_CRIT, REPORT_TAG, "ERROR: Failed to build filter");
+        return;
+    }
 
 #ifndef _HAVE_FID
 #ifdef ATTR_INDEX_invalid
@@ -2193,7 +2211,10 @@ static void report_topuser(unsigned int count, int flags)
     lmgr_simple_filter_add(&filter, ATTR_INDEX_type, EQUAL, fv, 0);
     is_filter = true;
 
-    mk_global_filters(&filter, !NOHEADER(flags), &is_filter);
+    if (mk_global_filters(&filter, !NOHEADER(flags), &is_filter) != 0) {
+        DisplayLog(LVL_CRIT, REPORT_TAG, "ERROR: Failed to build filter");
+        return;
+    }
 
     /* is a filter specified? */
     it = ListMgr_Report(&lmgr, user_info, TOPUSERCOUNT,
@@ -2253,7 +2274,10 @@ static void report_deferred_rm(int flags)
     lmgr_simple_filter_init(&filter);
 
     /* append global filters */
-    mk_global_filters(&filter, !NOHEADER(flags), &is_filter);
+    if (mk_global_filters(&filter, !NOHEADER(flags), &is_filter) != 0) {
+        DisplayLog(LVL_CRIT, REPORT_TAG, "ERROR: Failed to build filter");
+        return;
+    }
 
     /* order by rmtime asc */
     sort.attr_index = ATTR_INDEX_rm_time;
@@ -2331,9 +2355,12 @@ static void report_class_info(int flags)
     };
 
     lmgr_simple_filter_init(&filter);
-    mk_global_filters(&filter, !NOHEADER(flags), &is_filter);
-    result_count = CLASSINFO_FIELDS;
+    if (mk_global_filters(&filter, !NOHEADER(flags), &is_filter) != 0) {
+        DisplayLog(LVL_CRIT, REPORT_TAG, "ERROR: Failed to build filter");
+        return;
+    }
 
+    result_count = CLASSINFO_FIELDS;
     it = ListMgr_Report(&lmgr, class_info, CLASSINFO_FIELDS,
                         SPROF(flags) ? &size_profile : NULL,
                         is_filter ? &filter : NULL, NULL);
@@ -2433,7 +2460,10 @@ static void report_status_info(int smi_index, const char *val, int flags)
         is_filter = true;
     }
 
-    mk_global_filters(&filter, !NOHEADER(flags), &is_filter);
+    if (mk_global_filters(&filter, !NOHEADER(flags), &is_filter) != 0) {
+        DisplayLog(LVL_CRIT, REPORT_TAG, "ERROR: Failed to build filter");
+        return;
+    }
     result_count = STATUSINFO_FIELDS;
 
     opt.force_no_acct = FORCE_NO_ACCT(flags);
