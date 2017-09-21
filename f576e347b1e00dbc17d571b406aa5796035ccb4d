@@ -22,6 +22,29 @@
       "revId": "f576e347b1e00dbc17d571b406aa5796035ccb4d",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "2c3fd57e_5d5e4526",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 1
+      },
+      "lineNbr": 197,
+      "author": {
+        "id": 1004434
+      },
+      "writtenOn": "2017-09-21T12:15:53Z",
+      "side": 1,
+      "message": "This is new. So I thought (think?) shook was not build with current specfile.. Correct?",
+      "range": {
+        "startLine": 197,
+        "startChar": 0,
+        "endLine": 197,
+        "endChar": 26
+      },
+      "revId": "f576e347b1e00dbc17d571b406aa5796035ccb4d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
     }
   ]
 }
