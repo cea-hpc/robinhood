@@ -188,6 +188,18 @@ Group: Applications/System
 Annex tools for robinhood.
 %endif
 
+%if %{with shook}
+%package mod-shook
+Summary: Shook module for robinhood
+Group: Applications/System
+Requires: robinhood-lustre = %{version}
+Requires: shook-server
+BuildRequires: shook-devel
+
+%description mod-shook
+Shook module for robinhood
+%endif
+
 %prep
 %setup -q -n @PACKAGE@-%{version}
 
@@ -361,6 +373,13 @@ rm -rf $RPM_BUILD_ROOT
 
 %endif
 
+%if %{with shook}
+%files mod-shook
+%{_libdir}/robinhood/librbh_mod_shook*.so*
+%{_sysconfdir}/robinhood.d/includes/shook.inc
+%{_sysconfdir}/robinhood.d/templates/example_shook.conf
+%endif
+
 # robinhood RPM name for lustre is robinhood-lustre
 %if %{with lustre}
 %files lustre
@@ -397,6 +416,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_bindir}/rbh-du
 %{_bindir}/rbh-find
 
+%exclude %{_libdir}/robinhood/librbh_mod_shook*.so*
 %{_libdir}/robinhood/librbh_mod_*.so*
 
 %{_mandir}/man1/*
@@ -409,6 +429,8 @@ rm -rf $RPM_BUILD_ROOT
 
 %{_sysconfdir}/ld.so.conf.d/robinhood.conf
 
+%exclude %{_sysconfdir}/robinhood.d/includes/shook.inc
+%exclude %{_sysconfdir}/robinhood.d/templates/example_shook.conf
 %config %{_sysconfdir}/robinhood.d/includes/*.inc
 %config %{_sysconfdir}/robinhood.d/templates/*.conf
 
