@@ -12718,7 +12718,7 @@ function get_scan_interval
     kill -USR1 $pid
     while  [ -z "$interv" ]; do
         sleep 1
-        interv=$(grep "scan interval" $log | awk '{print $(NF)}' |
+        interv=$(grep "scan interval" $log | grep STATS | awk '{print $(NF)}' |
                  sed -e "s/s$//" | sed -e "s/^0\([^0]\)/\1/g")
     done
     echo "current scan interval: $interv sec" >&2
