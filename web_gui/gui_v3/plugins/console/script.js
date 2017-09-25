@@ -47,8 +47,8 @@ function console_GetInfo(){
                 <textarea class="consoledatabox" name="consoledatabox" id="consoledatabox" rows="24" style='width:100%;'>
                 </textarea>
                 <h2>Help</h2>
-                <p>Sample: native/acct/uid.group to get the stats by user.</p>
-                <p>Sample: native/files/uid.filter/robin/ to get all the files and directories of robin.</p>
+                <p>Example: native/acct/uid.group to get the stats by user.</p>
+                <p>Example: native/files/uid.filter/robin/ to get all the files and directories of robin.</p>
                 <p>Please refer to README.txt for more filter and request</p>
                 `;
 

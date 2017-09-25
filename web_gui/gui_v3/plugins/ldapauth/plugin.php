@@ -51,7 +51,7 @@ class ldapauth extends Plugin {
 
     /* Called from UI menu */
     function ui_header($param) {
-        $newparam='<script src="plugins/ldapauth/script.js"></script>\n';
+        $newparam='<script src="plugins/ldapauth/script.js"></script>'."\n";
         $param=$param.$newparam;
         return $param;
     }
@@ -138,7 +138,7 @@ class ldapauth extends Plugin {
     public function ui_menu_top($param) {
         if (! $this->ui_page || ! $this->api_export)
             return;
-        $newparam="<li><a href='#' onclick='ldapauth_GetInfo()'>WhoAmI</a></li>";
+        $newparam="<li><a href='#' onclick='ldapauth_GetInfo()'>WhoAmI</a></li>\n";
         $param=$param.$newparam;
         return $param;
     }

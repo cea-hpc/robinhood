@@ -12,11 +12,11 @@
 /***********************************
  * Build table and get data from API
  **********************************/
-function fsinfo_GetInfo(){
+function internalstats_GetInfo(){
 
 /* Create the table template */
     document.getElementById("main_content").innerHTML = `
-<h1>FS Info</h1>
+<h1>Internal Stats</h1>
  <table class="table">
     <thead>
       <tr>

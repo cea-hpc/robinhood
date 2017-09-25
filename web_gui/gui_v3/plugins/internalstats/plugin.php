@@ -12,33 +12,26 @@
 
 
 /*
- * fsinfo V0.1
+ * InternalStats V0.1
  * Just display informations from var table
  *
  */
 
-class fsinfo extends Plugin {
-    public $Name="FS Info";
+class internalstats extends Plugin {
+    public $Name="Internal Stats";
     public $Description="Add page with FS Information";
     public $Version="V0.1";
 
-    /*
-     * Plugin options
-     */
-
-    public function init() {
-    }
-
     /* Called from UI menu */
     function ui_header($param) {
-            $newparam='<script src="plugins/fsinfo/script.js"></script>\n';
+            $newparam='<script src="plugins/internalstats/script.js"></script>'."\n";
             $param=$param.$newparam;
             return $param;
     }
 
     /* Called from UI menu */
     function ui_menu_top($param) {
-            $newparam="<li><a href='#' onclick='fsinfo_GetInfo()'>FS Info</a></li>";
+            $newparam="<li><a href='#' onclick='internalstats_GetInfo()'>Internal Stats</a></li>\n";
             $param=$param.$newparam;
             return $param;
     }

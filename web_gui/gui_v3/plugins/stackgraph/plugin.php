@@ -22,10 +22,6 @@ class stackgraph extends Plugin {
     public $Description="Stack users";
     public $Version="V0.1";
 
-    /*
-     * Plugin options
-     */
-
     /* sort key, ssize, scount or off  */
     public $uid_sortby='ssize';
     /* max_items to display, stack the others */

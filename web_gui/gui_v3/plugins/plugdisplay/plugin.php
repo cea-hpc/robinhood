@@ -22,6 +22,14 @@ class plugdisplay extends Plugin {
     public $Description="Display Information about plugins";
     public $Version="V0.1";
 
+
+    /* Called from UI menu */
+    function ui_header($param) {
+        $newparam='<script src="plugins/plugdisplay/script.js"></script>'."\n";
+        $param=$param.$newparam;
+        return $param;
+    }
+
     /* Called from UI menu */
     function ui_menu_bottom($param) {
             global $PLUGINS_INST;
@@ -29,7 +37,7 @@ class plugdisplay extends Plugin {
             $newparam.="<br><label>Plugins</label>";
             $newparam.='<div class="list-group">';
             foreach ($PLUGINS_INST as $p) {
-                    $newparam.=' <a href="#" class="list-group-item">'.$p->Name.' - '.$p->Version.'</a>';
+                    $newparam.=' <a href="#" onclick="plugdisplay_GetInfo(\''.get_class($p).'\')" class="list-group-item">'.$p->Name.' - '.$p->Version.'</a>';
             }
             $newparam.="</div>";
             $newparam.="</div>";
