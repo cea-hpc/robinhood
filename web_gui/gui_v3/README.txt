@@ -252,14 +252,15 @@ VI - TODO
 VII - Changelog
 ==============
 
-v0.2 @ 24/09/2017
+v0.2 @ 25/09/2017
     -Add plugins
         -stackgraph (group small values)
-        -fsinfo (display robinhood vars)
+        -internal stats (display robinhood vars)
         -browser (browse the filesystem)
         -colorgraph (set readable colors)
         -ldapauth (use ldap for data access)
         -console (run custom query from ui)
+        -output (export data as csv)
     -Allow users to request a specific page
          and filters by settings parameter
          in the url

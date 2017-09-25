@@ -23,68 +23,17 @@ class console extends Plugin {
     public $Version="V0.1";
 
     private $output = false;
-    /*
-     * Plugin options
-     */
-
-    public function init() {
-    }
-
-    /* Called from api just processing data */
-    function api_process($param) {
-        if ($param[0]=="native")
-        {
-            $p_count=count($param[1]);
-            for ($i=0; $i<$p_count-1;$i++) {
-                if ($param[1][$i]="output") {
-                    if ($param[1][$i+1]=="csv")
-                        $this->output="csv";
-                }
-            }
-        }
-    }
-
-    /* Change the HTTP Header type */
-    function api_header_type($param) {
-
-            if ($this->output=="csv") {
-                    $param="Content-Type: text";
-            }
-            return $param;
-    }
-
-    /* Called from api just before sending data */
-    function api_response($param) {
-            if ($this->output=="csv") {
-                    $out="";
-                    if ( count($param)==0) {
-                            return null;
-                    }
-                    foreach ($param[0] as $key => $val) {
-                            $out.=$key.";";
-                    }
-                    $out.="\n";
-                    foreach ($param as $item) {
-                            foreach ($item as $key => $val) {
-                                    $out.=$val.";";
-                            }
-                            $out.="\n";
-                    }
-                    return $out;
-            }
-
-    }
 
     /* Called from UI menu */
     function ui_header($param) {
-            $newparam='<script src="plugins/console/script.js"></script>\n';
+            $newparam='<script src="plugins/console/script.js"></script>'."\n";
             $param=$param.$newparam;
             return $param;
     }
 
     /* Called from UI menu */
     function ui_menu_top($param) {
-            $newparam="<li><a href='#' onclick='console_GetInfo()'>Console</a></li>";
+            $newparam="<li><a href='#' onclick='console_GetInfo()'>Console</a></li>\n";
             $param=$param.$newparam;
             return $param;
     }

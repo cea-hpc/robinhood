@@ -13,7 +13,7 @@
 
 /*
  * ColorGraph V0.1
- * Just keep the n in uid/gid charts and stack the others
+ * Replace random colors
  *
  */
 
@@ -22,16 +22,10 @@ class colorgraph extends Plugin {
     public $Description="Clean Graph colors";
     public $Version="V0.1";
 
-    /*
-     * Plugin options
-     */
-
-    public function init() {
-    }
-
     public function graph_postdata_uid($param) {
 
         $c_count=count($param['labels']);
+
         for($i = 0; $i<$c_count;$i++) {
             /* Fancy color mix */
             $alt = $i%2;

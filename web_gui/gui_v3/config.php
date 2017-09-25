@@ -125,9 +125,10 @@ $PLUGINS_INST = array();
 $PLUGINS_REG[]="stackgraph";
 $PLUGINS_REG[]="colorgraph";
 $PLUGINS_REG[]="plugdisplay";
-$PLUGINS_REG[]="fsinfo";
+$PLUGINS_REG[]="internalstats";
 $PLUGINS_REG[]="browser";
 $PLUGINS_REG[]="console";
+$PLUGINS_REG[]="output";
 //This plugin requires a valid ldap conf.
 //$PLUGINS_REG[]="ldapauth";
 
