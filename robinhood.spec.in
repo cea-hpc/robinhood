@@ -389,7 +389,7 @@ rm -rf $RPM_BUILD_ROOT
 %endif
 
 %defattr(-,root,root,-)
-%doc README
+%doc README.md
 %doc COPYING
 %doc ChangeLog
 
@@ -454,6 +454,9 @@ rm -rf $RPM_BUILD_ROOT
 %endif
 
 %changelog
+
+* Tue Sep 26 2017 Thomas Leibovici <thomas.leibovici@cea.fr> 3.1-1
+- Robinhood 3.1
 
 * Tue Sep 12 2017 Thomas Leibovici <thomas.leibovici@cea.fr> 3.1-0.beta1
 - Robinhood 3.1 beta

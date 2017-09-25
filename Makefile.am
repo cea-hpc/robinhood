@@ -85,7 +85,7 @@ mans:
 
 EXTRA_DIST= robinhood.spec robinhood.spec.in \
 	autogen.sh \
-	LICENSE.fr.txt LICENSE.en.txt README \
+	LICENSE.fr.txt LICENSE.en.txt README.md \
 	doc/admin_guides \
 	doc/install_webgui.txt \
 	doc/templates/includes/*.inc \

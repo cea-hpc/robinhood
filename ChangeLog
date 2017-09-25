@@ -1,3 +1,27 @@
+Main changes in robinhood 3.1:
+* Ingest rate optimizations: up to x10
+* New plugin type: action schedulers
+  These plugins make it possible to reorder policy actions, or smooth policy execution.
+  In this release, two of such plugins are provided: 'common.max_per_run' and
+  'common.rate_limit'.
+* Policy optimizations:
+  - Improved pre-filtering: convert all policy rules to SQL for better
+    pre-filtering.
+  - Configurable attribute matching before/after scheduling
+    (pre/post_sched_match parameters).
+* FS scan: make it possible to restrict scan to several directories
+  ('scan_only' configuration parameter).
+  - Especially useful with Lustre's static DNE partitioning.
+* Pre/post policy run commands
+* Modeguard status manager
+  - Enforce or clear permission bits on entries of the filesystem
+* Fixes for Lustre 2.10
+  - Note: this robinhood version does not support Progressive File Layouts yet
+* REST API and web interface enhancements:
+	- Plugin mechanism to add custom charts/fields/requests...
+	- Finer access control (limit user views only to their stats)
+	- All robinhood DB available through the REST API
+
 Main changes in robinhood 3.0:
 * Policies at will:
     - Define new custom policies at will, just by writting just a few lines of configuration.
