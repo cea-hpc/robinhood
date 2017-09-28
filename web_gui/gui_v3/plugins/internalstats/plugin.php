@@ -18,21 +18,21 @@
  */
 
 class internalstats extends Plugin {
-    public $Name="Internal Stats";
-    public $Description="Add page with FS Information";
-    public $Version="V0.1";
+    public $Name = "Internal Stats";
+    public $Description = "Add page with FS Information";
+    public $Version = "V0.1";
 
     /* Called from UI menu */
     function ui_header($param) {
-            $newparam='<script src="plugins/internalstats/script.js"></script>'."\n";
-            $param=$param.$newparam;
+            $newparam = '<script src="plugins/internalstats/script.js"></script>'."\n";
+            $param = $param.$newparam;
             return $param;
     }
 
     /* Called from UI menu */
     function ui_menu_top($param) {
-            $newparam="<li><a href='#' onclick='internalstats_GetInfo()'>Internal Stats</a></li>\n";
-            $param=$param.$newparam;
+            $newparam = "<li><a href='#' onclick='internalstats_GetInfo()'>Internal Stats</a></li>\n";
+            $param = $param.$newparam;
             return $param;
     }
 

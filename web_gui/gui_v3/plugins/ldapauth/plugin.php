@@ -20,9 +20,9 @@
  */
 
 class ldapauth extends Plugin {
-    public $Name="LDAPAuth";
-    public $Description="Use ldap informations for access control";
-    public $Version="V0.1";
+    public $Name = "LDAPAuth";
+    public $Description = "Use ldap informations for access control";
+    public $Version = "V0.1";
 
     /* The ui page which allows the user to check his access */
     public $ui_page = true;
@@ -42,7 +42,7 @@ class ldapauth extends Plugin {
      */
 
     public function init() {
-        $this->ldap_host=$this->ldap_host;
+        $this->ldap_host = $this->ldap_host;
         $this->ldap = ldap_connect($this->ldap_host) or die("LDAPAuth: Could not connect to LDAP");
         ldap_set_option($this->ldap,LDAP_OPT_PROTOCOL_VERSION,3);
         ldap_bind($this->ldap) or die("LDAPAuth: Could not bind to LDAP");
@@ -51,8 +51,8 @@ class ldapauth extends Plugin {
 
     /* Called from UI menu */
     function ui_header($param) {
-        $newparam='<script src="plugins/ldapauth/script.js"></script>'."\n";
-        $param=$param.$newparam;
+        $newparam = '<script src="plugins/ldapauth/script.js"></script>'."\n";
+        $param = $param.$newparam;
         return $param;
     }
     private function get_user_info_int($uid) {
@@ -61,7 +61,7 @@ class ldapauth extends Plugin {
         $results = ldap_search($this->ldap,$this->ldap_dn,"(uid=$uid)");
         $entries = ldap_get_entries($this->ldap, $results);
         array_shift($entries);
-        $data['uid']=$uid;
+        $data['uid'] = $uid;
         $data['uidnumber']= $entries[0]['uidnumber'][0];
         $data['gidnumber']= $entries[0]['gidnumber'][0];
 
@@ -103,13 +103,13 @@ class ldapauth extends Plugin {
         $sql_where.= implode($part['groups'],"','")."')";
 
         /* Simple access control for files */
-        if ($param[1]=="NAMES") {
+        if ($param[1] == "NAMES") {
             $sql_where.= ' OR (mode & 3)>0)';
         } else {
             $sql_where.= ')';
         }
 
-        $param[0]=$sql_where;
+        $param[0] = $sql_where;
         return $param;
     }
 
@@ -118,18 +118,18 @@ class ldapauth extends Plugin {
         if (! $this->api_export)
             return;
         /* Custom api call */
-        if ($param[0]=="ldapauth") {
-            $data=$this->get_user_info_int(get_user());
+        if ($param[0] == "ldapauth") {
+            $data = $this->get_user_info_int(get_user());
             return $data;
         }
 
-        if ($param[0]=="ldapauth_flat") {
-            $data=$this->get_user_info("andrieuj");
+        if ($param[0] == "ldapauth_flat") {
+            $data = $this->get_user_info("andrieuj");
             return $data;
         }
 
-        if ($param[0]=="ldapauth_sqlfilter") {
-            $data=$this->access_sql_filter(get_user());
+        if ($param[0] == "ldapauth_sqlfilter") {
+            $data = $this->access_sql_filter(get_user());
             return $data;
         }
     }
@@ -138,8 +138,8 @@ class ldapauth extends Plugin {
     public function ui_menu_top($param) {
         if (! $this->ui_page || ! $this->api_export)
             return;
-        $newparam="<li><a href='#' onclick='ldapauth_GetInfo()'>WhoAmI</a></li>\n";
-        $param=$param.$newparam;
+        $newparam = "<li><a href='#' onclick='ldapauth_GetInfo()'>WhoAmI</a></li>\n";
+        $param = $param.$newparam;
         return $param;
     }
 
