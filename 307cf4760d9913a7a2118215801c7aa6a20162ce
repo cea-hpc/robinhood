@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "2daf71c4_3af0db37",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 4
+      },
+      "lineNbr": 8,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-09-28T11:08:06Z",
+      "side": 1,
+      "message": "Explain what this script does.",
+      "revId": "307cf4760d9913a7a2118215801c7aa6a20162ce",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "15eb7d01_d272c70f",
+        "filename": "web_gui/scripts/check_robinhood.py",
+        "patchSetId": 4
+      },
+      "lineNbr": 2,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-09-28T11:08:06Z",
+      "side": 1,
+      "message": "Comment about what the script does.\nAdd a copyright.",
+      "revId": "307cf4760d9913a7a2118215801c7aa6a20162ce",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
