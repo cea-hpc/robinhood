@@ -174,4 +174,19 @@ static inline const char *status_format(const char *name)
 /** callback to display stdout and stderr */
 int cb_redirect_all(void *arg, char *line, size_t size, int stream);
 
+/**
+ * Check if there is a single status manager that supports
+ * undelete, and load it.
+ * \retval 0 if a single status manager was found.
+ * \retval -EINVAL if more than 1 status managers implement 'undelete'.
+ * \retval -ENOENT if no status manager implements undelete.
+ */
+int load_single_smi(sm_instance_t **smi);
+
+/**
+ * Load the Status Manager Instance with the given name
+ */
+int load_smi(const char *sm_name, sm_instance_t **smi);
+
+
 #endif

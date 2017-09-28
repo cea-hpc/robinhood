@@ -448,61 +448,6 @@ static int undelete(void)
     return 0;
 }
 
-/**
- * Check if there is a single status manager that supports
- * undelete, and load it.
- * \retval EINVAL if more than 1 status managers implement 'undelete'.
- * \retval 0 if a single status manager was found.
- * \retval ENOENT if no status manager implements undelete.
- */
-static int load_single_smi(void)
-{
-    int i = 0;
-    sm_instance_t *smi_curr;
-
-    /** XXX based on policies or status managers? what about the scope? */
-    while ((smi_curr = get_sm_instance(i)) != NULL) {
-        if (smi_curr->sm->undelete_func != NULL) {
-            if (smi != NULL) {
-                DisplayLog(LVL_CRIT, LOGTAG,
-                           "ERROR: no status manager specified, but several of "
-                           "them implement 'undelete'");
-                return EINVAL;
-            }
-            smi = smi_curr;
-        }
-        i++;
-    }
-
-    if (smi == NULL) {
-        DisplayLog(LVL_CRIT, LOGTAG,
-                   "ERROR: no status manager implements 'undelete'");
-        return ENOENT;
-    }
-
-    return 0;
-}
-
-/** load the Status Manager Instance with the given name */
-static int load_smi(const char *sm_name)
-{
-    int rc;
-    const char *dummy;
-
-    rc = check_status_args(sm_name, NULL, &dummy, &smi);
-    if (rc)
-        return rc;
-
-    if (smi->sm->undelete_func == NULL) {
-        DisplayLog(LVL_CRIT, LOGTAG,
-                   "ERROR: the specified status manager '%s' doesn't "
-                   "implement 'undelete'", sm_name);
-        return EINVAL;
-    }
-
-    return 0;
-}
-
 #define MAX_OPT_LEN 1024
 
 /**
@@ -642,12 +587,12 @@ int main(int argc, char **argv)
 
     /* load the status manager */
     if (!EMPTY_STRING(sm_name)) {
-        rc = load_smi(sm_name);
+        rc = load_smi(sm_name, &smi);
         if (rc)
             exit(rc);
     } else {
         /* if there is a single smi that allows undelete, use it */
-        rc = load_single_smi();
+        rc = load_single_smi(&smi);
         if (rc)
             exit(rc);
     }

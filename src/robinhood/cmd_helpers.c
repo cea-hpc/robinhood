@@ -407,13 +407,13 @@ int check_status_args(const char *status_name, const char *status_value,
             if (*p_smi == NULL) {
                 fprintf(stderr, "ERROR: policy '%s' doesn't manage status\n",
                         status_name);
-                return ENOENT;
+                return -ENOENT;
             }
         } else {
             fprintf(stderr,
                     "ERROR: status manager or policy '%s' is not defined\n",
                     status_name);
-            return EINVAL;
+            return -EINVAL;
         }
     }
 
@@ -424,7 +424,7 @@ int check_status_args(const char *status_name, const char *status_value,
             fprintf(stderr, "ERROR: unexpected value for %s_status: '%s'."
                     " Expected values are: %s\n", status_name, status_value,
                     allowed_status_str((*p_smi)->sm, buff, sizeof(buff)));
-            return EINVAL;
+            return -EINVAL;
         }
     }
 
@@ -1170,6 +1170,63 @@ int cb_redirect_all(void *arg, char *line, size_t size, int stream)
     case STDERR_FILENO:
         fprintf(stderr, "%s\n", line);
         break;
+    }
+
+    return 0;
+}
+
+/**
+ * Check if there is a single status manager that supports
+ * undelete, and load it.
+ * \retval 0 if a single status manager was found.
+ * \retval -EINVAL if more than 1 status managers implement 'undelete'.
+ * \retval -ENOENT if no status manager implements undelete.
+ */
+int load_single_smi(sm_instance_t **smi)
+{
+    int i = 0;
+    sm_instance_t *smi_curr;
+
+    /** XXX based on policies or status managers? what about the scope? */
+    while ((smi_curr = get_sm_instance(i)) != NULL) {
+        if (smi_curr->sm->undelete_func != NULL) {
+            if (*smi != NULL) {
+                DisplayLog(LVL_CRIT, __func__,
+                           "ERROR: no status manager specified, but several of "
+                           "them implement 'undelete'");
+                return -EINVAL;
+            }
+            *smi = smi_curr;
+        }
+        i++;
+    }
+
+    if (*smi == NULL) {
+        DisplayLog(LVL_CRIT, __func__,
+                   "ERROR: no status manager implements 'undelete'");
+        return -ENOENT;
+    }
+
+    return 0;
+}
+
+/**
+ * Load the Status Manager Instance with the given name
+ */
+int load_smi(const char *sm_name, sm_instance_t **smi)
+{
+    int rc;
+    const char *dummy;
+
+    rc = check_status_args(sm_name, NULL, &dummy, smi);
+    if (rc)
+        return rc;
+
+    if ((*smi)->sm->undelete_func == NULL) {
+        DisplayLog(LVL_CRIT, __func__,
+                   "ERROR: the specified status manager '%s' doesn't "
+                   "implement 'undelete'", sm_name);
+        return -EINVAL;
     }
 
     return 0;
