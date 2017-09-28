@@ -33,6 +33,8 @@ $ACCESS_LIST['graphs'] = array();
 $ACCESS_LIST['native_vars'] = array();
 $ACCESS_LIST['native_acct'] = array();
 $ACCESS_LIST['native_files'] = array();
+$ACCESS_LIST['native_entries'] = array();
+$ACCESS_LIST['native_names'] = array();
 
 /* Beware, by default everyone can access to everything */
 
@@ -48,7 +50,8 @@ $ACCESS_LIST['graphs'][] = '*';
 $ACCESS_LIST['native_vars'][] = '*';
 $ACCESS_LIST['native_acct'][] = '*';
 $ACCESS_LIST['native_files'][] = '*';
-
+$ACCESS_LIST['native_entries'][] = '*';
+$ACCESS_LIST['native_names'][] = '*';
 /*****************************
 *        General parameters  *
 *****************************/
