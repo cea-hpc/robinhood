@@ -16,29 +16,113 @@ function ConsoleRun() {
                 url: "api/index.php?request=" + request
         }).then(function(data) {
 
-                console.log(data);
                 document.getElementById("consoledata").innerHTML="Number of result: " + data.length;
                 if (Array.isArray(data)) {
                         document.getElementById("consoledatabox").value=JSON.stringify(data,null,2);
+                        graphx = document.getElementById("consolerequestgraphx")
+                        graphy = document.getElementById("consolerequestgraphy")
+                        while (graphx.options.length) graphx.remove(0);
+                        while (graphy.options.length) graphy.remove(0);
+                        for (var item in data[0]) {
+                                graphx.options[graphx.options.length] = new Option(item, item)
+                                graphy.options[graphy.options.length] = new Option(item, item)
+                        }
                 } else {
                         document.getElementById("consoledatabox").value=data;
                 }
         });
 }
 
-/***********************************
- * Build table and get data from API
- **********************************/
+function ConsoleGraphRun() {
+        document.getElementById("consolegraph").innerHTML='<canvas style="max-height:640px; min-height:320px" id="ctx"></canvas> <!-- Canvas for Graph -->'
+
+        var request = document.getElementById("consolerequest").value;
+        $.ajax({
+                url: "api/index.php?request=" + request
+        }).then(function(data) {
+
+        xitem = document.getElementById("consolerequestgraphx").value;
+        yitem = document.getElementById("consolerequestgraphy").value;
+        type = document.getElementById("consolerequestgraph").value;
+
+        /* scatter graph */
+        if (type=="scatter") {
+
+        dataxy = []
+        for (var item in data)
+        {
+                dataxy.push({x: data[item][xitem], y: data[item][yitem]})
+        }
+
+       scatterChartData = {
+            datasets: [{
+                label: "Dataset",
+                borderColor: "FF0000",
+                backgroundColor: "00FF00",
+                data: dataxy,
+                }]};
+
+        var ctx = document.getElementById("ctx").getContext("2d");
+        window.myScatter = Chart.Scatter(ctx, {
+                data: scatterChartData,
+                options: {
+                    title: {
+                         display: true,
+                         text: 'Chart.js Scatter Chart'
+                        },
+                }
+        });
+
+        }
+
+        /* bar graph */
+        if (type=="bar") {
+
+        datay = []
+        labels = []
+        for (var item in data)
+        {
+                datay.push(data[item][yitem])
+                labels.push(data[item][xitem])
+        }
+
+        console.log(datay)
+        console.log(labels)
+
+       barChartData = {
+            labels: labels,
+            datasets: [{
+                label: "Dataset",
+                borderColor: "FF0000",
+                backgroundColor: "00FF00",
+                data: datay,
+                }]};
+
+        var ctx = document.getElementById("ctx").getContext("2d");
+        window.myBar = Chart.Bar(ctx, {
+                data: barChartData,
+                options: {
+                    title: {
+                         display: true,
+                         text: 'Chart.js bar Chart'
+                        },
+                }
+        });
+
+        }
+        });
+}
+
 function console_GetInfo(){
 
         /* Create the table template */
         document.getElementById("main_content").innerHTML = `
                 <h1>Console</h1>
                 <h2>Request</h2>
-                <form id="consoleform" name="consoleform">
+                <form id="consoleform" name="consoleform" class="form-inline">
                 <fieldset class="form-group">
                 <label for="interative">Filter</label>
-                <input type="text" class="form-control" id="consolerequest" name="consolerequest" placeholder="request">
+                <input type="text" class="form-control" id="consolerequest" name="consolerequest" placeholder="request" size=64>
                 </fieldset>
                 <button type="button" id="Run" class="btn btn-primary"  autocomplete="off" onclick="ConsoleRun()">Run</button>
                 </form>
@@ -46,6 +130,21 @@ function console_GetInfo(){
                 <div name="consoledata" id="consoledata"></div>
                 <textarea class="consoledatabox" name="consoledatabox" id="consoledatabox" rows="24" style='width:100%;'>
                 </textarea>
+                <h2>Graph</h2>
+                <form id="consoleformgraph" name="consoleformgraph" class="form-inline">
+                <fieldset class="form-group">
+                <label for="interativegraph">Axis field</label>
+                <select  class="form-control" id="consolerequestgraphx" name="consolerequestgraphx" placeholder="fieldx"></select>
+                <select  class="form-control" id="consolerequestgraphy" name="consolerequestgraphy" placeholder="fieldy"></select>
+                <select  class="form-control" id="consolerequestgraph" name="consolerequestgraph" placeholder="type">
+                    <option value="scatter">Scatter</option>
+                    <option value="bar">Bar</option>
+                </select>
+                
+                <button type="button" id="RunGraph" class="btn btn-primary" autocomplete="off" onclick="ConsoleGraphRun()">Show in graph</button>
+                </fieldset>
+                </form>
+                <div name="consolegraph" id="consolegraph"></div>
                 <h2>Help</h2>
                 <p>Example: native/acct/uid.group to get the stats by user.</p>
                 <p>Example: native/files/uid.filter/robin/ to get all the files and directories of robin.</p>

@@ -289,7 +289,9 @@ function build_advanced_filter($args, $access='$SELF', $table, $join=false) {
     $filter = array();
     $operator = array();
     $group = array();
+    $group_select = array();
     $values = array();
+    $whitelist=false;
 
     $shortcuts['GROUP_CONCAT'] = "_set";
     $shortcuts['COUNT'] = "_count";
@@ -299,6 +301,9 @@ function build_advanced_filter($args, $access='$SELF', $table, $join=false) {
 
     $sqlrequest = "SELECT ";
     $ttable = "table_name ='$table'";
+
+    if (in_array("whitelist", $args))
+        $whitelist=true;
 
     if ($join)
         $ttable = $ttable." OR table_name='$join'";
@@ -318,10 +323,12 @@ function build_advanced_filter($args, $access='$SELF', $table, $join=false) {
                 $grouptype="GROUP_CONCAT";
             elseif (strstr($row[1],"enum")!=false)
                 $grouptype="GROUP_CONCAT";
-            if ($join)
-                $select[$row[2].'.'.$row[0]] = $grouptype;
-            else
-                $select[$row[0]] = $grouptype;
+            if (!$whitelist) {
+                if ($join)
+                    $select[$row[2].'.'.$row[0]] = $grouptype;
+                else
+                    $select[$row[0]] = $grouptype;
+            }
         }
         $i=0;
         foreach ($args as $arg) {
@@ -334,6 +341,25 @@ function build_advanced_filter($args, $access='$SELF', $table, $join=false) {
                 if (array_key_exists($field, $fields)) {
                     if (in_array("group", $prop)) {
                         $group[]=$field;
+                        $group_select[]=$field;
+                        unset($select[$field]);
+                    }
+                    if (in_array("groupbytime", $prop)) {
+                        $interval = "86400";
+                        if (in_array("hour", $prop))
+                            $interval = "3600";
+                        if (in_array("day", $prop))
+                            $interval = "86400";
+                        if (in_array("week", $prop))
+                            $interval = "604800";
+
+                        $group[] = "ROUND(".$field."/".$interval.")*".$interval;
+                        $group_select[] = "ROUND(".$field."/".$interval.")*".$interval." AS ".$field."_by";
+                        unset($select[$field]);
+                    }
+                    if (in_array("groupbylog2", $prop)) {
+                        $group[] = "ROUND(LOG2(".$field."))";
+                        $group_select[] = "ROUND(LOG2(".$field."))  AS ".$field."_by";
                         unset($select[$field]);
                     }
                     if (in_array("count", $prop)) {
@@ -350,6 +376,9 @@ function build_advanced_filter($args, $access='$SELF', $table, $join=false) {
                     }
                     if (in_array("sum", $prop)) {
                         $select[$field]="SUM";
+                    }
+                    if (in_array("concat", $prop)) {
+                        $select[$field]="GROUP_CONCAT";
                     }
                     if (in_array("remove", $prop)) {
                         unset($select[$field]);
@@ -385,7 +414,7 @@ function build_advanced_filter($args, $access='$SELF', $table, $join=false) {
 
         //build select
         if (sizeof($group)!=0)
-            $sqlrequest = $sqlrequest."".implode(", ",$group);
+            $sqlrequest = $sqlrequest."".implode(", ",$group_select);
         $first = true;
         foreach ($select as $k => $v) {
             if($v && sizeof($group)!=0) {
