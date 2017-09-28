@@ -195,6 +195,7 @@ Group: Applications/System
 Requires: robinhood-lustre = %{version}
 Requires: shook-server
 BuildRequires: shook-devel
+BuildRequires: shook-server
 
 %description mod-shook
 Shook module for robinhood
@@ -395,7 +396,7 @@ rm -rf $RPM_BUILD_ROOT
 
 # everythink in sbin, except rbh-config which is in adm
 %if %{with shook}
-%exclude %{_sbindir}/rbh-rebind
+#%exclude %{_sbindir}/rbh-rebind
 #%{_sbindir}/rbh-import
 #%{_sbindir}/rbh-recov
 %endif
