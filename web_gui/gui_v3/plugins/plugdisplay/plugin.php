@@ -18,30 +18,30 @@
  */
 
 class plugdisplay extends Plugin {
-    public $Name="Plugins Display";
-    public $Description="Display Information about plugins";
-    public $Version="V0.1";
+    public $Name = "Plugins Display";
+    public $Description = "Display Information about plugins";
+    public $Version = "V0.1";
 
 
     /* Called from UI menu */
     function ui_header($param) {
-        $newparam='<script src="plugins/plugdisplay/script.js"></script>'."\n";
-        $param=$param.$newparam;
+        $newparam = '<script src="plugins/plugdisplay/script.js"></script>'."\n";
+        $param = $param.$newparam;
         return $param;
     }
 
     /* Called from UI menu */
     function ui_menu_bottom($param) {
             global $PLUGINS_INST;
-            $newparam="<div>";
-            $newparam.="<br><label>Plugins</label>";
-            $newparam.='<div class="list-group">';
+            $newparam = "<div>\n";
+            $newparam.= "<br><label>Plugins</label>\n";
+            $newparam.= '<div class="list-group">'."\n";
             foreach ($PLUGINS_INST as $p) {
-                    $newparam.=' <a href="#" onclick="plugdisplay_GetInfo(\''.get_class($p).'\')" class="list-group-item">'.$p->Name.' - '.$p->Version.'</a>';
+                    $newparam.= '<a href="#" onclick="plugdisplay_GetInfo(\''.get_class($p).'\')" class="list-group-item">'.$p->Name.' - '.$p->Version.'</a>'."\n";
             }
-            $newparam.="</div>";
-            $newparam.="</div>";
-            $param=$param.$newparam;
+            $newparam.= "</div>\n";
+            $newparam.= "</div>\n";
+            $param = $param.$newparam;
             return $param;
     }
 

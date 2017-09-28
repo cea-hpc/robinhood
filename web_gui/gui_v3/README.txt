@@ -111,26 +111,36 @@ Functions provided by the API
 
 native syntax:
 
-<server-url>/api/: baseURL
+URL syntax: <server-url>/api/native/<table>/[field.operator[/operator...]]
 native: request type
-acct: table requested (acct, var or files)
+<table>: table requested (acct, vars, files , entries or names)
 list of request / separated:
     *field.operator/operator_parameter
     *...
 operators:
-    *group      -Group result
-    *max        -Get the max value when group is used
-    *min        -Get the min value when group is used
-    *count      -Get number of entries when group is used
-    *avg        -Get average when group is used
-    *sum        -Get sum when group is used
-    *remove     -Hide field from result
-    *filter     -Filter result with sql "LIKE" (mandatory parameter, wildcard: *)
-    *nfilter    -Filter result with sql "NOT LIKE" (mandatory parameter, wildcard: *)
-    *equal      -Filter result with sql "=" (mandatory parameter)
-    *less       -Filter result with sql "<" (mandatory parameter)
-    *bigger     -Filter result with sql ">" (mandatory parameter)
-    *soundslike -Filter result with sql "SOUNDS LIKE" (mandatory parameter)
+    *group        -Group result
+    *groupbytime  -Floor a value in seconds by hour/day/week/month/year and group
+    *groupbylog2  -Floor(log2(value)) and group (return NULL if value is 0)
+    *max          -Get the max value when group is used
+    *min          -Get the min value when group is used
+    *count        -Get number of entries when group is used
+    *avg          -Get average when group is used
+    *sum          -Get sum when group is used
+    *concat       -Concat string
+    *remove       -Hide field from result
+    *filter       -Filter result with sql "LIKE" (mandatory parameter, wildcard: *)
+    *nfilter      -Filter result with sql "NOT LIKE" (mandatory parameter, wildcard: *)
+    *equal        -Filter result with sql "=" (mandatory parameter)
+    *less         -Filter result with sql "<" (mandatory parameter)
+    *bigger       -Filter result with sql ">" (mandatory parameter)
+    *soundslike   -Filter result with sql "SOUNDS LIKE" (mandatory parameters)
+    *asc          -Sort asc by
+    *desc         -Sort desc by
+
+parameters:
+    *whitelist  -hide all field by default, you have to select them explicitly
+    *limit/int  -Limit the number of results
+them
 
 <server-url>/api/native/acct request all the table:
 [
@@ -226,7 +236,88 @@ All together:
         "sz1T": "0"
     },...
 
-V - Web UID & Plugins
+Side notes on groupbytime and groupbylog2:
+
+You can specify the interval in groupbytime by adding .week/.day/.hour
+
+The following query return the number of files (and size sum) by modification date
+<server-url>/api/native/entries/whitelist/id.count/last_mod.groupbytime.day/size.sum
+[{
+        "last_mod_by": "1495929600",
+        "id_count": "44",
+        "size": "244133029"
+    },
+    {
+        "last_mod_by": "1496016000",
+        "id_count": "168",
+        "size": "1747690453"
+    },...
+]
+
+The last_mod_by value is an unix timestamp round to an interval.
+
+You can group entries by size range using groupbylog2 (with option .unit and .hunit to divide the log by 10 or 5).
+
+The following query return the number of size in range <B, B to KB, KB to MB, ... >:
+<server-url>/api/native/entries/whitelist/id.count/size.groupbylog2.unit/size.max
+[
+    {
+        "size_by": null,
+        "id_count": "126131",
+        "size_max": "0"
+    },
+    {
+        "size_by": "0",
+        "id_count": "172346",
+        "size_max": "1023"
+    },
+    {
+        "size_by": "1",
+        "id_count": "659586",
+        "size_max": "1048506"
+    },
+    {
+        "size_by": "2",
+        "id_count": "626440",
+        "size_max": "1041403917"
+    },
+    {
+        "size_by": "3",
+        "id_count": "3935",
+        ...
+]
+
+You can recreate accounting file size stats with:
+<server-url>/api/native/entries/whitelist/id.count/size.groupbylog2.hunit/
+[
+  {
+    "size_by": null,
+    "id_count": "126131"
+  },
+  {
+    "size_by": "0",
+    "id_count": "21145"
+  },
+  {
+    "size_by": "1",
+    "id_count": "151201"
+  },...
+]
+"size_by 0" count files from 1B to 32B, "size_by 1" 32B to 1K, "size by 2" 1K to 32KB ...
+
+Common Robinhood queries:
+
+rbh-report command:
+    rbh-report -u foo -S
+Equivalent URL:
+    native/acct/uid.filter/foo
+
+rbh-report command:
+    rbh-report --top-users --by-count
+Equivalent URL:
+    native/acct/uid.group/count.desc/limit/20
+
+V - Web UD & Plugins
 ====================
 5.1 Link to a specific graph with filters
 

@@ -97,13 +97,13 @@ function get_acct_columns($all=false) {
  */
 function get_user()
 {
-    $user=False;
+    $user = False;
     if (isset($_SERVER['PHP_AUTH_USER'])) {
         $user = $_SERVER['PHP_AUTH_USER'];
     } else {
-            $user='$NOAUTH';
+            $user = '$NOAUTH';
     }
-    return$user;
+    return $user;
 }
 /**
  *
@@ -115,7 +115,7 @@ function get_user()
 function check_access($part)
 {
     GLOBAl $ACCESS_LIST;
-    $user='';
+    $user = '';
     if (get_user()) {
         $user = get_user();
     } else {
@@ -195,11 +195,11 @@ function string_color($str){
 function get_filter_from_list($datalist, $term)
 {
     $i = array_search($term, $datalist);
-    if ($i==false) {
+    if ($i == false) {
         return false;
     }
-    if ($i+1<count($datalist)) {
-        if ($datalist[$i+1]=='')
+    if ($i+1 < count($datalist)) {
+        if ($datalist[$i+1] == '')
             return False;
         else
             return $datalist[$i+1];
@@ -222,36 +222,36 @@ function build_filter($args, $filter, $self='$SELF') {
 
     //Ensure uid if present for self usage
     if ($self!='$SELF')
-        $filter['uid']='uid';
+        $filter['uid'] = 'uid';
 
     foreach ($filter as $k => $v) {
         $op="LIKE";
-        if (startsWith($k,"min"))
+        if (startsWith($k, "min"))
             $op=">";
-        if (startsWith($k,"max"))
+        if (startsWith($k, "max"))
             $op="<";
-        if(get_filter_from_list($args,$k)) {
-            $val = get_filter_from_list($args,$k);
-            if ($v!='offset') {
-                if (strstr($v,"(")!=false){
-                    if ($havingfilter!="")
+        if(get_filter_from_list($args, $k)) {
+            $val = get_filter_from_list($args, $k);
+            if ($v != 'offset') {
+                if (strstr($v, "(") != false){
+                    if ($havingfilter != "")
                         $havingfilter = $havingfilter." AND ";
                     $havingfilter = $havingfilter."$v $op :k_$k ";
                 }else{
-                    if ($sqlfilter!="")
+                    if ($sqlfilter != "")
                         $sqlfilter = $sqlfilter." AND ";
                     $sqlfilter = $sqlfilter."$v $op :k_$k ";
                 }
             }
             $values["k_$k"] = $val;
-        } elseif ($self!='$SELF' && $k=='uid') {
+        } elseif ($self != '$SELF' && $k == 'uid') {
             if ($v!='offset') {
-                if (strstr($v,"(")!=false){
-                    if ($havingfilter!="")
+                if (strstr($v, "(") != false){
+                    if ($havingfilter != "")
                         $havingfilter = $havingfilter." AND ";
                     $havingfilter = $havingfilter."$v $op :k_$k ";
                 }else{
-                    if ($sqlfilter!="")
+                    if ($sqlfilter != "")
                         $sqlfilter = $sqlfilter." AND ";
                     $sqlfilter = $sqlfilter."$v $op :k_$k ";
                 }
@@ -279,7 +279,7 @@ function build_filter($args, $filter, $self='$SELF') {
  * @param string $join mysql table to join
  * @return array String,Array with sql request and array of filter
  */
-function build_advanced_filter($args, $access='$SELF', $table, $join=false) {
+function build_advanced_filter($args, $access = '$SELF', $table, $join = false) {
     global $db;
     global $DB_LASTERROR;
     global $DB_NAME;
@@ -289,16 +289,29 @@ function build_advanced_filter($args, $access='$SELF', $table, $join=false) {
     $filter = array();
     $operator = array();
     $group = array();
+    $group_select = array();
+    $order_by = array();
+    $select_cache = array();
     $values = array();
+    $whitelist=false;
+    $limit=false;
 
     $shortcuts['GROUP_CONCAT'] = "_set";
     $shortcuts['COUNT'] = "_count";
     $shortcuts['MAX'] = "_max";
     $shortcuts['MIN'] = "_min";
     $shortcuts['AVG'] = "_avg";
+    $shortcuts['*'] = "_all";
 
     $sqlrequest = "SELECT ";
     $ttable = "table_name ='$table'";
+
+    if (in_array("whitelist", $args))
+        $whitelist=true;
+
+    $i = array_search("limit", $args);
+    if ($i)
+        $limit=intval($args[$i+1]);
 
     if ($join)
         $ttable = $ttable." OR table_name='$join'";
@@ -312,44 +325,77 @@ function build_advanced_filter($args, $access='$SELF', $table, $join=false) {
         while ($row = $result->fetch()) {
             $fields[$row[0]] = $row[1];
             $grouptype = false;
-            if (strstr($row[1],"int")!=false)
+            if (strstr($row[1], "int")!=false)
                 $grouptype="SUM";
-            elseif (strstr($row[1],"var")!=false)
+            elseif (strstr($row[1], "var")!=false)
                 $grouptype="GROUP_CONCAT";
-            elseif (strstr($row[1],"enum")!=false)
+            elseif (strstr($row[1], "enum")!=false)
                 $grouptype="GROUP_CONCAT";
-            if ($join)
-                $select[$row[2].'.'.$row[0]] = $grouptype;
-            else
-                $select[$row[0]] = $grouptype;
+            if (!$whitelist) {
+                if ($join)
+                    $select[$row[2].'.'.$row[0]] = $grouptype;
+                else
+                    $select[$row[0]] = $grouptype;
+            }
         }
         $i=0;
         foreach ($args as $arg) {
-            if (strstr($arg,".")!=false) {
-                $prop = explode(".",$arg);
+            if (strstr($arg, ".")!=false) {
+                $prop = explode(".", $arg);
                 $field = $prop[0];
                 if ($join && $field=="id")
-                    $field=$table.".".$field;
+                    $field = $table.".".$field;
                 unset($prop[0]);
-                if (array_key_exists($field, $fields)) {
+                if (array_key_exists($field, $fields) OR $field=="*") {
                     if (in_array("group", $prop)) {
-                        $group[]=$field;
+                        $group[] = $field;
+                        $group_select[] = $field;
+                        unset($select[$field]);
+                    }
+                    if (in_array("groupbytime", $prop)) {
+                        $interval = "86400";
+                        if (in_array("hour", $prop))
+                            $interval = "3600";
+                        if (in_array("day", $prop))
+                            $interval = "86400";
+                        if (in_array("week", $prop))
+                            $interval = "604800";
+                        if (in_array("month", $prop))
+                            $interval = "26280030";
+                        if (in_array("year", $prop))
+                            $interval = "315360365";
+
+                        $group[] = "FLOOR(".$field."/".$interval.")*".$interval;
+                        $group_select[] = "FLOOR(".$field."/".$interval.")*".$interval." AS ".$field."_by";
+                        unset($select[$field]);
+                    }
+                    if (in_array("groupbylog2", $prop)) {
+                        $div = "";
+                        if (in_array("unit", $prop))
+                                $div = "/10";
+                        if (in_array("hunit", $prop))
+                            $div = "/5";
+                        $group[] = "FLOOR(LOG2(".$field.")$div)";
+                        $group_select[] = "FLOOR(LOG2(".$field.")$div)  AS ".$field."_by";
                         unset($select[$field]);
                     }
                     if (in_array("count", $prop)) {
-                        $select[$field]="COUNT";
+                        $select[$field] = "COUNT";
                     }
                     if (in_array("max", $prop)) {
-                        $select[$field]="MAX";
+                        $select[$field] = "MAX";
                     }
                     if (in_array("min", $prop)) {
-                        $select[$field]="MIN";
+                        $select[$field] = "MIN";
                     }
                     if (in_array("avg", $prop)) {
-                        $select[$field]="AVG";
+                        $select[$field] = "AVG";
                     }
                     if (in_array("sum", $prop)) {
-                        $select[$field]="SUM";
+                        $select[$field] = "SUM";
+                    }
+                    if (in_array("concat", $prop)) {
+                        $select[$field] = "GROUP_CONCAT";
                     }
                     if (in_array("remove", $prop)) {
                         unset($select[$field]);
@@ -378,6 +424,12 @@ function build_advanced_filter($args, $access='$SELF', $table, $join=false) {
                         $filter[$field] = $args[$i+1];
                         $operator[$field] = "SOUNDS LIKE";
                     }
+                    if (in_array("asc", $prop)) {
+                        $order_by[$field] = "ASC";
+                    }
+                    if (in_array("desc", $prop)) {
+                        $order_by[$field] = "DESC";
+                    }
                 }
             }
             $i++;
@@ -385,22 +437,25 @@ function build_advanced_filter($args, $access='$SELF', $table, $join=false) {
 
         //build select
         if (sizeof($group)!=0)
-            $sqlrequest = $sqlrequest."".implode(", ",$group);
+            $sqlrequest = $sqlrequest."".implode(", ", $group_select);
         $first = true;
         foreach ($select as $k => $v) {
             if($v && sizeof($group)!=0) {
                 $attr= "";
-                if ($v=="GROUP_CONCAT")
+                if ($v == "GROUP_CONCAT")
                     $attr="DISTINCT ";
                 $ext= "";
                 if (array_key_exists($v, $shortcuts))
-                    $ext = $shortcuts[$v];
-                $sqlrequest = $sqlrequest.", $v($attr$k) AS $k$ext";
-            } elseif (sizeof($group)==0) {
+                        $ext = $shortcuts[$v];
+                $kk = str_replace("*", "_all", $k);
+                $sqlrequest = $sqlrequest.", $v($attr$k) AS $kk$ext";
+                $select_cache[$k] = $kk.$ext;
+            } elseif (sizeof($group) == 0) {
                 if ($first)
                     $sqlrequest = $sqlrequest."$k";
                 else
                     $sqlrequest = $sqlrequest.", $k";
+                $select_cache[$k] = $k;
                 $first = false;
             }
         }
@@ -408,7 +463,7 @@ function build_advanced_filter($args, $access='$SELF', $table, $join=false) {
         if ($join)
             $sqlrequest = $sqlrequest." LEFT JOIN $join ON $table.id = $join.id ";
         //build where
-        if (sizeof($filter)!=0)
+        if (sizeof($filter) !=0 )
             $sqlrequest = $sqlrequest." WHERE ";
         $first = true;
         foreach ($filter as $k => $v) {
@@ -418,11 +473,11 @@ function build_advanced_filter($args, $access='$SELF', $table, $join=false) {
             $values["k_$k"] = str_replace('*', '%', $v);
             $first=false;
         }
-        if ($access!='$SELF') {
-                if (sizeof($filter)!=0)
-                        $sqlrequest.=" AND ";
+        if ($access != '$SELF') {
+                if (sizeof($filter) != 0)
+                        $sqlrequest.= " AND ";
                 else
-                        $sqlrequest.=" WHERE ";
+                        $sqlrequest.= " WHERE ";
 
              $values["k_uid"] = $access;
              $data = plugins_call("access_sql_filter",[" uid LIKE :k_uid ", $table, $values]);
@@ -431,7 +486,22 @@ function build_advanced_filter($args, $access='$SELF', $table, $join=false) {
         }
         //build group by
         if (sizeof($group)!=0)
-            $sqlrequest = $sqlrequest." GROUP BY ".implode(",",$group);
+                $sqlrequest = $sqlrequest." GROUP BY ".implode(", ", $group);
+
+        //order by
+        if (sizeof($order_by) != 0) {
+                $sqlrequest = $sqlrequest." ORDER BY ";
+                $first = true;
+                foreach ($order_by as $k => $v) {
+                    if (!$first)
+                        $sqlrequest = $sqlrequest.", ";
+                    $sqlrequest = $sqlrequest.$select_cache[$k]." ".$v;
+                    $first = false;
+                }
+        }
+        if ($limit) {
+            $sqlrequest = $sqlrequest." LIMIT $limit";
+        }
 
     }
     return array($sqlrequest, $values);
@@ -449,7 +519,7 @@ function l($text)
     global $lang;
     if (array_key_exists($text, $lang)) {
         return $lang[$text];
-    } elseif (endsWith($text,"_status")) {
+    } elseif (endsWith($text, "_status")) {
         return ucfirst(str_replace("_", " ", $text));
     }
     return $text;
@@ -464,7 +534,7 @@ function l($text)
  */
 function getFilePermission($file) {
     $length = strlen(decoct(fileperms($file)))-3;
-    return substr(decoct(fileperms($file)),$length);
+    return substr(decoct(fileperms($file)), $length);
 }
 
 
@@ -476,13 +546,13 @@ function getFilePermission($file) {
  */
 function setFormValues() {
 
-    $js="<script>\n";
+    $js = "<script>\n";
     foreach ($_GET as $k => $v) {
-        if (startsWith($k,"form")) {
+        if (startsWith($k, "form")) {
             $js.="document.getElementById('$k').value='$v';\n";
         }
     }
-    $js.="</script>\n";
+    $js.= "</script>\n";
     return $js;
 }
 
@@ -495,12 +565,12 @@ function setFormValues() {
  */
 function callGraph() {
 
-    $js="<script>\n";
+    $js = "<script>\n";
     foreach ($_GET as $k => $v) {
         if ($k=="callGraph") {
             $js.="GetGraph('$v');\n";
         }
     }
-    $js.="</script>\n";
+    $js.= "</script>\n";
     return $js;
 }

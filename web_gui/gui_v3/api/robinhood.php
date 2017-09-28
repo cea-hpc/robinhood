@@ -82,7 +82,7 @@ class MyAPI extends API
                 break;
 
             case 'acct':
-                $self='$SELF';
+                $self = '$SELF';
                 if (!check_access("native_acct")) {
                     $self = check_self_access("native_acct");
                     if (!$self)
@@ -95,13 +95,39 @@ class MyAPI extends API
                 break;
 
             case 'files':
-                $self='$SELF';
+                $self = '$SELF';
                 if (!check_access("native_files")) {
                     $self = check_self_access("native_files");
                     if (!$self)
                         return "Permission denied";
                 }
                 $fullfilter = build_advanced_filter($this->args, $self, "NAMES", "ENTRIES");
+                $req = $db->prepare($fullfilter[0]);
+                $req->execute($fullfilter[1]);
+                $data = $req->fetchall(PDO::FETCH_ASSOC);
+                break;
+
+            case 'entries':
+                $self = '$SELF';
+                if (!check_access("native_entries")) {
+                    $self = check_self_access("native_entries");
+                    if (!$self)
+                        return "Permission denied";
+                }
+                $fullfilter = build_advanced_filter($this->args, $self, "ENTRIES");
+                $req = $db->prepare($fullfilter[0]);
+                $req->execute($fullfilter[1]);
+                $data = $req->fetchall(PDO::FETCH_ASSOC);
+                break;
+
+            case 'names':
+                $self = '$SELF';
+                if (!check_access("native_names")) {
+                    $self = check_self_access("native_names");
+                    if (!$self)
+                        return "Permission denied";
+                }
+                $fullfilter = build_advanced_filter($this->args, $self, "NAMES");
                 $req = $db->prepare($fullfilter[0]);
                 $req->execute($fullfilter[1]);
                 $data = $req->fetchall(PDO::FETCH_ASSOC);
@@ -126,7 +152,7 @@ class MyAPI extends API
         global $db;
 
         if ($this->method == 'GET') {
-            $self='$SELF';
+            $self = '$SELF';
             if (!check_access("graphs")) {
                 $self = check_self_access("graphs");
                 if (!$self)
@@ -144,8 +170,8 @@ class MyAPI extends API
             case 'uid':
             case 'gid':
                 $fullfilter = build_filter($this->args, array('uid'=>'uid', 'gid'=>'gid','maxsize'=>'SUM(size)', 'minsize'=>'SUM(size)'), $self);
-                $sqlfilter=$fullfilter[0];
-                $havingfilter=$fullfilter[2];
+                $sqlfilter = $fullfilter[0];
+                $havingfilter = $fullfilter[2];
                 $sqlreq = "SELECT $content_requested, SUM(size) AS ssize, SUM(count) AS scount FROM ACCT_STAT $sqlfilter GROUP BY $content_requested $havingfilter";
                 $sqlreq = plugins_call("graph_presql_uid", $sqlreq);
                 $req = $db->prepare($sqlreq);
@@ -171,7 +197,7 @@ class MyAPI extends API
 
             case 'Sizes':
                 $fullfilter = build_filter($this->args, array('uid'=>'uid', 'gid'=>'gid'), $self);
-                $sqlfilter=$fullfilter[0];
+                $sqlfilter = $fullfilter[0];
                 $ssize = array("sz0", "sz1", "sz32", "sz1K", "sz32K", "sz1M", "sz32M", "sz1G", "sz32G", "sz1T");
                 $select_str = "SUM(sz0) AS ssz0";
                 foreach ($ssize as $ssz)
@@ -205,7 +231,7 @@ class MyAPI extends API
                 $sqlfilter=$fullfilter[0];
                 $offset = 0;
                 if (array_key_exists('k_offset',$fullfilter[1])) {
-                    $offset=intval($fullfilter[1]['k_offset']);
+                    $offset = intval($fullfilter[1]['k_offset']);
                     unset($fullfilter[1]['k_offset']);
                 }
                 $req = $db->prepare("SELECT uid, gid, size, blocks, name, type, creation_time, last_access, last_mod ".
@@ -235,7 +261,7 @@ class MyAPI extends API
 
             default:
                 $fullfilter = build_filter($this->args, array('filename'=>'name', 'uid'=>'uid', 'gid'=>'gid'), $self);
-                $sqlfilter=$fullfilter[0];
+                $sqlfilter = $fullfilter[0];
 
                 if (endsWith($content_requested, "_status")) {
                     $req = $db->prepare("SELECT $content_requested AS sstatus, SUM(size) AS ssize, SUM(count) AS scount FROM ACCT_STAT $sqlfilter GROUP BY $content_requested;");
@@ -296,7 +322,7 @@ class MyAPI extends API
             case 'uid':
             case 'gid':
                 $fullfilter = build_filter($this->args, array('uid'=>'uid', 'gid'=>'gid'), $self);
-                $sqlfilter=$fullfilter[0];
+                $sqlfilter = $fullfilter[0];
 
                 $columns[] = array('title' => $content_requested);
                 $columns[] = array('title' => 'Size');
@@ -311,7 +337,7 @@ class MyAPI extends API
 
             case 'Sizes':
                 $fullfilter = build_filter($this->args, array('uid'=>'uid', 'gid'=>'gid'), $self);
-                $sqlfilter=$fullfilter[0];
+                $sqlfilter = $fullfilter[0];
 
                 $columns[] = array('title' => 'Owner');
                 $ssize = array("sz0", "sz1", "sz32", "sz1K", "sz32K", "sz1M", "sz32M", "sz1G", "sz32G", "sz1T");
@@ -324,7 +350,7 @@ class MyAPI extends API
                 $req->execute($fullfilter[1]);
                 while($sqldata = $req->fetch(PDO::FETCH_ASSOC)) {
                     $list = array();
-                    $list[]=$sqldata["uid"];
+                    $list[] = $sqldata["uid"];
                     foreach ($ssize as $ssz) {
                         $list[] = $sqldata["s".$ssz];
                     }
@@ -370,7 +396,7 @@ class MyAPI extends API
             default:
                 if (endsWith($content_requested, "_status")) {
                     $fullfilter = build_filter($this->args, array('filename'=>'name', 'uid'=>'uid', 'gid'=>'gid'), $self);
-                    $sqlfilter=$fullfilter[0];
+                    $sqlfilter = $fullfilter[0];
 
                     $columns[] = array('title' => 'Status');
                     $columns[] = array('title' => 'Size');

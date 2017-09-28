@@ -18,23 +18,23 @@
  */
 
 class console extends Plugin {
-    public $Name="Console";
-    public $Description="Use API to Export Data";
-    public $Version="V0.1";
+    public $Name = "Console";
+    public $Description = "Use API to Export Data";
+    public $Version = "V0.1";
 
     private $output = false;
 
     /* Called from UI menu */
     function ui_header($param) {
-            $newparam='<script src="plugins/console/script.js"></script>'."\n";
-            $param=$param.$newparam;
+            $newparam = '<script src="plugins/console/script.js"></script>'."\n";
+            $param = $param.$newparam;
             return $param;
     }
 
     /* Called from UI menu */
     function ui_menu_top($param) {
-            $newparam="<li><a href='#' onclick='console_GetInfo()'>Console</a></li>\n";
-            $param=$param.$newparam;
+            $newparam = "<li><a href='#' onclick='console_GetInfo()'>Console</a></li>\n";
+            $param = $param.$newparam;
             return $param;
     }
 
