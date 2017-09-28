@@ -18,9 +18,9 @@
  */
 
 class output extends Plugin {
-    public $Name="Output";
-    public $Description="Use API to Export Data";
-    public $Version="V0.1";
+    public $Name = "Output";
+    public $Description = "Use API to Export Data";
+    public $Version = "V0.1";
 
     private $output = false;
     /*
@@ -32,13 +32,13 @@ class output extends Plugin {
 
     /* Called from api just processing data */
     function api_process($param) {
-        if ($param[0]=="native")
+        if ($param[0] == "native")
         {
             $p_count=count($param[1]);
-            for ($i=0; $i<$p_count-1;$i++) {
-                if ($param[1][$i]="output") {
-                    if ($param[1][$i+1]=="csv")
-                        $this->output="csv";
+            for ($i=0; $i<$p_count-1; $i++) {
+                if ($param[1][$i] = "output") {
+                    if ($param[1][$i+1] == "csv")
+                        $this->output = "csv";
                 }
             }
         }
@@ -47,28 +47,28 @@ class output extends Plugin {
     /* Change the HTTP Header type */
     function api_header_type($param) {
 
-            if ($this->output=="csv") {
-                    $param="Content-Type: text";
+            if ($this->output == "csv") {
+                    $param = "Content-Type: text";
             }
             return $param;
     }
 
     /* Called from api just before sending data */
     function api_response($param) {
-            if ($this->output=="csv") {
-                    $out="";
-                    if ( count($param)==0) {
+            if ($this->output == "csv") {
+                    $out = "";
+                    if ( ount($param) == 0) {
                             return null;
                     }
                     foreach ($param[0] as $key => $val) {
-                            $out.=$key.";";
+                            $out.= $key.";";
                     }
-                    $out.="\n";
+                    $out.= "\n";
                     foreach ($param as $item) {
                             foreach ($item as $key => $val) {
-                                    $out.=$val.";";
+                                    $out.= $val.";";
                             }
-                            $out.="\n";
+                            $out.= "\n";
                     }
                     return $out;
             }

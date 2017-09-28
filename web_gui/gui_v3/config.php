@@ -33,6 +33,8 @@ $ACCESS_LIST['graphs'] = array();
 $ACCESS_LIST['native_vars'] = array();
 $ACCESS_LIST['native_acct'] = array();
 $ACCESS_LIST['native_files'] = array();
+$ACCESS_LIST['native_entries'] = array();
+$ACCESS_LIST['native_names'] = array();
 
 /* Beware, by default everyone can access to everything */
 
@@ -48,7 +50,8 @@ $ACCESS_LIST['graphs'][] = '*';
 $ACCESS_LIST['native_vars'][] = '*';
 $ACCESS_LIST['native_acct'][] = '*';
 $ACCESS_LIST['native_files'][] = '*';
-
+$ACCESS_LIST['native_entries'][] = '*';
+$ACCESS_LIST['native_names'][] = '*';
 /*****************************
 *        General parameters  *
 *****************************/
@@ -122,23 +125,23 @@ include_once 'lang/'.$lang_file;
 $PLUGINS_REG = array();
 $PLUGINS_INST = array();
 
-$PLUGINS_REG[]="stackgraph";
-$PLUGINS_REG[]="colorgraph";
-$PLUGINS_REG[]="plugdisplay";
-$PLUGINS_REG[]="internalstats";
-$PLUGINS_REG[]="browser";
-$PLUGINS_REG[]="console";
-$PLUGINS_REG[]="output";
+$PLUGINS_REG[] = "stackgraph";
+$PLUGINS_REG[] = "colorgraph";
+$PLUGINS_REG[] = "plugdisplay";
+$PLUGINS_REG[] = "internalstats";
+$PLUGINS_REG[] = "browser";
+$PLUGINS_REG[] = "console";
+$PLUGINS_REG[] = "output";
 //This plugin requires a valid ldap conf.
-//$PLUGINS_REG[]="ldapauth";
+//$PLUGINS_REG[] = "ldapauth";
 
 /*****************************
  *        Local config        *
  *****************************/
 //Allow to override config with local file
 if (!@include "config_local.php") {
-        $err=error_get_last();
-        if ($err["type"]==2){
+        $err = error_get_last();
+        if ($err["type"] == 2){
                 //Clear the last error if the file is not found
                 if (version_compare(phpversion(), '7.0.0', '>='))
                     error_clear_last();
