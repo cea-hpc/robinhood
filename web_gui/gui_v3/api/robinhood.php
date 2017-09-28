@@ -107,6 +107,19 @@ class MyAPI extends API
                 $data = $req->fetchall(PDO::FETCH_ASSOC);
                 break;
 
+            case 'entries':
+                $self='$SELF';
+                if (!check_access("native_entries")) {
+                    $self = check_self_access("native_entries");
+                    if (!$self)
+                        return "Permission denied";
+                }
+                $fullfilter = build_advanced_filter($this->args, $self, "ENTRIES");
+                $req = $db->prepare($fullfilter[0]);
+                $req->execute($fullfilter[1]);
+                $data = $req->fetchall(PDO::FETCH_ASSOC);
+                break;
+
             default:
                 $data = plugins_call("api_native", [$content_requested, $this->args]);
             }
