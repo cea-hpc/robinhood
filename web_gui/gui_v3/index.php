@@ -185,7 +185,7 @@ if ($DB_TYPE == "" || $DB_HOST == "" || $DB_NAME == "" || $DB_USER == "") {
         echo "<script>$(msg_danger(\"You need to configure the database in config.php ! Type/home/db_name or user is missing !\"))</script>";
 }
 
-if ($DB_LASTERROR!="") {
+if ($DB_LASTERROR != "") {
         echo "<script>$(msg_danger(\"PDO Database error: $DB_LASTERROR\"))</script>";
 }
 

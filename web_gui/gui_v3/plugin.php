@@ -14,9 +14,9 @@
 /* Plugin template */
 
 class Plugin {
-    public $Name="Generic";
-    public $Description="Something about your plugin";
-    public $Version="0";
+    public $Name = "Generic";
+    public $Description = "Something about your plugin";
+    public $Version = "0";
 
     /* Called from UI and api */
     function init() {
@@ -123,7 +123,7 @@ function plugins_load() {
 
     foreach ($PLUGINS_REG as $p) {
         require_once "plugins/$p/plugin.php";
-        $PLUGINS_INST[]=new $p();
+        $PLUGINS_INST[] = new $p();
     }
 }
 
@@ -133,16 +133,16 @@ function plugins_load() {
  *
  * @return data
  */
-function plugins_call($function, $param=NULL) {
+function plugins_call($function, $param = NULL) {
    global $PLUGINS_INST;
    foreach ($PLUGINS_INST as $p) {
            $reflection = new ReflectionMethod($p, $function);
-           if (count($reflection->getParameters())==0) {
+           if (count($reflection->getParameters()) == 0) {
                 $p->$function();
         } else {
                 $ret = $p->$function($param);
                 if ($ret)
-                    $param=$ret;
+                    $param = $ret;
         }
    }
    return $param;

@@ -99,7 +99,7 @@ abstract class API
         header(plugins_call("api_header_type", "Content-Type: application/json"));
         header("HTTP/1.1 " . $status . " " . $this->_requestStatus($status));
         $response_data = plugins_call("api_response", $data);
-        if ($response_data!=$data)
+        if ($response_data != $data)
             return $response_data;
         return json_encode($data, $JSON_OPTIONS);
     }

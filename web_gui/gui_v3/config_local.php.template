@@ -83,12 +83,12 @@ $DB_PASSWD   = "";
 //$PLUGINS_REG = array();
 
 /* Plugin names must match directories names plugins folder */
-//$PLUGINS_REG[]="stackgraph";
-//$PLUGINS_REG[]="colorgraph";
-//$PLUGINS_REG[]="plugdisplay";
-//$PLUGINS_REG[]="fsinfo";
-//$PLUGINS_REG[]="browser";
-//$PLUGINS_REG[]="ldapauth";
-//$PLUGINS_REG[]="console";
+//$PLUGINS_REG[] = "stackgraph";
+//$PLUGINS_REG[] = "colorgraph";
+//$PLUGINS_REG[] = "plugdisplay";
+//$PLUGINS_REG[] = "fsinfo";
+//$PLUGINS_REG[] = "browser";
+//$PLUGINS_REG[] = "ldapauth";
+//$PLUGINS_REG[] = "console";
 
 ?>
