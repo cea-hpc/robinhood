@@ -149,7 +149,7 @@ $(function() {
 
     //Add keypress event for filter form
     $('#filterform input').on('keypress', function(event){
-        if(event.which==13 && !event.shiftKey){
+        if(event.key=="Enter" && !event.shiftKey){
             GetGraph(lastGet);
        }
     });

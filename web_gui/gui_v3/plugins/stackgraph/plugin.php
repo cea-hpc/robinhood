@@ -18,9 +18,9 @@
  */
 
 class stackgraph extends Plugin {
-    public $Name="Stack Graph";
-    public $Description="Stack users";
-    public $Version="V0.1";
+    public $Name = "Stack Graph";
+    public $Description = "Stack users";
+    public $Version = "V0.1";
 
     /* sort key, ssize, scount or off  */
     public $uid_sortby='ssize';
@@ -31,20 +31,20 @@ class stackgraph extends Plugin {
 
     /* Called from api just processing data */
     function api_process($param) {
-        if ($param[0]=="graph")
+        if ($param[0] == "graph")
         {
-            $p_count=count($param[1]);
-            for ($i=0; $i<$p_count-1;$i++) {
-                if ($param[1][$i]="stackgraph") {
+            $p_count = count($param[1]);
+            for ($i=0; $i<$p_count-1; $i++) {
+                if ($param[1][$i] = "stackgraph") {
                     switch ($param[1][$i+1]) {
                     case "size":
-                        $this->uid_sortby="ssize";
+                        $this->uid_sortby = "ssize";
                         break;
                     case "count":
-                        $this->uid_sortby="scount";
+                        $this->uid_sortby = "scount";
                         break;
                     case "off":
-                        $this->uid_sortby="off";
+                        $this->uid_sortby = "off";
                         break;
                     }
                 }
@@ -53,7 +53,7 @@ class stackgraph extends Plugin {
     }
 
     public function graph_presql_uid($param) {
-        if ($this->uid_sortby=="off")
+        if ($this->uid_sortby == "off")
             return NULL;
 
         $param = $param." ORDER BY ".$this->uid_sortby." DESC";
@@ -61,16 +61,16 @@ class stackgraph extends Plugin {
     }
 
     public function graph_postdata_uid($param) {
-        if ($this->uid_sortby=="off")
+        if ($this->uid_sortby == "off")
             return NULL;
 
-        $c_count=count($param['labels']);
+        $c_count = count($param['labels']);
         $c_trunk = $this->max_items;
         if ($c_count > $this->max_items) {
-            $param['labels'][$this->max_items]=$this->other_string;
+            $param['labels'][$this->max_items] = $this->other_string;
             for($i = $c_trunk; $i<$c_count-1;$i++) {
-                $param['datasets'][0]['data'][$c_trunk]+=$param['datasets'][0]['data'][$i+1];
-                $param['datasets'][1]['data'][$c_trunk]+=$param['datasets'][1]['data'][$i+1];
+                $param['datasets'][0]['data'][$c_trunk] += $param['datasets'][0]['data'][$i+1];
+                $param['datasets'][1]['data'][$c_trunk] += $param['datasets'][1]['data'][$i+1];
                 unset($param['datasets'][0]['data'][$i+1]);
                 unset($param['datasets'][1]['data'][$i+1]);
                 unset($param['datasets'][0]['backgroundColor'][$i+1]);
@@ -93,7 +93,7 @@ class stackgraph extends Plugin {
             </select>
             </fieldset>
 EOT;
-        $param=$param.$newparam;
+        $param = $param.$newparam;
         return $param;
     }
 }

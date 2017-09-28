@@ -18,25 +18,28 @@
  */
 
 class colorgraph extends Plugin {
-    public $Name="Color Graph";
-    public $Description="Clean Graph colors";
-    public $Version="V0.1";
+    public $Name = "Color Graph";
+    public $Description = "Clean Graph colors";
+    public $Version = "V0.1";
 
     public function graph_postdata_uid($param) {
 
-        $c_count=count($param['labels']);
+        $c_count = count($param['labels']);
 
-        for($i = 0; $i<$c_count;$i++) {
+        for($i = 0; $i < $c_count; $i++) {
+
             /* Fancy color mix */
             $alt = $i%2;
-            $r=round(($i+1)*220/$c_count)+16;
-            $g=(240-$r)+16;
-            $b=230*$alt+16;
+            $r = round(($i+1)*220/$c_count)+16;
+            $g = (240-$r)+16;
+            $b = 230*$alt+16;
             $color = "#".dechex($r).dechex($g).dechex($b);
+
             /* Replace the previous color */
-            $param['datasets'][0]['backgroundColor'][$i]=$color;
-            $param['datasets'][1]['backgroundColor'][$i]=$color;
-            }
+            $param['datasets'][0]['backgroundColor'][$i] = $color;
+            $param['datasets'][1]['backgroundColor'][$i] = $color;
+        }
+
         return $param;
     }
 
