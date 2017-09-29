@@ -744,6 +744,12 @@ static int lhsm_rebind(const entry_id_t *old_id, const entry_id_t *new_id,
     action_params_t cmd_params = { 0 };
     int rc;
 
+    if (!old_id || !new_id) {
+        DisplayLog(LVL_CRIT, LHSM_TAG, "Missing mandatory old/new fid "
+                   "argument for rebind operation");
+        return -EINVAL;
+    }
+
     DisplayLog(LVL_EVENT, LHSM_TAG, "Rebinding " DFID " to " DFID " in archive",
                PFID(old_id), PFID(new_id));
 
@@ -840,35 +846,39 @@ static recov_status_t lhsm_undelete(struct sm_instance *smi,
         if (def->db_type != DB_TEXT) {
             DisplayLog(LVL_CRIT, LHSM_TAG,
                        "Unexpected type for 'lhsm.uuid': %d", def->db_type);
-            free(uuid);
             uuid = NULL;
         }
     }
 
-    /* create parent directory if it does not already exist */
-    rc = create_parent_of(path, NULL);
-    if (rc != 0 && rc != -EEXIST) {
-        DisplayLog(LVL_CRIT, LHSM_TAG, "Failed to create parent directory for "
-                   "file '%s': %s", path, strerror(-rc));
-        free(uuid);
-        return RS_ERROR;
+    if (!already_recovered) {
+        /* create parent directory if it does not already exist */
+        rc = create_parent_of(path, NULL);
+        if (rc != 0 && rc != -EEXIST) {
+            DisplayLog(LVL_CRIT, LHSM_TAG, "Failed to create parent directory for "
+                       "file '%s': %s", path, strerror(-rc));
+            return RS_ERROR;
+        }
+
+        /* create the file in 'released' state */
+        rc = llapi_hsm_import(path, archive_id, &entry_stat, 0, -1, 0, 0, NULL,
+                              p_new_id);
+        if (rc) {
+            DisplayLog(LVL_CRIT, LHSM_TAG, "Failed to import file '%s': %s", path,
+                       strerror(-rc));
+            return RS_ERROR;
+        }
     }
 
-    /* create the file in 'released' state */
-    rc = llapi_hsm_import(path, archive_id, &entry_stat, 0, -1, 0, 0, NULL,
-                          p_new_id);
-    if (rc) {
-        DisplayLog(LVL_CRIT, LHSM_TAG, "Failed to import file '%s': %s", path,
-                   strerror(-rc));
-        free(uuid);
-        return RS_ERROR;
-    }
+    if (cfg_has_uuid(&config) && !uuid)
+        DisplayLog(LVL_CRIT, LHSM_TAG, "WARNING: restoring entry '%s' "
+                   "without UUID. Will try rebind instead.", path);
 
     /* Set the UUID back */
     if (uuid) {
+        DisplayLog(LVL_DEBUG, LHSM_TAG, "Setting xattr %s='%s' on '%s'",
+                   config.uuid_xattr, uuid, path);
         rc = lsetxattr(path, config.uuid_xattr, uuid, UUID_XATTR_STRLEN, 0);
         rc = rc ? errno : 0;
-        free(uuid);
         if (rc) {
             DisplayLog(LVL_CRIT, LHSM_TAG,
                        "Failed to set UUID for file '%s': %s",
@@ -885,10 +895,7 @@ static recov_status_t lhsm_undelete(struct sm_instance *smi,
     }
     stat2rbh_attrs(&entry_stat, p_attrs_new, true);
 
-    /** TODO If another status manager recovered it, just rebind in the
-     * backend. */
-
-    if (!cfg_has_uuid(&config)) {
+    if (!cfg_has_uuid(&config) || !uuid) {
         rc = lhsm_rebind(p_old_id, p_new_id, p_attrs_new, smi, archive_id);
         if (rc) {
             DisplayLog(LVL_CRIT, LHSM_TAG,
