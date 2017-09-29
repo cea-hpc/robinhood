@@ -243,4 +243,13 @@ int compare_boolexpr(const bool_node_t *expr1, const bool_node_t *expr2);
  */
 bool update_boolexpr(bool_node_t *tgt, const bool_node_t *src);
 
+/**
+ * Set attribute value in attrs, given the criteria name and
+ * the text representation of the value.
+ */
+struct attr_set_t;
+int set_attr_value_from_strings(const char *name, const char *val,
+                                struct attr_set_t *attrs, const struct sm_instance *smi);
+
+
 #endif

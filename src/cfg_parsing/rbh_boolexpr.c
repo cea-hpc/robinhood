@@ -502,6 +502,88 @@ static int interpret_condition(type_key_value *key_value,
 }
 
 /**
+ * Set attribute value in attrs, given the criteria name and
+ * the text representation of the value.
+ */
+int set_attr_value_from_strings(const char *name, const char *val,
+                                attr_set_t *attrs, const struct sm_instance *smi)
+{
+    const struct criteria_descr_t *pcrit;
+    const sm_info_def_t *def;
+    unsigned int idx;
+    attr_mask_t tmp = null_mask;
+    compare_criteria_t crit;
+    char err[1024];
+    int rc;
+
+    compare_triplet_t cond = {0};
+    type_key_value kv = {.op_type = OP_EQUAL};
+
+    /* check the name of the attribute */
+    crit = str2criteria(name, smi, &def, &idx);
+
+    if (crit == NO_CRITERIA) {
+        DisplayLog(LVL_CRIT, __func__, "Unknown or unsupported criteria '%s'",
+                   name);
+        return -EINVAL;
+    }
+
+    pcrit = &criteria_descr[crit];
+
+    if (crit == CRITERIA_SM_INFO) {
+        cfg_param_type t = def->crit_type;
+        int pflags = (t == PT_DURATION || t == PT_SIZE || t == PT_INT
+                      || t == PT_INT64 || t == PT_FLOAT) ? PFLG_COMPARABLE : 0;
+
+        rh_strncpy(kv.varname, def->user_name, sizeof(kv.varname));
+        rh_strncpy(kv.varvalue, val, sizeof(kv.varvalue));
+
+        attr_mask_set_index(&tmp, idx);
+        rc = criteria2condition(&kv, &cond, &tmp, err, crit, t, tmp, pflags,
+                                smi);
+        if (rc) {
+            DisplayLog(LVL_CRIT, __func__, "Failed to parse value '%s'", val);
+            return -EINVAL;
+        }
+
+        rc = set_sm_info(smi, attrs,
+                         attr2sminfo_index(idx) - smi->sm_info_offset,
+                         &cond.val);
+        if (rc) {
+            DisplayLog(LVL_CRIT, __func__, "Failed to assign value in attribute set");
+            return rc;
+        }
+
+    } else if (crit == CRITERIA_STATUS) {
+        /* always str value */
+        sm_status_ensure_alloc(&attrs->attr_values.sm_status);
+        STATUS_ATTR(attrs, smi->smi_index) = val;
+        attr_mask_set_index(&attrs->attr_mask,
+                            ATTR_INDEX_FLG_STATUS | smi->smi_index);
+
+    } else {
+        rh_strncpy(kv.varname, pcrit->name, sizeof(kv.varname));
+        rh_strncpy(kv.varvalue, val, sizeof(kv.varvalue));
+
+        tmp.std = pcrit->std_attr_mask;
+
+        /*  Parse value according to criteria type */
+        rc = criteria2condition(&kv, &cond, &tmp, err, crit, pcrit->type, tmp,
+                                  pcrit->parsing_flags, smi);
+        if (rc) {
+            DisplayLog(LVL_CRIT, __func__, "Failed to parse value '%s'", val);
+            return -EINVAL;
+        }
+
+        /* set attr value ... */
+        DisplayLog(LVL_CRIT, __func__, "Attibute %s not supported in %s",
+                   kv.varname, __func__);
+        return -ENOTSUP;
+    }
+    return 0;
+}
+
+/**
  *  Recursive function for building boolean expression.
  */
 static int build_bool_expr(type_bool_expr *p_in_bool_expr,
