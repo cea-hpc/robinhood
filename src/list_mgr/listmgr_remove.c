@@ -584,8 +584,8 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
     }
 
     /* do the cleaning in other tables */
-    DisplayLog(LVL_DEBUG, LISTMGR_TAG, "Starting indirect removal");
-
+    DisplayLog(LVL_DEBUG, LISTMGR_TAG, "Starting indirect removal (soft_rm=%d)",
+               soft_rm);
 
     /* get all records from the tmp table to clean them from other tables */
     nb = 1; /* at least 1 field for id */
