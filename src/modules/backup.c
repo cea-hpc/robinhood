@@ -2162,6 +2162,7 @@ static recov_status_t recov_file(sm_instance_t *smi, const entry_id_t *p_id,
         struct attr_save sav = ATTR_SET_INIT;
         action_params_t recov_params = { 0 };
         post_action_e dummy_after;
+        size_t old_size = -1LL;
 
         /* In any case, set 'copyback' param. */
         if (rbh_param_set(&recov_params, "copyback", "1", false)) {
@@ -2176,6 +2177,10 @@ static recov_status_t recov_file(sm_instance_t *smi, const entry_id_t *p_id,
                            "ERROR: failed to set action param 'compress'");
                 return RS_ERROR;
             }
+        } else {
+            /* restore the size as in the backend (except if compressed) */
+            old_size = ATTR(attrs, size);
+            ATTR(attrs, size) = bk_stat->st_size;
         }
 
         /* fspath may be a pointer to attrs, so make sure we set the right
@@ -2186,6 +2191,7 @@ static recov_status_t recov_file(sm_instance_t *smi, const entry_id_t *p_id,
             return RS_ERROR;
         }
 
+
         /* actions expect to get a source path in 'fullpath' and targetpath
          * in 'targetpath' parameter.
          * So, build a fake attribute and new parameter set with these values */
@@ -2194,6 +2200,10 @@ static recov_status_t recov_file(sm_instance_t *smi, const entry_id_t *p_id,
         /* perform the data copy (if needed) */
         rc = action_helper(&config.recovery_action, "recover", p_id, attrs,
                            &recov_params, smi, NULL, &dummy_after, NULL, NULL);
+
+        /* restore old size in structure */
+        if (old_size != -1LL)
+            ATTR(attrs, size) = old_size;
 
         /* restore real entry attributes */
         path_restore(&sav, attrs);
@@ -2475,6 +2485,9 @@ static recov_status_t backup_recover(struct sm_instance *smi,
     /* Compare restored size and mtime with the one saved in the DB
      * for warning purpose (not for directories) */
     if (!S_ISDIR(st_dest.st_mode)) {
+        DisplayLog(LVL_DEBUG, TAG, "old size: %zu, bk size: %zu, fs size: %zu",
+                   ATTR(&attrs_old, size), st_bk.st_size, st_dest.st_size);
+
         if (ATTR_MASK_TEST(&attrs_old, size)
             && (st_dest.st_size != ATTR(&attrs_old, size))) {
             if (!compressed) {
@@ -2722,7 +2735,8 @@ static status_manager_t backup_sm = {
      * - backup_status: to know the original status of the 'undeleted' entry.
      * - backend_path: to rebind undeleted entry in backend.
      */
-    .softrm_table_mask = {.std = ATTR_MASK_type | ATTR_MASK_fullpath,
+    .softrm_table_mask = {.std = ATTR_MASK_type | ATTR_MASK_fullpath
+                                 | ATTR_MASK_size | ATTR_MASK_last_mod,
                           .status = SMI_MASK(0),
                           .sm_info = GENERIC_INFO_BIT(ATTR_BK_PATH)},
     .undelete_func = backup_recover,
