@@ -326,14 +326,15 @@ static int get_uuid(const entry_id_t *id, char *uuid)
         return rc;
     }
 
-    if (rc != UUID_XATTR_STRLEN) {
+    if (rc > UUID_XATTR_STRLEN) {
         DisplayLog(LVL_MAJOR, LHSM_TAG,
                    "Invalid size %d for UUID for fid " DFID_NOBRACE,
                    rc, PFID(id));
         return E2BIG;
     }
 
-    uuid[UUID_XATTR_STRLEN] = 0;
+    /* null terminate the uuid string */
+    uuid[rc] = 0;
 
     return 0;
 }
