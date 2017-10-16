@@ -48,6 +48,7 @@ typedef struct lhsm_config_t {
     char **rebind_cmd;
 
     char uuid_xattr[XATTR_NAME_MAX + 1];
+    bool strict_uuid;
 } lhsm_config_t;
 
 /* lhsm config is global as the status manager is shared */
@@ -326,14 +327,22 @@ static int get_uuid(const entry_id_t *id, char *uuid)
         return rc;
     }
 
-    if (rc != UUID_XATTR_STRLEN) {
+    if (rc > UUID_XATTR_STRLEN) {
         DisplayLog(LVL_MAJOR, LHSM_TAG,
-                   "Invalid size %d for UUID for fid " DFID_NOBRACE,
+                   "UUID size %d is too large for fid " DFID_NOBRACE,
                    rc, PFID(id));
-        return E2BIG;
+        return EMSGSIZE;
+    } else if (config.strict_uuid && rc < UUID_XATTR_STRLEN) {
+        DisplayLog(LVL_MAJOR, LHSM_TAG,
+                   "UUID size is too small (%d) for fid "DFID_NOBRACE". "
+                   "It must be exactly %d bytes long "
+                   "(or specify 'strict_uuid = no' in the configuration).",
+                   rc, PFID(id), UUID_XATTR_STRLEN);
+        return EINVAL;
     }
 
-    uuid[UUID_XATTR_STRLEN] = 0;
+    /* null terminate the uuid string */
+    uuid[rc] = 0;
 
     return 0;
 }
@@ -917,8 +926,8 @@ static void lhsm_cfg_set_default(void *module_config)
     GError *err_desc;
     int ac;
 
-    if (!g_shell_parse_argv
-        (DEFAULT_REBIND_CMD, &ac, &conf->rebind_cmd, &err_desc)) {
+    if (!g_shell_parse_argv(DEFAULT_REBIND_CMD, &ac, &conf->rebind_cmd,
+                            &err_desc)) {
         DisplayLog(LVL_CRIT, __func__,
                    "Failed to parse default rebind_cmd '%s': %s",
                    DEFAULT_REBIND_CMD, err_desc->message);
@@ -930,16 +939,24 @@ static void lhsm_cfg_set_default(void *module_config)
         g_strfreev(conf->rebind_cmd);
         conf->rebind_cmd = NULL;
     }
+
+    conf->uuid_xattr[0] = 0;
+    conf->strict_uuid = true;
 }
+
+#define UUID_CONFIG_BLOCK "uuid"
 
 static void lhsm_cfg_write_default(FILE *output)
 {
     print_begin_block(output, 0, LHSM_BLOCK, NULL);
     print_line(output, 1, "rebind_cmd: " DEFAULT_REBIND_CMD);
+    print_begin_block(output, 1, UUID_CONFIG_BLOCK, NULL);
+    print_line(output, 2, "xattr = \"\" (disabled)");
+    print_line(output, 2, "strict_uuid = yes");
+    print_end_block(output, 1);
+
     print_end_block(output, 0);
 }
-
-#define UUID_CONFIG_BLOCK "uuid"
 
 static int lhsm_cfg_read(config_file_t config, void *module_config,
                          char *msg_out)
@@ -957,13 +974,13 @@ static int lhsm_cfg_read(config_file_t config, void *module_config,
     };
 
     const cfg_param_t uuid_params[] = {
-        {"xattr", PT_STRING, 0, conf->uuid_xattr, sizeof(conf->uuid_xattr)}
-        ,
+        {"xattr", PT_STRING, 0, conf->uuid_xattr, sizeof(conf->uuid_xattr)},
+        {"strict_uuid", PT_BOOL, 0, &conf->strict_uuid, 0},
         END_OF_PARAMS
     };
 
     static const char *uuid_allowed[] = {
-        "xattr", NULL
+        "xattr", "strict_uuid", NULL
     };
 
     static const char *allowed_params[] = {
@@ -1009,7 +1026,12 @@ static void lhsm_cfg_write_template(FILE *output)
     print_line(output, 1, "# command to rebind an entry in the backend");
     print_line(output, 1, "rebind_cmd = \"lhsmtool_posix "
                "--archive={archive_id} --hsm_root=/tmp/backend "
-               "--rebind {oldfid} {newfid} {fsroot}\"");
+               "--rebind {oldfid} {newfid} {fsroot}\";");
+    print_begin_block(output, 1, UUID_CONFIG_BLOCK, NULL);
+    print_line(output, 2, "xattr = \"trusted.lhsm.uuid\";");
+    print_line(output, 2, "# enforce UUID-length of 36 bytes");
+    print_line(output, 2, "strict_uuid = yes;");
+    print_end_block(output, 1);
     print_end_block(output, 0);
 }
 
