@@ -588,7 +588,7 @@ function archive_uuid1
 
     # create 2 files
     echo "1-Creating files..."
-    for i in a `seq 1 2`; do
+    for i in a `seq 1 3`; do
         rm -f $RH_ROOT/file.$i
         dd if=/dev/zero of=$RH_ROOT/file.$i bs=1k count=1 >/dev/null 2>/dev/null || error "writing file.$i"
     done
@@ -598,13 +598,22 @@ function archive_uuid1
     setfattr -n trusted.lhsm.uuid -v "$fake_uuid" $RH_ROOT/file.1
     getfattr -n trusted.lhsm.uuid $RH_ROOT/file.1 || error "UUID wasn't set"
 
+    # Set bad (too small) UUID on 2nd file
+    local bad_uuid="arbitrary_id_$$"
+    setfattr -n trusted.lhsm.uuid -v "$bad_uuid" $RH_ROOT/file.2
+    getfattr -n trusted.lhsm.uuid $RH_ROOT/file.2 || error "UUID wasn't set"
+
     local fid1=$(get_id "$RH_ROOT/file.1")
     local fid2=$(get_id "$RH_ROOT/file.2")
+    local fid3=$(get_id "$RH_ROOT/file.3")
 
     echo "2- scan filesystem"
     $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+    egrep -e "UUID size is too small \(([0-9]*)\) for fid $fid2" rh_chglogs.log ||
+	error "UUID of file.2 should had been considered as bad"
     $REPORT -f $RBH_CFG_DIR/$config_file -e $fid1 | egrep "lhsm\.uuid\s+:\s+$fake_uuid" || error "UUID not found in ENTRIES for file1"
     $REPORT -f $RBH_CFG_DIR/$config_file -e $fid2 | grep "lhsm\.uuid" && error "UUID found in ENTRIES for file2"
+    $REPORT -f $RBH_CFG_DIR/$config_file -e $fid3 | grep "lhsm\.uuid" && error "UUID found in ENTRIES for file3"
 
     echo "3-Test rbh-find with UUID"
     $FIND -f $RBH_CFG_DIR/$config_file -printf "%p %Rm{lhsm.uuid}\\n" | grep "$fake_uuid" || error "UUID not found by rbh-find for file1"
