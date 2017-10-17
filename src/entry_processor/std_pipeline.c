@@ -1018,7 +1018,7 @@ int EntryProc_get_info_db(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
                                     sizeof(tmp_buf)));
     } else {    /* entry from FS scan */
 #endif
-        attr_mask_t attr_need_fresh;
+        attr_mask_t attr_need_fresh = {0};
 
         /* scan is expected to provide full path and attributes. */
         if (!ATTR_MASK_TEST(&p_op->fs_attrs, fullpath)) {
