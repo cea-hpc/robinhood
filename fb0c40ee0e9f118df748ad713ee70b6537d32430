@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "7e808972_f46a0946",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 341,
+      "author": {
+        "id": 1003883
+      },
+      "writtenOn": "2017-10-18T15:17:27Z",
+      "side": 1,
+      "message": "Is E2BIG correct here?",
+      "revId": "fb0c40ee0e9f118df748ad713ee70b6537d32430",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
