@@ -16,6 +16,24 @@
       "revId": "fb0c40ee0e9f118df748ad713ee70b6537d32430",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "a137402a_a8f8564d",
+        "filename": "src/modules/lhsm.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 341,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-10-19T06:57:41Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "7e808972_f46a0946",
+      "revId": "fb0c40ee0e9f118df748ad713ee70b6537d32430",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
