@@ -362,6 +362,10 @@ if test "x$support_lustre" = "xyes" ; then
             if test "x$have_shook" = "xyes"; then
                 build_shook="ON"
             fi
+            # check shook to lhsm conversion functions
+            AC_CHECK_LIB([shooksvr], [shook_lhsmify], [have_shook_lhsmify="yes"])
+            test "x$have_shook_lhsmify" = "xyes" && \
+                AC_DEFINE([HAVE_SHOOK_LHSMIFY], [1], [shook_lhsmify function available])
         fi
     fi
 

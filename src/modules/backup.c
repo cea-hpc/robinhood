@@ -2680,7 +2680,7 @@ static int rbh_shook_release(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
     /* is it the good type? */
     if (!ATTR_MASK_TEST(p_attrs, type)) {
         DisplayLog(LVL_MAJOR, TAG, "Missing mandatory attribute 'type' in %s()",
-                   __FUNCTION__);
+                   __func__);
         return -EINVAL;
     }
 
@@ -2692,6 +2692,52 @@ static int rbh_shook_release(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
 
     return shook_release(get_fsname(), p_entry_id);
 }
+
+#ifdef HAVE_SHOOK_LHSMIFY
+/** action function */
+static int rbh_shook_release_lhsmify(const entry_id_t *p_entry_id,
+                            attr_set_t *p_attrs, const action_params_t *params,
+                            post_action_e *after, db_cb_func_t db_cb_fn,
+                            void *db_cb_arg)
+{
+    /* is it the good type? */
+    if (!ATTR_MASK_TEST(p_attrs, type)) {
+        DisplayLog(LVL_MAJOR, TAG, "Missing mandatory attribute 'type' in %s()",
+                   __func__);
+        return -EINVAL;
+    }
+
+    if (strcmp(ATTR(p_attrs, type), STR_TYPE_FILE) != 0) {
+        DisplayLog(LVL_MAJOR, TAG, "Unsupported type for release operation: %s",
+                   ATTR(p_attrs, type));
+        return -ENOTSUP;
+    }
+
+    return shook_release_lhsmify(get_fsname(), p_entry_id);
+}
+
+/** action function */
+static int rbh_shook_lhsmify(const entry_id_t *p_entry_id,
+                             attr_set_t *p_attrs, const action_params_t *params,
+                             post_action_e *after, db_cb_func_t db_cb_fn,
+                             void *db_cb_arg)
+{
+    /* is it the good type? */
+    if (!ATTR_MASK_TEST(p_attrs, type)) {
+        DisplayLog(LVL_MAJOR, TAG, "Missing mandatory attribute 'type' in %s()",
+                   __func__);
+        return -EINVAL;
+    }
+
+    if (strcmp(ATTR(p_attrs, type), STR_TYPE_FILE) != 0) {
+        DisplayLog(LVL_MAJOR, TAG, "Unsupported type for lhsmify operation: %s",
+                   ATTR(p_attrs, type));
+        return -ENOTSUP;
+    }
+
+    return shook_lhsmify(get_fsname(), p_entry_id);
+}
+#endif
 #endif
 
 /** Status manager for backup or shook (2 builds with different flags) */
@@ -2762,6 +2808,12 @@ action_func_t mod_get_action(const char *action_name)
         return rbh_shook_release;
     if (strcmp(action_name, "shook.recover") == 0)
         return rbh_shook_recov_file;
+#ifdef HAVE_SHOOK_LHSMIFY
+    if (strcmp(action_name, "shook.release_lhsmify") == 0)
+        return rbh_shook_release_lhsmify;
+    if (strcmp(action_name, "shook.lhsmify") == 0)
+        return rbh_shook_lhsmify;
+#endif
 #endif
 
     /* unknown function */
