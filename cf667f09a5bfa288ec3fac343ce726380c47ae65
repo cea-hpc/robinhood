@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "53b77501_c98e76d8",
+        "filename": "src/modules/backup.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 2733,
+      "author": {
+        "id": 1003528
+      },
+      "writtenOn": "2017-10-24T13:32:33Z",
+      "side": 1,
+      "message": "this is not a release",
+      "range": {
+        "startLine": 2733,
+        "startChar": 57,
+        "endLine": 2733,
+        "endChar": 64
+      },
+      "revId": "cf667f09a5bfa288ec3fac343ce726380c47ae65",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
