@@ -4570,11 +4570,11 @@ function test_checker
         error "scan error"
     check_db_error rh_scan.log
 
-    # if robinhood is not installed, use rbh_cksum.sh from script directory 
+     # if robinhood tree is available, use rbh_cksum.sh from script directory 
     if [ -d "../../src/robinhood" ]; then
-        export PATH="$PATH:../../scripts/"
-    # else use the installed one
+        export PATH="../../scripts/:$PATH"
     fi
+    # else use the installed one
 
     # run before 5s (no checksumming: last_mod < 5)
     echo "No sum (last_mod criteria for new entries)"
@@ -8832,11 +8832,12 @@ function test_rbh_find_printf
 
     clean_logs
 
-    # use rh_cksum.sh from scripts directory
+     # if robinhood tree is available, use rbh_cksum.sh from script directory 
     if [ -d "../../src/robinhood" ]; then
-        export PATH="$PATH:../../scripts/"
-    # else use the installed one
+        export PATH="../../scripts/:$PATH"
     fi
+    # else use the installed one
+
 
     echo "Initial scan of empty filesystem"
     $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
@@ -12618,6 +12619,14 @@ function TEST_OTHER_PARAMETERS_3
     kill -9 $pid
 }
 
+function dismount_backend
+{
+    # test initial condition: backend must not be mounted
+    umount $BKROOT || fuser -k $BKROOT
+    grep -q $BKROOT /etc/mtab &&
+	    umount $BKROOT || umount -f $BKROOT
+}
+
 function TEST_OTHER_PARAMETERS_4
 {
     # Test for many parameters
@@ -12636,7 +12645,7 @@ function TEST_OTHER_PARAMETERS_4
     clean_logs
 
     # test initial condition: backend must not be mounted
-    umount $BKROOT || umount -f $BKROOT
+    dismount_backend
 
     echo "Create Files ..."
     for i in `seq 1 11` ; do
@@ -12696,7 +12705,7 @@ function TEST_OTHER_PARAMETERS_4
 
     kill -9 $pid
     rm -rf $BKROOT/*
-    umount -f $BKROOT
+    dismount_backend
 }
 
 function assert_nb_scan
