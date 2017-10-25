@@ -12706,7 +12706,7 @@ function assert_nb_scan
 
     grep -E "Starting scan|Full scan of" $log >&2
 
-    local nb_scan=`grep "Starting scan of" $log | wc -l`
+    local nb_scan=`grep "Full scan of" $log | wc -l`
     if (( $nb_scan != $expect )); then
         error "********** TEST FAILED (LOG): $nb_scan scan detected,"\
               "but $expect expected"
@@ -12721,14 +12721,22 @@ function get_scan_interval
 {
     local log=$1
     local pid=$2
+    local timeout=$3
     local interv=""
 
-    # make robinhood dump current scan interval in its log
-    kill -USR1 $pid
+    local t=0
     while  [ -z "$interv" ]; do
+        # make robinhood dump current scan interval in its log
+        kill -USR1 $pid
         sleep 1
         interv=$(grep "scan interval" $log | grep STATS | awk '{print $(NF)}' |
                  sed -e "s/s$//" | sed -e "s/^0\([^0]\)/\1/g")
+
+        ((t++))
+        if (( $t > $timeout )); then
+            interv="TIMEOUT"
+            break
+        fi
     done
     echo "current scan interval: $interv sec" >&2
     echo $interv
@@ -12765,7 +12773,7 @@ function TEST_OTHER_PARAMETERS_5
     assert_nb_scan rh_scan.log 1 || ((nbError++))
 
     # make robinhood dump current scan interval in its log
-    local interv=$(get_scan_interval rh_scan.log $pid)
+    local interv=$(get_scan_interval rh_scan.log $pid 30)
     ((interv++))
 
     echo "sleeping $interv seconds"
@@ -12805,7 +12813,7 @@ function TEST_OTHER_PARAMETERS_5
     pid=$!
 
     sleep 2
-    local interv2=$(get_scan_interval rh_scan.log $pid)
+    local interv2=$(get_scan_interval rh_scan.log $pid 30)
     ((interv2++))
 
     # interv2 is expected to be smaller than interv
