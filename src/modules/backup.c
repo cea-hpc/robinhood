@@ -797,10 +797,9 @@ static bool backup_ignore(const entry_id_t *p_id, const attr_set_t *attrs)
             && !strncmp(RESTRIPE_SRC_PREFIX, ATTR(attrs, name),
                         strlen(RESTRIPE_SRC_PREFIX)))) {
         DisplayLog(LVL_DEBUG, TAG,
-                   "Removing shook stripe source %s: no removal in backend!",
-                   ATTR_MASK_TEST(attrs, fullpath) ? ATTR(attrs,
-                                                            fullpath) :
-                   ATTR(attrs, name));
+                   "'%s' is a shook restripe source",
+                   ATTR_MASK_TEST(attrs, fullpath) ?
+                        ATTR(attrs, fullpath) : ATTR(attrs, name));
         return true;
     }
 

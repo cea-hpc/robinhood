@@ -2197,7 +2197,13 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
         /* update entry status */
         rc = smi->sm->get_status_func(smi, &p_item->entry_id, new_attr_set,
                                       new_attr_set);
-        if (rc != 0) {
+        if (rc == -ENOTSUP) {
+            /* Entry is ignore for this policy: skipping it */
+            DisplayLog(LVL_DEBUG, tag(policy), "Entry "DFID" ignored by %s "
+                       "status manager: skipping it.", PFID(&p_item->entry_id),
+                       smi->sm->name);
+            return AS_BAD_TYPE;
+        } else if (rc != 0) {
             DisplayLog(LVL_MAJOR, tag(policy),
                        "Failed to get status for " DFID
                        " (%s status manager): error %d",
