@@ -1,0 +1,113 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "c040a152_9aa2cc39",
+        "filename": "web_gui/scripts/check_robinhood.py",
+        "patchSetId": 5
+      },
+      "lineNbr": 103,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-10-27T11:43:49Z",
+      "side": 1,
+      "message": "Use constants to make it clearer what the duration unit is.\nis 600 \u003d 10*minute\nand 36000 \u003d 10*hour ?\nAlso add an explicit comment about the tested range, so someone can change them if he wishes so.",
+      "revId": "76d9bc5a0ca15bbcf535d3851a227212512242f5",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "619c15e8_d5d8b907",
+        "filename": "web_gui/scripts/check_robinhood.py",
+        "patchSetId": 5
+      },
+      "lineNbr": 126,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-10-27T11:43:49Z",
+      "side": 1,
+      "message": "\u0027 \u003e \u0027",
+      "range": {
+        "startLine": 126,
+        "startChar": 36,
+        "endLine": 126,
+        "endChar": 37
+      },
+      "revId": "76d9bc5a0ca15bbcf535d3851a227212512242f5",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "39d80554_81549804",
+        "filename": "web_gui/scripts/check_robinhood.py",
+        "patchSetId": 5
+      },
+      "lineNbr": 126,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-10-27T11:43:49Z",
+      "side": 1,
+      "message": "\u0027 \u003c \u0027",
+      "range": {
+        "startLine": 126,
+        "startChar": 66,
+        "endLine": 126,
+        "endChar": 68
+      },
+      "revId": "76d9bc5a0ca15bbcf535d3851a227212512242f5",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7a340954_44aeaba2",
+        "filename": "web_gui/scripts/check_robinhood.py",
+        "patchSetId": 5
+      },
+      "lineNbr": 127,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-10-27T11:43:49Z",
+      "side": 1,
+      "message": "inconsistent style of affectation \u0027 \u003d \u0027",
+      "range": {
+        "startLine": 127,
+        "startChar": 37,
+        "endLine": 127,
+        "endChar": 38
+      },
+      "revId": "76d9bc5a0ca15bbcf535d3851a227212512242f5",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "15d27fd1_81fe75fa",
+        "filename": "web_gui/scripts/check_robinhood.py",
+        "patchSetId": 5
+      },
+      "lineNbr": 133,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-10-27T11:43:49Z",
+      "side": 1,
+      "message": "...",
+      "range": {
+        "startLine": 133,
+        "startChar": 25,
+        "endLine": 133,
+        "endChar": 26
+      },
+      "revId": "76d9bc5a0ca15bbcf535d3851a227212512242f5",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
