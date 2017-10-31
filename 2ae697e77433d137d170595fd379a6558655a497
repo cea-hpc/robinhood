@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "f4830907_7ea1bbd1",
+        "filename": "web_gui/scripts/check_robinhood.py",
+        "patchSetId": 7
+      },
+      "lineNbr": 108,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-10-31T14:59:42Z",
+      "side": 1,
+      "message": "Actually, next scan is scheduled at LastScanEndTime + ScanInterval.\n\nNo warning should be issued if a scan is running (LastScanStatus \u003d running)",
+      "range": {
+        "startLine": 108,
+        "startChar": 33,
+        "endLine": 108,
+        "endChar": 50
+      },
+      "revId": "2ae697e77433d137d170595fd379a6558655a497",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
