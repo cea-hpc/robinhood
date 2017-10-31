@@ -25,6 +25,30 @@
     },
     {
       "key": {
+        "uuid": "36cb6610_26fec999",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 4
+      },
+      "lineNbr": 116,
+      "author": {
+        "id": 1008417
+      },
+      "writtenOn": "2017-10-31T15:11:46Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "b6a5aa27_b3298fed",
+      "range": {
+        "startLine": 114,
+        "startChar": 0,
+        "endLine": 116,
+        "endChar": 42
+      },
+      "revId": "3042da1e2131f39151f3f8fa6ab63c931558d004",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "11d75b0f_f8ea164e",
         "filename": "web_gui/gui_v3/README.txt",
         "patchSetId": 4
@@ -36,6 +60,30 @@
       "writtenOn": "2017-10-27T11:37:53Z",
       "side": 1,
       "message": "what if value is null or 0?",
+      "range": {
+        "startLine": 123,
+        "startChar": 24,
+        "endLine": 123,
+        "endChar": 36
+      },
+      "revId": "3042da1e2131f39151f3f8fa6ab63c931558d004",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "17eed2b3_0620f4af",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 4
+      },
+      "lineNbr": 123,
+      "author": {
+        "id": 1008417
+      },
+      "writtenOn": "2017-10-31T15:11:46Z",
+      "side": 1,
+      "message": "-\u003eNULL",
+      "parentUuid": "11d75b0f_f8ea164e",
       "range": {
         "startLine": 123,
         "startChar": 24,
@@ -71,6 +119,30 @@
     },
     {
       "key": {
+        "uuid": "55f9eb36_65988324",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 4
+      },
+      "lineNbr": 308,
+      "author": {
+        "id": 1008417
+      },
+      "writtenOn": "2017-10-31T15:11:46Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "e47d8307_c920c151",
+      "range": {
+        "startLine": 308,
+        "startChar": 21,
+        "endLine": 308,
+        "endChar": 22
+      },
+      "revId": "3042da1e2131f39151f3f8fa6ab63c931558d004",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "6779476a_015b9653",
         "filename": "web_gui/gui_v3/README.txt",
         "patchSetId": 4
@@ -82,6 +154,24 @@
       "writtenOn": "2017-10-27T11:37:53Z",
       "side": 1,
       "message": "rbh-report command:",
+      "revId": "3042da1e2131f39151f3f8fa6ab63c931558d004",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ab33c06e_2f4586b2",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 4
+      },
+      "lineNbr": 309,
+      "author": {
+        "id": 1008417
+      },
+      "writtenOn": "2017-10-31T15:11:46Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "6779476a_015b9653",
       "revId": "3042da1e2131f39151f3f8fa6ab63c931558d004",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -105,6 +195,24 @@
     },
     {
       "key": {
+        "uuid": "382dd9cf_79b2ed6c",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 4
+      },
+      "lineNbr": 310,
+      "author": {
+        "id": 1008417
+      },
+      "writtenOn": "2017-10-31T15:11:46Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "338c319b_5eeb898a",
+      "revId": "3042da1e2131f39151f3f8fa6ab63c931558d004",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "59e75a10_5d74f5d3",
         "filename": "web_gui/gui_v3/README.txt",
         "patchSetId": 4
@@ -116,6 +224,24 @@
       "writtenOn": "2017-10-27T11:37:53Z",
       "side": 1,
       "message": "idem",
+      "revId": "3042da1e2131f39151f3f8fa6ab63c931558d004",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "58ca23d2_798a7031",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 4
+      },
+      "lineNbr": 313,
+      "author": {
+        "id": 1008417
+      },
+      "writtenOn": "2017-10-31T15:11:46Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "59e75a10_5d74f5d3",
       "revId": "3042da1e2131f39151f3f8fa6ab63c931558d004",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -139,6 +265,24 @@
     },
     {
       "key": {
+        "uuid": "0f2b85b3_18ff4e4a",
+        "filename": "web_gui/gui_v3/common.php",
+        "patchSetId": 4
+      },
+      "lineNbr": 362,
+      "author": {
+        "id": 1008417
+      },
+      "writtenOn": "2017-10-31T15:11:46Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "3d02d4f2_d7c4daea",
+      "revId": "3042da1e2131f39151f3f8fa6ab63c931558d004",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "fcfa16a5_78d7817c",
         "filename": "web_gui/gui_v3/common.php",
         "patchSetId": 4
@@ -150,6 +294,24 @@
       "writtenOn": "2017-10-27T11:37:53Z",
       "side": 1,
       "message": "space after \u0027,\u0027",
+      "revId": "3042da1e2131f39151f3f8fa6ab63c931558d004",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5cdf55e8_793f8601",
+        "filename": "web_gui/gui_v3/common.php",
+        "patchSetId": 4
+      },
+      "lineNbr": 436,
+      "author": {
+        "id": 1008417
+      },
+      "writtenOn": "2017-10-31T15:11:46Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "fcfa16a5_78d7817c",
       "revId": "3042da1e2131f39151f3f8fa6ab63c931558d004",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -173,6 +335,24 @@
     },
     {
       "key": {
+        "uuid": "303cd057_b30b15a1",
+        "filename": "web_gui/gui_v3/common.php",
+        "patchSetId": 4
+      },
+      "lineNbr": 446,
+      "author": {
+        "id": 1008417
+      },
+      "writtenOn": "2017-10-31T15:11:46Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "1e640c80_e6023601",
+      "revId": "3042da1e2131f39151f3f8fa6ab63c931558d004",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "b11788ae_e8ae0a57",
         "filename": "web_gui/gui_v3/common.php",
         "patchSetId": 4
@@ -184,6 +364,30 @@
       "writtenOn": "2017-10-27T11:37:53Z",
       "side": 1,
       "message": "inconsistent style:\n\n \"a \u003d 1\" (2 lines above)\n vs.\n \"a\u003d1\" (this line)",
+      "range": {
+        "startLine": 448,
+        "startChar": 33,
+        "endLine": 448,
+        "endChar": 34
+      },
+      "revId": "3042da1e2131f39151f3f8fa6ab63c931558d004",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "2bd2cec0_01a0aeb3",
+        "filename": "web_gui/gui_v3/common.php",
+        "patchSetId": 4
+      },
+      "lineNbr": 448,
+      "author": {
+        "id": 1008417
+      },
+      "writtenOn": "2017-10-31T15:11:46Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "b11788ae_e8ae0a57",
       "range": {
         "startLine": 448,
         "startChar": 33,
@@ -219,6 +423,30 @@
     },
     {
       "key": {
+        "uuid": "c553702c_fd9709df",
+        "filename": "web_gui/gui_v3/common.php",
+        "patchSetId": 4
+      },
+      "lineNbr": 488,
+      "author": {
+        "id": 1008417
+      },
+      "writtenOn": "2017-10-31T15:11:46Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "ad6bf7a9_d1b1ddd1",
+      "range": {
+        "startLine": 488,
+        "startChar": 29,
+        "endLine": 488,
+        "endChar": 31
+      },
+      "revId": "3042da1e2131f39151f3f8fa6ab63c931558d004",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "bce43b2c_64219d63",
         "filename": "web_gui/gui_v3/plugins/console/script.js",
         "patchSetId": 4
@@ -230,6 +458,30 @@
       "writtenOn": "2017-10-27T11:37:53Z",
       "side": 1,
       "message": "\u0027 \u003d\u003d \u0027\n\nisn\u0027t there a constant for 13?",
+      "range": {
+        "startLine": 156,
+        "startChar": 30,
+        "endLine": 156,
+        "endChar": 34
+      },
+      "revId": "3042da1e2131f39151f3f8fa6ab63c931558d004",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fd356c7c_ac6b4745",
+        "filename": "web_gui/gui_v3/plugins/console/script.js",
+        "patchSetId": 4
+      },
+      "lineNbr": 156,
+      "author": {
+        "id": 1008417
+      },
+      "writtenOn": "2017-10-31T15:11:46Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "bce43b2c_64219d63",
       "range": {
         "startLine": 156,
         "startChar": 30,
