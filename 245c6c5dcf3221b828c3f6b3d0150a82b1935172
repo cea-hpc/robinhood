@@ -25,6 +25,30 @@
     },
     {
       "key": {
+        "uuid": "1973a98f_62dc20ee",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 5
+      },
+      "lineNbr": 116,
+      "author": {
+        "id": 1008417
+      },
+      "writtenOn": "2017-10-31T15:11:46Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "9fae98c5_f4a565a4",
+      "range": {
+        "startLine": 116,
+        "startChar": 9,
+        "endLine": 116,
+        "endChar": 14
+      },
+      "revId": "245c6c5dcf3221b828c3f6b3d0150a82b1935172",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "ec2fd8c8_942fc922",
         "filename": "web_gui/gui_v3/README.txt",
         "patchSetId": 5
@@ -36,6 +60,30 @@
       "writtenOn": "2017-10-31T14:47:06Z",
       "side": 1,
       "message": "Equivalent",
+      "range": {
+        "startLine": 312,
+        "startChar": 7,
+        "endLine": 312,
+        "endChar": 8
+      },
+      "revId": "245c6c5dcf3221b828c3f6b3d0150a82b1935172",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5d8c5b12_80834f63",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 5
+      },
+      "lineNbr": 312,
+      "author": {
+        "id": 1008417
+      },
+      "writtenOn": "2017-10-31T15:11:46Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "ec2fd8c8_942fc922",
       "range": {
         "startLine": 312,
         "startChar": 7,
