@@ -1,7 +1,6 @@
 AM_YFLAGS		    = --defines
 AM_LFLAGS		    = -i
-# no -Werror because yacc's auto-generated code is not clean
-AM_CFLAGS= -Wall $(DB_CFLAGS) $(PURPOSE_CFLAGS) -DYY_NO_UNPUT
+AM_CFLAGS= -Wall -Werror $(DB_CFLAGS) $(PURPOSE_CFLAGS)
 
 if DEBUG_PARSING
 # not supported with automake 1.12

@@ -2199,7 +2199,7 @@ YY_BUFFER_STATE yy_scan_bytes  (yyconst char * yybytes, yy_size_t  _yybytes_len 
 	YY_BUFFER_STATE b;
 	char *buf;
 	yy_size_t n;
-	yy_size_t i;
+	int i;
     
 	/* Get memory for full buffer, including space for trailing EOB's. */
 	n = _yybytes_len + 2;
@@ -2446,4 +2446,9 @@ void yy_set_current_file(const char *file)
 {
     g_string_assign(current_file, file);
 }
+
+/* These functions are defined by bison/yacc but not used, which
+ * causes a compiler warning. */
+static void yyunput(int c, char *buf_ptr) __attribute__((unused));
+static int input(void) __attribute__((unused));
 
