@@ -927,7 +927,9 @@ static int ct_setup(void)
 	fid_regex = g_regex_new("{fid}", G_REGEX_OPTIMIZE, 0, NULL);
 	ctdata_regex = g_regex_new("{ctdata}", G_REGEX_OPTIMIZE, 0, NULL);
 
+#if !(GLIB_CHECK_VERSION(2, 32, 0))
 	g_thread_init(NULL);
+#endif
 
 	llapi_msg_set_level(opt.o_verbose);
 	rc = ct_load_cfg_file();
@@ -942,7 +944,11 @@ static int ct_setup(void)
 	mqueue = g_async_queue_new();
 
 	for (i = 0; i < opt.o_fanout; i++)
+#if !(GLIB_CHECK_VERSION(2, 32, 0))
 		g_thread_create(subproc_mgr_main, NULL, false, NULL);
+#else
+		g_thread_new("subproc_mgr_main", subproc_mgr_main, NULL);
+#endif
 
 	return 0;
 }
