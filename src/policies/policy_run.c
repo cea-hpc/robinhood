@@ -1002,7 +1002,7 @@ static void report_progress(policy_info_t *policy,
         FormatFileSize(buf2, 128, curr_ctr.vol);
         FormatFileSize(buf3, 128, curr_ctr.vol / spent);
 
-        DisplayLog(LVL_EVENT, tag(policy),
+        DisplayLog(LVL_MAJOR, tag(policy),
                    "Policy is running (started %s ago): "
                    "%llu actions succeeded (%.2f/sec); volume: %s (%s/sec); "
                    "skipped: %u; errors: %u", buf1, curr_ctr.count,
