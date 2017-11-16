@@ -2036,8 +2036,11 @@ static inline int update_entry(lmgr_t *lmgr, const entry_id_t *p_entry_id,
 
 static inline bool need_update(match_source_t check_method, uint32_t stdattr)
 {
-    return check_method == MS_FORCE_UPDT ||
-           (check_method == MS_AUTO_UPDT && stdattr != 0);
+    return check_method == MS_FORCE_UPDT
+           || (check_method == MS_AUTO_ALL && stdattr != 0)
+           || (check_method == MS_AUTO_ATTRS &&
+                ((stdattr & ~(ATTR_MASK_fullpath | ATTR_MASK_name
+                              | ATTR_MASK_parent_id)) != 0));
 }
 
 /**
@@ -2483,8 +2486,10 @@ static inline const char *match_source2str(match_source_t check_method)
         return "none";
     case MS_CACHE_ONLY:
         return "cache_only";
-    case MS_AUTO_UPDT:
-        return "auto_update";
+    case MS_AUTO_ATTRS:
+        return "auto_update_attrs";
+    case MS_AUTO_ALL:
+        return "auto_update_all";
     case MS_FORCE_UPDT:
         return "force_update";
     case MS_INVALID:

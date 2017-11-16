@@ -77,8 +77,9 @@ static int polrun_set_default(const policy_descr_t *pol,
 
     /* precheck with cached info only */
     cfg->pre_sched_match = MS_CACHE_ONLY;
-    /* final check using required info (from cache+FS) */
-    cfg->post_sched_match = MS_AUTO_UPDT;
+    /* final check using required info (from cache+FS).
+     * Use path from cache */
+    cfg->post_sched_match = MS_AUTO_ATTRS;
 
     cfg->pre_run_command = NULL;
     cfg->post_run_command = NULL;
@@ -671,8 +672,12 @@ static match_source_t str2match_source(const char *tmp)
         return MS_NONE;
     if (!strcasecmp(tmp, "cache_only"))
         return MS_CACHE_ONLY;
-    if (!strcasecmp(tmp, "auto_update"))
-        return MS_AUTO_UPDT;
+    /* auto_update for backward compat */
+    if (!strcasecmp(tmp, "auto_update")
+        || !strcasecmp(tmp, "auto_update_attrs"))
+        return MS_AUTO_ATTRS;
+    if (!strcasecmp(tmp, "auto_update_all"))
+        return MS_AUTO_ALL;
     if (!strcasecmp(tmp, "force_update"))
         return MS_FORCE_UPDT;
 

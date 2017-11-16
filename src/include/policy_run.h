@@ -143,9 +143,12 @@ typedef enum {
     MS_INVALID = -1,  /**< Wrong value */
     MS_NONE    = 0,   /**< No matching */
     MS_CACHE_ONLY,    /**< Use only cached information for matching */
-    MS_AUTO_UPDT,     /**< Complete cached information by retrirving missing
+    MS_AUTO_ATTRS,    /**< Complete cached information by retrieving missing
                            attributes and attributes that are required to be
-                           up to date */
+                           up to date (path excluded) */
+    MS_AUTO_ALL,      /**< Complete cached information by retrieving missing
+                           attributes and attributes that are required to be
+                           up to date (including path) */
     MS_FORCE_UPDT,    /**< Force using up to date information */
 } match_source_t;
 

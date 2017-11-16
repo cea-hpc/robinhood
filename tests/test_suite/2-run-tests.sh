@@ -4500,9 +4500,23 @@ function test_prepost_sched
             error "No attr update expected"
         ;;
 
+    # no path update for file2
+    auto_update_attrs)
+        assert_action_on "file.2" rh_migr.log
+        # any needed criteria is refreshed: subdir/file.1, and file.4 are
+        # not migrated
+        assert_no_action_on "subdir/file.1" rh_migr.log
+        assert_no_action_on "file.4" rh_migr.log
+        assert_action_on "file.3" rh_migr.log
+        grep -q "Updating POSIX info" rh_migr.log ||
+            error "Attr update expected"
+        grep "Updating path info" rh_migr.log &&
+            error "No path update expected"
+        ;;
+
     # no big difference between these 2, as the used policy needs to update
     # everything
-    auto_update|force_update)
+    auto_update_all|force_update)
         # any needed criteria is refreshed: subdir/file.1 file2, and file.4 are
         # not migrated
         assert_no_action_on "subdir/file.1" rh_migr.log
@@ -4511,6 +4525,8 @@ function test_prepost_sched
         assert_action_on "file.3" rh_migr.log
         grep -q "Updating POSIX info" rh_migr.log ||
             error "Attr update expected"
+        grep -q "Updating path info" rh_migr.log ||
+            error "Path update expected"
         ;;
     esac
 
@@ -4521,7 +4537,7 @@ function test_prepost_sched
         # no update expected
         grep "Updating info" rh_purge.log && error "No attr update expected"
         ;;
-    auto_update)
+    auto_update_attrs|auto_update_all)
         # POSIX attr update expected, but no path
         grep -q "Updating POSIX info" rh_purge.log ||
             error "Attr update expected"
@@ -13017,19 +13033,23 @@ run_test 236a  test_prepost_sched test_prepost_sched.conf none none \
     common.max_per_run "pre/post_sched_match=none"
 run_test 236b  test_prepost_sched test_prepost_sched.conf cache_only none \
     common.max_per_run "pre_sched_match=cache_only"
-run_test 236c  test_prepost_sched test_prepost_sched.conf auto_update none \
-    common.max_per_run "pre_sched_match=auto_update"
-run_test 236d  test_prepost_sched test_prepost_sched.conf auto_update none \
-    "" "pre_sched_match=auto_update (no scheduler)"
-run_test 236e  test_prepost_sched test_prepost_sched.conf force_update none \
+run_test 236c  test_prepost_sched test_prepost_sched.conf auto_update_attrs none \
+    common.max_per_run "pre_sched_match=auto_update_attrs"
+run_test 236d  test_prepost_sched test_prepost_sched.conf auto_update_attrs none \
+    "" "pre_sched_match=auto_update_attrs (no scheduler)"
+run_test 236e  test_prepost_sched test_prepost_sched.conf auto_update_all none \
+    common.max_per_run "pre_sched_match=auto_update_all"
+run_test 236f  test_prepost_sched test_prepost_sched.conf force_update none \
     common.max_per_run "pre_sched_match=force_update"
-run_test 236f  test_prepost_sched test_prepost_sched.conf none cache_only \
+run_test 236g  test_prepost_sched test_prepost_sched.conf none cache_only \
     common.max_per_run "post_sched_match=cache_only"
-run_test 236g  test_prepost_sched test_prepost_sched.conf none auto_update \
-    common.max_per_run "post_sched_match=auto_update"
-run_test 236h  test_prepost_sched test_prepost_sched.conf none auto_update \
-    "" "post_sched_match=auto_update (no scheduler)"
-run_test 236i  test_prepost_sched test_prepost_sched.conf none force_update \
+run_test 236h  test_prepost_sched test_prepost_sched.conf none auto_update_attrs \
+    common.max_per_run "post_sched_match=auto_update_attrs"
+run_test 236i  test_prepost_sched test_prepost_sched.conf none auto_update_attrs \
+    "" "post_sched_match=auto_update_attrs (no scheduler)"
+run_test 236j  test_prepost_sched test_prepost_sched.conf none auto_update_all \
+    common.max_per_run "post_sched_match=auto_update_all"
+run_test 236k  test_prepost_sched test_prepost_sched.conf none force_update \
     common.max_per_run "post_sched_match=force_update"
 run_test 237   test_sched_ratelim test_ratelim.conf "Check action rate limitations"
 run_test 238   test_lhsm_archive test_lhsm1.conf "check sql query string in case of multiple AND/OR"
