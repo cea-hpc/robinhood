@@ -508,6 +508,16 @@ int BuildFidPath(const entry_id_t *p_id,   /* IN */
     return 0;
 }
 
+/* shift the end of the string by 1 char */
+static void str_shift(char *str)
+{
+    int i;
+
+    /* copy up to strlen + 1, to copy the final \0 too */
+    for (i = 1; i <= strlen(str) + 1; i++)
+        str[i-1] = str[i];
+}
+
 /* Get POSIX path from fid (fid2path wrapper) */
 int Lustre_GetFullPath(const entry_id_t *p_id, char *fullpath,
                        unsigned int len)
@@ -553,6 +563,15 @@ int Lustre_GetFullPath(const entry_id_t *p_id, char *fullpath,
     else if (curr != fullpath) {
         while (FINAL_SLASH(fullpath))
             REMOVE_FINAL_SLASH(fullpath);
+    }
+
+    /* clean double slashes */
+    for (curr = strstr(fullpath, "//"); curr != NULL;
+         curr = strstr(curr, "//")) {
+         /* keep first slash */
+         curr++;
+         /* shift the end of the string by 1 char */
+         str_shift(curr);
     }
 
     return rc;
