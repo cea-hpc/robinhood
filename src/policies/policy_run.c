@@ -1139,6 +1139,9 @@ static attr_mask_t db_attr_mask(policy_info_t *policy,
     /* Note: mask for schedulers is part of policy's run_attr_mask */
     mask = attr_mask_or(&mask, &policy->descr->rules.run_attr_mask);
 
+    /* this is needed to call match_classes */
+    mask = attr_mask_or(&mask, &policies.global_fileset_mask);
+
     /* if the policy manages deleted entries, get all
      * SOFTRM attributes for the current status manager */
     if (policy->descr->manage_deleted
