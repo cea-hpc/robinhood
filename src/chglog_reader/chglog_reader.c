@@ -1282,9 +1282,6 @@ static void *chglog_reader_thr(void *arg)
         process_log_rec(info, p_rec);
     }
 
-    /* Stopping. Flush the internal queue. */
-    process_op_queue(info, true);
-
     DisplayLog(LVL_CRIT, CHGLOG_TAG, "Changelog reader thread terminating");
     FlushLogs();
     return NULL;
