@@ -748,6 +748,8 @@ static int insert_into_hash(reader_thr_info_t *p_info, CL_REC_TYPE *p_rec,
 static const struct {
     enum { IGNORE_NEVER = 0,    /* default */
         IGNORE_MASK,    /* mask must be set, and record has a FID */
+        IGNORE_CANCEL,  /* record could cancel a previous one
+                           (e.g. CREATE/UNLINK sequence) */
         IGNORE_ALWAYS
     } ignore;
     unsigned int ignore_mask;
@@ -774,6 +776,12 @@ static const struct {
                    | 1<<CL_MKNOD | 1<<CL_MKDIR },
     [CL_SETATTR] = { IGNORE_MASK, 1<<CL_CTIME | 1<<CL_SETATTR | 1<<CL_CREATE
                    | 1<<CL_MKNOD | 1<<CL_MKDIR },
+
+    /* Note: no need to check UNLINK_LAST or HSM flags: if unlink comes just
+     * after create, there was no HARDLINK or HSM event in between, so we can
+     * safely cancel the create without missing anything. */
+    [CL_UNLINK] = { IGNORE_CANCEL, 1<<CL_CREATE | 1<<CL_MKNOD },
+    [CL_RMDIR] = { IGNORE_CANCEL, 1<<CL_MKDIR },
 };
 
 /* Decides whether a new changelog record can be ignored. Ignoring a
@@ -783,19 +791,25 @@ static const struct {
  *
  * Returns TRUE or FALSE.
  */
-static bool can_ignore_record(const reader_thr_info_t *p_info,
+static bool can_ignore_record(reader_thr_info_t *p_info,
                               const CL_REC_TYPE *logrec_in)
 {
     entry_proc_op_t *op, *t1;
     unsigned int ignore_mask;
     struct id_hash_slot *slot;
+    char flag_buff[256] = "";
 
     if (record_filters[logrec_in->cr_type].ignore == IGNORE_NEVER)
         return false;
 
-    if (record_filters[logrec_in->cr_type].ignore == IGNORE_ALWAYS)
+    if (record_filters[logrec_in->cr_type].ignore == IGNORE_ALWAYS) {
+        DisplayChangelogs("(ignored redundant record %s:%llu)",
+                          p_info->mdtdevice, logrec_in->cr_index);
         return true;
+    }
 
+    DisplayLog(LVL_FULL, CHGLOG_TAG, "Incoming record "CL_BASE_FORMAT,
+               CL_BASE_ARG(p_info->mdtdevice, logrec_in));
     /* The ignore field is IGNORE_MASK. At that point, the FID in the
      * changelog record must be set. All the changelog record with the
      * same FID will go into the same bucket, so parse that slot
@@ -806,11 +820,46 @@ static bool can_ignore_record(const reader_thr_info_t *p_info,
     rh_list_for_each_entry_safe_reverse(op, t1, &slot->list, id_hash_list) {
         CL_REC_TYPE *logrec = op->extra_info.log_record.p_log_rec;
 
+        /* fid not matching, check next records */
+        if (!entry_id_equal(&logrec->cr_tfid, &logrec_in->cr_tfid))
+            continue;
+
+        DisplayLog(LVL_FULL, CHGLOG_TAG,
+                   "    checking against previous record "CL_BASE_FORMAT,
+                   CL_BASE_ARG(p_info->mdtdevice, logrec));
+
+        if (record_filters[logrec_in->cr_type].ignore == IGNORE_CANCEL) {
+            /* If there is a non-cancellable record in between, we cannot merge
+             * and cancel the whole sequence. */
+            if ((ignore_mask & (1 << logrec->cr_type)) == 0) {
+                DisplayLog(LVL_FULL, CHGLOG_TAG, "-> Significant record "
+                   "between create/unlink sequence: peer must be kept");
+                return false;
+            }
+            /* create/unlink sequence: can be cancelled */
+            DisplayLog(LVL_FULL, CHGLOG_TAG,
+                       "-> Log peer to be cancelled");
+            DisplayChangelogs("(dropped log peer %s:%llu; %s:%llu)",
+                              p_info->mdtdevice, logrec->cr_index,
+                              p_info->mdtdevice, logrec_in->cr_index);
+            /* free and remove previous record */
+            llapi_changelog_free(&logrec);
+            rh_list_del(&op->list);
+            rh_list_del(&op->id_hash_list);
+            /* removed record was previously counted as interesting */
+            p_info->interesting_records--;
+            /* ignore second record as well */
+            return true;
+        }
+
+        /* the only remaining case is ignore mask */
+        assert(record_filters[logrec_in->cr_type].ignore == IGNORE_MASK);
+
         /* If the type of record matches what we're looking for, and
          * it's for the same FID, then we can ignore the new
          * record. */
-        if ((ignore_mask & (1 << logrec->cr_type)) &&
-            entry_id_equal(&logrec->cr_tfid, &logrec_in->cr_tfid)) {
+        if (ignore_mask & (1 << logrec->cr_type)) {
+            DisplayLog(LVL_FULL, CHGLOG_TAG, "-> Ignored");
 
             /* if the matching record is n, and ignored record is n+1,
              * acknownledging(n) can also acknownledge(n+1),
@@ -822,6 +871,9 @@ static bool can_ignore_record(const reader_thr_info_t *p_info,
                            logrec->cr_index, logrec_in->cr_index);
                 logrec->cr_index++;
             }
+
+            DisplayChangelogs("(ignored redundant record %s:%llu)",
+                              p_info->mdtdevice, logrec_in->cr_index);
             return true;
         }
     }
@@ -1000,8 +1052,6 @@ static int process_log_rec(reader_thr_info_t *p_info, CL_REC_TYPE *p_rec)
     if (can_ignore_record(p_info, p_rec)) {
         DisplayLog(LVL_FULL, CHGLOG_TAG, "Ignoring event %s",
                    changelog_type2str(opnum));
-        DisplayChangelogs("(ignored redundant record %s:%llu)",
-                          p_info->mdtdevice, p_rec->cr_index);
         p_info->suppressed_records++;
         llapi_changelog_free(&p_rec);
         goto done;

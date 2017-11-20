@@ -12082,19 +12082,87 @@ function test_changelog
     # a close, so we check whether all the close seen have been ignored.
     echo "3. Checking ignored records..."
     ignore_mark=$(grep -E "Ignoring event MARK" rh_scan.log | wc -l)
-    seen_mark=$(grep -E "ChangeLog.*00MARK" rh_scan.log | wc -l)
+    seen_mark=$(grep -E "ChangeLog.*00MARK" rh_scan.log | grep -v "Incoming record" | wc -l)
     ignore_creat=$(grep -E "Ignoring event CREAT" rh_scan.log | wc -l)
-    seen_close=$(grep -E "ChangeLog.*11CLOSE" rh_scan.log | wc -l)
-    ignore_close=$(grep -E "Ignoring event CLOSE" rh_scan.log | wc -l)
-    ignore_sattr=$(grep -E "Ignoring event SATTR" rh_scan.log | wc -l)
+    seen_close=$(grep -E "ChangeLog.*11CLOSE" rh_scan.log | grep -v "Incoming record" | wc -l)
+    ignore_close=$(grep -E "Ignoring event CLOSE" rh_scan.log | grep -v "Incoming record" | wc -l)
+    ignore_sattr=$(grep -E "Ignoring event SATTR" rh_scan.log | grep -v "Incoming record" | wc -l)
 
     (( $seen_mark == $ignore_mark ))  || error "MARK record not ignored"
     (( $ignore_creat == 0 )) || error "CREATE record ignored"
     (( $seen_close == $ignore_close )) || error "CLOSE record not ignored"
     (( $ignore_sattr == 1 )) || error "SATTR record not ignored"
-
-    rm -f report.out find.out
 }
+
+function test_changelog_cancel
+{
+    config_file=$1
+
+    clean_logs
+    :>/tmp/cl.dump
+
+    if (( $no_log )); then
+            echo "Changelogs not supported on this config: skipped"
+            set_skipped
+            return 1
+    fi
+
+    echo "1. Create test cases..."
+    # create multiple batchable operations (interleaved)
+    mkdir $RH_ROOT/dir.1
+    touch $RH_ROOT/file.1
+    touch $RH_ROOT/file.2
+    truncate -s 1024 $RH_ROOT/file.2
+    rm -f $RH_ROOT/file.2
+    rm -f $RH_ROOT/file.1
+    mknod $RH_ROOT/node p
+    rm -f $RH_ROOT/node
+    touch $RH_ROOT/dir.1/subfile
+    rm -f $RH_ROOT/dir.1/subfile
+    rmdir $RH_ROOT/dir.1
+
+    # these ones cannot be batched as there is a record in between
+    touch $RH_ROOT/file.3
+    mv $RH_ROOT/file.3 $RH_ROOT/file.4
+    rm -f $RH_ROOT/file.4
+    touch $RH_ROOT/file.5
+    ln $RH_ROOT/file.5 $RH_ROOT/file.6
+    rm -f $RH_ROOT/file.5 $RH_ROOT/file.6
+    if (( $is_lhsm != 0 )); then
+        echo 123 > $RH_ROOT/file.7
+        $LFS hsm_archive $RH_ROOT/file.7
+        wait_hsm_state $RH_ROOT/file.7 0x00000009
+        rm -f $RH_ROOT/file.7
+    fi
+
+    echo "2. Read changelogs ..."
+    $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_scan.log || error "reading changelog"
+    grep EntryProc rh_scan.log | grep RECORD > /tmp/cl_pushed
+
+    echo "3. Checking cancelled records..."
+    # no record about file1, file2, subfile, dir1 should have been pushed
+    grep file.1 /tmp/cl_pushed && error "No record about file.1 should have been pushed"
+    grep file.2 /tmp/cl_pushed && error "No record about file.2 should have been pushed"
+    grep subfile /tmp/cl_pushed && error "No record about subfile should have been pushed"
+    grep dir.1 /tmp/cl_pushed && error "No record about dir.1 should have been pushed"
+    grep node /tmp/cl_pushed && error "No record about node should have been pushed"
+
+    # 4 create/rm peers should have been cancelled
+    cancelled=$(grep "dropped log peer" /tmp/cl.dump | wc -l)
+    (( $cancelled == 5 )) || error "5 changelog peers should have been cancelled, $cancelled found"
+
+    # records about other entries should have been pushed
+    grep -q file.3 /tmp/cl_pushed || error "Record about file.3 should have been pushed"
+    grep -q file.4 /tmp/cl_pushed || error "Record about file.4 should have been pushed"
+    grep -q file.5 /tmp/cl_pushed || error "Record about file.5 should have been pushed"
+    grep -q file.6 /tmp/cl_pushed || error "Record about file.6 should have been pushed"
+    if (( $is_lhsm != 0 )); then
+    	grep -q file.7 /tmp/cl_pushed || error "Record about file.7 should have been pushed"
+    fi
+
+    rm -f /tmp/cl_pushed /tmp/cl.dump
+}
+
 
 # wait for changelog_clear until a given timeout
 # return 0 if change_clear occurs before the timeout
@@ -13210,6 +13278,7 @@ run_test 622 TEST_OTHER_PARAMETERS_4 OtherParameters_4.conf "TEST_OTHER_PARAMETE
 run_test 623 TEST_OTHER_PARAMETERS_5 OtherParameters_5.conf "TEST_OTHER_PARAMETERS_5"
 
 run_test 700 test_changelog common.conf "Changelog record suppression"
+run_test 701 test_changelog_cancel cl_batch.conf "Changelog record cancellation"
 
 echo
 echo "========== TEST SUMMARY ($PURPOSE) =========="
