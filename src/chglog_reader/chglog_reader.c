@@ -1282,8 +1282,13 @@ static void *chglog_reader_thr(void *arg)
         process_log_rec(info, p_rec);
     }
 
-    /* Stopping. Flush the internal queue. */
-    process_op_queue(info, true);
+    if (one_shot) {
+        /* Expected behavior in one-shot mode is to process all pending
+         * changelogs. So flush the internal queue. */
+        process_op_queue(info, true);
+    }
+    /* Else, process what stopped by a signal. Drop pending records and exit
+     * ASAP. */
 
     DisplayLog(LVL_CRIT, CHGLOG_TAG, "Changelog reader thread terminating");
     FlushLogs();
