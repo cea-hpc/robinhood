@@ -249,6 +249,9 @@ static int policy_action(entry_context_t *ectx)
     sm_instance_t         *smi = pol->descr->status_mgr;
     const policy_action_t *actionp = NULL;
 
+    /* by default, update entry after running policy action */
+    ectx->after_action = PA_UPDATE;
+
     /* Get the action from policy rule, if defined.
      * Else, get the default action for the policy. */
     if (ectx->rule != NULL && ectx->rule->action.type != ACTION_UNSET)
