@@ -566,9 +566,11 @@ static void dump_record(int debug_level, const char *mdt,
             struct changelog_ext_jobid *jobid =
                 changelog_rec_jobid((CL_REC_TYPE *)rec);
 
-            len = snprintf(curr, left, " J=%s", jobid->cr_jobid);
-            curr += len;
-            left -= len;
+            if (jobid->cr_jobid[0] != '\0') {
+                len = snprintf(curr, left, " J=%s", jobid->cr_jobid);
+                curr += len;
+                left -= len;
+            }
         }
 #elif defined(HAVE_CHANGELOG_EXTEND_REC)
         if (fid_is_sane(&rec->cr_sfid)) {
