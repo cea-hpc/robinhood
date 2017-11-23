@@ -1431,7 +1431,7 @@ function test_hsm_remove
     done
 
     # initial scan (files are known as 'new')
-    $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_scan.log  --once || error ""
+    $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_scan.log  --once || error ""
     check_db_error rh_scan.log
 
     # create 2 more files that robinhood won't know before their removal
@@ -2069,7 +2069,7 @@ function test_undelete
     local fid=$(get_id "$RH_ROOT/dir0/dir1/file1")
 
     # initial scan + archive all
-    $RH -f "$RBH_CFG_DIR/$config_file" --scan --once $SYNC_OPT -l DEBUG -L rh_chglogs.log || error "Initial scan and sync"
+    $RH -f "$RBH_CFG_DIR/$config_file" --readlog --once $SYNC_OPT -l DEBUG -L rh_chglogs.log || error "Initial scan and sync"
     check_db_error rh_chglogs.log
 
     if (( $is_lhsm != 0 )); then
@@ -5425,8 +5425,7 @@ function test_info_collect
 	else
         [ "$DEBUG" = "1" ] && $LFS changelog lustre-MDT0000
 		echo "1-Reading changelogs..."
-		#$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
-		$RH -f $RBH_CFG_DIR/$config_file --readlog -l FULL -L rh_chglogs.log  \
+		$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  \
             --once 2>/dev/null || error "readlog"
 		nb_cr=4
 	fi
