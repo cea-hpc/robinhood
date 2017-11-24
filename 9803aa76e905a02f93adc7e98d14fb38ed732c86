@@ -1,0 +1,136 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "eaacf092_923ac78a",
+        "filename": "src/modules/Makefile.am",
+        "patchSetId": 1
+      },
+      "lineNbr": 51,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-24T14:56:58Z",
+      "side": 1,
+      "message": "This is not needed. It was needed above because \"backup.c\" is built twice once without shook support to generate \"backup\" module and once with shook support to generate \"shook\" module.",
+      "range": {
+        "startLine": 51,
+        "startChar": 41,
+        "endLine": 51,
+        "endChar": 53
+      },
+      "revId": "9803aa76e905a02f93adc7e98d14fb38ed732c86",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "f3ca5c8f_5a230539",
+        "filename": "src/modules/rebind.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 41,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-24T14:56:58Z",
+      "side": 1,
+      "message": "copy/paste from modeguard ;-)",
+      "range": {
+        "startLine": 41,
+        "startChar": 43,
+        "endLine": 41,
+        "endChar": 54
+      },
+      "revId": "9803aa76e905a02f93adc7e98d14fb38ed732c86",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "2276b13b_dde4cb32",
+        "filename": "src/modules/rebind.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 98,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-24T14:56:58Z",
+      "side": 1,
+      "message": "space at EOL",
+      "range": {
+        "startLine": 98,
+        "startChar": 62,
+        "endLine": 98,
+        "endChar": 64
+      },
+      "revId": "9803aa76e905a02f93adc7e98d14fb38ed732c86",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "dad09fe8_aba951b3",
+        "filename": "src/modules/rebind.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 130,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-24T14:56:58Z",
+      "side": 1,
+      "message": "You should call it once in module init call.\n\nPer-thread authentication is done by \nhpss_clnt_thread_init() call. Not sure it must be refreshed.",
+      "range": {
+        "startLine": 130,
+        "startChar": 9,
+        "endLine": 130,
+        "endChar": 27
+      },
+      "revId": "9803aa76e905a02f93adc7e98d14fb38ed732c86",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "e6387b04_337c47cc",
+        "filename": "src/modules/rebind.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 138,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-24T14:56:58Z",
+      "side": 1,
+      "message": "The same.",
+      "range": {
+        "startLine": 138,
+        "startChar": 9,
+        "endLine": 138,
+        "endChar": 23
+      },
+      "revId": "9803aa76e905a02f93adc7e98d14fb38ed732c86",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "d24730fe_c8e596f3",
+        "filename": "src/modules/rebind.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 213,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-24T14:56:58Z",
+      "side": 1,
+      "message": "This strdup is leaked if overwritten in cfg_read().\nI suggest you set it to the static value directly.",
+      "revId": "9803aa76e905a02f93adc7e98d14fb38ed732c86",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
