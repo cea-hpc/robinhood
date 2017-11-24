@@ -47,6 +47,11 @@ if HSM_LITE
 else
   rpmbuild_opt += --without backup
 endif
+if HPSS
+  rpmbuild_opt += --with hpss
+else
+  rpmbuild_opt += --without hpss
+endif
 
 new: clean all
 
