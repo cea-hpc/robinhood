@@ -157,6 +157,9 @@ AC_ARG_ENABLE([lustre], AS_HELP_STRING([--disable-lustre],
 AC_ARG_ENABLE([shook], AS_HELP_STRING([--disable-shook],
               [Disable build of shook specific modules]),
               [support_shook="$enableval"],[support_shook="yes"])
+AC_ARG_ENABLE([hpss], AS_HELP_STRING([--disable-hpss],
+              [Disable build of hpss specific modules]),
+              [support_hpss="$enableval"],[support_hpss="yes"])
 
 # default input option is --scan
 INPUT_OPT="--scan"
@@ -366,6 +369,15 @@ if test "x$support_lustre" = "xyes" ; then
             test "x$have_shook_lhsmify" = "xyes" && \
                 AC_DEFINE([HAVE_SHOOK_LHSMIFY], [1], [shook_lhsmify function available])
         fi
+
+        if test "x$support_hpss" = "xyes" ; then
+            # test if library is available for hpss mode
+            AC_CHECK_LIB([liblustrehpssapi], [lhsm_hpss_init], [have_hpss="yes"])
+            # fix with dynamic module management
+            if test "x$have_hpss" = "xyes"; then
+                build_hpss="ON"
+            fi
+        fi
     fi
 
     AM_CONDITIONAL(CHANGELOGS,  test  "x$have_llapi_changelog_start" = "xyes" )
@@ -374,6 +386,7 @@ if test "x$support_lustre" = "xyes" ; then
     AM_CONDITIONAL(SHOOK,       test  "x$have_shook" = "xyes")
     # XXX HSM-LITE tagged sections of the code require Lustre 2.x
     AM_CONDITIONAL(HSM_LITE,    test "x$have_fid" = "xyes")
+    AM_CONDITIONAL(HPSS,    test "x$have_hpss" = "xyes")
 else
     AM_CONDITIONAL(LUSTRE, test 0 = 1 )
     AM_CONDITIONAL(CHANGELOGS, test 0 = 1 )
@@ -381,6 +394,7 @@ else
     AM_CONDITIONAL(LUSTRE_HSM,     test 0 = 1)
     AM_CONDITIONAL(SHOOK,       test  0 = 1)
     AM_CONDITIONAL(HSM_LITE,    test 0 = 1)
+    AM_CONDITIONAL(HPSS,    test 0 = 1)
 fi # end of Lustre support
 
 AC_SUBST(DV_CMD)
