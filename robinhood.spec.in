@@ -18,6 +18,7 @@
 %endif
 
 # default OFF
+%bcond_with lhsm_hpss
 %bcond_with shook
 %bcond_with recovtools
 
@@ -92,6 +93,7 @@ It is designed to process all its tasks in parallel, so it is particularly adapt
 for managing large file systems with millions of entries and petabytes of data.
 
 With support for: %{?with_lustre:Lustre} %{?with_backup:Backup} %{?with_shook:shook}
+%{?with_lhsm_hpss:lhsm_hpss}
 
 %{?configure_flags:Generated using options: }%{?configure_flags}
 
@@ -199,6 +201,17 @@ BuildRequires: shook-server
 
 %description mod-shook
 Shook module for robinhood
+%endif
+
+%if %{with lhsm_hpss}
+%package mod-hpss_rebind
+Summary: HPSS rebind module for robinhood
+Group: Applications/System
+Requires: lhsm_hpss
+BuildRequires: lhsm_hpss
+
+%description mod-hpss_rebind
+HPSS rebind module for robinhood
 %endif
 
 %prep
@@ -381,6 +394,11 @@ rm -rf $RPM_BUILD_ROOT
 %{_sysconfdir}/robinhood.d/templates/example_shook.conf
 %endif
 
+%if %{with lhsm_hpss}
+%files mod-hpss_rebind
+%{_libdir}/robinhood/librbh_mod_hpss_rebind*.so*
+%endif
+
 # robinhood RPM name for lustre is robinhood-lustre
 %if %{with lustre}
 %files lustre
@@ -410,6 +428,11 @@ rm -rf $RPM_BUILD_ROOT
 %if %{with shook}
 %exclude %{_libdir}/robinhood/librbh_mod_shook*.so*
 %endif
+
+%if %{with lhsm_hpss}
+%exclude %{_libdir}/robinhood/librbh_mod_hpss_rebind*.so*
+%endif
+
 %{_libdir}/robinhood/librbh_mod_*.so*
 
 %{_mandir}/man1/*

@@ -46,3 +46,11 @@ librbh_mod_shook_la_SOURCES=shook.c backup.c backup.h mod_internal.c mod_interna
 librbh_mod_shook_la_CFLAGS=$(AM_CFLAGS) -DHAVE_SHOOK
 librbh_mod_shook_la_LDFLAGS=-version-info 0:0:0 -lshooksvr
 endif
+if LHSM_HPSS
+pkglib_LTLIBRARIES+=librbh_mod_hpss_rebind.la
+librbh_mod_hpss_rebind_la_SOURCES=hpss_rebind.c mod_internal.c mod_internal.h
+librbh_mod_hpss_rebind_la_CFLAGS=$(AM_CFLAGS) -I /opt/hpss/include
+librbh_mod_hpss_rebind_la_LDFLAGS=-version-info 0:0:0 -Wl,-rpath,/opt/hpss/lib \
+				  -llustrehpssapi -L/opt/hpss/lib -lhpss \
+				  -lhpsskrb5auth
+endif
