@@ -150,6 +150,7 @@ build_lustre="OFF"
 build_backup="OFF"
 build_lhsm="OFF"
 build_shook="OFF"
+build_lhsm_hpss="OFF"
 
 AC_ARG_ENABLE([lustre], AS_HELP_STRING([--disable-lustre],
               [Disable all lustre specific features]),
@@ -157,6 +158,9 @@ AC_ARG_ENABLE([lustre], AS_HELP_STRING([--disable-lustre],
 AC_ARG_ENABLE([shook], AS_HELP_STRING([--disable-shook],
               [Disable build of shook specific modules]),
               [support_shook="$enableval"],[support_shook="yes"])
+AC_ARG_ENABLE([lhsm_hpss], AS_HELP_STRING([--disable-lhsm_hpss],
+              [Disable build of lhsm_hpss specific modules]),
+              [support_lhsm_hpss="$enableval"],[support_lhsm_hpss="yes"])
 
 # default input option is --scan
 INPUT_OPT="--scan"
@@ -366,6 +370,18 @@ if test "x$support_lustre" = "xyes" ; then
             test "x$have_shook_lhsmify" = "xyes" && \
                 AC_DEFINE([HAVE_SHOOK_LHSMIFY], [1], [shook_lhsmify function available])
         fi
+
+        if test "x$support_lhsm_hpss" = "xyes" ; then
+            # test if library is available for hpss mode
+            AC_CHECK_LIB([lustrehpssapi], [lhsm_hpss_init], [have_lhsm_hpss="yes"],,
+                                                  [-L/opt/hpss/lib -llustreapi
+                                                   -lhpss -lpthread -lhpsscs
+                                                   -ltirpc])
+            # fix with dynamic module management
+            if test "x$have_lhsm_hpss" = "xyes"; then
+                build_lhsm_hpss="ON"
+            fi
+        fi
     fi
 
     AM_CONDITIONAL(CHANGELOGS,  test  "x$have_llapi_changelog_start" = "xyes" )
@@ -374,6 +390,7 @@ if test "x$support_lustre" = "xyes" ; then
     AM_CONDITIONAL(SHOOK,       test  "x$have_shook" = "xyes")
     # XXX HSM-LITE tagged sections of the code require Lustre 2.x
     AM_CONDITIONAL(HSM_LITE,    test "x$have_fid" = "xyes")
+    AM_CONDITIONAL(LHSM_HPSS,    test "x$have_lhsm_hpss" = "xyes")
 else
     AM_CONDITIONAL(LUSTRE, test 0 = 1 )
     AM_CONDITIONAL(CHANGELOGS, test 0 = 1 )
@@ -381,6 +398,7 @@ else
     AM_CONDITIONAL(LUSTRE_HSM,     test 0 = 1)
     AM_CONDITIONAL(SHOOK,       test  0 = 1)
     AM_CONDITIONAL(HSM_LITE,    test 0 = 1)
+    AM_CONDITIONAL(LHSM_HPSS,    test 0 = 1)
 fi # end of Lustre support
 
 AC_SUBST(DV_CMD)
@@ -488,5 +506,6 @@ AC_MSG_NOTICE([Lustre     support is $build_lustre])
 AC_MSG_NOTICE([Backup     support is $build_backup])
 AC_MSG_NOTICE([Lustre/HSM support is $build_lhsm])
 test -d "/ccc" && AC_MSG_NOTICE([Shook      support is $build_shook])
+test -e "/opt/hpss" && AC_MSG_NOTICE([lhsm_hpss  support is $build_lhsm_hpss])
 
 exit 0
