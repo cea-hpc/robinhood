@@ -54,6 +54,9 @@ struct find_opt {
     compare_direction_t acc_compar;
     time_t              acc_val;
 
+    compare_direction_t nlink_compar;
+    uint32_t            nlink_val;
+
     char              **exec_cmd;
 
     /* query option */
@@ -83,6 +86,7 @@ struct find_opt {
     unsigned int match_mtime:1;
     unsigned int match_atime:1;
     unsigned int match_ctime:1;
+    unsigned int match_nlink:1;
 #ifdef _LUSTRE
     unsigned int match_ost:1;
     unsigned int match_pool:1;
