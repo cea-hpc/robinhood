@@ -153,10 +153,12 @@ static int mkfilters(bool exclude_dirs)
     filter_value_t fv;
     compare_direction_t comp;
 
+    /* create DB filters */
+    lmgr_simple_filter_init(&entry_filter);
+
     /* Create boolean expression for matching.
      * All expressions are then converted to a DB filter.
      */
-
     if (prog_options.match_user) {
         compare_value_t val;
 
@@ -312,14 +314,17 @@ static int mkfilters(bool exclude_dirs)
     if (prog_options.match_ost) {
         /* this partially converted to DB filter, and will be fully used
          * in post checking */
-        compare_value_t val;
+        filter_value_t fv;
 
-        val.integer = prog_options.ost_idx;
-        if (!is_expr)
-            CreateBoolCond(&match_expr, COMP_EQUAL, CRITERIA_OST, val, 0);
-        else
-            AppendBoolCond(&match_expr, COMP_EQUAL, CRITERIA_OST, val, 0);
-        is_expr = 1;
+        if (prog_options.ost_set.count == 1) {
+            fv.value.val_uint = prog_options.ost_set.values[0].val_uint;
+            lmgr_simple_filter_add(&entry_filter, ATTR_INDEX_stripe_items,
+                                   EQUAL, fv, 0);
+        } else {
+            fv.list = prog_options.ost_set;
+            lmgr_simple_filter_add(&entry_filter, ATTR_INDEX_stripe_items,
+                                   IN, fv, 0);
+        }
         query_mask.std |= ATTR_MASK_stripe_items;
     }
 
@@ -354,9 +359,6 @@ static int mkfilters(bool exclude_dirs)
         is_expr = 1;
         query_mask.status |= SMI_MASK(prog_options.filter_smi->smi_index);
     }
-
-    /* create DB filters */
-    lmgr_simple_filter_init(&entry_filter);
 
     /* analyze type filter */
     if (prog_options.match_type) {
@@ -427,7 +429,7 @@ static const char *help_string =
     "    " _B "-amin" B_ " " _U "minute_crit" U_ "\n"
     "        same as '-atime " _U "N" U_ "m'\n"
 #ifdef _LUSTRE
-    "    " _B "-ost" B_ " " _U "ost_index" U_ "\n"
+    "    " _B "-ost" B_ " " _U "ost_index|ost_set" U_ "\n"
     "    " _B "-pool" B_ " " _U "ost_pool" U_ "\n"
 #endif
     "    " _B "-status" B_ " " _U "status_name" U_ ":" _U "status_value" U_ "\n"
@@ -1345,10 +1347,9 @@ int main(int argc, char **argv)
 #ifdef _LUSTRE
         case 'o':
             toggle_option(match_ost, "ost");
-            prog_options.ost_idx = str2int(optarg);
-            if (prog_options.ost_idx == (unsigned int)-1) {
+            if (lmgr_range2list(optarg, DB_UINT, &prog_options.ost_set)) {
                 fprintf(stderr,
-                        "invalid ost index '%s': unsigned integer expected\n",
+                        "invalid value '%s' for -ost: unsigned integer or set expected (e.g. 2 or 3,5-8,10-12)\n",
                         optarg);
                 exit(1);
             }
