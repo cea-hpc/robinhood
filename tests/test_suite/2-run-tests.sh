@@ -9520,6 +9520,10 @@ function test_find
     check_find $RH_ROOT "-f $cfg -mmin +120" 0  #none
     check_find $RH_ROOT "-f $cfg -mmin -120" $((12+extra_dir)) #all
 
+    check_find $RH_ROOT "-f $cfg -links 2" 3 # directories with no child dir
+    check_find $RH_ROOT "-f $cfg -links +2" 3 # directories with child dir
+    check_find $RH_ROOT "-f $cfg -links -2" 6 # files
+
     # restore default striping
     if [ -z "$POSIX_MODE" ]; then
         $LFS setstripe -c 2 -i -1 $RH_ROOT
