@@ -45,6 +45,7 @@
 #define ESCAPED_OPT 263
 #define INAME_OPT   264
 #define PRINT0_OPT  265
+#define NLINK_OPT   266
 
 static struct option option_tab[] = {
     {"user", required_argument, NULL, 'u'},
@@ -55,6 +56,7 @@ static struct option option_tab[] = {
     {"size", required_argument, NULL, 's'},
     {"name", required_argument, NULL, 'n'},
     {"iname", required_argument, NULL, INAME_OPT},
+    {"links", required_argument, NULL, NLINK_OPT},
     {"mtime", required_argument, NULL, 'M'},
     {"crtime", required_argument, NULL, 'c'},
     {"mmin", required_argument, NULL, 'm'},
@@ -242,6 +244,20 @@ static int mkfilters(bool exclude_dirs)
         query_mask.std |= ATTR_MASK_size;
     }
 
+    if (prog_options.match_nlink) {
+        compare_value_t val;
+        val.integer = prog_options.nlink_val;
+
+        if (!is_expr)
+            CreateBoolCond(&match_expr, prog_options.nlink_compar,
+                           CRITERIA_NLINK, val, 0);
+        else
+            AppendBoolCond(&match_expr, prog_options.nlink_compar,
+                           CRITERIA_NLINK, val, 0);
+        is_expr = 1;
+        query_mask.std |= ATTR_MASK_nlink;
+    }
+
     if (prog_options.match_crtime) {
         compare_value_t val;
         val.duration = prog_options.crt_val;
@@ -419,6 +435,7 @@ static const char *help_string =
     "    " _B "-size" B_ " " _U "size_crit" U_ "\n"
     "       " SIZE_HELP "\n"
     "    " _B "-name" B_ " " _U "filename" U_ "\n"
+    "    " _B "-nlink" B_ " " _U "count" U_ "\n"
     "    " _B "-crtime" B_ " " _U "time_crit" U_ "\n"
     "       " TIME_HELP "\n"
     "    " _B "-ctime" B_ " " _U "time_crit" U_ "\n"
@@ -1339,6 +1356,24 @@ int main(int argc, char **argv)
             prog_options.name = optarg;
             prog_options.nameneg = neg;
             prog_options.iname = 1;
+            neg = false;
+            break;
+
+        case NLINK_OPT:
+            toggle_option(match_nlink, "nlink");
+            prog_options.nlink_compar = prefix2comp(&optarg);
+            prog_options.nlink_val = str2int(optarg);
+            if (prog_options.nlink_val == (unsigned int)-1) {
+                fprintf(stderr,
+                        "invalid links value '%s': integer expected\n",
+                        optarg);
+                exit(1);
+            }
+            if (neg) {
+                fprintf(stderr,
+                        "! (-not) is not supported for links criteria\n");
+                exit(1);
+            }
             neg = false;
             break;
 
