@@ -9468,6 +9468,7 @@ function test_find
     check_find $RH_ROOT "-f $cfg -type f -size 10k" 1
     check_find $RH_ROOT "-f $cfg -type f -size -1M" 5
     check_find $RH_ROOT "-f $cfg -type f -size -10k" 4
+    check_find $RH_ROOT "-f $cfg -type f -! -size -10k" 2
 
     echo "testing user/group filter..."
     check_find $RH_ROOT "-f $cfg -user daemon" 1
@@ -9520,10 +9521,12 @@ function test_find
     # the same with another syntax
     check_find $RH_ROOT "-f $cfg -mmin +120" 0  #none
     check_find $RH_ROOT "-f $cfg -mmin -120" $((12+extra_dir)) #all
+    check_find $RH_ROOT "-f $cfg -not -mmin +120" $((12+extra_dir)) #all
 
     check_find $RH_ROOT "-f $cfg -links 2" 3 # directories with no child dir
     check_find $RH_ROOT "-f $cfg -links +2" 3 # directories with child dir
-    check_find $RH_ROOT "-f $cfg -links -2" 6 # files
+    check_find $RH_ROOT "-f $cfg -links -2" 6 # all files
+    check_find $RH_ROOT "-f $cfg -! -links -2" 6 # all directories (same as +1)
 
     # restore default striping
     if [ -z "$POSIX_MODE" ]; then
