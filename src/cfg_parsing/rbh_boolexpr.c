@@ -148,6 +148,8 @@ static struct criteria_descr_t {
                         PFLG_POSITIVE | PFLG_COMPARABLE},
     [CRITERIA_DIRCOUNT] = {"dircount", ATTR_MASK_dircount, PT_INT,
                            PFLG_POSITIVE | PFLG_COMPARABLE},
+    [CRITERIA_NLINK] = {"nlink", ATTR_MASK_nlink, PT_INT,
+                            PFLG_POSITIVE | PFLG_COMPARABLE},
     [CRITERIA_LAST_ACCESS] = {"last_access", ATTR_MASK_last_access, PT_DURATION,
                               PFLG_POSITIVE | PFLG_COMPARABLE},
     [CRITERIA_LAST_MOD] = {"last_mod", ATTR_MASK_last_mod, PT_DURATION,
@@ -1079,6 +1081,7 @@ static int print_condition(const compare_triplet_t *p_triplet, char *out_str,
     case CRITERIA_OST:
 #endif
     case CRITERIA_DIRCOUNT:
+    case CRITERIA_NLINK:
         return snprintf(out_str, str_size, "%s %s %d",
                         criteria2str(p_triplet->crit), op2str(p_triplet->op),
                         p_triplet->val.integer);

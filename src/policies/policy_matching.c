@@ -658,6 +658,12 @@ int criteria2filter(const compare_triplet_t *p_comp,
         p_value->value.val_uint = p_comp->val.integer;
         break;
 
+    case CRITERIA_NLINK:
+        *p_attr_index = ATTR_INDEX_nlink;
+        *p_compar = Policy2FilterComparator(p_comp->op, p_comp->flags);
+        p_value->value.val_uint = p_comp->val.integer;
+        break;
+
     case CRITERIA_LAST_ACCESS:
         *p_attr_index = ATTR_INDEX_last_access;
 
@@ -971,6 +977,14 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
         CHECK_ATTR(p_entry_attr, dircount, no_warning);
 
         rc = int_compare(ATTR(p_entry_attr, dircount), p_triplet->op,
+                         p_triplet->val.integer);
+        return bool2policy_match(rc);
+
+    case CRITERIA_NLINK:
+        /* nlink is required */
+        CHECK_ATTR(p_entry_attr, nlink, no_warning);
+
+        rc = int_compare(ATTR(p_entry_attr, nlink), p_triplet->op,
                          p_triplet->val.integer);
         return bool2policy_match(rc);
 
