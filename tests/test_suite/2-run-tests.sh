@@ -9498,6 +9498,9 @@ function test_find
         check_find $RH_ROOT "-f $cfg -ost 0" 5 # all files but 1
         check_find $RH_ROOT "-f $cfg -ost 1" 5 # all files but 1
         check_find $RH_ROOT/dir.2/dir.2 "-f $cfg -ost 1" 1  # all files in dir.2 but 1
+        check_find "" "-f $cfg -ost 0-5,12" 6 # all files, only have 2 ost but tests parsing
+        check_find $RH_ROOT "-f $cfg -ost 0-5,12" 6 # all files
+        check_find $RH_ROOT/dir.2/dir.2 "-f $cfg -ost 0-5,12" 2  # all files in dir.2/dir.2
     fi
 
     echo "testing mtime filter..."

@@ -27,7 +27,7 @@ struct find_opt {
     uint64_t        sz_val;
     const char     *name;
     const char     *class;
-    unsigned int    ost_idx;
+    value_list_t    ost_set;
     const char     *pool;
     /* status manager for -lsstatus */
     const char     *lsstatus_name;
