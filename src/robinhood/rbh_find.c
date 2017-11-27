@@ -640,22 +640,22 @@ static const char *opt2type(const char *type_opt)
     }
 }
 
-static compare_direction_t prefix2comp(char **curr)
+static compare_direction_t prefix2comp(char **curr, bool neg)
 {
     char *str = *curr;
 
     if (str[0] == '+') {
         (*curr)++;
-        return COMP_GRTHAN;
+        return neg ? COMP_LSTHAN_EQ : COMP_GRTHAN;
     } else if (str[0] == '-') {
         (*curr)++;
-        return COMP_LSTHAN;
+        return neg ? COMP_GRTHAN_EQ : COMP_LSTHAN;
     } else
-        return COMP_EQUAL;
+        return neg ? COMP_DIFF : COMP_EQUAL;
 }
 
 /* parse size filter and set prog_options struct */
-static int set_size_filter(char *str)
+static int set_size_filter(char *str, bool neg)
 {
     compare_direction_t comp;
     char *curr = str;
@@ -663,7 +663,7 @@ static int set_size_filter(char *str)
     char suffix[1024];
     int n;
 
-    comp = prefix2comp(&curr);
+    comp = prefix2comp(&curr, neg);
 
     n = sscanf(curr, "%" PRIu64 "%s", &val, suffix);
     if (n < 1 || n > 2) {
@@ -713,7 +713,8 @@ static int set_size_filter(char *str)
 typedef enum { atime, rh_crtime, mtime, rh_ctime } e_time;
 /* parse time filter and set prog_options struct */
 static int set_time_filter(char *str, unsigned int multiplier,
-                           bool allow_suffix, e_time what)
+                           bool allow_suffix, e_time what,
+                           bool neg)
 {
     compare_direction_t comp;
     char *curr = str;
@@ -721,7 +722,7 @@ static int set_time_filter(char *str, unsigned int multiplier,
     char suffix[1024];
     int n;
 
-    comp = prefix2comp(&curr);
+    comp = prefix2comp(&curr, neg);
 
     n = sscanf(curr, "%" PRIu64 "%s", &val, suffix);
     /* allow_suffix => 1 or 2 is allowed
@@ -1361,17 +1362,12 @@ int main(int argc, char **argv)
 
         case NLINK_OPT:
             toggle_option(match_nlink, "nlink");
-            prog_options.nlink_compar = prefix2comp(&optarg);
+            prog_options.nlink_compar = prefix2comp(&optarg, neg);
             prog_options.nlink_val = str2int(optarg);
             if (prog_options.nlink_val == (unsigned int)-1) {
                 fprintf(stderr,
                         "invalid links value '%s': integer expected\n",
                         optarg);
-                exit(1);
-            }
-            if (neg) {
-                fprintf(stderr,
-                        "! (-not) is not supported for links criteria\n");
                 exit(1);
             }
             neg = false;
@@ -1455,92 +1451,60 @@ int main(int argc, char **argv)
 
         case 's':
             toggle_option(match_size, "size");
-            if (set_size_filter(optarg))
+            if (set_size_filter(optarg, neg))
                 exit(1);
-            if (neg) {
-                fprintf(stderr,
-                        "! (-not) is not supported for size criteria\n");
-                exit(1);
-            }
+            neg = false;
             break;
 
         case 'A':
             toggle_option(match_atime, "atime/amin");
-            if (set_time_filter(optarg, 0, true, atime))
+            if (set_time_filter(optarg, 0, true, atime, neg))
                 exit(1);
-            if (neg) {
-                fprintf(stderr,
-                        "! (-not) is not supported for time criteria\n");
-                exit(1);
-            }
+            neg = false;
             break;
 
         case 'a':
             toggle_option(match_atime, "atime/amin");
-            if (set_time_filter(optarg, 60, true, atime))
+            if (set_time_filter(optarg, 60, true, atime, neg))
                 exit(1);
-            if (neg) {
-                fprintf(stderr,
-                        "! (-not) is not supported for time criteria\n");
-                exit(1);
-            }
+            neg = false;
             break;
 
         case 'c':
             toggle_option(match_crtime, "crtime");
-            if (set_time_filter(optarg, 0, true, rh_crtime))
+            if (set_time_filter(optarg, 0, true, rh_crtime, neg))
                 exit(1);
-            if (neg) {
-                fprintf(stderr,
-                        "! (-not) is not supported for time criteria\n");
-                exit(1);
-            }
+            neg = false;
             break;
 
         case 'C':
             toggle_option(match_ctime, "ctime");
-            if (set_time_filter(optarg, 0, true, rh_ctime))
+            if (set_time_filter(optarg, 0, true, rh_ctime, neg))
                 exit(1);
-            if (neg) {
-                fprintf(stderr,
-                        "! (-not) is not supported for time criteria\n");
-                exit(1);
-            }
+            neg = false;
             break;
 
         case 'M':
             toggle_option(match_mtime, "mtime/mmin/msec");
-            if (set_time_filter(optarg, 0, true, mtime))
+            if (set_time_filter(optarg, 0, true, mtime, neg))
                 exit(1);
-            if (neg) {
-                fprintf(stderr,
-                        "! (-not) is not supported for time criteria\n");
-                exit(1);
-            }
+            neg = false;
             break;
 
         case 'm':
             toggle_option(match_mtime, "mtime/mmin/msec");
             /* don't allow suffix (multiplier is 1min) */
-            if (set_time_filter(optarg, 60, false, mtime))
+            if (set_time_filter(optarg, 60, false, mtime, neg))
                 exit(1);
-            if (neg) {
-                fprintf(stderr,
-                        "! (-not) is not supported for time criteria\n");
-                exit(1);
-            }
+            neg = false;
             break;
 
         case 'z':
             toggle_option(match_mtime, "mtime/mmin/msec");
             /* don't allow suffix (multiplier is 1sec) */
-            if (set_time_filter(optarg, 1, false, mtime))
+            if (set_time_filter(optarg, 1, false, mtime, neg))
                 exit(1);
-            if (neg) {
-                fprintf(stderr,
-                        "! (-not) is not supported for time criteria\n");
-                exit(1);
-            }
+            neg = false;
             break;
 
         case 'S':
