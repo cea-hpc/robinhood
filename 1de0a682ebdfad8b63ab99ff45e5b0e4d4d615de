@@ -1,0 +1,61 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "6f7483c1_ef7b1dc8",
+        "filename": "src/robinhood/rbh_find.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 59,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-27T15:23:14Z",
+      "side": 1,
+      "message": "find option name is \"links\"\nYou can also define both options if you find it more convenient/intuitive to use.",
+      "range": {
+        "startLine": 59,
+        "startChar": 6,
+        "endLine": 59,
+        "endChar": 11
+      },
+      "revId": "1de0a682ebdfad8b63ab99ff45e5b0e4d4d615de",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fa7eecae_b317e4e6",
+        "filename": "src/robinhood/rbh_find.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 252,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-27T15:23:14Z",
+      "side": 1,
+      "message": "you should take example on size criteria to support +/- options",
+      "revId": "1de0a682ebdfad8b63ab99ff45e5b0e4d4d615de",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "3c92d06c_05b58f0a",
+        "filename": "src/robinhood/rbh_find.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 29,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-27T15:23:14Z",
+      "side": 1,
+      "message": "nlink criteria is declared and handled as a uint.\nSo it should be a uint32_t here too.",
+      "revId": "1de0a682ebdfad8b63ab99ff45e5b0e4d4d615de",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
