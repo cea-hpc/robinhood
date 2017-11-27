@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "29a7506e_3d346a63",
+        "filename": "src/modules/rebind.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 21,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-27T13:44:22Z",
+      "side": 1,
+      "message": "typo",
+      "range": {
+        "startLine": 21,
+        "startChar": 1,
+        "endLine": 21,
+        "endChar": 6
+      },
+      "revId": "b85cef11740d3d96ee3599e3b0c5da454d69fcb1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
