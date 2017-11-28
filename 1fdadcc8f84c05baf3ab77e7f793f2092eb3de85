@@ -137,6 +137,29 @@
       "revId": "1fdadcc8f84c05baf3ab77e7f793f2092eb3de85",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "a2cebcf9_a48c6013",
+        "filename": "src/modules/Makefile.am",
+        "patchSetId": 5
+      },
+      "lineNbr": 53,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-28T15:46:07Z",
+      "side": 1,
+      "message": "Add this before -llustrehpssapi:\n\n -Wl,-rpath,/opt/hpss/lib",
+      "range": {
+        "startLine": 53,
+        "startChar": 53,
+        "endLine": 53,
+        "endChar": 54
+      },
+      "revId": "1fdadcc8f84c05baf3ab77e7f793f2092eb3de85",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
