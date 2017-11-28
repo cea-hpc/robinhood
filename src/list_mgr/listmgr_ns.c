@@ -85,6 +85,7 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
     int path_len;
     int                rc, i;
     GString           *req = NULL;
+    GString           *fields = NULL;
     GString           *from = NULL;
     GString           *where = NULL;
     struct field_count field_cnt = {0};
@@ -102,9 +103,7 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
     /* always request for name to build fullpath in wagon */
     attr_mask_set_index(&attr_mask, ATTR_INDEX_name);
 
-    /* request is always on the DNAMES table (which contains [parent_id, id] relationship */
-
-    req = g_string_new("SELECT "DNAMES_TABLE".id");
+    fields = g_string_new(NULL);
 
     /* append fields for all tables */
     if (!attr_mask_is_null(attr_mask))
@@ -112,15 +111,15 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
         /* retrieve source info for generated fields */
         add_source_fields_for_gen(&attr_mask.std);
 
-        field_cnt.nb_names = attrmask2fieldlist(req, attr_mask, T_DNAMES,
+        field_cnt.nb_names = attrmask2fieldlist(fields, attr_mask, T_DNAMES,
                                                 DNAMES_TABLE".", "",
                                                 AOF_LEADING_SEP);
 
-        field_cnt.nb_main = attrmask2fieldlist(req, attr_mask, T_MAIN,
+        field_cnt.nb_main = attrmask2fieldlist(fields, attr_mask, T_MAIN,
                                                MAIN_TABLE".", "",
                                                AOF_LEADING_SEP);
 
-        field_cnt.nb_annex = attrmask2fieldlist(req, attr_mask, T_ANNEX,
+        field_cnt.nb_annex = attrmask2fieldlist(fields, attr_mask, T_ANNEX,
                                                 ANNEX_TABLE".", "",
                                                 AOF_LEADING_SEP);
     }
@@ -174,8 +173,14 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
     filter_from(p_mgr, &filter_cnt, from, &query_tab, &distinct,
                 AOF_LEADING_SEP | AOF_SKIP_NAME);
 
+    /* request is always on the DNAMES table (which contains [parent_id, id] relationship */
+    if (distinct)
+        req = g_string_new("SELECT DISTINCT("DNAMES_TABLE".id) as id");
+    else
+        req = g_string_new("SELECT "DNAMES_TABLE".id as id");
+
     /* build the whole request */
-    g_string_append_printf(req, " FROM %s WHERE %s", from->str, where->str);
+    g_string_append_printf(req, "%s FROM %s WHERE %s", fields->str, from->str, where->str);
 
 retry:
     rc = db_exec_sql(&p_mgr->conn, req->str, &result);
@@ -290,6 +295,7 @@ retry:
 
     db_result_free(&p_mgr->conn, &result);
     g_string_free(req, TRUE);
+    g_string_free(fields, TRUE);
     g_string_free(from, TRUE);
     g_string_free(where, TRUE);
     return 0;
@@ -305,11 +311,9 @@ array_free:
     MemFree(*child_id_list);
     *child_id_list = NULL;
 free_str:
-    if (req != NULL)
-        g_string_free(req, TRUE);
-    if (from != NULL)
-        g_string_free(from, TRUE);
-    if (where != NULL)
-        g_string_free(where, TRUE);
+    g_string_free(req, TRUE);
+    g_string_free(fields, TRUE);
+    g_string_free(from, TRUE);
+    g_string_free(where, TRUE);
     return rc;
 }
