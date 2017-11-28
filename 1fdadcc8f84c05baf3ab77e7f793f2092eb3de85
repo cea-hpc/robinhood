@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "a0f44331_55de3f90",
+        "filename": "configure.ac",
+        "patchSetId": 5
+      },
+      "lineNbr": 375,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-28T15:13:31Z",
+      "side": 1,
+      "message": "(defect) \"lib\" at the beginning is implicit (e.g. shooksvr above)\n\n(defect) AC_CHECK_LIB fails because of missing symbols. Specify library options as 5th argument.\n\nAs a summary, use the following statement and it works:\n            AC_CHECK_LIB([lustrehpssapi], [lhsm_hpss_init], [have_hpss\u003d\"yes\"],, \n                         [-L/opt/hpss/lib -llustreapi -lhpss -lpthread -lhpsscs -ltirpc])",
+      "range": {
+        "startLine": 375,
+        "startChar": 26,
+        "endLine": 375,
+        "endChar": 42
+      },
+      "revId": "1fdadcc8f84c05baf3ab77e7f793f2092eb3de85",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
