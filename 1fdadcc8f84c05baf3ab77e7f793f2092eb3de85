@@ -22,6 +22,121 @@
       "revId": "1fdadcc8f84c05baf3ab77e7f793f2092eb3de85",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "086f9f19_d7765da7",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 5
+      },
+      "lineNbr": 207,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-28T15:17:21Z",
+      "side": 1,
+      "message": "mod-hpss_rebind",
+      "range": {
+        "startLine": 207,
+        "startChar": 13,
+        "endLine": 207,
+        "endChar": 19
+      },
+      "revId": "1fdadcc8f84c05baf3ab77e7f793f2092eb3de85",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "8b3fdecf_97f96688",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 5
+      },
+      "lineNbr": 213,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-28T15:17:21Z",
+      "side": 1,
+      "message": "mod-hpss_rebind",
+      "range": {
+        "startLine": 213,
+        "startChar": 16,
+        "endLine": 213,
+        "endChar": 23
+      },
+      "revId": "1fdadcc8f84c05baf3ab77e7f793f2092eb3de85",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "09cf42c3_3e7b987f",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 5
+      },
+      "lineNbr": 399,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-28T15:17:21Z",
+      "side": 1,
+      "message": "hpss_rebind",
+      "range": {
+        "startLine": 399,
+        "startChar": 31,
+        "endLine": 399,
+        "endChar": 32
+      },
+      "revId": "1fdadcc8f84c05baf3ab77e7f793f2092eb3de85",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "89b86e47_21f7fb30",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 5
+      },
+      "lineNbr": 399,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-28T15:17:21Z",
+      "side": 1,
+      "message": "mod-hpss_rebind",
+      "range": {
+        "startLine": 398,
+        "startChar": 15,
+        "endLine": 399,
+        "endChar": 7
+      },
+      "revId": "1fdadcc8f84c05baf3ab77e7f793f2092eb3de85",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9a92a267_3d65b831",
+        "filename": "robinhood.spec.in",
+        "patchSetId": 5
+      },
+      "lineNbr": 433,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-28T15:17:21Z",
+      "side": 1,
+      "message": "hpss_rebind",
+      "range": {
+        "startLine": 433,
+        "startChar": 40,
+        "endLine": 433,
+        "endChar": 42
+      },
+      "revId": "1fdadcc8f84c05baf3ab77e7f793f2092eb3de85",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
