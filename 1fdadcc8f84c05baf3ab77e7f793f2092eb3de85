@@ -187,6 +187,46 @@
     },
     {
       "key": {
+        "uuid": "7c85e668_7c16348a",
+        "filename": "src/modules/hpss_rebind.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 120,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-29T13:19:00Z",
+      "side": 1,
+      "message": "check hpss_path !\u003d NULL",
+      "revId": "1fdadcc8f84c05baf3ab77e7f793f2092eb3de85",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ddef67ed_481069df",
+        "filename": "src/modules/hpss_rebind.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 122,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-29T13:19:00Z",
+      "side": 1,
+      "message": "(defect) void * expected, not void **",
+      "range": {
+        "startLine": 122,
+        "startChar": 24,
+        "endLine": 122,
+        "endChar": 25
+      },
+      "revId": "1fdadcc8f84c05baf3ab77e7f793f2092eb3de85",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "76efc109_27a47a14",
         "filename": "src/modules/hpss_rebind.c",
         "patchSetId": 5
