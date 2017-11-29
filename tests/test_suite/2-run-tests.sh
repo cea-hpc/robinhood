@@ -9818,16 +9818,42 @@ function test_multirule_select
     config_file=$1
     logfile=rh_multirule.log
     rm -f $logfile
+    
+    touch -d "now-1day" $RH_ROOT/file.foo
+    touch -d "now-1day" $RH_ROOT/file.bar
+    touch -d "now-1day" $RH_ROOT/root_owned
+    touch -d "now-1day" $RH_ROOT/noroot
+    chown testuser $RH_ROOT/noroot
+    mkdir -p $RH_ROOT/scratch/tmp
+    touch -d "now-1day" $RH_ROOT/scratch/file
+    touch -d "now-1day" $RH_ROOT/scratch/noroot
+    chown testuser $RH_ROOT/scratch/noroot
+    touch -d "now-1day" $RH_ROOT/scratch/tmp/file
+    touch -d "now-1day" $RH_ROOT/file.1
+    touch -d "now-1day" $RH_ROOT/file.2
+    touch -d "now-1day" $RH_ROOT/file.3
 
-    # run one pass lhsm_archive - need full scan first
+    # scan test entries and run cleanup
     $RH -f $RBH_CFG_DIR/$config_file --scan --once 2>&1 > /dev/null
     $RH -f $RBH_CFG_DIR/$config_file --run=cleanup -L $logfile -l FULL -O
 
+    # ignored: foo, bar
+
+    check_rule_and_class $logfile $RH_ROOT/root_owned "scratch_tmp_cleanup" "root_files"
+    check_rule_and_class $logfile $RH_ROOT/noroot "default" ""
+    check_rule_and_class $logfile $RH_ROOT/scratch/file "scratch_cleanup" "scratch_files"
+    check_rule_and_class $logfile $RH_ROOT/scratch/noroot "scratch_cleanup" "scratch_files"
+    check_rule_and_class $logfile $RH_ROOT/scratch/tmp/file "scratch_tmp_cleanup" "scratch_tmp_files"
+    check_rule_and_class $logfile $RH_ROOT/file.1 "nocond_cleanup1" "files1"
+    check_rule_and_class $logfile $RH_ROOT/file.2 "nocond_cleanup2" "files2"
+    check_rule_and_class $logfile $RH_ROOT/file.3 "nocond_cleanup2" "files3"
+
     # check
     grep "AS id FROM ENTRIES" $logfile |
-      grep "OR ENTRIES.invalid IS NULL) AND ((((ENTRIES.last_access" |
-      grep "OR ENTRIES.last_mod IS NULL" |
-      grep -q "AND NOT (ENTRIES.fileclass LIKE BINARY '%+foo_files+%')" ||
+      grep "OR ENTRIES.invalid IS NULL) AND NOT (ENTRIES.fileclass LIKE" |
+      grep "OR ENTRIES.last_mod IS NULL) AND ENTRIES.fileclass LIKE BINARY '%+scratch_files+%" |
+      grep "OR (ENTRIES.fileclass LIKE BINARY '%+files1+%') OR" |
+      grep "ENTRIES.fileclass LIKE BINARY '%+files2+%' OR ENTRIES.fileclass LIKE BINARY '%+files3+%'" ||
       error "multirule_select query block incorrect"
 
     grep "Error 7 executing query" $logfile > /dev/null &&

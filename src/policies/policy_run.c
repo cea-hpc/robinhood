@@ -811,164 +811,200 @@ static bool check_queue_limit(policy_info_t *pol,
 }
 
 /**
+ * Count how many rules can be translated to SQL query
+ */
+static int count_valid_rules(policy_info_t *policy, const policy_rules_t *rules)
+{
+    int valid_db_rules = 0;
+    int i;
+
+    for (i = 0; i < rules->rule_count; i++) {
+        int j, tc = 0;
+        /**
+         * Rule can be translated to SQL statement if any condition
+         * can be translated
+         * or targets class with report = yes
+         */
+        if (cond2sql_ok(&rules->rules[i].condition,
+                        policy->descr->status_mgr,
+                        policy->time_modifier))
+            valid_db_rules++;
+        else if (!policy->config->recheck_ignored_entries) {
+            for (j = 0; j < rules->rules[i].target_count; j++)
+                if (rules->rules[i].target_list[j]->matchable)
+                    tc++;
+            if (tc > 0)
+                valid_db_rules++;
+        }
+    }
+    return valid_db_rules;
+}
+
+/**
  * build a filter from from policy rules for DB query
  */
-static void build_rule_filters(policy_info_t *policy,
-                                    lmgr_filter_t *p_filter)
+static void set_rule_filters(policy_info_t *policy,
+                             lmgr_filter_t *p_filter)
 {
     policy_rules_t *rules = &policy->descr->rules;
+    int valid_db_rules;
+    int i;
+    bool is_first_rule = true;
 
-    /*
-     * Try to convert policy rules to simple filter
-     * using all rules and filesets with report flag set.
-     */
-    if (rules->rule_count) {
-        int i;
-        int valid_db_rules = 0;
+    /* each rule is a set of target fileclasses and conditions */
+    /* 'AND' with previous filters */
+    /* 'OR' between rules */
+    /* 'OR' between rule targets */
+    /* 'AND' rule targets and condition */
 
-        /**
-         * Count how many rules can be translated to SQL query
-         */
-        for (i = 0; i < policy->descr->rules.rule_count; i++) {
-            int j, tc = 0;
-            /**
-             * Rule can be translated to SQL statement if any condition
-             * can be translated
-             * or targets class with report = yes
-             */
-            if (cond2sql_ok(&rules->rules[i].condition,
-                                 policy->descr->status_mgr,
-                                 policy->time_modifier))
-                valid_db_rules++;
-            else {
-                for(j = 0; j < policy->descr->rules.rules[i].target_count; j++)
-                    if (policy->descr->rules.rules[i].target_list[j]->matchable)
-                        tc++;
-                if ( tc > 0)
-                    valid_db_rules++;
-            }
-        }
+    valid_db_rules = count_valid_rules(policy, rules);
 
-        if (valid_db_rules > 1)
-            lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_BEGIN_BLOCK);
+    if (valid_db_rules == 0)
+        return;
 
-        for (i = 0; i < rules->rule_count; i++) {
-            int j, tc = 0;
-            rule_item_t *rule = &rules->rules[i];
-            bool cond_valid = cond2sql_ok(&rules->rules[i].condition,
-                                               policy->descr->status_mgr,
-                                               policy->time_modifier);
+    /* Always add opening/closing parenthesis, no matter if there is a single
+     * expression. This adds "AND" before the block.
+     * It make the code simpler and easier to follow. */
+    lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_BEGIN_BLOCK);
 
-            /* count matchables fileclasses for current rule */
+    /* rules are "ORed" together */
+    for (i = 0; i < rules->rule_count; i++) {
+        int j, tc = 0;
+        rule_item_t *rule = &rules->rules[i];
+        bool cond_valid = cond2sql_ok(&rule->condition,
+                                      policy->descr->status_mgr,
+                                      policy->time_modifier);
+
+        /* count matchables fileclasses for current rule */
+        if (!policy->config->recheck_ignored_entries) {
             for (j = 0; j < rule->target_count; j++) {
                 if (rule->target_list[j]->matchable)
                     tc++;
             }
-            if (cond_valid && (tc > 1 || valid_db_rules > 1))
-                lmgr_simple_filter_add_block(p_filter,
-                   rules->rule_count > 1
-                   ? FILTER_FLAG_BEGIN_BLOCK | FILTER_FLAG_OR
-                   : FILTER_FLAG_BEGIN_BLOCK);
+        }
+
+        if (cond_valid == 0 && tc == 0)
+            continue;
+
+        /* The condition is valid or the fileclass is matchable:
+         * start a new block.
+         * 'OR' with previous blocks if is is not the first. */
+        lmgr_simple_filter_add_block(p_filter, is_first_rule ?
+            FILTER_FLAG_BEGIN_BLOCK :
+            FILTER_FLAG_BEGIN_BLOCK | FILTER_FLAG_OR);
+        is_first_rule = false;
+
+        /* If the condition is valid, add its SQL. We are in a dedicated sub-block
+         * and we want to "AND" with fileclass expression (if any). */
+        if (cond_valid) {
             if (convert_boolexpr_to_simple_filter(&rule->condition,
-                 p_filter, policy->descr->status_mgr, policy->time_modifier,
-                 policy->descr->manage_deleted ? FILTER_FLAG_ALLOW_NULL : 0,
-                 rules->rule_count > 1 ? BOOL_OR : BOOL_AND)) {
-                DisplayLog(LVL_FULL, tag(policy),
+                                            p_filter, policy->descr->status_mgr,
+                                            policy->time_modifier,
+                                            policy->descr->manage_deleted ?
+                                                FILTER_FLAG_ALLOW_NULL : 0,
+                                            BOOL_AND))
+                DisplayLog(LVL_DEBUG, tag(policy),
                            "Could not convert rule '%s' to simple filter.",
                            rule->rule_id);
-            }
-            if (tc && (!policy->config->recheck_ignored_entries)) {
-                filter_value_t fval;
-                memset(&fval, 0, sizeof(fval));
-                if (tc > 1)
-                    lmgr_simple_filter_add_block(p_filter,
-                                                 FILTER_FLAG_BEGIN_BLOCK);
-                for (j = 0; j < rule->target_count; j++) {
-                    if (rule->target_list[j]->matchable) {
-                        fval.value.val_str =
-                            rule->target_list[j]->fileset_id;
-                        lmgr_simple_filter_add(p_filter, ATTR_INDEX_fileclass,
-                                               EQUAL, fval,
-                                               tc > 1 ? FILTER_FLAG_OR : 0);
-                    }
+        }
+
+        /* AND with fileclass criteria */
+        if (tc > 0) {
+            filter_value_t fval;
+
+            /* if tc > 1, make a subblock with ORed fielclasses */
+            if (tc > 1)
+                lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_BEGIN_BLOCK);
+
+            memset(&fval, 0, sizeof(fval));
+
+            bool first = 1;
+            for (j = 0; j < rule->target_count; j++) {
+                if (rule->target_list[j]->matchable) {
+                    fval.value.val_str =
+                        rule->target_list[j]->fileset_id;
+                    lmgr_simple_filter_add(p_filter, ATTR_INDEX_fileclass,
+                                           EQUAL, fval,
+                                           first ? 0 : FILTER_FLAG_OR);
+                    first = 0;
                 }
-                if (tc > 1)
-                    lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
             }
-            if (cond_valid && (tc > 1 || valid_db_rules > 1))
+            if (tc > 1)
                 lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
         }
-        if (valid_db_rules > 1)
-            lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
+        lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
+    }
+    lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
+}
+
+/** Add DB filters according to 'ignore_fileclass' and 'ignore' statements */
+static void set_ignore_filters(policy_info_t *policy, lmgr_filter_t *filter)
+{
+    policy_rules_t *rules = &policy->descr->rules;
+    int i;
+
+    /* force checking ignored entries and fileclasses */
+    if (policy->config->recheck_ignored_entries)
+        return;
+
+    /* don't select files in ignored classes */
+    for (i = 0; i < rules->ignore_count; i++) {
+        filter_value_t fval;
+        int flags = 0;
+
+        fval.value.val_str = rules->ignore_list[i]->fileset_id;
+        if (i == 0)
+            /* XXX why "NOT_END" only for the first ignore_fileclass? */
+            flags = FILTER_FLAG_NOT_BEGIN | FILTER_FLAG_NOT_END;
+        else
+            flags = FILTER_FLAG_NOT;
+        lmgr_simple_filter_add(filter, ATTR_INDEX_fileclass, EQUAL,
+                               fval, flags);
+    }
+
+    /* don't select entries maching 'ignore' statements */
+    for (i = 0; i < rules->whitelist_count; i++) {
+        if (convert_boolexpr_to_simple_filter(
+            &rules->whitelist_rules[i].bool_expr, filter,
+            policy->descr->status_mgr, policy->time_modifier,
+            /* XXX Only ALLOW_NULL once (?) */
+            (policy->descr->manage_deleted && i == 0) ?
+             FILTER_FLAG_ALLOW_NULL | FILTER_FLAG_NOT
+             : FILTER_FLAG_NOT, BOOL_AND)) {
+            DisplayLog(LVL_DEBUG, tag(policy),
+                       "Could not convert 'ignore' rule to simple filter.");
+            DisplayLog(LVL_EVENT, tag(policy),
+                       "Warning: 'ignore' rule is too complex and may "
+                       "affect policy run performance");
+        }
     }
 }
 
 /**
- * build a filter from policies, to optimize DB queries.
+ * Add time filter based on sort order and last checked entry
  */
-static int set_optimization_filters(policy_info_t *policy,
-                                    lmgr_filter_t *p_filter)
+static void set_time_optim_filter(policy_info_t *policy, lmgr_filter_t *filter)
 {
-    policy_rules_t *rules = &policy->descr->rules;
-/** @TODO build a filter for getting the union of all filesets/conditions */
+    filter_value_t fval;
+    char datestr[128];
+    struct tm ts;
 
-    // Convert rule policies to filter
-    build_rule_filters(policy, p_filter);
-
-    if (!policy->config->recheck_ignored_entries) {
-        int i;
-
-        /* don't select files in ignored classes */
-        for (i = 0; i < rules->ignore_count; i++) {
-            filter_value_t fval;
-            int flags = 0;
-
-            fval.value.val_str = rules->ignore_list[i]->fileset_id;
-            if (i == 0)
-                flags = FILTER_FLAG_NOT_BEGIN | FILTER_FLAG_NOT_END;
-            else
-                flags = FILTER_FLAG_NOT;
-            lmgr_simple_filter_add(p_filter, ATTR_INDEX_fileclass, EQUAL,
-                                   fval, flags);
-        }
-
-        /* don't select entries maching 'ignore' statements */
-        for (i = 0; i < rules->whitelist_count; i++) {
-            if (convert_boolexpr_to_simple_filter(
-                &rules->whitelist_rules[i].bool_expr, p_filter,
-                policy->descr->status_mgr, policy->time_modifier,
-                (policy->descr->manage_deleted && i == 0) ?
-                 FILTER_FLAG_ALLOW_NULL | FILTER_FLAG_NOT
-                 : FILTER_FLAG_NOT, BOOL_AND)) {
-                DisplayLog(LVL_DEBUG, tag(policy),
-                           "Could not convert 'ignore' rule to simple filter.");
-                DisplayLog(LVL_EVENT, tag(policy),
-                           "Warning: 'ignore' rule is too complex and may "
-                           "affect policy run performance");
-            }
-        }
-    }
+    /* no sort order or no previous filter: do nothing */
+    if (policy->config->lru_sort_attr == LRU_ATTR_NONE
+        || policy->first_eligible == 0)
+        return;
 
     /* avoid re-checking all old whitelisted entries at the beginning
      * of the list, so start from the first non-whitelisted file.
      * restart from initial file when no migration could be done. */
-    if ((policy->config->lru_sort_attr != LRU_ATTR_NONE)
-        && policy->first_eligible) {
-        filter_value_t fval;
-        char datestr[128];
-        struct tm ts;
-
-        fval.value.val_uint = policy->first_eligible;
-        lmgr_simple_filter_add(p_filter, policy->config->lru_sort_attr,
-                               MORETHAN, fval, 0);
-        strftime(datestr, 128, "%Y/%m/%d %T",
-                 localtime_r(&policy->first_eligible, &ts));
-        DisplayLog(LVL_EVENT, tag(policy),
-                   "Optimization: considering entries with %s newer than %s",
-                   sort_attr_name(policy), datestr);
-    }
-
-    return 0;
+    fval.value.val_uint = policy->first_eligible;
+    lmgr_simple_filter_add(filter, policy->config->lru_sort_attr,
+                           MORETHAN, fval, 0);
+    strftime(datestr, 128, "%Y/%m/%d %T",
+             localtime_r(&policy->first_eligible, &ts));
+    DisplayLog(LVL_EVENT, tag(policy),
+               "Optimization: considering entries with %s newer than %s",
+               sort_attr_name(policy), datestr);
 }
 
 /**
@@ -1782,6 +1818,26 @@ static int execute_prepost_run_command(const policy_info_t *policy,
 }
 
 /**
+ * Convert policy scope to filter.
+ * @param filter    Initialized listmgr filter
+ */
+static void add_scope_filter(policy_info_t *pol, lmgr_filter_t *filter)
+{
+    DisplayLog(LVL_FULL, tag(pol), "Converting scope to DB filter...");
+    if (convert_boolexpr_to_simple_filter(&pol->descr->scope, filter,
+                                          pol->descr->status_mgr,
+                                          pol->time_modifier,
+                                          pol->descr->manage_deleted ?
+                                            FILTER_FLAG_ALLOW_NULL : 0,
+                                          BOOL_AND)) {
+        DisplayLog(LVL_DEBUG, tag(pol),
+                   "Could not convert policy scope to simple filter.");
+        DisplayLog(LVL_EVENT, tag(pol), "Warning: scope definition is too "
+                   "complex and may affect policy run performance");
+    }
+}
+
+/**
 * This is called by triggers (or manual policy runs) to run a pass of a policy.
 * @param[in,out] p_pol_info   policy information and resources
 * @param[in]     p_param      parameters of this run (target, limit, ...)
@@ -1847,18 +1903,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
         return -1;
 
     /* filter entries in the policy scope */
-    DisplayLog(LVL_FULL, tag(p_pol_info),
-               "Converting scope to DB filter...");
-    if (convert_boolexpr_to_simple_filter
-        (&p_pol_info->descr->scope, &filter, p_pol_info->descr->status_mgr,
-         p_pol_info->time_modifier,
-         p_pol_info->descr->manage_deleted ? FILTER_FLAG_ALLOW_NULL : 0,
-         BOOL_AND)) {
-        DisplayLog(LVL_DEBUG, tag(p_pol_info),
-                   "Could not convert policy scope to simple filter.");
-        DisplayLog(LVL_EVENT, tag(p_pol_info),
-                   "Warning: scope definition is too complex and may affect policy run performance");
-    }
+    add_scope_filter(p_pol_info, &filter);
 
     if (!p_pol_info->descr->manage_deleted) {
         /* do not retrieve 'invalid' entries */
@@ -1878,8 +1923,15 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     FlushLogs();
 
     /* add optimisation filters based on policies */
-    if (!ignore_policies(p_pol_info))
-        set_optimization_filters(p_pol_info, &filter);
+    if (!ignore_policies(p_pol_info)) {
+        /* set filters based on 'ignore' and 'ignore_fileclass' statements */
+        set_ignore_filters(p_pol_info, &filter);
+
+        /* Convert policy rules to filter */
+        set_rule_filters(p_pol_info, &filter);
+    }
+
+    set_time_optim_filter(p_pol_info, &filter);
 
     /* Do not retrieve all entries at once, as the result may exceed
      * the client memory! */
