@@ -227,6 +227,29 @@
     },
     {
       "key": {
+        "uuid": "2f755e70_18b59ba9",
+        "filename": "src/modules/hpss_rebind.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 122,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-29T13:50:17Z",
+      "side": 1,
+      "message": "About flags:\n0 is dangerous because it moves entries in backend and is not idempotent. I\u0027d suggest IMPORT_FLG_KEEP_ORIG.\n\nIMPORT_FLG_FORCE_REBIND should be made configurable as a action_param (like backend_path). It is useful to fix something wrong (and to make the operation idempotent) e.g. else we get:\n  looks already bound to fid (null):0x1500000bd1:0x9dd5:0x0\nshook[10855]: Aren\u0027t you trying to recover (not importing)?",
+      "range": {
+        "startLine": 122,
+        "startChar": 67,
+        "endLine": 122,
+        "endChar": 68
+      },
+      "revId": "1fdadcc8f84c05baf3ab77e7f793f2092eb3de85",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "76efc109_27a47a14",
         "filename": "src/modules/hpss_rebind.c",
         "patchSetId": 5
