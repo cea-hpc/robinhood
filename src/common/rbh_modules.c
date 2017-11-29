@@ -130,7 +130,7 @@ static int module_load_from_file(const char *libfile, rbh_module_t *mod)
 
     memset(mod, 0, sizeof(*mod));
 
-    mod->sym_hdl = dlopen(libfile, RTLD_NOW);
+    mod->sym_hdl = dlopen(libfile, RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND);
     if (mod->sym_hdl == NULL) {
         DisplayLog(LVL_CRIT, MODULE_TAG, "Cannot dlopen() '%s': %s",
                    libfile, dlerror());
