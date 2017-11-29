@@ -2641,7 +2641,7 @@ function test_acct_borderline
     $REPORT -f $RBH_CFG_DIR/$config_file -u '*' -S --csv -q --szprof > rh_report.log || error "report error"
     [ "$DEBUG" = "1" ] && cat rh_report.log && echo "------"
 
-    # check records 
+    # check records
     line_values=($(grep "unknown,    unknown" rh_report.log | tr ',' ' '))
     [[ "${line_values[3]}" == 3 ]] || error "expected count: 3"
     [[ "${line_values[4]}" == 123 ]] || error "expected size: 123"
@@ -3842,6 +3842,40 @@ function test_action_params
     check_action_patterns rh_purge.log $id4 "echo" "$id4" "default" "4"
 }
 
+function test_nlink_crit
+{
+    config_file=$1
+
+    logfile=rh_purge.log
+    rm -f $logfile
+
+    # create test entries
+    touch $RH_ROOT/file.1
+    touch $RH_ROOT/file.2
+    ln $RH_ROOT/file.2 $RH_ROOT/file.3
+
+    # scan, then run the cleanup policy
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once 2>&1 > /dev/null
+    $RH -f $RBH_CFG_DIR/$config_file --run=cleanup -L $logfile -l FULL -O 2>/dev/null
+
+    check_rule_and_class $logfile $RH_ROOT/file.1 "file_cleanup" "single"
+
+    # it may be file.2 or file.3 (they are 2 hardlinks): test both
+    grep "success for '$RH_ROOT/file.2', matching rule 'link_cleanup' (fileset=dual)" $logfile ||
+    grep "success for '$RH_ROOT/file.3', matching rule 'link_cleanup' (fileset=dual)" $logfile ||
+        error "action success not found for file.2 or file.3, rule link_cleanup, class dual"
+
+    # update fileclass and run cleanup again
+    :> $logfile
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once 2>&1 > /dev/null
+    $RH -f $RBH_CFG_DIR/$config_file --run=cleanup -L $logfile -l FULL -O 2>/dev/null
+
+    # last link reference should be removed
+    grep "success for '$RH_ROOT/file.2', matching rule 'file_cleanup' (fileset=single)" $logfile ||
+    grep "success for '$RH_ROOT/file.3', matching rule 'file_cleanup' (fileset=single)" $logfile ||
+        error "action success not found for file.2 or file.3, rule file_cleanup, class single"
+}
+
 function test_manual_run
 {
 	config_file=$1
@@ -4586,7 +4620,7 @@ function test_checker
         error "scan error"
     check_db_error rh_scan.log
 
-     # if robinhood tree is available, use rbh_cksum.sh from script directory 
+     # if robinhood tree is available, use rbh_cksum.sh from script directory
     if [ -d "../../src/robinhood" ]; then
         export PATH="../../scripts/:$PATH"
     fi
@@ -9498,9 +9532,13 @@ function test_find
         check_find $RH_ROOT "-f $cfg -ost 0" 5 # all files but 1
         check_find $RH_ROOT "-f $cfg -ost 1" 5 # all files but 1
         check_find $RH_ROOT/dir.2/dir.2 "-f $cfg -ost 1" 1  # all files in dir.2 but 1
+        echo "testing ost set filters..."
         check_find "" "-f $cfg -ost 0-5,12" 6 # all files, only have 2 ost but tests parsing
         check_find $RH_ROOT "-f $cfg -ost 0-5,12" 6 # all files
         check_find $RH_ROOT/dir.2/dir.2 "-f $cfg -ost 0-5,12" 2  # all files in dir.2/dir.2
+        check_find "" "-f $cfg -type f -ost 0-5,12" 6 # all files, only have 2 ost but tests parsing
+        check_find $RH_ROOT "-f $cfg -type f -ost 0-5,12" 6 # all files
+        check_find $RH_ROOT/dir.2/dir.2 "-f $cfg -type f -ost 0-5,12" 2  # all files in dir.2/dir.2
     fi
 
     echo "testing mtime filter..."
@@ -9823,12 +9861,20 @@ function test_lhsm_archive
 
 function test_multirule_select
 {
+    # test doesnt work for POSIX as there are harcoded /mnt/lustre path in
+    # config
+    if [ -n "$POSIX_MODE" ]; then
+        echo "Lustre test only: skipped"
+        set_skipped
+        return 1
+    fi
+
     # test_multirule.conf "check sql query string in case of multiple rules"
 
     config_file=$1
     logfile=rh_multirule.log
     rm -f $logfile
-    
+
     touch -d "now-1day" $RH_ROOT/file.foo
     touch -d "now-1day" $RH_ROOT/file.bar
     touch -d "now-1day" $RH_ROOT/root_owned
@@ -13066,6 +13112,7 @@ run_test 200	path_test test_path.conf 2 "path matching policies"
 run_test 201	migration_test test1.conf 11 6 "last_mod>5s"
 run_test 202	migration_test test2.conf 5  6 "last_mod>5s and name == \"*[0-5]\""
 run_test 203	migration_test test3.conf 5  6 "complex policy with filesets"
+# test fileclasses that trigger later
 run_test 204	migration_test test3.conf 10 11 "complex policy with filesets"
 run_test 205	xattr_test test_xattr.conf 2 "xattr-based fileclass definition"
 run_test 206	purge_test test_purge.conf 11 16 "last_access > 15s"
@@ -13159,6 +13206,7 @@ run_test 238   test_lhsm_archive test_lhsm1.conf "check sql query string in case
 run_test 239   test_multirule_select test_multirule.conf "check sql query string in case of multiple rules"
 run_test 240   test_rmdir_depth  test_rmdir_depth.conf "check sql query for rmdir with depth condition"
 run_test 241   test_prepost_cmd  test_prepost_cmd.conf "test pre/post_run_command"
+run_test 242   test_nlink_crit  test_nlink.conf "test nlink criterion"
 
 #### triggers ####
 
