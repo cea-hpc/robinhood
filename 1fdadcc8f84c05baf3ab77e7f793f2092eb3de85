@@ -160,6 +160,29 @@
       "revId": "1fdadcc8f84c05baf3ab77e7f793f2092eb3de85",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "76efc109_27a47a14",
+        "filename": "src/modules/hpss_rebind.c",
+        "patchSetId": 5
+      },
+      "lineNbr": 196,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-11-29T08:10:41Z",
+      "side": 1,
+      "message": "Other status manager config blocks are named \u003cMOD_NAME\u003e_config\n\nI think it would be preferable to keep the same convention for all SM.",
+      "range": {
+        "startLine": 196,
+        "startChar": 31,
+        "endLine": 196,
+        "endChar": 39
+      },
+      "revId": "1fdadcc8f84c05baf3ab77e7f793f2092eb3de85",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
