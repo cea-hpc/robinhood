@@ -429,6 +429,7 @@ bool cond2sql_ok(bool_node_t *boolexpr,
         if (must_free)
             MemFree((char *)val.value.val_str);
 
+        /* FIXME: read only or generated? */
         if (readonly_fields(tmp))
             return false;
         else
