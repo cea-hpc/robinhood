@@ -1,0 +1,55 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "8ff2eda3_0e2350a9",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 3847,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-11-29T16:55:36Z",
+      "side": 1,
+      "message": "(style) mixed tab and space",
+      "revId": "bede58c915d443eae057798ee4b7c5ca00271e26",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ea2fd318_a82eee1b",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 3853,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-11-29T16:55:36Z",
+      "side": 1,
+      "message": "(style) trailing space -- there were some more in \"policy run: fix rules to sql conversion\" patch, linter doesn\u0027t run on .sh scripts?",
+      "revId": "bede58c915d443eae057798ee4b7c5ca00271e26",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "807b9165_1d638522",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 1
+      },
+      "lineNbr": 13107,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-11-29T16:55:36Z",
+      "side": 1,
+      "message": "(style) mixed space and tab",
+      "revId": "bede58c915d443eae057798ee4b7c5ca00271e26",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
