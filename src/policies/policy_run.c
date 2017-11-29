@@ -864,6 +864,7 @@ static void build_rule_filters(policy_info_t *policy,
                 if (rule->target_list[j]->matchable)
                     tc++;
             }
+
             if (cond_valid && (tc > 1 || valid_db_rules > 1))
                 lmgr_simple_filter_add_block(p_filter,
                    rules->rule_count > 1
@@ -880,20 +881,23 @@ static void build_rule_filters(policy_info_t *policy,
             if (tc && (!policy->config->recheck_ignored_entries)) {
                 filter_value_t fval;
                 memset(&fval, 0, sizeof(fval));
-                if (tc > 1)
-                    lmgr_simple_filter_add_block(p_filter,
-                                                 FILTER_FLAG_BEGIN_BLOCK);
+                lmgr_simple_filter_add_block(p_filter,
+                                             cond_valid ?
+                                             FILTER_FLAG_BEGIN_BLOCK :
+                                             FILTER_FLAG_BEGIN_BLOCK
+                                             | FILTER_FLAG_OR);
+                bool first = 1;
                 for (j = 0; j < rule->target_count; j++) {
                     if (rule->target_list[j]->matchable) {
                         fval.value.val_str =
                             rule->target_list[j]->fileset_id;
                         lmgr_simple_filter_add(p_filter, ATTR_INDEX_fileclass,
                                                EQUAL, fval,
-                                               tc > 1 ? FILTER_FLAG_OR : 0);
+                                               first ? 0 : FILTER_FLAG_OR);
+                        first = 0;
                     }
                 }
-                if (tc > 1)
-                    lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
+                lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
             }
             if (cond_valid && (tc > 1 || valid_db_rules > 1))
                 lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
