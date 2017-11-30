@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "c3f24723_ddf9ed5e",
+        "filename": "src/policies/policy_run.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 884,
+      "author": {
+        "id": 1011072
+      },
+      "writtenOn": "2017-11-30T07:57:22Z",
+      "side": 1,
+      "message": "removing tc \u003e 1 check generates sql queries with redundant parenthesis if rule only has one valid condition.\nwhat about converting condition \u003d true to filter and valid sql statement (true) ?",
+      "revId": "e1d9d20f81841b164a600e781d44487928f79973",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
