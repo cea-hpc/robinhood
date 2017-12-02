@@ -1,0 +1,89 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "ec44e7cc_36671f93",
+        "filename": "configure.ac",
+        "patchSetId": 7
+      },
+      "lineNbr": 152,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-12-02T11:52:54Z",
+      "side": 1,
+      "message": "(if adding status) build_hpss\u003d\"OFF\"",
+      "revId": "164c1936f158d1d279ff9cf80d1590ea1e99ff2b",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fa4fe870_95607883",
+        "filename": "configure.ac",
+        "patchSetId": 7
+      },
+      "lineNbr": 162,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-12-02T11:52:54Z",
+      "side": 1,
+      "message": "Not specific to HPSS here, but this does not allow distinguishing between \"./configure\" and \"./configure --enable-hpss\"\n\nUsually, the last argument here is omitted and further below the check would be test \"x$support_hpss\" !\u003d \"xno\" -- then we can properly fail configure if --enable-hpss was given but HPSS was not found because if explicitely given support_hpss will be yes, and otherwise will be empty.\nCould also set it to something like \"auto\" to make the difference, the important bit is not using \u0027yes\u0027 as default value as that is what autotools use.",
+      "revId": "164c1936f158d1d279ff9cf80d1590ea1e99ff2b",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fa52e090_8ed98877",
+        "filename": "configure.ac",
+        "patchSetId": 7
+      },
+      "lineNbr": 375,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-12-02T11:52:54Z",
+      "side": 1,
+      "message": "(nitpick) trailing space",
+      "revId": "164c1936f158d1d279ff9cf80d1590ea1e99ff2b",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "39aa246d_bade07cb",
+        "filename": "configure.ac",
+        "patchSetId": 7
+      },
+      "lineNbr": 382,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-12-02T11:52:54Z",
+      "side": 1,
+      "message": "(if changing AC_ARG_ENABLE) else if test \"x$support_hps\" \u003d \"xyes\"; then AC_MSG_ERROR([hpss required but not found]); fi",
+      "revId": "164c1936f158d1d279ff9cf80d1590ea1e99ff2b",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "2d2406ec_90e130f0",
+        "filename": "configure.ac",
+        "patchSetId": 7
+      },
+      "lineNbr": 507,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2017-12-02T11:52:54Z",
+      "side": 1,
+      "message": "+AC_MSG_NOTICE([HPSS       support is $build_hpss]) ?",
+      "revId": "164c1936f158d1d279ff9cf80d1590ea1e99ff2b",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
