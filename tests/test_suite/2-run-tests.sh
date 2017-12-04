@@ -9334,13 +9334,13 @@ function check_find
 
     [ "$DEBUG" = "1" ] && echo "==================="
     [ "$DEBUG" = "1" ] && echo $FIND $args $dir
-    [ "$DEBUG" = "1" ] && $FIND -d VERB $args $dir -l
+    [ "$DEBUG" = "1" ] && $FIND -d VERB $args $dir -l | grep -v "\.shook"
 
-    c=`$FIND $args $dir | wc -l`
+    c=`$FIND $args $dir | grep -v "\.shook" | wc -l`
     (( $c == $count )) || error "find: $count entries expected in $dir, got: $c"
 
     # same test with '-ls option'
-    c=`$FIND $args $dir -ls | wc -l`
+    c=`$FIND $args $dir -ls | grep -v "\.shook" | wc -l`
     (( $c == $count )) || error "find -ls: $count entries expected in $dir, got: $c"
 }
 
@@ -9396,9 +9396,9 @@ function test_find
 
     # 2) test find at several levels
     echo "checking find list at all levels..."
-    check_find "" "-f $cfg" $((12+extra_dir)) # should return all (including root)
-    check_find "" "-f $cfg -b" $((12+extra_dir)) # should return all (including root)
-    check_find $RH_ROOT "-f $cfg" $((12+extra_dir)) # should return all (including root)
+    check_find "" "-f $cfg" 12 # should return all (including root)
+    check_find "" "-f $cfg -b" 12 # should return all (including root)
+    check_find $RH_ROOT "-f $cfg" 12 # should return all (including root)
     check_find $RH_ROOT/file.1 "-f $cfg" 1 # should return only the file
     check_find $RH_ROOT/dir.1 "-f $cfg" 1  # should return dir.1
     check_find $RH_ROOT/dir.2 "-f $cfg" 8  # should return dir.2 + its content
@@ -9410,9 +9410,9 @@ function test_find
 
     # 3) test -td / -tf
     echo "testing type filter (-type d)..."
-    check_find "" "-f $cfg -type d" $((6+extra_dir)) # should return all (including root)
-    check_find "" "-f $cfg -type d -b" $((6+extra_dir)) # should return all (including root)
-    check_find $RH_ROOT "-f $cfg -type d" $((6+extra_dir)) # 6 including root
+    check_find "" "-f $cfg -type d" 6 # should return all (including root)
+    check_find "" "-f $cfg -type d -b" 6 # should return all (including root)
+    check_find $RH_ROOT "-f $cfg -type d" 6 # 6 including root
     check_find $RH_ROOT/dir.2 "-f $cfg -type d" 4 # 4 including dir.2
     check_find $RH_ROOT/dir.2/dir.2 "-f $cfg -type d" 2 # 2 including dir.2/dir.2
     check_find $RH_ROOT/dir.1 "-f $cfg -type d" 1
@@ -9435,7 +9435,7 @@ function test_find
     check_find "" "-f $cfg -name dir.*" 5 # 5
     check_find "" "-f $cfg -name dir.* -b" 5 # 5
     check_find $RH_ROOT "-f $cfg -name dir.*" 5 # 5
-    check_find $RH_ROOT "-f $cfg -not -name dir.*" $((7+extra_dir)) # all except 5
+    check_find $RH_ROOT "-f $cfg -not -name dir.*" 7 # all except 5
     check_find $RH_ROOT/dir.2 "-f $cfg -name dir.*" 4 # 4 including dir.2
     check_find $RH_ROOT/dir.2/dir.2 "-f $cfg -name dir.*" 2 # 2 including dir.2/dir.2
     check_find $RH_ROOT/dir.1 "-f $cfg -name dir.*" 1
@@ -9453,10 +9453,10 @@ function test_find
     check_find $RH_ROOT "-f $cfg -b -iname Dir.*" 5
     check_find $RH_ROOT "-f $cfg -iname dir.*" 5 # match all "dir.*"
     check_find $RH_ROOT "-f $cfg -b -iname dir.*" 5
-    check_find $RH_ROOT "-f $cfg -not -iname Dir.*" $((7+extra_dir)) # all (12) except 5
-    check_find $RH_ROOT "-f $cfg -b -not -iname Dir.*" $((7+extra_dir))
-    check_find $RH_ROOT "-f $cfg -not -iname dir.*" $((7+extra_dir))
-    check_find $RH_ROOT "-f $cfg -b -not -iname dir.*" $((7+extra_dir))
+    check_find $RH_ROOT "-f $cfg -not -iname Dir.*" 7 # all (12) except 5
+    check_find $RH_ROOT "-f $cfg -b -not -iname Dir.*" 7
+    check_find $RH_ROOT "-f $cfg -not -iname dir.*" 7
+    check_find $RH_ROOT "-f $cfg -b -not -iname dir.*" 7
 
     echo "testing size filter..."
     check_find "" "-f $cfg -type f -size +2k" 2
@@ -9474,21 +9474,21 @@ function test_find
     check_find $RH_ROOT "-f $cfg -user daemon" 1
     check_find $RH_ROOT "-f $cfg -user bin" 1
     check_find $RH_ROOT "-f $cfg -user adm" 0
-    check_find $RH_ROOT "-f $cfg -not -user adm" $((12+extra_dir))
-    check_find $RH_ROOT "-f $cfg -not -user daemon" $((11+extra_dir))
-    check_find $RH_ROOT "-f $cfg -not -user bin" $((11+extra_dir))
+    check_find $RH_ROOT "-f $cfg -not -user adm" 12
+    check_find $RH_ROOT "-f $cfg -not -user daemon" 11
+    check_find $RH_ROOT "-f $cfg -not -user bin" 11
 
     check_find $RH_ROOT "-f $cfg -group bin" 1
     check_find $RH_ROOT "-f $cfg -group wheel" 1
     check_find $RH_ROOT "-f $cfg -group sys" 0
-    check_find $RH_ROOT "-f $cfg -not -group sys" $((12+extra_dir))
-    check_find $RH_ROOT "-f $cfg -not -group bin" $((11+extra_dir))
-    check_find $RH_ROOT "-f $cfg -not -group wheel" $((11+extra_dir))
+    check_find $RH_ROOT "-f $cfg -not -group sys" 12
+    check_find $RH_ROOT "-f $cfg -not -group bin" 11
+    check_find $RH_ROOT "-f $cfg -not -group wheel" 11
 
     check_find $RH_ROOT "-f $cfg -user daemon -group bin" 1
     check_find $RH_ROOT "-f $cfg -user daemon -group wheel" 0
     check_find $RH_ROOT "-f $cfg -user daemon -not -group wheel" 1
-    check_find $RH_ROOT "-f $cfg -not -user daemon -not -group wheel" $((10+extra_dir))
+    check_find $RH_ROOT "-f $cfg -not -user daemon -not -group wheel" 10
     check_find $RH_ROOT "-f $cfg -not -user daemon -not -group wheel -type f" 4
 
     if [ -z "$POSIX_MODE" ]; then
@@ -9505,25 +9505,25 @@ function test_find
 
     echo "testing mtime filter..."
     check_find "" "-f $cfg -mtime +1d" 0  #none
-    check_find "" "-f $cfg -mtime -1d" $((12+extra_dir)) #all
+    check_find "" "-f $cfg -mtime -1d" 12 #all
     check_find "" "-f $cfg -mtime +1d -b" 0  #none
-    check_find "" "-f $cfg -mtime -1d -b" $((12+extra_dir)) #all
+    check_find "" "-f $cfg -mtime -1d -b" 12 #all
     # change last day
     check_find $RH_ROOT "-f $cfg -mtime +1d" 0  #none
-    check_find $RH_ROOT "-f $cfg -mtime -1d" $((12+extra_dir)) #all
+    check_find $RH_ROOT "-f $cfg -mtime -1d" 12 #all
     # the same with another syntax
     check_find $RH_ROOT "-f $cfg -mtime +1" 0  #none
-    check_find $RH_ROOT "-f $cfg -mtime -1" $((12+extra_dir)) #all
+    check_find $RH_ROOT "-f $cfg -mtime -1" 12 #all
     # without 2 hour
     check_find $RH_ROOT "-f $cfg -mtime +2h" 0  #none
-    check_find $RH_ROOT "-f $cfg -mtime -2h" $((12+extra_dir)) #all
+    check_find $RH_ROOT "-f $cfg -mtime -2h" 12 #all
     # the same with another syntax
     check_find $RH_ROOT "-f $cfg -mtime +120m" 0  #none
-    check_find $RH_ROOT "-f $cfg -mtime -120m" $((12+extra_dir)) #all
+    check_find $RH_ROOT "-f $cfg -mtime -120m" 12 #all
     # the same with another syntax
     check_find $RH_ROOT "-f $cfg -mmin +120" 0  #none
-    check_find $RH_ROOT "-f $cfg -mmin -120" $((12+extra_dir)) #all
-    check_find $RH_ROOT "-f $cfg -not -mmin +120" $((12+extra_dir)) #all
+    check_find $RH_ROOT "-f $cfg -mmin -120" 12 #all
+    check_find $RH_ROOT "-f $cfg -not -mmin +120" 12 #all
 
     check_find $RH_ROOT "-f $cfg -links 2" 3 # directories with no child dir
     check_find $RH_ROOT "-f $cfg -links +2" 3 # directories with child dir
