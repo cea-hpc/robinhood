@@ -36,6 +36,24 @@
     },
     {
       "key": {
+        "uuid": "48ca5f65_4c5d9a7c",
+        "filename": "configure.ac",
+        "patchSetId": 7
+      },
+      "lineNbr": 162,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2017-12-06T11:19:22Z",
+      "side": 1,
+      "message": "Good suggestion, actually it has a wider scope (we can do the same change for lustre, shook, ...). So this can be done in a later(R) patch.\n\nMy point here is the naming that could be confusing with a robinhood version scanning HPSS rather than lustre.\n\"lhsm_hpss\" would be more appropriate, as this is the actual dependency.",
+      "parentUuid": "fa4fe870_95607883",
+      "revId": "164c1936f158d1d279ff9cf80d1590ea1e99ff2b",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "fa52e090_8ed98877",
         "filename": "configure.ac",
         "patchSetId": 7
