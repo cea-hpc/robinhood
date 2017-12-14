@@ -412,7 +412,8 @@ rm -rf $RPM_BUILD_ROOT
 %endif
 %{_libdir}/robinhood/librbh_mod_*.so*
 
-%{_mandir}/man1/*
+# All man pages but the lhsmtool_cmd one
+%{_mandir}/man1/r*
 
 %config(noreplace) %{_sysconfdir}/sysconfig/robinhood
 
@@ -438,6 +439,7 @@ rm -rf $RPM_BUILD_ROOT
 %files tools
 %if %{with lhsm}
 %{_sbindir}/lhsmtool_cmd
+%{_mandir}/man1/lhsmtool*
 %endif
 %endif
 
