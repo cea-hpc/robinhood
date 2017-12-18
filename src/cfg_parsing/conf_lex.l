@@ -60,6 +60,7 @@ GString *current_file;
 
 #define MAX_INCLUDE_DEPTH  10
 YY_BUFFER_STATE include_stack[MAX_INCLUDE_DEPTH];
+int include_prev_state;
 
 /* keep track of filenames and line numbers */
 unsigned int lines_stack[MAX_INCLUDE_DEPTH];
@@ -113,11 +114,19 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
 
 %%
 
-<YY_INIT>"%include" {/* debut de lecture d'un fichier d'include */
+<YY_INIT>"%include" {/* Start reading name of included file */
                         DEBUG_LEX("INCLUDE\n");
                         BEGIN INCLUDE;
+                        include_prev_state = YY_INIT;
                         /* not a token, return nothing */
                      }
+
+<INBLOC>"%include" {/* Start reading name of included file */
+                        DEBUG_LEX("INCLUDE\n");
+                        BEGIN INCLUDE;
+                        include_prev_state = INBLOC;
+                        /* not a token, return nothing */
+                    }
 
 <INCLUDE>"\""       { /* start include file name */
                       BEGIN INCL_STRING;
@@ -230,9 +239,8 @@ IDENTIFIER_CHAR    [a-zA-Z0-9_.\-]
                         /* change current buffer */
                         yy_switch_to_buffer( yy_create_buffer( yyin, YY_BUF_SIZE ) );
 
-                        /* start reading file from scratch */
-                        BEGIN YY_INIT;
-
+                        /* next state depends on the state before %include is met */
+                        BEGIN include_prev_state;
                     }
 
 
