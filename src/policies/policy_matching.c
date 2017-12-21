@@ -1166,6 +1166,11 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
             if (rc < 0)
                 val = NULL;
 
+            /* "tolerant" mode: the value is missing but the caller
+             * will consider it could match however */
+            if (val == NULL && no_warning)
+                return POLICY_MISSING_ATTR;
+
             rc = compare_generic(def, p_triplet, val, p_pol_mod);
 
             /* if the retrieved value was NULL and the return is
