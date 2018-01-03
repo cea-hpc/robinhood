@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "b724ca58_e57abed5",
+        "filename": "man/Makefile.am",
+        "patchSetId": 2
+      },
+      "lineNbr": 1,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-01-03T10:29:00Z",
+      "side": 1,
+      "message": "This man page should only be installed with the lhsmtool_cmd,\nso it should be a condition like:\n\n if LUSTRE_HSM\n    dist_man_MANS+\u003dlhsmtool_cmd.1\n endif",
+      "range": {
+        "startLine": 1,
+        "startChar": 70,
+        "endLine": 1,
+        "endChar": 84
+      },
+      "revId": "b21a5d5b3f7f90b0bb536a231d5393fe2d6d65d8",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
