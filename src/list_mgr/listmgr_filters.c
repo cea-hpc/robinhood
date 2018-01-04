@@ -430,7 +430,7 @@ bool cond2sql_ok(bool_node_t *boolexpr,
             MemFree((char *)val.value.val_str);
 
         /* FIXME: read only or generated? */
-        if (readonly_fields(tmp))
+        if (generated_fields(tmp) || dirattr_fields(tmp) || funcattr_fields(tmp))
             return false;
         else
             return true;
