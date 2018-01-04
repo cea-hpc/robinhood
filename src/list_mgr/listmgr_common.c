@@ -302,6 +302,7 @@ attr_mask_t acct_attr_set = { 0 };
 attr_mask_t acct_pk_attr_set = { 0 };
 attr_mask_t softrm_attr_set = { 0 };
 attr_mask_t readonly_attr_set = { 0 };
+attr_mask_t func_attr_set = { 0 };
 
 void init_attrset_masks(const lmgr_config_t *lmgr_config)
 {
@@ -319,6 +320,7 @@ void init_attrset_masks(const lmgr_config_t *lmgr_config)
     acct_pk_attr_set = null_mask;
     softrm_attr_set = null_mask;
     readonly_attr_set = null_mask;
+    func_attr_set = null_mask;
 
     /* Always set them, even if accounting is disabled. */
     acct_pk_attr_set.std |= ATTR_MASK_uid;
@@ -361,6 +363,8 @@ void init_attrset_masks(const lmgr_config_t *lmgr_config)
             attr_mask_set_index(&stripe_attr_set, i);
         else if (is_dirattr(i))
             attr_mask_set_index(&dir_attr_set, i);
+        else if (is_funcattr(i))
+            attr_mask_set_index(&func_attr_set, i);
 
         /* not mutually exclusive with previous */
         if (is_slinkattr(i))
