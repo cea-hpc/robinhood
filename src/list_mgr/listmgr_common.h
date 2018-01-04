@@ -275,6 +275,18 @@ static inline attr_mask_t slinkattr_fields(attr_mask_t attr_mask)
     return attr_mask_and(&attr_mask, &slink_attr_set);
 }
 
+/** indicate if there are generated fields in attr_mask */
+static inline bool generated_fields(attr_mask_t attr_mask)
+{
+    return !attr_mask_is_null(attr_mask_and(&attr_mask, &gen_attr_set));
+}
+
+/** indicate if there are function generated fields in attr_mask */
+static inline bool funcattr_fields(attr_mask_t attr_mask)
+{
+    return !attr_mask_is_null(attr_mask_and(&attr_mask, &gen_attr_set));
+}
+
 /**
  * indicate if the field is in ACCT_STAT table
  * /!\ Can only be used after init_attrset_masks() has been called
