@@ -224,6 +224,7 @@ extern attr_mask_t acct_attr_set;
 extern attr_mask_t acct_pk_attr_set;
 extern attr_mask_t softrm_attr_set;
 extern attr_mask_t readonly_attr_set;
+extern attr_mask_t func_attr_set;
 
 void init_attrset_masks(const lmgr_config_t *lmgr_config);
 
@@ -273,6 +274,18 @@ static inline bool dirattr_fields(attr_mask_t attr_mask)
 static inline attr_mask_t slinkattr_fields(attr_mask_t attr_mask)
 {
     return attr_mask_and(&attr_mask, &slink_attr_set);
+}
+
+/** indicate if there are generated fields in attr_mask */
+static inline bool generated_fields(attr_mask_t attr_mask)
+{
+    return !attr_mask_is_null(attr_mask_and(&attr_mask, &gen_attr_set));
+}
+
+/** indicate if there are function generated fields in attr_mask */
+static inline bool funcattr_fields(attr_mask_t attr_mask)
+{
+    return !attr_mask_is_null(attr_mask_and(&attr_mask, &func_attr_set));
 }
 
 /**
