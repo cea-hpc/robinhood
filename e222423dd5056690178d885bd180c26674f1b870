@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "0aa0ebb5_d096ede5",
+        "filename": "src/list_mgr/listmgr_common.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 287,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-01-08T09:02:26Z",
+      "side": 1,
+      "message": "What do you define 2 functions to test the same mask?",
+      "range": {
+        "startLine": 287,
+        "startChar": 57,
+        "endLine": 287,
+        "endChar": 69
+      },
+      "revId": "e222423dd5056690178d885bd180c26674f1b870",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
