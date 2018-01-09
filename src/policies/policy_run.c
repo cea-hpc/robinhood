@@ -904,8 +904,8 @@ static void set_rule_filters(policy_info_t *policy,
                                                 FILTER_FLAG_ALLOW_NULL : 0,
                                             BOOL_AND))
                 DisplayLog(LVL_DEBUG, tag(policy),
-                           "Could not convert rule '%s' to simple filter.",
-                           rule->rule_id);
+                           "Could not convert condition of rule '%s' to "
+                           "simple filter.", rule->rule_id);
         }
 
         /* AND with fileclass criteria */
