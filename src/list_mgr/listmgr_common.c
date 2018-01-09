@@ -1308,7 +1308,7 @@ int filter2str(lmgr_t *p_mgr, GString *str, const lmgr_filter_t *p_filter,
                  */
                 switch(p_filter->filter_simple.filter_flags[i]) {
                     case FILTER_FLAG_BEGIN_BLOCK:
-                        if (nbfields)
+                        if (nbfields || leading_and)
                             g_string_append(str, " AND (");
                         else
                             g_string_append_c(str, '(');
