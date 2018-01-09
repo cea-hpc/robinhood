@@ -849,7 +849,7 @@ static void set_rule_filters(policy_info_t *policy,
     policy_rules_t *rules = &policy->descr->rules;
     int valid_db_rules;
     int i;
-    bool is_first_rule = true;
+    int actual_rules = 0;
 
     /* each rule is a set of target fileclasses and conditions */
     /* 'AND' with previous filters */
@@ -889,10 +889,10 @@ static void set_rule_filters(policy_info_t *policy,
         /* The condition is valid or the fileclass is matchable:
          * start a new block.
          * 'OR' with previous blocks if is is not the first. */
-        lmgr_simple_filter_add_block(p_filter, is_first_rule ?
+        lmgr_simple_filter_add_block(p_filter, actual_rules == 0 ?
             FILTER_FLAG_BEGIN_BLOCK :
             FILTER_FLAG_BEGIN_BLOCK | FILTER_FLAG_OR);
-        is_first_rule = false;
+        actual_rules ++;
 
         /* If the condition is valid, add its SQL. We are in a dedicated sub-block
          * and we want to "AND" with fileclass expression (if any). */
@@ -902,10 +902,17 @@ static void set_rule_filters(policy_info_t *policy,
                                             policy->time_modifier,
                                             policy->descr->manage_deleted ?
                                                 FILTER_FLAG_ALLOW_NULL : 0,
-                                            BOOL_AND))
+                                            BOOL_AND)) {
                 DisplayLog(LVL_DEBUG, tag(policy),
-                           "Could not convert rule '%s' to simple filter.",
-                           rule->rule_id);
+                           "Could not convert condition of rule '%s' to "
+                           "simple filter.", rule->rule_id);
+                if (tc == 0) {
+                    /* drop the last begin block */
+                    actual_rules --;
+                    p_filter->filter_simple.filter_count --;
+                    continue;
+                }
+            }
         }
 
         /* AND with fileclass criteria */
@@ -934,7 +941,11 @@ static void set_rule_filters(policy_info_t *policy,
         }
         lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
     }
-    lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
+    if (actual_rules > 0)
+        lmgr_simple_filter_add_block(p_filter, FILTER_FLAG_END_BLOCK);
+    else
+        /* drop last begin block */
+        p_filter->filter_simple.filter_count--;
 }
 
 /** Add DB filters according to 'ignore_fileclass' and 'ignore' statements */

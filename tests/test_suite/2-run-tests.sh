@@ -9872,8 +9872,15 @@ function test_multirule_select
     # test_multirule.conf "check sql query string in case of multiple rules"
 
     config_file=$1
+    policy=$2
     logfile=rh_multirule.log
     rm -f $logfile
+
+    if [ $policy = migration ] && (( $is_hsmlite + $is_lhsm == 0 )); then
+       echo "hsmlite or HSM test only: skipped"
+       set_skipped
+       return 1
+    fi
 
     touch -d "now-1day" $RH_ROOT/file.foo
     touch -d "now-1day" $RH_ROOT/file.bar
@@ -9891,29 +9898,42 @@ function test_multirule_select
 
     # scan test entries and run cleanup
     $RH -f $RBH_CFG_DIR/$config_file --scan --once 2>&1 > /dev/null
-    $RH -f $RBH_CFG_DIR/$config_file --run=cleanup -L $logfile -l FULL -O
+    # set fake creation date 8day ago
+    create_date=$(date -d "now-8day" +%s)
+    mysql $RH_DB -e "UPDATE ENTRIES SET creation_time=$create_date WHERE type='file'"
+
+    $RH -f $RBH_CFG_DIR/$config_file --run=$policy -L $logfile -l FULL -O
 
     # ignored: foo, bar
 
-    check_rule_and_class $logfile $RH_ROOT/root_owned "scratch_tmp_cleanup" "root_files"
+    check_rule_and_class $logfile $RH_ROOT/root_owned "scratch_tmp_$policy" "root_files"
     check_rule_and_class $logfile $RH_ROOT/noroot "default" ""
-    check_rule_and_class $logfile $RH_ROOT/scratch/file "scratch_cleanup" "scratch_files"
-    check_rule_and_class $logfile $RH_ROOT/scratch/noroot "scratch_cleanup" "scratch_files"
-    check_rule_and_class $logfile $RH_ROOT/scratch/tmp/file "scratch_tmp_cleanup" "scratch_tmp_files"
-    check_rule_and_class $logfile $RH_ROOT/file.1 "nocond_cleanup1" "files1"
-    check_rule_and_class $logfile $RH_ROOT/file.2 "nocond_cleanup2" "files2"
-    check_rule_and_class $logfile $RH_ROOT/file.3 "nocond_cleanup2" "files3"
+    check_rule_and_class $logfile $RH_ROOT/scratch/file "scratch_$policy" "scratch_files"
+    check_rule_and_class $logfile $RH_ROOT/scratch/noroot "scratch_$policy" "scratch_files"
+    check_rule_and_class $logfile $RH_ROOT/scratch/tmp/file "scratch_tmp_$policy" "scratch_tmp_files"
+    check_rule_and_class $logfile $RH_ROOT/file.1 "nocond_${policy}1" "files1"
+    check_rule_and_class $logfile $RH_ROOT/file.2 "nocond_${policy}2" "files2"
+    check_rule_and_class $logfile $RH_ROOT/file.3 "nocond_${policy}2" "files3"
 
+if [ $policy = cleanup ]; then
     # check
     grep "AS id FROM ENTRIES" $logfile |
-      grep "OR ENTRIES.invalid IS NULL) AND NOT (ENTRIES.fileclass LIKE" |
-      grep "OR ENTRIES.last_mod IS NULL) AND ENTRIES.fileclass LIKE BINARY '%+scratch_files+%" |
-      grep "OR (ENTRIES.fileclass LIKE BINARY '%+files1+%') OR" |
-      grep "ENTRIES.fileclass LIKE BINARY '%+files2+%' OR ENTRIES.fileclass LIKE BINARY '%+files3+%'" ||
-      error "multirule_select query block incorrect"
+    grep "OR ENTRIES.invalid IS NULL) AND NOT (ENTRIES.fileclass LIKE" |
+    grep "OR ENTRIES.last_mod IS NULL) AND ENTRIES.fileclass LIKE BINARY '%+scratch_files+%" |
+    grep "OR (ENTRIES.fileclass LIKE BINARY '%+files1+%') OR" |
+    grep "ENTRIES.fileclass LIKE BINARY '%+files2+%' OR ENTRIES.fileclass LIKE BINARY '%+files3+%'" ||
+    error "multirule_select query block incorrect"
+elif [ $policy = migration ]; then
+    grep "AS id FROM ENTRIES" $logfile |
+    grep "OR ENTRIES.invalid IS NULL) AND NOT (ENTRIES.fileclass LIKE" |
+    grep -e "OR ENTRIES.last_mod IS NULL)) OR (ENTRIES..*_lstarc=0" |
+    grep "OR (ENTRIES.fileclass LIKE BINARY '%+files1+%') OR" |
+    grep "ENTRIES.fileclass LIKE BINARY '%+files2+%' OR ENTRIES.fileclass LIKE BINARY '%+files3+%'" ||
+    error "multirule_select query block incorrect"
+fi
 
     grep "Error 7 executing query" $logfile > /dev/null &&
-      error "multirule_select DB query failure"
+    error "multirule_select DB query failure"
 
     return 0
 }
@@ -13203,7 +13223,8 @@ run_test 236k  test_prepost_sched test_prepost_sched.conf none force_update \
     common.max_per_run "post_sched_match=force_update"
 run_test 237   test_sched_ratelim test_ratelim.conf "Check action rate limitations"
 run_test 238   test_lhsm_archive test_lhsm1.conf "check sql query string in case of multiple AND/OR"
-run_test 239   test_multirule_select test_multirule.conf "check sql query string in case of multiple rules"
+run_test 239a  test_multirule_select test_multirule.conf cleanup "check sql query string in case of multiple rules"
+run_test 239b  test_multirule_select test_multirule_migr.conf migration "check sql query string in case of multiple rules"
 run_test 240   test_rmdir_depth  test_rmdir_depth.conf "check sql query for rmdir with depth condition"
 run_test 241   test_prepost_cmd  test_prepost_cmd.conf "test pre/post_run_command"
 run_test 242   test_nlink_crit  test_nlink.conf "test nlink criterion"

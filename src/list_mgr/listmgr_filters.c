@@ -325,9 +325,13 @@ static bool is_simple_expr(bool_node_t *boolexpr, int depth, bool_op_t op_ctx)
                 NODE_CONDITION);
 
     case NODE_BINARY_EXPR:
-        if (depth > 1)
+        if (depth > 2) {
+            DisplayLog(LVL_EVENT, LISTMGR_TAG,
+                       "Too many levels of nested parenthesis in expression "
+                       "(%d levels). Consider simplifying it.", depth);
             return false;
-        else if (boolexpr->content_u.bool_expr.bool_op != BOOL_AND
+        }
+        if (boolexpr->content_u.bool_expr.bool_op != BOOL_AND
                  && boolexpr->content_u.bool_expr.bool_op != BOOL_OR)
             return false;
 
@@ -421,16 +425,16 @@ bool cond2sql_ok(bool_node_t *boolexpr,
             /* do nothing (equivalent to 'AND TRUE') */
             return false;
 
-        /* test readonly fields */
-        tmp = null_mask;
-        attr_mask_set_index(&tmp, index);
-
         // free allocated memory
         if (must_free)
             MemFree((char *)val.value.val_str);
 
-        /* FIXME: read only or generated? */
-        if (generated_fields(tmp) || dirattr_fields(tmp) || funcattr_fields(tmp))
+        /* test generated fields */
+        tmp = null_mask;
+        attr_mask_set_index(&tmp, index);
+
+        if (generated_fields(tmp) || dirattr_fields(tmp)
+            || funcattr_fields(tmp))
             return false;
         else
             return true;
@@ -471,6 +475,15 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
     filter_comparator_t comp;
     filter_value_t val;
     bool must_free;
+    /* keep original filter count to reset it on error */
+    int count_orig = filter->filter_simple.filter_count;
+
+    if (depth > 2) {
+        DisplayLog(LVL_EVENT, LISTMGR_TAG,
+                   "Too many levels of nested parenthesis in expression "
+                   "(%d levels). Consider simplifying it.", depth);
+        return DB_INVALID_ARG;
+    }
 
     switch (boolexpr->node_type) {
     case NODE_UNARY_EXPR:
@@ -491,7 +504,6 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
          * If attribute is not in DB, we ignore it and get all entries
          * (~ AND TRUE)
          */
-
         // Return if this condition can't be translated to SQL statement
         if (!cond2sql_ok(boolexpr, smi, time_mod))
             return 0;
@@ -529,10 +541,8 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
             bool dbcond1, dbcond2;
             bool begin_end = false;
 
-            /* ensures there are no 2 levels of parenthesing */
-            if (depth > 1)
-                return DB_INVALID_ARG;
-            else if (boolexpr->content_u.bool_expr.bool_op != BOOL_AND
+            /* only AND/OR binary operators supported */
+            if (boolexpr->content_u.bool_expr.bool_op != BOOL_AND
                      && boolexpr->content_u.bool_expr.bool_op != BOOL_OR)
                 return DB_INVALID_ARG;
 
@@ -590,13 +600,16 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
                 rc = append_simple_expr(boolexpr->content_u.bool_expr.expr1,
                                         filter, smi, time_mod, flag1, new_depth,
                                         boolexpr->content_u.bool_expr.bool_op);
-                if (rc)
+                if (rc) {
+                    filter->filter_simple.filter_count = count_orig;
                     return rc;
+                }
                 rc = append_simple_expr(boolexpr->content_u.bool_expr.expr2,
                                         filter, smi, time_mod, flag2, new_depth,
                                         boolexpr->content_u.bool_expr.bool_op);
                 if (begin_end)
                     lmgr_simple_filter_add_block(filter, FILTER_FLAG_END_BLOCK);
+
             } else if (dbcond1 && !dbcond2)
                 rc = append_simple_expr(boolexpr->content_u.bool_expr.expr1,
                                         filter, smi, time_mod,
@@ -611,6 +624,8 @@ static int append_simple_expr(bool_node_t *boolexpr, lmgr_filter_t *filter,
                 // No valid conditions in exp1 and exp2
                 rc = 0;
 
+            if (rc)
+                filter->filter_simple.filter_count = count_orig;
             return rc;
         }
 
@@ -640,13 +655,15 @@ int convert_boolexpr_to_simple_filter(bool_node_t *boolexpr,
                                       enum filter_flags flags,
                                       bool_op_t op_ctx)
 {
+    int rc;
+
     if (!is_simple_expr(boolexpr, 0, op_ctx))
         return DB_INVALID_ARG;
 
     /* create a boolexpr as 'NOT ( <expr> )' */
     if (flags & FILTER_FLAG_NOT) {
         bool_node_t notexpr;
-        int prev_nb, rc;
+        int prev_nb;
 
         notexpr.node_type = NODE_UNARY_EXPR;
         notexpr.content_u.bool_expr.bool_op = BOOL_NOT;
@@ -661,12 +678,14 @@ int convert_boolexpr_to_simple_filter(bool_node_t *boolexpr,
                                 flags & ~FILTER_FLAG_NOT, 0, op_ctx);
         if (rc)
             filter->filter_simple.filter_count = prev_nb;
+
         return rc;
     }
 
     /* default filter context is op_ctx */
-    return append_simple_expr(boolexpr, filter, smi, time_mod, flags,
+    rc = append_simple_expr(boolexpr, filter, smi, time_mod, flags,
                               0, op_ctx);
+    return rc;
 }
 
 /** Set a complex filter structure */
