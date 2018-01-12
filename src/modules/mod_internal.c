@@ -33,14 +33,11 @@ struct copy_params_t {
     const char *name;
     copy_flags_e flag;
 } copy_params[] = {
-    {
-    "compress", CP_COMPRESS},   /* compress target */
-    {
-    "nosync", CP_NO_SYNC},  /* don't sync when the copy ends */
-    {
-    "copyback", CP_COPYBACK},   /* revert copy way: tgt->src */
-    {
-    NULL, 0}
+    {"compress", CP_COMPRESS}, /* compress target */
+    {"nosync",   CP_NO_SYNC},  /* don't sync when the copy ends */
+    {"copyback", CP_COPYBACK}, /* revert copy way: tgt->src */
+    {"mkdir",    CP_MKDIR},    /* create parent directories */
+    {NULL, 0}
 };
 
 /** helper to set file attributes from a struct stat */
@@ -293,6 +290,12 @@ int builtin_copy(const char *src, const char *dst, int dst_oflags,
         DisplayLog(LVL_MAJOR, CP_TAG, "Failed to stat %s: %s", src,
                    strerror(-rc));
         goto close_src;
+    }
+
+    if (flags & CP_MKDIR) {
+        rc = create_parent_of(dst, NULL);
+        if (rc != 0 && rc != -EEXIST)
+           goto close_src;
     }
 
     cp_nfo.dst_fd = open(dst, dst_oflags, cp_nfo.src_st.st_mode & 07777);
