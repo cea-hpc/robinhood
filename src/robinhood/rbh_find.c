@@ -224,9 +224,9 @@ static int mkfilters(bool exclude_dirs)
             comp = COMP_LIKE;
 
         if (!is_expr)
-            CreateBoolCond(&match_expr, comp, CRITERIA_FILENAME, val, flg);
+            CreateBoolCond(&match_expr, comp, CRITERIA_NAME, val, flg);
         else
-            AppendBoolCond(&match_expr, comp, CRITERIA_FILENAME, val, flg);
+            AppendBoolCond(&match_expr, comp, CRITERIA_NAME, val, flg);
         is_expr = 1;
         query_mask.std |= ATTR_MASK_name;
     }

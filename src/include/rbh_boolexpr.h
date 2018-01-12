@@ -43,7 +43,8 @@ typedef enum {
 typedef enum {
     CRITERIA_TREE = 0,
     CRITERIA_PATH,
-    CRITERIA_FILENAME,
+    CRITERIA_NAME,
+    CRITERIA_INAME,
     CRITERIA_TYPE,
     CRITERIA_OWNER,
     CRITERIA_GROUP,

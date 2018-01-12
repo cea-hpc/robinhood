@@ -130,51 +130,55 @@ static struct criteria_descr_t {
     uint32_t        std_attr_mask;
     cfg_param_type  type;
     int             parsing_flags;
+    int             crit_flags;
 } const criteria_descr[] = {
     [CRITERIA_TREE] = {"tree", ATTR_MASK_fullpath, PT_STRING,
                        PFLG_ALLOW_ANY_DEPTH | PFLG_NOT_EMPTY
-                       | PFLG_REMOVE_FINAL_SLASH},
+                       | PFLG_REMOVE_FINAL_SLASH, 0},
     [CRITERIA_PATH] = {"path", ATTR_MASK_fullpath, PT_STRING,
                        PFLG_ALLOW_ANY_DEPTH | PFLG_NOT_EMPTY
-                       | PFLG_REMOVE_FINAL_SLASH},
-    [CRITERIA_FILENAME] = {"name", ATTR_MASK_name, PT_STRING,
-                           PFLG_NOT_EMPTY | PFLG_NO_SLASH},
-    [CRITERIA_TYPE] = {"type", ATTR_MASK_type, PT_TYPE, 0},
-    [CRITERIA_OWNER] = {"owner", ATTR_MASK_uid, PT_STRING, PFLG_NOT_EMPTY},
-    [CRITERIA_GROUP] = {"group", ATTR_MASK_gid, PT_STRING, PFLG_NOT_EMPTY},
+                       | PFLG_REMOVE_FINAL_SLASH, 0},
+    [CRITERIA_NAME] = {"name", ATTR_MASK_name, PT_STRING,
+                           PFLG_NOT_EMPTY | PFLG_NO_SLASH, 0},
+    [CRITERIA_INAME] = {"iname", ATTR_MASK_name, PT_STRING,
+                          PFLG_NOT_EMPTY | PFLG_NO_SLASH, CMP_FLG_INSENSITIVE},
+    [CRITERIA_TYPE] = {"type", ATTR_MASK_type, PT_TYPE, 0, 0},
+    [CRITERIA_OWNER] = {"owner", ATTR_MASK_uid, PT_STRING, PFLG_NOT_EMPTY, 0},
+    [CRITERIA_GROUP] = {"group", ATTR_MASK_gid, PT_STRING, PFLG_NOT_EMPTY, 0},
     [CRITERIA_SIZE] = {"size", ATTR_MASK_size, PT_SIZE,
-                       PFLG_POSITIVE | PFLG_COMPARABLE},
+                       PFLG_POSITIVE | PFLG_COMPARABLE, 0},
     [CRITERIA_DEPTH] = {"depth", ATTR_MASK_depth, PT_INT,
-                        PFLG_POSITIVE | PFLG_COMPARABLE},
+                        PFLG_POSITIVE | PFLG_COMPARABLE, 0},
     [CRITERIA_DIRCOUNT] = {"dircount", ATTR_MASK_dircount, PT_INT,
-                           PFLG_POSITIVE | PFLG_COMPARABLE},
+                           PFLG_POSITIVE | PFLG_COMPARABLE, 0},
     [CRITERIA_NLINK] = {"nlink", ATTR_MASK_nlink, PT_INT,
-                            PFLG_POSITIVE | PFLG_COMPARABLE},
+                            PFLG_POSITIVE | PFLG_COMPARABLE, 0},
     [CRITERIA_LAST_ACCESS] = {"last_access", ATTR_MASK_last_access, PT_DURATION,
-                              PFLG_POSITIVE | PFLG_COMPARABLE},
+                              PFLG_POSITIVE | PFLG_COMPARABLE, 0},
     [CRITERIA_LAST_MOD] = {"last_mod", ATTR_MASK_last_mod, PT_DURATION,
-                           PFLG_POSITIVE | PFLG_COMPARABLE},
+                           PFLG_POSITIVE | PFLG_COMPARABLE, 0},
     [CRITERIA_LAST_MDCHANGE] =
         {"last_mdchange", ATTR_MASK_last_mdchange, PT_DURATION,
-         PFLG_POSITIVE | PFLG_COMPARABLE},
+         PFLG_POSITIVE | PFLG_COMPARABLE, 0},
     [CRITERIA_CREATION] = {"creation", ATTR_MASK_creation_time, PT_DURATION,
-                           PFLG_POSITIVE | PFLG_COMPARABLE},
+                           PFLG_POSITIVE | PFLG_COMPARABLE, 0},
     /* needs a 'remove' status manager */
     [CRITERIA_RMTIME] = {"rm_time", ATTR_MASK_rm_time, PT_DURATION,
-                         PFLG_POSITIVE | PFLG_COMPARABLE | PFLG_STATUS},
+                         PFLG_POSITIVE | PFLG_COMPARABLE | PFLG_STATUS, 0},
 #ifdef _LUSTRE
-    [CRITERIA_POOL] = {"ost_pool", ATTR_MASK_stripe_info, PT_STRING, 0},
+    [CRITERIA_POOL] = {"ost_pool", ATTR_MASK_stripe_info, PT_STRING, 0, 0},
     [CRITERIA_OST] =
-        {"ost_index", ATTR_MASK_stripe_items, PT_INT, PFLG_POSITIVE},
+        {"ost_index", ATTR_MASK_stripe_items, PT_INT, PFLG_POSITIVE, 0},
 #endif
     [CRITERIA_FILECLASS] = {"fileclass", ATTR_MASK_fileclass, PT_STRING,
-                            PFLG_NO_SLASH},
+                            PFLG_NO_SLASH, CMP_FLG_INSENSITIVE},
     /* status mask is context dependent */
     [CRITERIA_STATUS] =
-        {"status", 0, PT_STRING, PFLG_STATUS | PFLG_NO_WILDCARDS},
+        {"status", 0, PT_STRING, PFLG_STATUS | PFLG_NO_WILDCARDS,
+         CMP_FLG_INSENSITIVE},
     /* /!\ str2criteria relies on the fact that CRITERIA_XATTR is after
      * the last standard criteria */
-    [CRITERIA_XATTR] = {XATTR_PREFIX, XATTR_NEED, PT_STRING, PFLG_XATTR},
+    [CRITERIA_XATTR] = {XATTR_PREFIX, XATTR_NEED, PT_STRING, PFLG_XATTR, 0},
 
     /* CRITERIA_SM_INFO: type and flags are provided by status managers
      * (sm_info_def_t) */
@@ -480,10 +484,10 @@ static int interpret_condition(type_key_value *key_value,
         return EINVAL;
     }
 
-    p_triplet->flags = 0;
-
     /* lighten the following line of code */
     pcrit = &criteria_descr[crit];
+
+    p_triplet->flags = pcrit->crit_flags;
 
     if (crit == CRITERIA_SM_INFO) {
         cfg_param_type t = def->crit_type;
@@ -1061,7 +1065,8 @@ static int print_condition(const compare_triplet_t *p_triplet, char *out_str,
         /* str values */
     case CRITERIA_TREE:
     case CRITERIA_PATH:
-    case CRITERIA_FILENAME:
+    case CRITERIA_NAME:
+    case CRITERIA_INAME:
     case CRITERIA_FILECLASS:
 #ifdef _LUSTRE
     case CRITERIA_POOL:
@@ -1358,7 +1363,8 @@ bool update_boolexpr(bool_node_t *tgt, const bool_node_t *src)
             /* unmodifiable conditions */
         case CRITERIA_TREE:
         case CRITERIA_PATH:
-        case CRITERIA_FILENAME:
+        case CRITERIA_NAME:
+        case CRITERIA_INAME:
         case CRITERIA_FILECLASS:
 #ifdef _LUSTRE
         case CRITERIA_POOL:

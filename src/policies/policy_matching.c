@@ -610,7 +610,8 @@ int criteria2filter(const compare_triplet_t *p_comp,
 
         break;
 
-    case CRITERIA_FILENAME:    /* name like 'filename' */
+    case CRITERIA_NAME:    /* name like 'filename' */
+    case CRITERIA_INAME:   /* name ilike 'filename' */
         *p_attr_index = ATTR_INDEX_name;
         *p_compar = Policy2FilterComparator(p_comp->op, p_comp->flags);
         p_value->value.val_str = p_comp->val.str;
@@ -880,7 +881,8 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
         else
             return bool2policy_match(!rc);
 
-    case CRITERIA_FILENAME:
+    case CRITERIA_NAME:
+    case CRITERIA_INAME:
 
         /* filename is required */
         CHECK_ATTR(p_entry_attr, name, no_warning);
