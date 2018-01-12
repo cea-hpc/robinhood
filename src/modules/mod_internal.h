@@ -28,7 +28,8 @@ typedef enum {
     CP_COMPRESS     = (1 << 0),
     CP_USE_SENDFILE = (1 << 1),
     CP_NO_SYNC      = (1 << 2),
-    CP_COPYBACK     = (1 << 3)  /* retrieve a copy */
+    CP_COPYBACK     = (1 << 3), /* retrieve a copy */
+    CP_MKDIR        = (1 << 4),
 } copy_flags_e;
 
 /** These functions are shared by several modules (namely common & backup). */
