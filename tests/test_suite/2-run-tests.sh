@@ -3901,6 +3901,32 @@ function test_iname
     find_valueInCSVreport rh_report.log other_name  1  2 || error "invalid count for other_name"
 }
 
+function test_copy
+{
+    config_file=$1
+    clean_logs
+
+    echo 123 > $RH_ROOT/file.1
+    echo 123 > $RH_ROOT/file.2
+    echo 123 > $RH_ROOT/file.3
+    echo 123 > $RH_ROOT/file.4
+
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scan error"
+    check_db_error rh_scan.log
+    sleep 1
+
+    $RH -f $RBH_CFG_DIR/$config_file --run=copy --target=all -l DEBUG -L rh_migr.log || error "run error"
+    check_db_error rh_migr.log
+
+    # expect file1 to be copied to a compressed file
+    grep "copy success for '$RH_ROOT/file.1', matching rule 'copy_compress'" rh_migr.log || error "no copy of file.1"
+    file $RH_ROOT/file.1.gz | grep compressed || error "file.1.gz should be compressed"
+    grep "copy success for '$RH_ROOT/file.2', matching rule 'copy_mkdir'" rh_migr.log || error "no copy of file.2"
+    (( $(find $RH_ROOT/backup -name file.2 | wc -l) == 1 )) || error "file.2 backuo not found"
+    grep "Error applying action on entry $RH_ROOT/file.3" rh_migr.log || error "copy of file.3 should have failed"
+    (( $(ls $RH_ROOT/backup/*/file.3 | wc -l) == 0 )) || error "no backup copy of file.3 expected"
+}
+
 function test_manual_run
 {
 	config_file=$1
@@ -13291,7 +13317,8 @@ run_test 240   test_rmdir_depth  test_rmdir_depth.conf "check sql query for rmdi
 run_test 241   test_prepost_cmd  test_prepost_cmd.conf "test pre/post_run_command"
 run_test 242   test_nlink_crit  test_nlink.conf "test nlink criterion"
 run_test 243   test_iname       test_iname.conf "test iname criterion"
-run_test 244   test_hsm_invalidate test_hsm_invalidate.conf "HSM invalidate deleted files"
+run_test 244   test_copy        test_copy.conf "test common.copy specific parameters"
+run_test 245   test_hsm_invalidate test_hsm_invalidate.conf "HSM invalidate deleted files"
 
 #### triggers ####
 
