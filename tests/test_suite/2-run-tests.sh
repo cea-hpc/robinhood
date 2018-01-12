@@ -3876,6 +3876,31 @@ function test_nlink_crit
         error "action success not found for file.2 or file.3, rule file_cleanup, class single"
 }
 
+function test_iname
+{
+    config_file=$1
+    clean_logs
+
+    # create 2 files with deferent case
+    touch $RH_ROOT/file
+    touch $RH_ROOT/File
+    touch $RH_ROOT/x
+
+    # file matches fmin_name and both f*_iname
+    # File matches fmaj_name and both f*_iname
+    # x matches other_name
+
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scan error"
+    check_db_error rh_scan.log
+
+    # check classinfo report
+    $REPORT -f $RBH_CFG_DIR/$config_file --class-info -q | grep -v special > rh_report.log || error "report error"
+    # find_valueInCSVreport $logFile $typeValues $countValues $colSearch
+    find_valueInCSVreport rh_report.log fmaj_name+fmaj_iname+fmin_iname   1  2 || error "invalid count for fmaj_name"
+    find_valueInCSVreport rh_report.log fmin_name+fmaj_iname+fmin_iname   1  2 || error "invalid count for fmin_name"
+    find_valueInCSVreport rh_report.log other_name  1  2 || error "invalid count for other_name"
+}
+
 function test_manual_run
 {
 	config_file=$1
@@ -13228,6 +13253,7 @@ run_test 239b  test_multirule_select test_multirule_migr.conf migration "check s
 run_test 240   test_rmdir_depth  test_rmdir_depth.conf "check sql query for rmdir with depth condition"
 run_test 241   test_prepost_cmd  test_prepost_cmd.conf "test pre/post_run_command"
 run_test 242   test_nlink_crit  test_nlink.conf "test nlink criterion"
+run_test 243   test_iname       test_iname.conf "test iname criterion"
 
 #### triggers ####
 
