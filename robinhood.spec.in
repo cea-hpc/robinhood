@@ -140,7 +140,7 @@ Policy engine for POSIX filesystems.
 %package adm
 Summary: admin/config helper for Robinhood PolicyEngine
 Group: Applications/System
-Release: @RELEASE@.noarch
+Release: @RELEASE@
 
 %description adm
 This RPM provides an admin/config helper for Robinhood PolicyEngine (command rbh-config).
@@ -149,7 +149,7 @@ This RPM provides an admin/config helper for Robinhood PolicyEngine (command rbh
 %package webgui
 Summary: Web interface to vizualize filesystems stats
 Group: Applications/System
-Release: @RELEASE@.noarch
+Release: @RELEASE@
 Requires: php, php-pdo, php-mysql
 
 %description webgui
@@ -172,7 +172,7 @@ Group: Applications/System
 Requires: robinhood robinhood-adm bc
 # mariadb or mysql
 Requires: /usr/bin/mysql
-Release: @RELEASE@.noarch
+Release: @RELEASE@
 
 %description tests
 Lustre and Posix tests for Robinhood.
