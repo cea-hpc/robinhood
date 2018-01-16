@@ -208,7 +208,7 @@ Shook module for robinhood
 Summary: HPSS rebind module for robinhood
 Group: Applications/System
 Requires: lhsm_hpss
-BuildRequires: lhsm_hpss
+BuildRequires: lhsm_hpss-devel
 
 %description mod-hpss_rebind
 HPSS rebind module for robinhood
