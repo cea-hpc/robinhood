@@ -62,7 +62,9 @@ if [[ $PURPOSE = "LUSTRE_HSM" ]]; then
 			sleep 2
 		fi
 
-		$LCTL set_param mdt.$(basename $mdt).hsm/grace_delay=10
+		$LCTL set_param mdt.$(basename $mdt).hsm.grace_delay=10
+		$LCTL set_param mdt.$(basename $mdt).hsm.loop_period=1
+		$LCTL set_param mdt.$(basename $mdt).hsm.max_requests=8
 	done
 
     # start copytool on a distinct mount point
