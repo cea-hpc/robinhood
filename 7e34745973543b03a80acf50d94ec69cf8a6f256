@@ -1,0 +1,182 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "1f05ebc4_77e29ced",
+        "filename": "src/include/backend.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 9,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-12T16:16:21Z",
+      "side": 1,
+      "message": "This naming is too much generic, as there could backends for various things (DB, FS, ...). I suggest db_backend",
+      "range": {
+        "startLine": 9,
+        "startChar": 7,
+        "endLine": 9,
+        "endChar": 14
+      },
+      "revId": "7e34745973543b03a80acf50d94ec69cf8a6f256",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "40788298_b3bb57f0",
+        "filename": "src/include/backend.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 10,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-12T16:16:21Z",
+      "side": 1,
+      "message": "This kind of structure will be typically loaded dynamically as a plugin. I suggest you isolate the vector of function in a sub-structure, and complete this structure with a version number. See \"struct rbh_module\" in \"src/include/rbh_modules.h\"",
+      "revId": "7e34745973543b03a80acf50d94ec69cf8a6f256",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "4877d533_cc433c75",
+        "filename": "src/include/backend.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 10,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-12T16:16:21Z",
+      "side": 1,
+      "message": "I prefer 4 space indent. It wastes less columns and is less painful to align. Lustre were obliged to change this for being included to kernel, which is not expected in this case...",
+      "range": {
+        "startLine": 9,
+        "startChar": 16,
+        "endLine": 10,
+        "endChar": 1
+      },
+      "revId": "7e34745973543b03a80acf50d94ec69cf8a6f256",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "0edce0c7_a635b765",
+        "filename": "src/include/backend.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 11,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-12T16:16:21Z",
+      "side": 1,
+      "message": "Backend is const, which suggest it is not modified by this init(). So where does the resources allocated by init() reside?",
+      "range": {
+        "startLine": 11,
+        "startChar": 13,
+        "endLine": 11,
+        "endChar": 18
+      },
+      "revId": "7e34745973543b03a80acf50d94ec69cf8a6f256",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "b49a250e_b9dd5605",
+        "filename": "src/include/backend.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 11,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-12T16:16:21Z",
+      "side": 1,
+      "message": "num is useless, as va_list manages the number of arguments.\n\nTo avoid specific handling depending on the backend, what about passing a set of key-values instead (retrieved from configuration and passed as-is to the backend).\nThis can be used for this purpose: \"src/include/rbh_params.h\"",
+      "range": {
+        "startLine": 11,
+        "startChar": 48,
+        "endLine": 11,
+        "endChar": 51
+      },
+      "revId": "7e34745973543b03a80acf50d94ec69cf8a6f256",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "87a98e4e_68e72eda",
+        "filename": "src/include/backend.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 14,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-12T16:16:21Z",
+      "side": 1,
+      "message": "Isn\u0027t this a criteria like others?",
+      "range": {
+        "startLine": 14,
+        "startChar": 22,
+        "endLine": 14,
+        "endChar": 35
+      },
+      "revId": "7e34745973543b03a80acf50d94ec69cf8a6f256",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "38ca71fe_8c069970",
+        "filename": "src/include/backend.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 18,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-12T16:16:21Z",
+      "side": 1,
+      "message": "This should not be hardcoded.\nRbh will just load the backend module dynamically, driven by its configuration.",
+      "range": {
+        "startLine": 18,
+        "startChar": 0,
+        "endLine": 18,
+        "endChar": 37
+      },
+      "revId": "7e34745973543b03a80acf50d94ec69cf8a6f256",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "16fbea5e_7c9d15d0",
+        "filename": "src/include/backend.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 28,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-12T16:16:21Z",
+      "side": 1,
+      "message": "I think it\u0027s useless, va_list manages the number of arguments.",
+      "range": {
+        "startLine": 28,
+        "startChar": 48,
+        "endLine": 28,
+        "endChar": 51
+      },
+      "revId": "7e34745973543b03a80acf50d94ec69cf8a6f256",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
