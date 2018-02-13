@@ -1,0 +1,363 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "c05d8e50_520f91d7",
+        "filename": "src/include/backend.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 13,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-13T16:09:15Z",
+      "side": 1,
+      "message": "What is expected here: the filesystem mount point, or the relative path from the fs root?",
+      "range": {
+        "startLine": 13,
+        "startChar": 69,
+        "endLine": 13,
+        "endChar": 73
+      },
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "d02211e1_a05a44cd",
+        "filename": "src/include/filter.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 9,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-13T16:09:15Z",
+      "side": 1,
+      "message": "prefix to avoid conflicts (expecially for short names like OR, IN, ...)\n\nFOP_xxx",
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "bae4ec54_b5fdc4d0",
+        "filename": "src/include/filter.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 18,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-13T16:09:15Z",
+      "side": 1,
+      "message": "Add an alias in enum: FOP_COMPAR_MAX \u003d FOP_NOT_REGEXP,\nThis is easier to maintain/update to keep it here (rather that using a hardcoded element in \u0027is_comparator...\u0027",
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "0567b5a4_7553d281",
+        "filename": "src/include/filter.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 22,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-13T16:09:15Z",
+      "side": 1,
+      "message": "FOP_LOGICAL_MAX \u003d FOP_OR,\n\n/* placeholder for max operation */\nFOP_INDEX_MAX  \u003d FOP_LOGICAL_MAX,",
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "303090a7_3b6570de",
+        "filename": "src/include/filter.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 24,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-13T16:09:15Z",
+      "side": 1,
+      "message": "this can be replaced by \"aliases\" in enum",
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "46001f67_480c3f90",
+        "filename": "src/include/filter.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 34,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-13T16:09:15Z",
+      "side": 1,
+      "message": "FOP_COMPAR_MAX",
+      "range": {
+        "startLine": 34,
+        "startChar": 17,
+        "endLine": 34,
+        "endChar": 26
+      },
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "c1efeceb_fad2b78c",
+        "filename": "src/include/filter.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 45,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-13T16:09:15Z",
+      "side": 1,
+      "message": "\u003e FOP_COMPAR_MAX and \u003c\u003d FOP_LOGICAL_MAX",
+      "range": {
+        "startLine": 45,
+        "startChar": 17,
+        "endLine": 45,
+        "endChar": 20
+      },
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "8d102607_b5a2100b",
+        "filename": "src/include/filter.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 51,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-13T16:09:15Z",
+      "side": 1,
+      "message": "This forbids operating on custom / dynamically defined field.\nAn arbitrary name (char *) would be more flexible than an enum.",
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9c4d6000_5da69b60",
+        "filename": "src/include/filter.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 57,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-13T16:09:15Z",
+      "side": 1,
+      "message": "this struct of union of struct... is hard to read. Consider splitting into smaller definitions.\nAlso add comments about each part.",
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "a8a03174_2db79567",
+        "filename": "src/include/filter.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 64,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-13T16:09:15Z",
+      "side": 1,
+      "message": "isn\u0027t it enum filter_regexp_option?",
+      "range": {
+        "startLine": 64,
+        "startChar": 20,
+        "endLine": 64,
+        "endChar": 32
+      },
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "126b39f7_d97eee0c",
+        "filename": "src/include/filter.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 65,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-13T16:09:15Z",
+      "side": 1,
+      "message": "\"char *\" or \"const char *\"?",
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "61d34a0d_f80bd059",
+        "filename": "src/include/filter.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 89,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-13T16:09:15Z",
+      "side": 1,
+      "message": "what is expected here? a value ?",
+      "range": {
+        "startLine": 89,
+        "startChar": 65,
+        "endLine": 89,
+        "endChar": 68
+      },
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5ef8a864_3b13331f",
+        "filename": "src/include/filter.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 104,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-13T16:09:15Z",
+      "side": 1,
+      "message": "this looks nice",
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "17626173_f46bf534",
+        "filename": "src/include/fsentry.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 17,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-13T16:09:15Z",
+      "side": 1,
+      "message": "What is expected in name: a fid? a path?",
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ccbfc7ff_8806114b",
+        "filename": "src/src/filter.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-13T16:09:15Z",
+      "side": 1,
+      "message": "Autotool integration: add this first:\n\n#ifdef HAVE_CONFIG_H\n#include \"config.h\"\n#endif",
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9f61ad83_bf4583c3",
+        "filename": "src/src/filter.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 38,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-13T16:09:15Z",
+      "side": 1,
+      "message": "_value \u003d strdup(value);\n\nor even\n\nfilter-\u003ecompare.value.list.values[i] \u003d strdup(value);",
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7c89b15c_350fbc2b",
+        "filename": "src/src/filter.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 119,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-13T16:09:15Z",
+      "side": 1,
+      "message": "if (filter \u003d\u003d NULL)\n    return NULL;",
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "d9da11e9_e170e7ee",
+        "filename": "src/src/filter.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 184,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-13T16:09:15Z",
+      "side": 1,
+      "message": "If I correctly understand, to negate \"AND(A, B, C)\"\nit first turn it to \"OR (A, B, C)\"\nand then the for below makes \"OR(NOT(A), NOT(B), NOT(C))\"\nRight?",
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "59f63df8_800340db",
+        "filename": "src/src/filter.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 189,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-13T16:09:15Z",
+      "side": 1,
+      "message": "This is C++, not C99",
+      "range": {
+        "startLine": 189,
+        "startChar": 9,
+        "endLine": 189,
+        "endChar": 22
+      },
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
