@@ -25,6 +25,30 @@
     },
     {
       "key": {
+        "uuid": "8dd18cb0_23b690d8",
+        "filename": "src/include/backend.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 9,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-02-13T12:49:00Z",
+      "side": 1,
+      "message": "I had in mind that at some point there could be a posix backend, something relying on the filesystem, not necessarily always a database.",
+      "parentUuid": "1f05ebc4_77e29ced",
+      "range": {
+        "startLine": 9,
+        "startChar": 7,
+        "endLine": 9,
+        "endChar": 14
+      },
+      "revId": "7e34745973543b03a80acf50d94ec69cf8a6f256",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "40788298_b3bb57f0",
         "filename": "src/include/backend.h",
         "patchSetId": 1
@@ -59,6 +83,48 @@
         "endLine": 10,
         "endChar": 1
       },
+      "revId": "7e34745973543b03a80acf50d94ec69cf8a6f256",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "b4ddf922_8b6688b0",
+        "filename": "src/include/backend.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 10,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-02-13T12:49:00Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "4877d533_cc433c75",
+      "range": {
+        "startLine": 9,
+        "startChar": 16,
+        "endLine": 10,
+        "endChar": 1
+      },
+      "revId": "7e34745973543b03a80acf50d94ec69cf8a6f256",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "80f6e83d_7b52e6e6",
+        "filename": "src/include/backend.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 10,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-02-13T12:49:00Z",
+      "side": 1,
+      "message": "\u003e This kind of structure will be typically loaded dynamically as a plugin.\n\nI leave this for later to avoid having to define the module interface.\n\n\u003e I suggest you isolate the vector of function in a sub-structure\n\nDone\n\n\u003e and complete this structure with a version number\n\nHow would this version number be used?",
+      "parentUuid": "40788298_b3bb57f0",
       "revId": "7e34745973543b03a80acf50d94ec69cf8a6f256",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -111,6 +177,54 @@
     },
     {
       "key": {
+        "uuid": "f15afe60_5c4e1d2f",
+        "filename": "src/include/backend.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 11,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-02-13T12:49:00Z",
+      "side": 1,
+      "message": "The structure declared here has no reason to be modified at runtime. You can have a look at src/mongodb.c to see how I use it (I rely on polymorphism).",
+      "parentUuid": "0edce0c7_a635b765",
+      "range": {
+        "startLine": 11,
+        "startChar": 13,
+        "endLine": 11,
+        "endChar": 18
+      },
+      "revId": "7e34745973543b03a80acf50d94ec69cf8a6f256",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "a95a68ad_8707c6c4",
+        "filename": "src/include/backend.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 11,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-02-13T12:49:00Z",
+      "side": 1,
+      "message": "num could be the first argument in va_list, otherwise I could use a sentinel.",
+      "parentUuid": "b49a250e_b9dd5605",
+      "range": {
+        "startLine": 11,
+        "startChar": 48,
+        "endLine": 11,
+        "endChar": 51
+      },
+      "revId": "7e34745973543b03a80acf50d94ec69cf8a6f256",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "87a98e4e_68e72eda",
         "filename": "src/include/backend.h",
         "patchSetId": 1
@@ -134,6 +248,30 @@
     },
     {
       "key": {
+        "uuid": "54626f8e_0c0dfd33",
+        "filename": "src/include/backend.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 14,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-02-13T12:49:00Z",
+      "side": 1,
+      "message": "Yes, I pondered this one for quite a while. For now, I have chosen to value simplicity over performance, one will have to make a call to list_fsentries() per root.\n\nA future implementation may add an optional functionality to deals with this.",
+      "parentUuid": "87a98e4e_68e72eda",
+      "range": {
+        "startLine": 14,
+        "startChar": 22,
+        "endLine": 14,
+        "endChar": 35
+      },
+      "revId": "7e34745973543b03a80acf50d94ec69cf8a6f256",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "38ca71fe_8c069970",
         "filename": "src/include/backend.h",
         "patchSetId": 1
@@ -145,6 +283,30 @@
       "writtenOn": "2018-02-12T16:16:21Z",
       "side": 1,
       "message": "This should not be hardcoded.\nRbh will just load the backend module dynamically, driven by its configuration.",
+      "range": {
+        "startLine": 18,
+        "startChar": 0,
+        "endLine": 18,
+        "endChar": 37
+      },
+      "revId": "7e34745973543b03a80acf50d94ec69cf8a6f256",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9a3315d4_0213eaff",
+        "filename": "src/include/backend.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 18,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-02-13T12:49:00Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "38ca71fe_8c069970",
       "range": {
         "startLine": 18,
         "startChar": 0,
