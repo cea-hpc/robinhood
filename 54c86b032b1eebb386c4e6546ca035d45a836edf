@@ -1,0 +1,95 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "807baa66_ebe5de1b",
+        "filename": "src/src/filter.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 118,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-14T15:55:53Z",
+      "side": 1,
+      "message": "You can avoid such a big switch by defining a static array like:\n  static const enum filter_operator fop_negate[] \u003d {\n      [FOP_EQUAL] \u003d FOP_NOT_EQUAL,\n      [FOP_NOT_EQUAL] \u003d FOP_EQUAL,\n      ...\n  }\n\nThen this function simply becomes:\n\n   filter-\u003eop \u003d fop_negate[filter-\u003eop];\n\nThis is also more efficient (1 adressing vs. multiple tests)",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "0ac73f90_4a4e0ae9",
+        "filename": "src/src/mongodb.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 95,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-14T15:55:53Z",
+      "side": 1,
+      "message": "the same, this can be simplified as\n\nreturn fop_str[operator];\n\nwith\n\n  fop_str[] \u003d {\n      [FOP_EQUAL] \u003d \"$eq\",\n      [FOP_NOT_EQUAL] \u003d \"$ne\",\n      ...\n  }",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "97496c81_d1dbc2b0",
+        "filename": "src/src/mongodb.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 159,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-14T15:55:53Z",
+      "side": 1,
+      "message": "per-se?",
+      "range": {
+        "startLine": 159,
+        "startChar": 17,
+        "endLine": 159,
+        "endChar": 19
+      },
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "3dfec448_3cbf7001",
+        "filename": "src/src/mongodb.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 376,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-14T15:55:53Z",
+      "side": 1,
+      "message": "Much hardcoded things here :-(\n\nA preliminary enhancement could be to define an array of attributes {name, expected bson type, offset of target field in stat, ...} and replace this big \"if, else if, else if, else if\" by searching the right string in the array (or even better, in a hash table).\n\nIdeally, as discussed wed. morning, this set of attributes would be declared by a POSIX-specific module.",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "d63952f9_d7a36d23",
+        "filename": "src/tests/test_filter_and.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 13,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-14T15:55:53Z",
+      "side": 1,
+      "message": "(style) line over 80 char",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
