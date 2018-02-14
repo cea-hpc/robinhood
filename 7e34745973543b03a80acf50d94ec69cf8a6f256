@@ -363,6 +363,30 @@
       "revId": "7e34745973543b03a80acf50d94ec69cf8a6f256",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "1f05885c_24848978",
+        "filename": "src/include/backend.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 28,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-14T15:55:53Z",
+      "side": 1,
+      "message": "I thought that because of the example in \"man va_start\" which seams to indicate the terminating argument is NULL:\n\n           va_start(ap, fmt);\n           while (*fmt) {\n               switch (*fmt++) {\n               ...",
+      "parentUuid": "16fbea5e_7c9d15d0",
+      "range": {
+        "startLine": 28,
+        "startChar": 48,
+        "endLine": 28,
+        "endChar": 51
+      },
+      "revId": "7e34745973543b03a80acf50d94ec69cf8a6f256",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
