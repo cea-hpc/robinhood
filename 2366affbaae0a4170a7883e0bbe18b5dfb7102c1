@@ -270,6 +270,24 @@
     },
     {
       "key": {
+        "uuid": "07e9b12f_4243dfaa",
+        "filename": "src/include/fsentry.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 17,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-14T12:47:02Z",
+      "side": 1,
+      "message": "I suggest an arbitrary attribute set here (rbh_params type can be used to implement that).",
+      "parentUuid": "17626173_f46bf534",
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "ccbfc7ff_8806114b",
         "filename": "src/src/filter.c",
         "patchSetId": 2
@@ -281,6 +299,24 @@
       "writtenOn": "2018-02-13T16:09:15Z",
       "side": 1,
       "message": "Autotool integration: add this first:\n\n#ifdef HAVE_CONFIG_H\n#include \"config.h\"\n#endif",
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "46ac830e_d2a8f454",
+        "filename": "src/src/filter.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-14T12:47:02Z",
+      "side": 1,
+      "message": "Source path src/src/xxx.c should be renamed to something more explicit, e.g. src/db/xxx.c",
+      "parentUuid": "ccbfc7ff_8806114b",
       "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -354,6 +390,109 @@
         "startChar": 9,
         "endLine": 189,
         "endChar": 22
+      },
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "bf3dbd0e_1dff5bdb",
+        "filename": "src/src/mongodb.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 34,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-14T12:47:02Z",
+      "side": 1,
+      "message": "(defect)backend is allocated in a static (perhaps read-only) part of the memory of size sizeof(struct backend), and here you are writing beside it.\n\nBackend is actually not really const, so perhaps you should distinguish: the backend class, which is readonly and static, and contains the operation vector and a backend instance which contains an operation vector + the instance resources.",
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "3012fc17_2bd39a42",
+        "filename": "src/src/mongodb.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 34,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-14T12:47:02Z",
+      "side": 1,
+      "message": "What is the scope of the returned client? Is it per thread or is it shared between client threads?",
+      "range": {
+        "startLine": 34,
+        "startChar": 20,
+        "endLine": 34,
+        "endChar": 37
+      },
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "b592d3a3_d2c50eac",
+        "filename": "src/src/mongodb.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 91,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-14T12:47:02Z",
+      "side": 1,
+      "message": "It really looks like using an arbitrary set of key values for fsentry would make things simpler here.",
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "db33184b_2dc7f7c3",
+        "filename": "src/src/mongodb.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 245,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-14T12:47:02Z",
+      "side": 1,
+      "message": "(style) missing space after switch",
+      "range": {
+        "startLine": 245,
+        "startChar": 10,
+        "endLine": 245,
+        "endChar": 11
+      },
+      "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "2b2c31cd_86b721ce",
+        "filename": "src/src/mongodb.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 290,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-14T12:47:02Z",
+      "side": 1,
+      "message": "(style) missing space after for.\nconsider running ./scripts/checkpatch.pl",
+      "range": {
+        "startLine": 290,
+        "startChar": 7,
+        "endLine": 290,
+        "endChar": 8
       },
       "revId": "2366affbaae0a4170a7883e0bbe18b5dfb7102c1",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
