@@ -2053,10 +2053,6 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
 static inline int invalidate_entry(const policy_info_t *pol, lmgr_t *lmgr,
                                    entry_id_t *p_entry_id)
 {
-#ifdef _HAVE_FID
-    /* only for POSIX */
-    return 0;
-#else
     attr_set_t new_attr_set = ATTR_SET_INIT;
     int rc;
 
@@ -2070,7 +2066,6 @@ static inline int invalidate_entry(const policy_info_t *pol, lmgr_t *lmgr,
         DisplayLog(LVL_CRIT, tag(pol),
                    "Error %d tagging entry as invalid in database.", rc);
     return rc;
-#endif
 }
 
 static inline int update_entry(lmgr_t *lmgr, const entry_id_t *p_entry_id,
@@ -2191,7 +2186,10 @@ static int check_entry(const policy_info_t *policy, lmgr_t *lmgr,
     if (stat_path == NULL) {
         DisplayLog(LVL_DEBUG, tag(policy),
                    "No path to access entry. Tagging it invalid.");
+    /* File has been moved, might still be accessible with fid*/
+#ifndef _HAVE_FID
         invalidate_entry(policy, lmgr, &p_item->entry_id);
+#endif
         /* not enough metadata */
         return AS_MISSING_MD;
     }
