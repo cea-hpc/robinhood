@@ -9884,6 +9884,43 @@ function test_lhsm_archive
     return 0
 }
 
+function test_hsm_invalidate
+{
+    #  test_hsm_invalidate.conf "HSM invalidate deleted files"
+    if [[ $is_lhsm == 0 ]] ; then
+        echo "Lustre/HSM test only: skipped"
+        set_skipped
+        return 1
+    fi
+
+    config_file=$1
+    rm -f rh_archive.log
+
+    # Create test files
+    for i in `seq 1 5`; do
+        dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=2 >/dev/null 2>/dev/null || error "writing file.$i"
+    done
+    # run one pass lhsm_archive - need full scan first
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once 2>&1 > /dev/null
+
+    # delete 2 files, rename 1
+    for i in 4 5 ; do
+        rm -f $RH_ROOT/file.$i
+    done
+    mv $RH_ROOT/file.3 $RH_ROOT/file.a
+    sleep 2
+    # archive files
+    $RH -f $RBH_CFG_DIR/$config_file --run=lhsm_archive -O 2>&1 > /dev/null
+
+    # get number of entries in invalid state in DB
+    LC=$(mysql $RH_DB -B -e "select count(*) from ENTRIES where invalid = 1" | tail -1)
+    if [[ $LC != 2 ]] ; then
+        error "Number of files in invalid entries incorrect - expected 2, found $LC"
+    fi
+
+    return 0
+}
+
 function test_multirule_select
 {
     # test doesnt work for POSIX as there are harcoded /mnt/lustre path in
@@ -13254,6 +13291,7 @@ run_test 240   test_rmdir_depth  test_rmdir_depth.conf "check sql query for rmdi
 run_test 241   test_prepost_cmd  test_prepost_cmd.conf "test pre/post_run_command"
 run_test 242   test_nlink_crit  test_nlink.conf "test nlink criterion"
 run_test 243   test_iname       test_iname.conf "test iname criterion"
+run_test 244   test_hsm_invalidate test_hsm_invalidate.conf "HSM invalidate deleted files"
 
 #### triggers ####
 
