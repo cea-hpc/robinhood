@@ -36,6 +36,24 @@
     },
     {
       "key": {
+        "uuid": "0f01e3ae_8bf15d61",
+        "filename": "src/include/backend.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 13,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-19T21:04:57Z",
+      "side": 1,
+      "message": "I agree \"fini\" is more common.",
+      "parentUuid": "45e16291_ce497822",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "ec8bcca5_1bd38e6b",
         "filename": "src/include/backend.h",
         "patchSetId": 3
@@ -47,6 +65,24 @@
       "writtenOn": "2018-02-19T19:44:23Z",
       "side": 1,
       "message": "Are all backends supposed to add a pointer here? that sounds odd to me, I\u0027d put that in some mongodb backend header.\n(oh, I see it in patchset 1 now, you just move it haha :D)",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "2b90a3ae_93f493d2",
+        "filename": "src/include/backend.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 67,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-19T21:04:57Z",
+      "side": 1,
+      "message": "The plan is that this struct is returned by a dlopen\u0027ed module. This is temporary until integrating the module management there.",
+      "parentUuid": "ec8bcca5_1bd38e6b",
       "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -104,6 +140,24 @@
     },
     {
       "key": {
+        "uuid": "9ab2ff0a_ce0e662e",
+        "filename": "src/include/fsentry.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 16,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-19T21:04:57Z",
+      "side": 1,
+      "message": "It wondered what it meant too. So Did Henri. True this term is not common in \"our storage world\", maybe in some other domains? However I liked its imaged/poetic aspect so I did not comment it at first. But if the goal is to make it easy to step into, I agree it should be renamed.",
+      "parentUuid": "2730fc26_9f347ee0",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "ae3e93dc_54398670",
         "filename": "src/include/fsentry.h",
         "patchSetId": 3
@@ -115,6 +169,24 @@
       "writtenOn": "2018-02-19T19:44:23Z",
       "side": 1,
       "message": "uuid_t is something very specific, isn\u0027t it? (unsigned char[16] on my system)\n16 bytes is just 2 uint64, that feels small -- lustre fid just fits... if you know it\u0027s lustre and use lu_fid struct.\nSomething more generic e.g. vfs file handle for lustre is size(4)+type(4)+32 bytes, so far from fitting.",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "370820ee_1ecb25af",
+        "filename": "src/include/fsentry.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 22,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-19T21:04:57Z",
+      "side": 1,
+      "message": "Discussed today. Should be FS specific. fid (or even fsname+fid) for lustre, VFS handle for POSIX, and it can be larger object IDs in most object stores.",
+      "parentUuid": "ae3e93dc_54398670",
       "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -325,6 +397,24 @@
       "side": 1,
       "message": "oh, I guess the school of not truncating long strings isn\u0027t universal... :)",
       "parentUuid": "6694053f_face0c02",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "e992e976_2c6f4a05",
+        "filename": "src/tests/test_filter_and.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 13,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-02-19T21:04:57Z",
+      "side": 1,
+      "message": "True, no coding style is universal. But let\u0027s just target this new dev branch to be fully checkpatch compliant :-)",
+      "parentUuid": "b5bb9b5c_23378a02",
       "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
