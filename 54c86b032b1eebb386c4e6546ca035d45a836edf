@@ -2,6 +2,125 @@
   "comments": [
     {
       "key": {
+        "uuid": "2676f804_2147ba09",
+        "filename": "src/include/backend.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 11,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2018-02-19T19:44:23Z",
+      "side": 1,
+      "message": "+1 to versionning this somehow (maybe in struct backend itself and not this op)",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "45e16291_ce497822",
+        "filename": "src/include/backend.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 13,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2018-02-19T19:44:23Z",
+      "side": 1,
+      "message": "(haven\u0027t seen that discussed yet, so troll inc) would use fini or finish for function name, exit feels too strong?",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ec8bcca5_1bd38e6b",
+        "filename": "src/include/backend.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 67,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2018-02-19T19:44:23Z",
+      "side": 1,
+      "message": "Are all backends supposed to add a pointer here? that sounds odd to me, I\u0027d put that in some mongodb backend header.\n(oh, I see it in patchset 1 now, you just move it haha :D)",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "1179ce38_2695b6b3",
+        "filename": "src/include/filter.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 78,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2018-02-19T19:44:23Z",
+      "side": 1,
+      "message": "(continuation from patchset2) argument of separate alloc isn\u0027t very convincing when you need to do that here.. :)",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "10c093b1_a076f07e",
+        "filename": "src/include/filter.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 89,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2018-02-19T19:44:23Z",
+      "side": 1,
+      "message": "Feels one step too far, wouldn\u0027t `struct filter *filters` be enough? Can\u0027t be filters[] as the size is variable with dangling values.",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "2730fc26_9f347ee0",
+        "filename": "src/include/fsentry.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 16,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2018-02-19T19:44:23Z",
+      "side": 1,
+      "message": "Where does the name hydrate come from? It\u0027s documented below but feels cryptic :)",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ae3e93dc_54398670",
+        "filename": "src/include/fsentry.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 22,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2018-02-19T19:44:23Z",
+      "side": 1,
+      "message": "uuid_t is something very specific, isn\u0027t it? (unsigned char[16] on my system)\n16 bytes is just 2 uint64, that feels small -- lustre fid just fits... if you know it\u0027s lustre and use lu_fid struct.\nSomething more generic e.g. vfs file handle for lustre is size(4)+type(4)+32 bytes, so far from fitting.",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "807baa66_ebe5de1b",
         "filename": "src/src/filter.c",
         "patchSetId": 3
@@ -31,6 +150,29 @@
       "side": 1,
       "message": "Done",
       "parentUuid": "807baa66_ebe5de1b",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "36dcb03e_8bd4da75",
+        "filename": "src/src/filter.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 174,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2018-02-19T19:44:23Z",
+      "side": 1,
+      "message": "(opinion inc) that comment isn\u0027t necessary if there is no code at all.\nintentional fallthrough need documenting if there is some code AND you want to execute the next case anyway",
+      "range": {
+        "startLine": 174,
+        "startChar": 17,
+        "endLine": 174,
+        "endChar": 46
+      },
       "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -165,6 +307,24 @@
       "side": 1,
       "message": "Done",
       "parentUuid": "d63952f9_d7a36d23",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "b5bb9b5c_23378a02",
+        "filename": "src/tests/test_filter_and.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 13,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2018-02-19T19:44:23Z",
+      "side": 1,
+      "message": "oh, I guess the school of not truncating long strings isn\u0027t universal... :)",
+      "parentUuid": "6694053f_face0c02",
       "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
