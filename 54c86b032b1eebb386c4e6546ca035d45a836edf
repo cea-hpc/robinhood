@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "2f64f204_0a497bb5",
+        "filename": "src/include/backend.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 11,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-02-20T10:12:30Z",
+      "side": 1,
+      "message": "Modularization is the next step, versionning will come with it (or the patchset right after).",
+      "parentUuid": "2676f804_2147ba09",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "45e16291_ce497822",
         "filename": "src/include/backend.h",
         "patchSetId": 3
@@ -89,6 +107,24 @@
     },
     {
       "key": {
+        "uuid": "16c001e7_167ee58d",
+        "filename": "src/include/backend.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 67,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-02-20T10:12:30Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "2b90a3ae_93f493d2",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "1179ce38_2695b6b3",
         "filename": "src/include/filter.h",
         "patchSetId": 3
@@ -106,6 +142,24 @@
     },
     {
       "key": {
+        "uuid": "d51d9df4_56958dca",
+        "filename": "src/include/filter.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 78,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-02-20T10:12:30Z",
+      "side": 1,
+      "message": "Well, I will reverse the question then, why use a (char *) instead of (char[])?",
+      "parentUuid": "1179ce38_2695b6b3",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "10c093b1_a076f07e",
         "filename": "src/include/filter.h",
         "patchSetId": 3
@@ -117,6 +171,24 @@
       "writtenOn": "2018-02-19T19:44:23Z",
       "side": 1,
       "message": "Feels one step too far, wouldn\u0027t `struct filter *filters` be enough? Can\u0027t be filters[] as the size is variable with dangling values.",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "e9c98529_db7f6c17",
+        "filename": "src/include/filter.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 89,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-02-20T10:12:30Z",
+      "side": 1,
+      "message": "I do not see how to make it work without two levels of indirections. Can you explain how you would store multiple filters in a (struct filter *filters)?",
+      "parentUuid": "10c093b1_a076f07e",
       "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -158,6 +230,24 @@
     },
     {
       "key": {
+        "uuid": "e10c34c2_f2d76df3",
+        "filename": "src/include/fsentry.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 16,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-02-20T10:12:30Z",
+      "side": 1,
+      "message": "https://stackoverflow.com/questions/6991135/what-does-it-mean-to-hydrate-an-object",
+      "parentUuid": "9ab2ff0a_ce0e662e",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "ae3e93dc_54398670",
         "filename": "src/include/fsentry.h",
         "patchSetId": 3
@@ -187,6 +277,24 @@
       "side": 1,
       "message": "Discussed today. Should be FS specific. fid (or even fsname+fid) for lustre, VFS handle for POSIX, and it can be larger object IDs in most object stores.",
       "parentUuid": "ae3e93dc_54398670",
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "f7afa445_a3771aef",
+        "filename": "src/include/fsentry.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 22,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-02-20T10:12:30Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "370820ee_1ecb25af",
       "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
@@ -239,6 +347,30 @@
       "writtenOn": "2018-02-19T19:44:23Z",
       "side": 1,
       "message": "(opinion inc) that comment isn\u0027t necessary if there is no code at all.\nintentional fallthrough need documenting if there is some code AND you want to execute the next case anyway",
+      "range": {
+        "startLine": 174,
+        "startChar": 17,
+        "endLine": 174,
+        "endChar": 46
+      },
+      "revId": "54c86b032b1eebb386c4e6546ca035d45a836edf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "63430aa6_5658b91c",
+        "filename": "src/src/filter.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 174,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-02-20T10:12:30Z",
+      "side": 1,
+      "message": "Makes sense",
+      "parentUuid": "36dcb03e_8bd4da75",
       "range": {
         "startLine": 174,
         "startChar": 17,
