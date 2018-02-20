@@ -2789,6 +2789,7 @@ static void run_sched_cb(void *udata, sched_status_e st)
             if (rc != AS_OK) {
                 policy_ack(&pol->queue, rc, &ectx->fresh_attrs,
                            ectx->item->targeted);
+                free_entry_context(ectx);
                 return;
             }
             rc = policy_action(ectx);
