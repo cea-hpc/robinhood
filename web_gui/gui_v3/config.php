@@ -62,6 +62,8 @@ $JSON_OPTIONS = null;
 if (version_compare(phpversion(), '5.4.0', '>='))
     $JSON_OPTIONS |= JSON_PRETTY_PRINT;
 
+$SHOW_FILES = True;
+
 /*****************************
 *       ChartJS/dataTable    *
 *****************************/
