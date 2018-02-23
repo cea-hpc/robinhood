@@ -1440,12 +1440,9 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
             /* read fileclass block contents */
             rc = read_fileclass_block(root_block, p_policies, curr_idx,
                                       msg_out);
-            if (rc) {
-                /* don't try to clean the last one as it is failed/incomplete
-                 * and likely already freed */
-                p_policies->fileset_count--;
-                goto clean_filesets;
-            }
+            if (rc)
+                goto clean_except_last;
+
         } else if (!strcasecmp(block_name, FILESETS_SECTION)) {
             int nb_sub_items; /**< nbr of fileclasses in the block */
 
@@ -1470,7 +1467,7 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
                            "Only " FILESET_BLOCK " sub-blocks are expected in "
                            FILESETS_SECTION " section");
                     rc = EINVAL;
-                    goto clean_filesets;
+                    goto clean_except_last;
                 }
                 sub_block_name = rh_config_GetBlockName(sub_item);
                 critical_err_check_goto(sub_block_name, FILESETS_SECTION, rc,
@@ -1481,7 +1478,7 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
                     rc = read_fileclass_block(sub_item, p_policies,
                                               curr_idx + j, msg_out);
                     if (rc)
-                        goto clean_filesets;
+                        goto clean_except_last;
                 } else {
                     sprintf(msg_out,
                             "'%s' sub-block unexpected in %s section, line %d.",
@@ -1496,7 +1493,11 @@ static int read_filesets(config_file_t config, policies_t *p_policies,
 
     return 0;
 
- clean_filesets:
+clean_except_last:
+    /* don't try to clean the last one as it is failed/incomplete
+     * and likely already freed */
+    p_policies->fileset_count--;
+clean_filesets:
     free_filesets(p_policies);
     return rc;
 }
