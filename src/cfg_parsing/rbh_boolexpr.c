@@ -907,7 +907,7 @@ static int build_set_expr(type_set *p_in_set,
         }
         p_out_node->content_u.bool_expr.bool_op = BOOL_NOT;
 
-        p_out_node->content_u.bool_expr.owner = 1;
+        p_out_node->content_u.bool_expr.owner = 0;
         p_out_node->content_u.bool_expr.expr1
             = (bool_node_t *)malloc(sizeof(bool_node_t));
         if (!p_out_node->content_u.bool_expr.expr1)
@@ -935,7 +935,7 @@ static int build_set_expr(type_set *p_in_set,
             return EINVAL;
         }
 
-        p_out_node->content_u.bool_expr.owner = 1;
+        p_out_node->content_u.bool_expr.owner = 0;
         p_out_node->content_u.bool_expr.expr1
             = (bool_node_t *)malloc(sizeof(bool_node_t));
         if (!p_out_node->content_u.bool_expr.expr1)
