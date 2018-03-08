@@ -47,6 +47,12 @@ if HSM_LITE
 else
   rpmbuild_opt += --without backup
 endif
+if USE_JEMALLOC
+  rpmbuild_opt += --with jemalloc
+else
+  rpmbuild_opt += --without jemalloc
+endif
+
 
 new: clean all
 
