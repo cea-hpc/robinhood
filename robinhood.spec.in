@@ -85,6 +85,8 @@ BuildRequires: %{lpackage}
 %if %{with mysql}
 BuildRequires: /usr/include/mysql/mysql.h
 %endif
+BuildRequires: jemalloc
+BuildRequires: jemalloc-devel
 
 %description
 Robinhood is a tool for monitoring and applying policies to file system entries.
@@ -111,6 +113,7 @@ Conflicts: robinhood-posix
 Provides: robinhood = %{version}-%{release}
 Obsoletes: robinhood-tmpfs < 3.0, robinhood-tmpfs-lustre < 3.0
 Obsoletes: robinhood-backup < 3.0, robinhood-lhsm < 3.0
+Requires: jemalloc
 
 %description lustre
 Policy engine for Lustre filesystems.
@@ -128,6 +131,7 @@ Group: Applications/System
 Conflicts: robinhood-lustre
 Provides: robinhood = %{version}-%{release}
 Obsoletes: robinhood-tmpfs < 3.0, robinhood-tmpfs-posix < 3.0
+Requires: jemalloc
 
 %description posix
 Policy engine for POSIX filesystems.
@@ -203,8 +207,6 @@ Shook module for robinhood
 
 %prep
 %setup -q -n @PACKAGE@-%{version}
-
-
 
 %build
 ./configure %{lswitch} %{?configure_flags} --mandir=%{_mandir} --libdir=%{_libdir}

@@ -391,6 +391,8 @@ AC_CHECK_HEADERS([attr/xattr.h],[],[AC_MSG_ERROR([libattr-devel is not installed
 AC_CHECK_LIB([pthread], [pthread_getsequence_np], [have_pthread_getsequence_np="yes"],[have_pthread_getsequence_np="no"])
     test "x$have_pthread_getsequence_np" = "xyes" && AC_DEFINE(HAVE_PTHREAD_GETSEQUENCE_NP, 1, [pthread_getsequence_np function exists])
 
+AC_CHECK_LIB([jemalloc], [malloc_stats_print], LDFLAGS="$LDFLAGS -ljemalloc", \
+    AC_MSG_ERROR([jemalloc library not found (needs jemalloc and jemalloc-devel)]))
 
 AC_SUBST(PURPOSE_CFLAGS)
 AC_SUBST(PURPOSE_LDFLAGS)
