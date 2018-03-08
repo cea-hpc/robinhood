@@ -34,6 +34,9 @@ struct id_hash {
     struct id_hash_slot  slot[];
 };
 
+/** Return a suitable hash table size for the given entry count */
+unsigned int max_count_to_hash_size(unsigned int max_count);
+
 /**
  * Creates a new hash table for operation entries.
  * @return the new hash table.

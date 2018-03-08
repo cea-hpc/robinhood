@@ -31,6 +31,25 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+/* List of prime numbers of different magnitudes, to size the hash table with a
+ * suitable value according to max element count */
+static const unsigned int primes[] = { 7919, 15187, 32119, 64157, 128021,
+                                       256019, 512009, 999983, 2000003, 4006007,
+                                       8004091, 16000463, 32000251, 0};
+
+/** Return a suitable hash table size for the given entry count */
+unsigned int max_count_to_hash_size(unsigned int max_count)
+{
+    const unsigned int *slot;
+
+    for (slot = primes; slot[1] != 0; slot++) {
+        if (max_count <= *slot)
+            return *slot;
+    }
+    /* last value */
+    return *slot;
+}
+
 /** Creates and return a new hash table */
 struct id_hash *id_hash_init(const unsigned int hash_size, bool use_lock)
 {
