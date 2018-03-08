@@ -259,9 +259,8 @@ static void entry_proc_cfg_set_default(void *module_config)
     else
         conf->nb_thread = 10;
 
-    /* for efficient batching of 1000 ops */
-    conf->max_pending_operations = 10000;
-    conf->max_batch_size = 1000;
+    conf->max_pending_operations = 100;
+    conf->max_batch_size = 100;
     conf->match_classes = true;
 
     conf->detect_fake_mtime = false;
@@ -276,8 +275,8 @@ static void entry_proc_cfg_write_default(FILE *output)
     else
         print_line(output, 1, "nb_threads             :  10");
 
-    print_line(output, 1, "max_pending_operations :  10000");
-    print_line(output, 1, "max_batch_size         :  1000");
+    print_line(output, 1, "max_pending_operations :  100");
+    print_line(output, 1, "max_batch_size         :  100");
     print_line(output, 1, "match_classes          :  yes");
     print_line(output, 1, "detect_fake_mtime      :  no");
     print_end_block(output, 0);
@@ -604,14 +603,10 @@ static void entry_proc_cfg_write_template(FILE *output)
                "# If the number of pending operations exceeds this limit, ");
     print_line(output, 1,
                "# info collectors are suspended until this count decreases");
-#ifdef _SQLITE
-    print_line(output, 1, "max_pending_operations = 500 ;");
-#else
-    print_line(output, 1, "max_pending_operations = 10000 ;");
-#endif
+    print_line(output, 1, "max_pending_operations = 100 ;");
     fprintf(output, "\n");
     print_line(output, 1, "# max batched DB operations (1=no batching)");
-    print_line(output, 1, "max_batch_size = 1000;");
+    print_line(output, 1, "max_batch_size = 100;");
     fprintf(output, "\n");
 
     print_line(output, 1,
