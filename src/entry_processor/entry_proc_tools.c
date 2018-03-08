@@ -33,8 +33,6 @@
 entry_proc_config_t entry_proc_conf;
 int pipeline_flags = 0;
 
-/* default max pending operation is 10k */
-#define ID_HASH_SIZE 16007
 /* hash table for storing references to ids */
 static struct id_hash *id_hash;
 /* hash table for storing references to parent_id/name */
@@ -43,8 +41,12 @@ static struct id_hash *name_hash;
 /** initialize id constraint manager */
 int id_constraint_init(void)
 {
-    id_hash = id_hash_init(ID_HASH_SIZE, true);
-    name_hash = id_hash_init(ID_HASH_SIZE, true);
+    /* get the suggested hash size for the max record count */
+    size_t size = max_count_to_hash_size(
+        entry_proc_conf.max_pending_operations);
+
+    id_hash = id_hash_init(size, true);
+    name_hash = id_hash_init(size, true);
     /* exiting the process releases hash resources */
     return (id_hash == NULL || name_hash == NULL) ? -1 : 0;
 }

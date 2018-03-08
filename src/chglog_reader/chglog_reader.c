@@ -146,9 +146,6 @@ typedef struct reader_thr_info_t {
 
 } reader_thr_info_t;
 
-/* Number of entries in each readers' op hash table. */
-#define ID_CHGLOG_HASH_SIZE 7919
-
 extern chglog_reader_config_t cl_reader_config;
 static run_flags_t behavior_flags = 0;
 
@@ -1457,7 +1454,8 @@ int cl_reader_start(run_flags_t flags, int mdt_index)
         info->thr_index = i;
         rh_list_init(&info->op_queue);
         info->last_report = time(NULL);
-        info->id_hash = id_hash_init(ID_CHGLOG_HASH_SIZE, false);
+        info->id_hash = id_hash_init(
+            max_count_to_hash_size(cl_reader_config.queue_max_size), false);
 
         snprintf(mdtdevice, 128, "%s-%s", get_fsname(),
                  cl_reader_config.mdt_def[i].mdt_name);
