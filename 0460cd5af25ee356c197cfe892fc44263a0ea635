@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "2095aa9c_06113924",
+        "filename": "src/entry_processor/test_hash.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 14,
+      "author": {
+        "id": 1008040
+      },
+      "writtenOn": "2018-03-09T09:04:52Z",
+      "side": 1,
+      "message": "Only test is s \u003e 0 ? Why not also testing (s \u003e i || or s \u003d\u003d MAX_VALUE) ?",
+      "range": {
+        "startLine": 14,
+        "startChar": 2,
+        "endLine": 14,
+        "endChar": 16
+      },
+      "revId": "0460cd5af25ee356c197cfe892fc44263a0ea635",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
