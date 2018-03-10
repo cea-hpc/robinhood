@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5d63c4b4_9b0fa689",
+        "filename": "src/policies/policy_run.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 2059,
+      "author": {
+        "id": 1011072
+      },
+      "writtenOn": "2018-03-10T05:59:17Z",
+      "side": 0,
+      "message": "this is the code that causes endless loop",
+      "range": {
+        "startLine": 2056,
+        "startChar": 1,
+        "endLine": 2059,
+        "endChar": 5
+      },
+      "revId": "884bffa1a8a6143a3207366bbb24e983d162e5f1",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
