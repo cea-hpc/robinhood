@@ -2,6 +2,29 @@
   "comments": [
     {
       "key": {
+        "uuid": "c0db2fb6_63e72be5",
+        "filename": "src/entry_processor/entry_proc_hash.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 38,
+      "author": {
+        "id": 1008040
+      },
+      "writtenOn": "2018-03-12T10:29:01Z",
+      "side": 1,
+      "message": "Why not defining this static array in the header file and especially the max value ? The max value is also used in test file.",
+      "range": {
+        "startLine": 38,
+        "startChar": 58,
+        "endLine": 38,
+        "endChar": 66
+      },
+      "revId": "ffb1d2feec1807fc30c55f5b3e94f2df116376f9",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "620b83af_e1f2be73",
         "filename": "src/entry_processor/entry_proc_hash.c",
         "patchSetId": 2
