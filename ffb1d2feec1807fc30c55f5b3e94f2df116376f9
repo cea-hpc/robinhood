@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "620b83af_e1f2be73",
+        "filename": "src/entry_processor/entry_proc_hash.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 47,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2018-03-12T10:08:02Z",
+      "side": 1,
+      "message": "Actually a nitpick here: I\u0027d pick slot if max_count * 1.3 \u003c\u003d *slot or something.\nIf you insert exactly 7919 entries into a hash table with 7919 there will likely be quite a few collisions.\nThen again, if there\u0027s just a handful of collisions it\u0027s ok, so I don\u0027t really mind either way.",
+      "revId": "ffb1d2feec1807fc30c55f5b3e94f2df116376f9",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
