@@ -845,6 +845,7 @@ static bool can_ignore_record(reader_thr_info_t *p_info,
             llapi_changelog_free(&logrec);
             rh_list_del(&op->list);
             rh_list_del(&op->id_hash_list);
+            p_info->op_queue_count--;
             /* removed record was previously counted as interesting */
             p_info->interesting_records--;
             /* ignore second record as well */
