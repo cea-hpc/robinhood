@@ -19,6 +19,7 @@
 #include "list_mgr.h"
 #include "rbh_logs.h"
 #include "rbh_misc.h"
+#include "rbh_basename.h"
 #include "rbh_modules.h"
 #include "policy_rules.h"
 #include "status_manager.h"
@@ -123,7 +124,7 @@ static int common_copy(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
                        db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     int rc;
-    copy_flags_e flags = params2flags(params);
+    copy_flags_e flags = cp_params2flags(params);
     const char *targetpath = rbh_param_get(params, TARGET_PATH_PARAM);
 
     /* flags for restore vs. flags for archive */
@@ -151,7 +152,7 @@ static int common_sendfile(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
                            void *db_cb_arg)
 {
     int rc;
-    copy_flags_e flags = params2flags(params);
+    copy_flags_e flags = cp_params2flags(params);
     const char *targetpath = rbh_param_get(params, TARGET_PATH_PARAM);
 
     /* flags for restore vs. flags for archive */
@@ -177,7 +178,7 @@ static int common_gzip(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
                        db_cb_func_t db_cb_fn, void *db_cb_arg)
 {
     int rc;
-    copy_flags_e flags = params2flags(params);
+    copy_flags_e flags = cp_params2flags(params);
     const char *targetpath = rbh_param_get(params, TARGET_PATH_PARAM);
 
     /* flags for restore vs. flags for archive */
@@ -188,12 +189,66 @@ static int common_gzip(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
     if (!ATTR_MASK_TEST(p_attrs, fullpath) || (targetpath == NULL)) {
         DisplayLog(LVL_MAJOR, CP_TAG,
                    "Missing mandatory attribute to perform file copy "
-                   "(fullpath or backendpath)");
+                   "(fullpath or targetpath)");
         return -EINVAL;
     }
 
     rc = builtin_copy(ATTR(p_attrs, fullpath), targetpath, oflg,
                       !(flags & CP_COPYBACK), flags | CP_COMPRESS);
+    *after = PA_UPDATE;
+    return rc;
+}
+
+/**
+ * Move an entry in the namespace and create the target parent directory
+ * if necessary.
+ */
+static int common_move(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
+                       const action_params_t *params, post_action_e *after,
+                       db_cb_func_t db_cb_fn, void *db_cb_arg)
+{
+#define MOVE_TAG "move"
+    const char *targetpath = rbh_param_get(params, TARGET_PATH_PARAM);
+    entry_id_t dir_id = {0};
+    int rc;
+
+    /* actions expect to get a source path in 'fullpath' and a targetpath
+     * in params */
+    if (!ATTR_MASK_TEST(p_attrs, fullpath) || (targetpath == NULL)) {
+        DisplayLog(LVL_MAJOR, CP_TAG,
+                   "Missing mandatory attribute to perform move operation "
+                   "(fullpath or targetpath)");
+        return -EINVAL;
+    }
+
+    rc = create_parent_of(targetpath, &dir_id);
+    if (rc != 0 && rc != -EEXIST)
+        goto out;
+
+    DisplayLog(LVL_DEBUG, MOVE_TAG, "rename('%s', '%s')",
+               ATTR(p_attrs, fullpath), targetpath);
+
+    if (rename(ATTR(p_attrs, fullpath), targetpath) != 0) {
+        rc = -errno;
+        DisplayLog(LVL_MAJOR, MOVE_TAG, "rename('%s', '%s') failed: %s",
+                   ATTR(p_attrs, fullpath), targetpath, strerror(-rc));
+        goto out;
+    }
+    rc = 0;
+
+    /* set new parent id, name and path */
+    ATTR(p_attrs, parent_id) = dir_id;
+    ATTR_MASK_SET(p_attrs, parent_id);
+
+    rh_strncpy(ATTR(p_attrs, name), rh_basename(targetpath),
+               sizeof(ATTR(p_attrs, name)));
+    ATTR_MASK_SET(p_attrs, name);
+
+    rh_strncpy(ATTR(p_attrs, fullpath), targetpath,
+               sizeof(ATTR(p_attrs, fullpath)));
+    ATTR_MASK_SET(p_attrs, fullpath);
+
+out:
     *after = PA_UPDATE;
     return rc;
 }
@@ -217,6 +272,8 @@ action_func_t mod_get_action(const char *action_name)
         return common_sendfile;
     else if (strcmp(action_name, "common.gzip") == 0)
         return common_gzip;
+    else if (strcmp(action_name, "common.move") == 0)
+        return common_move;
     else
         return NULL;
 }
