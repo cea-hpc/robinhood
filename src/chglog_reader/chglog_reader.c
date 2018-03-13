@@ -1039,7 +1039,7 @@ static int process_log_rec(reader_thr_info_t *p_info, CL_REC_TYPE *p_rec)
 
     /* update stats */
     opnum = p_rec->cr_type;
-    if ((opnum >= 0) && (opnum < CL_LAST))
+    if (opnum < CL_LAST)
         p_info->cl_counters[opnum]++;
     else {
         DisplayLog(LVL_CRIT, CHGLOG_TAG,
