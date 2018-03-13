@@ -37,7 +37,7 @@ int builtin_copy(const char *src, const char *dst, int dst_oflags,
                  bool save_attrs, copy_flags_e flags);
 
 /** set copy flags from a parameter set */
-copy_flags_e params2flags(const action_params_t *params);
+copy_flags_e cp_params2flags(const action_params_t *params);
 
 /** helper to set the entry status for the given SMI */
 static inline int set_status_attr(const sm_instance_t *smi,
