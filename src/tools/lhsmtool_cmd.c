@@ -73,7 +73,6 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <lustre/lustreapi.h>
-#include <lustre/lustre_user.h>
 
 #include <glib.h>
 
