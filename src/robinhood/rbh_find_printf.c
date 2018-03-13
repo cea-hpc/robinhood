@@ -599,7 +599,7 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
 
         switch (chunk->directive) {
         case 0:
-            printf(format);
+            printf("%s", format);
             break;
 
         case 'A':
