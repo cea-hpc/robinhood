@@ -280,7 +280,7 @@ static int lmgr_cfg_read(config_file_t config, void *module_config,
                     strerror(errno));
             return rc;
         }
-        fscanf(passfile, "%1024s", tmpstr);
+        fscanf(passfile, "%1023s", tmpstr);
         if (ferror(passfile)) {
             rc = errno;
             strerror_r(rc, errstr, 1024);
