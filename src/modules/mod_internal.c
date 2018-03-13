@@ -59,7 +59,7 @@ static int file_clone_attrs(const char *tgt, const struct stat *st)
     return 0;
 }
 
-copy_flags_e params2flags(const action_params_t *params)
+copy_flags_e cp_params2flags(const action_params_t *params)
 {
     copy_flags_e flg = 0;
     struct copy_params_t *curr_param;
@@ -69,7 +69,7 @@ copy_flags_e params2flags(const action_params_t *params)
 
     for (curr_param = copy_params; curr_param->name != NULL; curr_param++) {
         const char *val = rbh_param_get(params, curr_param->name);
-        if ((val != NULL) && (str2bool(val) != 0))
+        if ((val != NULL) && (str2bool(val) == 1))
             flg |= curr_param->flag;
     }
 
