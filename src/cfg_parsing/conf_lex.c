@@ -668,12 +668,17 @@ static void DEBUG_LEX( char * format, ... ) { return ; }
 #endif
 
 
+/* These functions are defined by bison/yacc but not used, which
+ * causes a compiler warning. */
+static void yyunput(int c, char *buf_ptr) __attribute__((unused));
+static int input(void) __attribute__((unused));
+
 
 /* lettre posant probleme dans une chaine */
 /* comment est compose un identifiant */
 /* INCLUDE state is used for picking the name of the include file */
 
-#line 677 "conf_lex.c"
+#line 682 "conf_lex.c"
 
 #define INITIAL 0
 #define YY_INIT 1
@@ -863,10 +868,10 @@ YY_DECL
 	register char *yy_cp, *yy_bp;
 	register int yy_act;
     
-#line 115 "conf_lex.l"
+#line 120 "conf_lex.l"
 
 
-#line 870 "conf_lex.c"
+#line 875 "conf_lex.c"
 
 	if ( !(yy_init) )
 		{
@@ -951,7 +956,7 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 117 "conf_lex.l"
+#line 122 "conf_lex.l"
 {/* Start reading name of included file */
                         DEBUG_LEX("INCLUDE\n");
                         BEGIN INCLUDE;
@@ -961,7 +966,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 124 "conf_lex.l"
+#line 129 "conf_lex.l"
 {/* Start reading name of included file */
                         DEBUG_LEX("INCLUDE\n");
                         BEGIN INCLUDE;
@@ -971,7 +976,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 131 "conf_lex.l"
+#line 136 "conf_lex.l"
 { /* start include file name */
                       BEGIN INCL_STRING;
                       DEBUG_LEX("file:<");
@@ -980,12 +985,12 @@ YY_RULE_SETUP
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 137 "conf_lex.l"
+#line 142 "conf_lex.l"
 {BEGIN INCL_ESC;}
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 139 "conf_lex.l"
+#line 144 "conf_lex.l"
 { /* include file read */
                         unsigned int i;
                         GString *new_file_path;
@@ -1096,7 +1101,7 @@ YY_RULE_SETUP
 case 6:
 /* rule 6 can match eol */
 YY_RULE_SETUP
-#line 247 "conf_lex.l"
+#line 252 "conf_lex.l"
 {
                             snprintf(err_str,ERRLEN,"in \"%s\", line %d: missing closing quote.",current_file->str, yylineno);
                             set_error(err_str);
@@ -1106,18 +1111,18 @@ YY_RULE_SETUP
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 254 "conf_lex.l"
+#line 259 "conf_lex.l"
 {YY_BUFFER_APPEND(yytext); DEBUG_LEX("%c",*yytext);/* caractere du fichier */}
 	YY_BREAK
 case 8:
 /* rule 8 can match eol */
 YY_RULE_SETUP
-#line 256 "conf_lex.l"
+#line 261 "conf_lex.l"
 {BEGIN INCL_STRING; yylineno++;}/* ignore un saut de ligne echappe*/
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 257 "conf_lex.l"
+#line 262 "conf_lex.l"
 {DEBUG_LEX("%c",*yytext);YY_BUFFER_APPEND(yytext);BEGIN INCL_STRING;/* caractere du fichier */}
 	YY_BREAK
 case YY_STATE_EOF(INITIAL):
@@ -1129,7 +1134,7 @@ case YY_STATE_EOF(ESC1):
 case YY_STATE_EOF(INCLUDE):
 case YY_STATE_EOF(INCL_STRING):
 case YY_STATE_EOF(INCL_ESC):
-#line 260 "conf_lex.l"
+#line 265 "conf_lex.l"
 { /* end of included file */
             DEBUG_LEX("<EOF>\n");
 
@@ -1155,7 +1160,7 @@ case YY_STATE_EOF(INCL_ESC):
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 285 "conf_lex.l"
+#line 290 "conf_lex.l"
 {
                     /* identifier */
                     DEBUG_LEX("[bloc:%s]\n",yytext);
@@ -1165,7 +1170,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 293 "conf_lex.l"
+#line 298 "conf_lex.l"
 {/* debut de bloc */
                         DEBUG_LEX("BEGIN_BLOCK\n");
                         BEGIN INBLOC;
@@ -1175,7 +1180,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 300 "conf_lex.l"
+#line 305 "conf_lex.l"
 {
                     DEBUG_LEX("(");
                     parenthesis++;
@@ -1184,12 +1189,12 @@ YY_RULE_SETUP
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 306 "conf_lex.l"
+#line 311 "conf_lex.l"
 {DEBUG_LEX(",  "); return VALUE_SEPARATOR;}
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 307 "conf_lex.l"
+#line 312 "conf_lex.l"
 {BEGIN INBLOC;  DEBUG_LEX(")\n");
                 if ( parenthesis <= 0 )
                     {
@@ -1206,32 +1211,32 @@ YY_RULE_SETUP
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 321 "conf_lex.l"
+#line 326 "conf_lex.l"
 { DEBUG_LEX(" NOT "); return NOT; }
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 322 "conf_lex.l"
+#line 327 "conf_lex.l"
 { DEBUG_LEX(" AND "); return AND; }
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 323 "conf_lex.l"
+#line 328 "conf_lex.l"
 { DEBUG_LEX(" OR "); return OR; }
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 325 "conf_lex.l"
+#line 330 "conf_lex.l"
 { DEBUG_LEX(" UNION "); return UNION; }
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 326 "conf_lex.l"
+#line 331 "conf_lex.l"
 { DEBUG_LEX(" INTER "); return INTER; }
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 328 "conf_lex.l"
+#line 333 "conf_lex.l"
 {
                     /* environment variable */
                     DEBUG_LEX("[VAR:%s]",yytext);
@@ -1241,7 +1246,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 335 "conf_lex.l"
+#line 340 "conf_lex.l"
 {
                     /* identifier */
                     DEBUG_LEX("[%s]",yytext);
@@ -1251,7 +1256,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 343 "conf_lex.l"
+#line 348 "conf_lex.l"
 {   /* end of block */
                     if ( accolades <= 0 )
                     {
@@ -1280,47 +1285,47 @@ YY_RULE_SETUP
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 369 "conf_lex.l"
+#line 374 "conf_lex.l"
 { DEBUG_LEX(" EQUAL "); return EQUAL; }
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 370 "conf_lex.l"
+#line 375 "conf_lex.l"
 { DEBUG_LEX(" SUP "); return GT; }
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 371 "conf_lex.l"
+#line 376 "conf_lex.l"
 { DEBUG_LEX(" SUP_OR_EQUAL "); return GT_EQ; }
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 372 "conf_lex.l"
+#line 377 "conf_lex.l"
 { DEBUG_LEX(" INF  "); return LT; }
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 373 "conf_lex.l"
+#line 378 "conf_lex.l"
 { DEBUG_LEX(" INF_OR_EQUAL "); return LT_EQ; }
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 374 "conf_lex.l"
+#line 379 "conf_lex.l"
 { DEBUG_LEX(" DIFF "); return DIFF; }
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 375 "conf_lex.l"
+#line 380 "conf_lex.l"
 { DEBUG_LEX(" DIFF "); return DIFF; }
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 376 "conf_lex.l"
+#line 381 "conf_lex.l"
 { DEBUG_LEX(" AFFECT "); return AFFECT; }
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 378 "conf_lex.l"
+#line 383 "conf_lex.l"
 {
                                 /* sub-block */
                                 DEBUG_LEX("\nBEGIN_SUB_BLOCK\n");
@@ -1331,70 +1336,70 @@ YY_RULE_SETUP
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 387 "conf_lex.l"
+#line 392 "conf_lex.l"
 {BEGIN STRING1;DEBUG_LEX("value:<");YY_BUFFER_RESET();} /* ouverture string 1 */
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 388 "conf_lex.l"
+#line 393 "conf_lex.l"
 {BEGIN STRING2;DEBUG_LEX("value:<");YY_BUFFER_RESET();} /* ouverture string 2 */
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 390 "conf_lex.l"
+#line 395 "conf_lex.l"
 {/* valeur */DEBUG_LEX("[value:%s]\n",yytext);rh_strncpy(yylval.str_val,yytext,MAXSTRLEN); return NON_IDENTIFIER_VALUE;}
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 392 "conf_lex.l"
+#line 397 "conf_lex.l"
 {DEBUG_LEX(" end_AFFECT "); return END_AFFECT; }
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 395 "conf_lex.l"
+#line 400 "conf_lex.l"
 {BEGIN ESC1;}
 	YY_BREAK
 case 37:
 YY_RULE_SETUP
-#line 396 "conf_lex.l"
+#line 401 "conf_lex.l"
 {DEBUG_LEX(">");rh_strncpy(yylval.str_val,YY_PARSED_STRING->str,MAXSTRLEN);BEGIN INBLOC;/* chaine finie */ return NON_IDENTIFIER_VALUE; }
 	YY_BREAK
 case 38:
 /* rule 38 can match eol */
 YY_RULE_SETUP
-#line 397 "conf_lex.l"
+#line 402 "conf_lex.l"
 {snprintf(err_str,ERRLEN,"in \"%s\", line %d: missing closing quote.",current_file->str,yylineno); set_error(err_str);yylineno++;return _ERROR_;}
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 398 "conf_lex.l"
+#line 403 "conf_lex.l"
 {YY_BUFFER_APPEND(yytext); DEBUG_LEX("%c",*yytext);/* caractere de la chaine */}
 	YY_BREAK
 case 40:
 /* rule 40 can match eol */
 YY_RULE_SETUP
-#line 400 "conf_lex.l"
+#line 405 "conf_lex.l"
 {BEGIN STRING1;yylineno++;}/* ignore un saut de ligne echappe*/
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 401 "conf_lex.l"
+#line 406 "conf_lex.l"
 {DEBUG_LEX("%c",*yytext);YY_BUFFER_APPEND(yytext);BEGIN STRING1;/* caractere de la chaine */}
 	YY_BREAK
 case 42:
 YY_RULE_SETUP
-#line 403 "conf_lex.l"
+#line 408 "conf_lex.l"
 {DEBUG_LEX(">");rh_strncpy(yylval.str_val,YY_PARSED_STRING->str,MAXSTRLEN);BEGIN INBLOC ;/* chaine finie */ return NON_IDENTIFIER_VALUE;}
 	YY_BREAK
 case 43:
 /* rule 43 can match eol */
 YY_RULE_SETUP
-#line 404 "conf_lex.l"
+#line 409 "conf_lex.l"
 {snprintf(err_str,ERRLEN,"in \"%s\", line %d: closing quote missing.",current_file->str,yylineno); set_error(err_str);yylineno++;return _ERROR_;}
 	YY_BREAK
 case 44:
 YY_RULE_SETUP
-#line 405 "conf_lex.l"
+#line 410 "conf_lex.l"
 {YY_BUFFER_APPEND(yytext);DEBUG_LEX("%c",*yytext);/* caractere de la chaine */}
 	YY_BREAK
 case 45:
@@ -1402,7 +1407,7 @@ case 45:
 (yy_c_buf_p) = yy_cp -= 1;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 407 "conf_lex.l"
+#line 412 "conf_lex.l"
 DEBUG_LEX("comment: \"%s\"\n", yytext);/* ignore */
 	YY_BREAK
 case 46:
@@ -1410,7 +1415,7 @@ case 46:
 (yy_c_buf_p) = yy_cp -= 1;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 408 "conf_lex.l"
+#line 413 "conf_lex.l"
 DEBUG_LEX("comment: \"%s\"\n", yytext);/* ignore */
 	YY_BREAK
 case 47:
@@ -1418,7 +1423,7 @@ case 47:
 (yy_c_buf_p) = yy_cp -= 1;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 409 "conf_lex.l"
+#line 414 "conf_lex.l"
 DEBUG_LEX("comment: \"%s\"\n", yytext);/* ignore */
 	YY_BREAK
 case 48:
@@ -1426,31 +1431,31 @@ case 48:
 (yy_c_buf_p) = yy_cp -= 1;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 410 "conf_lex.l"
+#line 415 "conf_lex.l"
 DEBUG_LEX("comment: \"%s\"\n", yytext);/* ignore */
 	YY_BREAK
 case 49:
 YY_RULE_SETUP
-#line 412 "conf_lex.l"
+#line 417 "conf_lex.l"
 ;/* ignore */
 	YY_BREAK
 case 50:
 /* rule 50 can match eol */
 YY_RULE_SETUP
-#line 413 "conf_lex.l"
+#line 418 "conf_lex.l"
 yylineno++;/* ignore */
 	YY_BREAK
 case 51:
 YY_RULE_SETUP
-#line 415 "conf_lex.l"
+#line 420 "conf_lex.l"
 { snprintf(err_str,ERRLEN,"in \"%s\", line %d: '%c' unexpected",current_file->str,yylineno,*yytext); set_error(err_str);return _ERROR_;}
 	YY_BREAK
 case 52:
 YY_RULE_SETUP
-#line 417 "conf_lex.l"
+#line 422 "conf_lex.l"
 ECHO;
 	YY_BREAK
-#line 1454 "conf_lex.c"
+#line 1459 "conf_lex.c"
 
 	case YY_END_OF_BUFFER:
 		{
@@ -2442,7 +2447,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 417 "conf_lex.l"
+#line 422 "conf_lex.l"
 
 
 
@@ -2459,9 +2464,4 @@ void yy_set_current_file(const char *file)
 {
     g_string_assign(current_file, file);
 }
-
-/* These functions are defined by bison/yacc but not used, which
- * causes a compiler warning. */
-static void yyunput(int c, char *buf_ptr) __attribute__((unused));
-static int input(void) __attribute__((unused));
 

@@ -94,6 +94,11 @@ static void DEBUG_LEX( char * format, ... ) { return ; }
 #endif
 
 
+/* These functions are defined by bison/yacc but not used, which
+ * causes a compiler warning. */
+static void yyunput(int c, char *buf_ptr) __attribute__((unused));
+static int input(void) __attribute__((unused));
+
 
 %}
 
@@ -429,8 +434,3 @@ void yy_set_current_file(const char *file)
 {
     g_string_assign(current_file, file);
 }
-
-/* These functions are defined by bison/yacc but not used, which
- * causes a compiler warning. */
-static void yyunput(int c, char *buf_ptr) __attribute__((unused));
-static int input(void) __attribute__((unused));
