@@ -3927,6 +3927,117 @@ function test_copy
     (( $(ls $RH_ROOT/backup/*/file.3 | wc -l) == 0 )) || error "no backup copy of file.3 expected"
 }
 
+# helper for test_move
+function check_trash_count
+{
+    local src="$1"
+    local c="$2"
+    local trashed="$RH_ROOT/.trash/$src"
+
+    if [ -e "$src" ]; then
+        error "$src should have been moved to trash"
+    fi
+
+    local n=$(ls -1 "${trashed}"* | wc -l)
+    (($n==$c)) || error "Expect $c files ${trashed}* but found $n"
+}
+
+# helper for test_move
+function check_nottrashed
+{
+    local src="$1"
+    local trashed="$2"
+
+    if [ ! -e "$src" ]; then
+        error "$src should NOT have been moved to trash"
+    fi
+
+    local n=$(ls ${trashed}* | wc -l)
+    (($n==0)) || error "No ${trashed}* file expected in trash but found $n"
+}
+
+function test_move
+{
+    config_file=$1
+    clean_logs
+
+    local trash_files=($RH_ROOT/dir.1/project.1/user.1/file1.log
+                       $RH_ROOT/dir.2/project.1/user.1/file2.log
+                       $RH_ROOT/dir.2/project.2/user.1/file3.log
+                       $RH_ROOT/dir.3/project.3/file4.log)
+    local trash_over=($RH_ROOT/dir.1/project.1/user.1/file.1
+                      $RH_ROOT/dir.1/project.3/file4.1)
+    local std_files=($RH_ROOT/dir.1/project.1/user.1/file.a
+                       $RH_ROOT/dir.2/project.1/user.1/file.b
+                       $RH_ROOT/dir.2/project.2/user.1/file.c
+                       $RH_ROOT/dir.3/project.3/file.d)
+
+    echo "populate..."
+    # create files to be trashed
+    for f in "${trash_files[@]}" "${trash_over[@]}" "${std_files[@]}"; do
+        mkdir -p $(dirname "$f")
+        echo qsdmlkqslkd > $f
+    done
+
+    echo "scan..."
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log \
+        2>/dev/null || error "scan error"
+    check_db_error rh_scan.log
+    sleep 1
+
+    echo "trash..."
+    $RH -f $RBH_CFG_DIR/$config_file --run=trash --target=all -l DEBUG -L \
+        rh_purge.log 2>/dev/null  || error "run error"
+    check_db_error rh_purge.log
+
+    # check that std files are still in the FS tree and not in trash
+    # check that trash files are only in trash
+    for f in "${trash_files[@]}" "${trash_over[@]}"; do
+        grep "trash success" rh_purge.log | grep "$f" ||
+            error "No trash success found for $f"
+        check_trash_count "$f" 1
+    done
+    for f in "${std_files[@]}"; do
+        grep "trash success" rh_purge.log | grep "$f" &&
+            error "Trash success found for $f"
+        check_nottrashed "$f" "$RH_ROOT/.trash/$f"
+    done
+
+    # recreate trashed files and trash them again
+    echo "create new files..."
+    for f in "${trash_files[@]}" "${trash_over[@]}"; do
+        echo qsdmlkqslkd > $f
+    done
+
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log \
+        2>/dev/null || error "scan error"
+    check_db_error rh_scan.log
+    sleep 1
+
+    echo "trash again..."
+    :> rh_purge.log
+    $RH -f $RBH_CFG_DIR/$config_file --run=trash --target=all -l DEBUG -L \
+        rh_purge.log 2>/dev/null || error "run error"
+    check_db_error rh_purge.log
+
+    # check that std files are still in the FS tree and not in trash
+    # check that trash files are only in trash
+    for f in "${trash_files[@]}"; do
+        grep "trash success" rh_purge.log | grep "$f" || error "No trash success found for $f"
+        # should find 2 trashed files now
+        check_trash_count "$f" 2
+    done
+    for f in "${trash_over[@]}"; do
+        grep "trash success" rh_purge.log | grep "$f" || error "No trash success found for $f"
+        # should have overwritten the previous file in trash
+        check_trash_count "$f" 1
+    done
+    for f in "${std_files[@]}"; do
+        grep "trash success" rh_purge.log | grep "$f" && error "Trash success found for $f"
+        check_nottrashed "$f" "$RH_ROOT/.trash/$f"
+    done
+}
+
 function test_manual_run
 {
 	config_file=$1
@@ -13318,7 +13429,8 @@ run_test 241   test_prepost_cmd  test_prepost_cmd.conf "test pre/post_run_comman
 run_test 242   test_nlink_crit  test_nlink.conf "test nlink criterion"
 run_test 243   test_iname       test_iname.conf "test iname criterion"
 run_test 244   test_copy        test_copy.conf "test common.copy specific parameters"
-run_test 245   test_hsm_invalidate test_hsm_invalidate.conf "HSM invalidate deleted files"
+run_test 245   test_move        test_move.conf "test trash policy based on common.move"
+run_test 246   test_hsm_invalidate test_hsm_invalidate.conf "HSM invalidate deleted files"
 
 #### triggers ####
 
