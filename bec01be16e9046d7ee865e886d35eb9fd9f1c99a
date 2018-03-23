@@ -1,0 +1,73 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "056d1bcf_20ee0d88",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 7
+      },
+      "lineNbr": 10,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-03-23T14:13:15Z",
+      "side": 1,
+      "message": "(typo) creates",
+      "range": {
+        "startLine": 10,
+        "startChar": 16,
+        "endLine": 10,
+        "endChar": 22
+      },
+      "revId": "bec01be16e9046d7ee865e886d35eb9fd9f1c99a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "33210e16_1abdc498",
+        "filename": "src/modules/mod_internal.c",
+        "patchSetId": 7
+      },
+      "lineNbr": 306,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-03-23T14:13:15Z",
+      "side": 1,
+      "message": "Shouldn\u0027t we clean up the parent directory?",
+      "range": {
+        "startLine": 306,
+        "startChar": 13,
+        "endLine": 306,
+        "endChar": 23
+      },
+      "revId": "bec01be16e9046d7ee865e886d35eb9fd9f1c99a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "a3c84bb5_3ef6c65d",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 7
+      },
+      "lineNbr": 3925,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-03-23T14:13:15Z",
+      "side": 1,
+      "message": "(typo) backup",
+      "range": {
+        "startLine": 3925,
+        "startChar": 77,
+        "endLine": 3925,
+        "endChar": 83
+      },
+      "revId": "bec01be16e9046d7ee865e886d35eb9fd9f1c99a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
