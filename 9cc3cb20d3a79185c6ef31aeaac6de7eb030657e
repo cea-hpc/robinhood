@@ -16,6 +16,24 @@
       "revId": "9cc3cb20d3a79185c6ef31aeaac6de7eb030657e",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "95054d55_dcb27b4c",
+        "filename": "src/robinhood/rbh_find_printf.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 602,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2018-03-28T07:48:49Z",
+      "side": 1,
+      "message": "Hm, ok. We do want to fold double-% into a single % and we apparently rely on printf to do it.\nThere doesn\u0027t seem to be any way to pass untrusted printf arguments through so I\u0027ll just drop this part of the change",
+      "parentUuid": "57b64c4d_88427a8d",
+      "revId": "9cc3cb20d3a79185c6ef31aeaac6de7eb030657e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
