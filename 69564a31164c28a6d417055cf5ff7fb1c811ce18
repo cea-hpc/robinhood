@@ -1,0 +1,234 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "c211efba_fd25da96",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 3934,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-05-02T10:59:17Z",
+      "side": 1,
+      "message": "considering \"trashed\" can be computed from \"src\"...\n\nlocal src\u003d\"$1\"\nlocal trashed\u003d\"$RH_ROOT/.trash/$src\"",
+      "range": {
+        "startLine": 3933,
+        "startChar": 4,
+        "endLine": 3934,
+        "endChar": 22
+      },
+      "revId": "69564a31164c28a6d417055cf5ff7fb1c811ce18",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "537d5b35_6b38787f",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 3941,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-05-02T10:59:17Z",
+      "side": 1,
+      "message": "from http://tldp.org/HOWTO/Bash-Prompt-HOWTO/x700.html\n\nls -1 \"${trashed}\"* | wc -l",
+      "range": {
+        "startLine": 3941,
+        "startChar": 4,
+        "endLine": 3941,
+        "endChar": 37
+      },
+      "revId": "69564a31164c28a6d417055cf5ff7fb1c811ce18",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "4bb40276_b49fd38b",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 3977,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-05-02T10:59:17Z",
+      "side": 1,
+      "message": "It is better to use \"${array[@]}\" instead of ${array[*]} when iterating over an array in bash (it handles spaces correctly).\n\nfor file in \"${trash_files[@]}\" \"${trash_over[@]}\" \"${std_files[@]}\"; do\n    ...\ndone\n\n(${array[*]} simply concatenates the elements in the array using the first character of $IFS)",
+      "range": {
+        "startLine": 3977,
+        "startChar": 13,
+        "endLine": 3977,
+        "endChar": 63
+      },
+      "revId": "69564a31164c28a6d417055cf5ff7fb1c811ce18",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "f17cfad0_e4be1937",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 3979,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-05-02T10:59:17Z",
+      "side": 1,
+      "message": "(style) mkdir -p \"${file%/*}\"",
+      "range": {
+        "startLine": 3978,
+        "startChar": 8,
+        "endLine": 3979,
+        "endChar": 19
+      },
+      "revId": "69564a31164c28a6d417055cf5ff7fb1c811ce18",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "206f48ea_ef459ed2",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 3996,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-05-02T10:59:17Z",
+      "side": 1,
+      "message": "...",
+      "range": {
+        "startLine": 3996,
+        "startChar": 13,
+        "endLine": 3996,
+        "endChar": 47
+      },
+      "revId": "69564a31164c28a6d417055cf5ff7fb1c811ce18",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "e9a5df8a_8166bed7",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4001,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-05-02T10:59:17Z",
+      "side": 1,
+      "message": "...",
+      "range": {
+        "startLine": 4001,
+        "startChar": 13,
+        "endLine": 4001,
+        "endChar": 28
+      },
+      "revId": "69564a31164c28a6d417055cf5ff7fb1c811ce18",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "3525e4f1_087ce0e6",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4009,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-05-02T10:59:17Z",
+      "side": 1,
+      "message": "...",
+      "range": {
+        "startLine": 4009,
+        "startChar": 13,
+        "endLine": 4009,
+        "endChar": 47
+      },
+      "revId": "69564a31164c28a6d417055cf5ff7fb1c811ce18",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "011cc63e_a47ea9e0",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4026,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-05-02T10:59:17Z",
+      "side": 1,
+      "message": "...",
+      "range": {
+        "startLine": 4026,
+        "startChar": 13,
+        "endLine": 4026,
+        "endChar": 30
+      },
+      "revId": "69564a31164c28a6d417055cf5ff7fb1c811ce18",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ab87cd73_65c5b0c0",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4031,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-05-02T10:59:17Z",
+      "side": 1,
+      "message": "...",
+      "range": {
+        "startLine": 4031,
+        "startChar": 13,
+        "endLine": 4031,
+        "endChar": 29
+      },
+      "revId": "69564a31164c28a6d417055cf5ff7fb1c811ce18",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "678332fd_215ad66d",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 2
+      },
+      "lineNbr": 4036,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-05-02T10:59:17Z",
+      "side": 1,
+      "message": "...",
+      "range": {
+        "startLine": 4036,
+        "startChar": 13,
+        "endLine": 4036,
+        "endChar": 28
+      },
+      "revId": "69564a31164c28a6d417055cf5ff7fb1c811ce18",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
