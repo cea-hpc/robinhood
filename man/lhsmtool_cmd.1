@@ -86,8 +86,9 @@ as an archive, in which files are simply named after their FID in Lustre.
 .nf
 .ft C
 [commands]
-archive = dd if=/proc/self/{fd} of=/tmp/arch/{fid}
-restore = dd if=/tmp/arch/{fid} of=/proc/self/{fd}
+archive = dd if=/proc/self/fd/{fd} of=/tmp/arch/{fid}
+restore = dd if=/tmp/arch/{fid} of=/proc/self/fd/{fd}
+remove = rm /tmp/arch/{fid}
 .ft P
 .fi
 .UNINDENT

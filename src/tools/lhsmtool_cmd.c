@@ -555,7 +555,7 @@ static int ct_hsm_io_cmd(const enum hsm_copytool_action hsma, GMainLoop *loop,
 	cb_args->retcode	= -1;	/* for debugging */
 	cb_args->fd		= -1;
 
-	if (hsma == HSMA_ARCHIVE) {
+	if (hsma == HSMA_ARCHIVE || hsma == HSMA_REMOVE) {
 
 		rc = ct_begin(&cb_args->hcp, hai);
 		if (rc < 0) {
@@ -817,9 +817,9 @@ static gpointer subproc_mgr_main(gpointer data)
 		switch (hai->hai_action) {
 		case HSMA_ARCHIVE:
 		case HSMA_RESTORE:
+		case HSMA_REMOVE:
 			ct_hsm_io_cmd(hai->hai_action, loop, hai, hd->hd_flags);
 			break;
-		case HSMA_REMOVE:
 		case HSMA_CANCEL:
 			LOG_ERROR(ENOTSUP, "Operation not implemented");
 			break;
