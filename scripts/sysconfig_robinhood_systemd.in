@@ -1,0 +1,7 @@
+
+# Configuration file to run an instance for
+#RBH_CFG=@CONFDIR@/myfs.conf
+
+# optinos for starting the daemon
+# eg, --scan --purge (leave empty for default actions)
+RBH_OPT="@INPUT_OPT@ --run=all"

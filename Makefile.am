@@ -90,7 +90,7 @@ mans:
 	chmod +x ./scripts/make_mans.sh && ./scripts/make_mans.sh
 
 EXTRA_DIST= robinhood.spec robinhood.spec.in \
-	autogen.sh \
+	autogen.sh scripts/robinhood.target \
 	LICENSE.fr.txt LICENSE.en.txt README.md \
 	doc/admin_guides \
 	doc/install_webgui.txt \
