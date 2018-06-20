@@ -42,6 +42,7 @@ AC_CONFIG_FILES([Makefile
          scripts/robinhood.service
          scripts/robinhood@.service
          scripts/sysconfig_robinhood
+         scripts/sysconfig_robinhood_systemd
          scripts/ld.so.robinhood.conf
          scripts/rbh_cksum.sh
          tests/Makefile

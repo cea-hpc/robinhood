@@ -1,11 +1,16 @@
 [Unit]
 Description=Robinhood server for %I
+PartOf=robinhood.target
 
 [Service]
 Type=simple
 KillMode=mixed
+Environment=RBH_CFG=@CONFDIR@/robinhood.d/%I.conf
 EnvironmentFile=-@CONFDIR@/sysconfig/robinhood
 EnvironmentFile=-@CONFDIR@/sysconfig/robinhood.%I
 LimitNOFILE=8096
-ExecStart=@SBINDIR@/robinhood $RBH_OPT -f @CONFDIR@/robinhood.d/%I.conf
+ExecStart=@SBINDIR@/robinhood $RBH_OPT -f "$RBH_CFG"
 ExecReload=/bin/kill -HUP $MAINPID
+
+[Install]
+RequiredBy=robinhood.target
