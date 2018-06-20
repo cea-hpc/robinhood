@@ -265,7 +265,6 @@ cp -a doc/templates $RPM_BUILD_ROOT/%{_datadir}/robinhood/doc
 
 %if %{with_systemd}
 mkdir -p  $RPM_BUILD_ROOT/%{_unitdir}
-install -m 444 scripts/robinhood.service $RPM_BUILD_ROOT/%{_unitdir}/
 install -m 444 scripts/robinhood@.service $RPM_BUILD_ROOT/%{_unitdir}/
 install -m 444 scripts/robinhood.target $RPM_BUILD_ROOT/%{_unitdir}/
 
@@ -276,9 +275,8 @@ install -m 444 scripts/robinhood.target $RPM_BUILD_ROOT/%{_unitdir}/
 %endif
 /sbin/ldconfig
 %if %{defined suse_version}
-%service_add_post robinhood.service robinhood@.service robinhood.target
+%service_add_post robinhood@.service robinhood.target
 %else
-%systemd_post robinhood.service
 %systemd_post robinhood@.service
 %systemd_post robinhood.target
 %endif
@@ -289,9 +287,8 @@ install -m 444 scripts/robinhood.target $RPM_BUILD_ROOT/%{_unitdir}/
 %preun posix
 %endif
 %if %{defined suse_version}
-%service_del_preun robinhood.service robinhood@.service robinhood.target
+%service_del_preun robinhood@.service robinhood.target
 %else
-%systemd_preun robinhood.service
 %systemd_preun robinhood@.service
 %systemd_preun robinhood.target
 %endif
@@ -349,7 +346,7 @@ fi
 
 %if %{with_systemd}
 %if %{defined suse_version}
-%service_del_postun robinhood.service robinhood@.service robinhood.target
+%service_del_postun robinhood@.service robinhood.target
 %else
 %systemd_postun
 %endif
@@ -362,7 +359,7 @@ fi
 %else
 %pre posix
 %endif
-%service_add_pre robinhood.service robinhood@.service robinhood.target
+%service_add_pre robinhood@.service robinhood.target
 %endif
 %endif
 
@@ -452,7 +449,6 @@ rm -rf $RPM_BUILD_ROOT
 %config %{_sysconfdir}/robinhood.d/templates/*.conf
 
 %if %{with_systemd}
-%{_unitdir}/robinhood.service
 %{_unitdir}/robinhood@.service
 %{_unitdir}/robinhood.target
 %else
