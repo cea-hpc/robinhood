@@ -23,6 +23,7 @@
 #endif
 
 #include "chglog_reader.h"
+#include "chglog_postproc.h"
 #include "rbh_misc.h"
 #include "rbh_cfg.h"
 #include "rbh_cfg_helpers.h"
@@ -35,12 +36,19 @@
 
 #define CHGLOG_CFG_BLOCK    "ChangeLog"
 #define MDT_DEF_BLOCK       "MDT"
+#define CPP_DEF_BLOCK       "postprocessor"
 
 chglog_reader_config_t cl_reader_config;
 
 static mdt_def_t default_mdt_def = {
     .mdt_name = "MDT0000",
     .reader_id = "cl1"
+};
+
+static cpp_instance_t default_cpp_instance = {
+    .name    = "collapse",
+    .enabled = false,
+    .cpp     = NULL
 };
 
 /** Set changelog reader default configuration */
@@ -50,6 +58,8 @@ static void cl_reader_set_default_cfg(void *module_config)
 
     p_config->mdt_def = &default_mdt_def;
     p_config->mdt_count = 1;
+    p_config->cppi_def = NULL;
+    p_config->cppi_count = 0;
     /* poll until changelog's follow flag is implemented in llapi */
     p_config->force_polling = true;
     p_config->polling_interval = 1; /* 1s */
@@ -73,6 +83,10 @@ static void cl_reader_write_default(FILE *output)
     print_begin_block(output, 1, MDT_DEF_BLOCK, NULL);
     print_line(output, 2, "mdt_name    :  \"%s\"", default_mdt_def.mdt_name);
     print_line(output, 2, "reader_id   :  \"%s\"", default_mdt_def.reader_id);
+    print_end_block(output, 1);
+    print_begin_block(output, 1, CPP_DEF_BLOCK, NULL);
+    print_line(output, 2, "name        :  \"%s\"", default_cpp_instance.name);
+    print_line(output, 2, "enabled     :  %s", "no");
     print_end_block(output, 1);
 
     print_line(output, 1, "batch_ack_count  : 1024");
@@ -106,6 +120,16 @@ static void cl_reader_write_template(FILE *output)
                "# as returned by \"lctl changelog_register\" command");
     print_line(output, 2, "reader_id = \"cl1\" ;");
 
+    print_end_block(output, 1);
+
+    print_line(output, 1, "# 1 'postprocessor' block for each ChangeLog"
+               " post-processor:");
+    print_begin_block(output, 1, CPP_DEF_BLOCK, NULL);
+    print_line(output, 2, "# post-processor name");
+    print_line(output, 2, "name = \"collapse\" ;");
+    print_line(output, 2,
+               "# post-processor 'enabled' status (default is 'yes')");
+    print_line(output, 2, "enabled = yes ;");
     print_end_block(output, 1);
 
 #ifdef HAVE_DNE
@@ -168,7 +192,8 @@ static int parse_mdt_block(config_item_t config_blk, const char *block_name,
     str = rh_config_GetKeyValueByName(config_blk, "mdt_name", &unique);
     if (str == NULL) {
         DisplayLog(LVL_CRIT, "ChgLog config",
-                   "WARNING: no 'mdt_name' provided in %s block: using default value '%s'",
+                   "WARNING: no 'mdt_name' provided in %s block: using "
+                   "default value '%s'",
                    block_name, default_mdt_def.mdt_name);
         strcpy(p_mdt_def->mdt_name, default_mdt_def.mdt_name);
     } else if (!unique) {
@@ -191,7 +216,8 @@ static int parse_mdt_block(config_item_t config_blk, const char *block_name,
     str = rh_config_GetKeyValueByName(config_blk, "reader_id", &unique);
     if (str == NULL) {
         DisplayLog(LVL_CRIT, "ChgLog config",
-                   "WARNING: no 'reader_id' provided in %s block: using default value '%s'",
+                   "WARNING: no 'reader_id' provided in %s block: using "
+                   "default value '%s'",
                    block_name, default_mdt_def.reader_id);
         strcpy(p_mdt_def->reader_id, default_mdt_def.reader_id);
     } else if (!unique) {
@@ -204,6 +230,92 @@ static int parse_mdt_block(config_item_t config_blk, const char *block_name,
         return ENAMETOOLONG;
     } else {
         strcpy(p_mdt_def->reader_id, str);
+    }
+
+    /* display warnings for unknown parameters */
+    CheckUnknownParameters(config_blk, block_name, expected_vars);
+
+    return 0;
+}
+
+static int parse_cpp_block(config_item_t config_blk, const char *block_name,
+                           cpp_instance_t **pp_cppi, char *msg_out)
+{
+    char           *str;
+    bool            unique;
+    cpp_instance_t *cppi;
+
+    /* Expect 2 variables: 'name' and 'enabled'. */
+    static const char *expected_vars[] = {"name", "enabled", NULL};
+
+    *pp_cppi = NULL;
+    unique = true;
+    str = rh_config_GetKeyValueByName(config_blk, "name", &unique);
+    if (str == NULL)
+    {
+        DisplayLog(LVL_CRIT, "ChgLog config",
+                   "WARNING: no 'name' provided in %s block: skipping",
+                   block_name);
+        return EINVAL;
+    }
+    else if (!unique)
+    {
+        sprintf(msg_out, "Found duplicate parameter '%s' in %s.\n", "name",
+                block_name);
+        return EEXIST;
+    }
+    else
+    {
+        cppi = create_cpp_instance(str);
+        if (cppi == NULL)
+        {
+            DisplayLog(LVL_CRIT, "ChgLog config",
+                       "WARNING: could not create instance for post-processor "
+                       "'%s'", str);
+            return EINVAL;
+        }
+
+        *pp_cppi = malloc(sizeof(*cppi));
+        if (*pp_cppi == NULL)
+            return ENOMEM;
+
+        memcpy(*pp_cppi, cppi, sizeof(*cppi));
+
+        /* Get 'enabled' value. */
+        unique = true;
+        str = rh_config_GetKeyValueByName(config_blk, "enabled", &unique);
+        if (str == NULL)
+        {
+            DisplayLog(LVL_CRIT, "ChgLog config",
+                       "WARNING: no 'enabled' provided in %s block: using "
+                       "default value '%s'", block_name, "yes");
+        }
+        else if (!unique)
+        {
+            sprintf(msg_out,
+                    "Found duplicate parameter '%s' in %s.\n", "reader_id",
+                    block_name);
+            free(*pp_cppi);
+            *pp_cppi = NULL;
+            return EEXIST;
+        }
+
+        if (str == NULL || strcasecmp("yes", str) == 0)
+        {
+            pp_cppi[0]->enabled = true;
+        }
+        else if (strcasecmp("no", str) == 0)
+        {
+            pp_cppi[0]->enabled = false;
+        }
+        else
+        {
+            DisplayLog(LVL_CRIT, "ChgLog config",
+                       "WARNING: incorrect value '%s' for 'enabled' provided "
+                       "in %s block: using default value '%s'", str, block_name,
+                       "yes");
+            pp_cppi[0]->enabled = true;
+        }
     }
 
     /* display warnings for unknown parameters */
@@ -225,7 +337,7 @@ static int cl_reader_read_cfg(config_file_t config, void *module_config,
         "force_polling", "polling_interval", "batch_ack_count",
         "queue_max_size", "queue_max_age", "queue_check_interval",
         "commit_update_max_delay", "commit_update_max_delta",
-        "mds_has_lu543", "mds_has_lu1331", MDT_DEF_BLOCK,
+        "mds_has_lu543", "mds_has_lu1331", MDT_DEF_BLOCK, CPP_DEF_BLOCK,
         NULL
     };
 
@@ -261,7 +373,7 @@ static int cl_reader_read_cfg(config_file_t config, void *module_config,
     if (rc)
         return rc;
 
-    /* browse  the list of MDT blocks */
+    /* browse  the list of either MDT or postprocessor blocks */
     for (blc_index = 0; blc_index < rh_config_GetNbItems(chglog_block);
          blc_index++) {
         char *block_name;
@@ -302,9 +414,32 @@ static int cl_reader_read_cfg(config_file_t config, void *module_config,
                                  msg_out);
             if (rc)
                 return rc;
+        } else if (!strcasecmp(block_name, CPP_DEF_BLOCK)) {
+            /* Allocate new post-processor definiton. */
+            if (p_config->cppi_def == NULL) {
+                p_config->cppi_def = malloc(sizeof(*p_config->cppi_def));
+                if (p_config->cppi_def == NULL)
+                    return ENOMEM;
+                p_config->cppi_count = 1;
+            } else {
+                cpp_instance_t **cppi_def_tmp;
+
+                cppi_def_tmp = realloc(p_config->cppi_def,
+                                       (p_config->cppi_count + 1) *
+                                       sizeof(*cppi_def_tmp));
+                if (cppi_def_tmp == NULL)
+                    return ENOMEM;
+                p_config->cppi_def= cppi_def_tmp;
+                ++p_config->cppi_count;
+            }
+
+            rc = parse_cpp_block(curr_item, CPP_DEF_BLOCK,
+                                 &p_config->cppi_def[p_config->cppi_count - 1],
+                                 msg_out);
+            if (rc != 0)
+                return rc;
         } else {
-            sprintf(msg_out,
-                    "Unknown sub-block '%s' in " CHGLOG_CFG_BLOCK
+            sprintf(msg_out, "Unknown sub-block '%s' in " CHGLOG_CFG_BLOCK
                     " block, line %d", block_name,
                     rh_config_GetItemLine(curr_item));
             return EINVAL;
@@ -381,6 +516,9 @@ static int cl_reader_reload_cfg(chglog_reader_config_t *cfg)
         }
     }
 
+    if (cfg->cppi_def != cl_reader_config.cppi_def)
+        NO_PARAM_UPDT_MSG(CHGLOG_CFG_BLOCK, CPP_DEF_BLOCK);
+
     return 0;
 }
 
@@ -397,7 +535,7 @@ static int cl_reader_cfg_set(void *arg, bool reload)
 
 static void *cl_reader_cfg_new(void)
 {
-    return calloc(1, sizeof(chglog_reader_config_t));
+        return calloc(1, sizeof(chglog_reader_config_t));
 }
 
 static void cl_reader_cfg_free(void *arg)
@@ -406,6 +544,11 @@ static void cl_reader_cfg_free(void *arg)
 
     if ((cfg->mdt_def != NULL) && (cfg->mdt_def != &default_mdt_def))
         free(cfg->mdt_def);
+    if (cfg->cppi_def != NULL)
+    {
+        free(cfg->cppi_def);
+        cfg->cppi_def = NULL;
+    }
     free(cfg);
 }
 

@@ -29,6 +29,8 @@
 #include "rbh_const.h"
 #include "list_mgr.h"
 #include <stdbool.h>
+#include "entry_proc_hash.h"
+#include "chglog_postproc.h"
 
 #define MDT_NAME_MAX  32
 #define READER_ID_MAX 16
@@ -43,6 +45,10 @@ typedef struct chglog_reader_config_t {
     /** List of MDTs (used for opening ChangeLogs) */
     mdt_def_t *mdt_def;
     unsigned int mdt_count;
+
+    /** List of post-processor instances */
+    cpp_instance_t **cppi_def;
+    unsigned int    cppi_count;
 
     /* nbr of changelog records to be agregated for llapi_changelog_clear() */
     int batch_ack_count;
