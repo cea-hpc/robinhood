@@ -208,6 +208,11 @@ typedef struct lmgr_config_t {
 /** config handlers */
 extern mod_cfg_funcs_t lmgr_cfg_hdlr;
 
+/** Cancel SQL retries flag.
+ * Set in SIGTERM handler.
+ */
+extern volatile bool lmgr_cancel_retry;
+
 /** indicate if batched requests can be done simultaneously
  * (risk of deadlock on ACCT table).
  */

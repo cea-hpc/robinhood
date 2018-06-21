@@ -262,21 +262,28 @@ int ListMgr_Insert(lmgr_t *p_mgr, entry_id_t *p_id, attr_set_t *p_info,
 {
     int rc;
     char err_buff[4096];
+    int retry_status;
 
     /* retry the whole transaction when the error is retryable */
 retry:
     rc = lmgr_begin(p_mgr);
-    if (lmgr_delayed_retry(p_mgr, rc))
+    retry_status = lmgr_delayed_retry(p_mgr, rc);
+    if (retry_status == 1)
         goto retry;
+    else if (retry_status == 2)
+        return ECANCELED;
     else if (rc)
         return rc;
 
     rc = listmgr_batch_insert_no_tx(p_mgr, &p_id, &p_info, 1, update_if_exists);
-    if (lmgr_delayed_retry(p_mgr, rc))
+    retry_status = lmgr_delayed_retry(p_mgr, rc);
+    if (retry_status == 1)
         goto retry;
-    else if (rc)
+    else if (rc || retry_status == 2)
     {
         lmgr_rollback(p_mgr);
+        if (retry_status == 2)
+            rc = ECANCELED;
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
                    "DB query failed in %s line %d: code=%d: %s",
                    __FUNCTION__, __LINE__, rc,
@@ -284,7 +291,8 @@ retry:
         return rc;
     }
     rc = lmgr_commit(p_mgr);
-    if (lmgr_delayed_retry(p_mgr, rc))
+    retry_status = lmgr_delayed_retry(p_mgr, rc);
+    if (retry_status == 1)
         goto retry;
 
     /* success, count it */
@@ -303,6 +311,7 @@ int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t ** p_ids,
                                    bool update_if_exists)
 {
     int rc;
+    int retry_status;
     char err_buff[4096];
 
     if (count == 0)
@@ -324,18 +333,24 @@ int            ListMgr_BatchInsert(lmgr_t * p_mgr, entry_id_t ** p_ids,
 retry:
     /* We want insert operation set to be atomic */
     rc = lmgr_begin(p_mgr);
-    if (lmgr_delayed_retry(p_mgr, rc))
+    retry_status = lmgr_delayed_retry(p_mgr, rc);
+    if (retry_status == 1)
         goto retry;
+    else if (retry_status == 2)
+        return ECANCELED;
     else if (rc)
         return rc;
 
     rc = listmgr_batch_insert_no_tx(p_mgr, p_ids, p_attrs, count, update_if_exists);
 
-    if (lmgr_delayed_retry(p_mgr, rc))
+    retry_status = lmgr_delayed_retry(p_mgr, rc);
+    if (retry_status == 1)
         goto retry;
-    else if (rc)
+    else if (rc || retry_status == 2)
     {
         lmgr_rollback(p_mgr);
+        if (retry_status == 2)
+            rc = ECANCELED;
         DisplayLog(LVL_CRIT, LISTMGR_TAG,
                    "DB query failed in %s line %d: code=%d: %s",
                    __FUNCTION__, __LINE__, rc,
@@ -344,7 +359,7 @@ retry:
     }
 
     rc = lmgr_commit(p_mgr);
-    if (lmgr_delayed_retry(p_mgr, rc))
+    if (lmgr_delayed_retry(p_mgr, rc) == 1)
         goto retry;
     /* success, count it */
     if (!rc)
