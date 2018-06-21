@@ -47,6 +47,8 @@
 # target install dir for web gui
 %define installdir_www  /var/www
 
+%global __requires_exclude ^lustre.*$
+
 ###### end of macro definitions #####
 
 Name: @PACKAGE@
@@ -113,11 +115,7 @@ With support for: %{?with_lustre:Lustre} %{?with_backup:Backup} %{?with_shook:sh
 
 Summary: Robinhood Policy Engine for Lustre filesystems
 Group: Applications/System
-%if %{defined lversion}
-Requires: %{lpackage} >= %{lversion}
-%else
-Requires: %{lpackage}
-%endif
+Requires:  /usr/sbin/mount.lustre
 Conflicts: robinhood-posix
 Provides: robinhood = %{version}-%{release}
 Obsoletes: robinhood-tmpfs < 3.0, robinhood-tmpfs-lustre < 3.0
