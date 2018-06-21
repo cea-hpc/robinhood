@@ -92,6 +92,7 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
     struct field_count filter_cnt = {0};
     table_enum         query_tab = T_DNAMES;
     bool               distinct = false;
+    int                retry_status;
 
     /* XXX: querying children from several parent cannot work, since
      * we need to get the paths of the children. Or we could do a
@@ -184,9 +185,13 @@ int ListMgr_GetChild(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
 
 retry:
     rc = db_exec_sql(&p_mgr->conn, req->str, &result);
-    if (lmgr_delayed_retry(p_mgr, rc))
+    retry_status = lmgr_delayed_retry(p_mgr, rc);
+    if (retry_status == 1)
         goto retry;
-    else if (rc)
+    else if (retry_status == 2) {
+        rc = DB_RBH_SIG_SHUTDOWN;
+        goto free_str;
+    } else if (rc)
         goto free_str;
 
     /* copy result to output structures */
