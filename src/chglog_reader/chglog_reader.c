@@ -1027,9 +1027,161 @@ static CL_REC_TYPE *create_fake_rename_record(const reader_thr_info_t *p_info,
 }
 #endif
 
-/**
- * This handles a single log record.
- */
+static void fake_unlink_create_insert_into_hash(reader_thr_info_t *p_info,
+                                                CL_REC_TYPE *p_rec)
+{
+    CL_REC_TYPE  *unlink;
+    unsigned int  insert_flags = 0;
+
+    if (FID_IS_ZERO(&p_rec->cr_tfid))
+        return;
+
+    /* Push an unlink. */
+    unlink = create_fake_unlink_record(p_info, p_rec, &insert_flags);
+
+    if (unlink != NULL)
+        insert_into_hash(p_info, unlink, insert_flags);
+    else
+        DisplayLog(LVL_CRIT, CHGLOG_TAG,
+                   "Could not allocate an UNLINK record.");
+}
+
+static int process_rename_log_rec(reader_thr_info_t *p_info, CL_REC_TYPE *p_rec)
+{
+    /* Ensure there is no pending rename. */
+    if (p_info->cl_rename != NULL) {
+        /* Should never happen. */
+        DisplayLog(LVL_CRIT, CHGLOG_TAG,
+                   "Got 2 CL_RENAME in a row without a CL_EXT.");
+        dump_record(LVL_CRIT, p_info->mdtdevice, p_rec);
+        dump_op_queue(p_info, LVL_CRIT, 32);
+
+        /* Discarding bogus entry. */
+        llapi_changelog_free(&p_info->cl_rename);
+        p_info->cl_rename = NULL;
+    }
+
+#if defined(HAVE_CHANGELOG_EXTEND_REC) || defined(HAVE_FLEX_CL)
+    /* extended record: 1 single RENAME record per rename op;
+     * there is no EXT. */
+    if (rh_is_rename_one_record(p_rec))
+    {
+        CL_REC_TYPE *p_rec2;
+#ifdef HAVE_FLEX_CL
+        struct changelog_ext_rename *cr_ren;
+#endif
+
+        /* The MDS sent an extended record, so we have both LU-543
+         * and LU-1331. */
+        if (!cl_reader_config.mds_has_lu543 ||
+            !cl_reader_config.mds_has_lu1331) {
+            DisplayLog(LVL_EVENT, CHGLOG_TAG,
+                       "LU-1331 is fixed in this version of Lustre.");
+
+            cl_reader_config.mds_has_lu543 = true;
+            cl_reader_config.mds_has_lu1331 = true;
+        }
+
+        fake_unlink_create_insert_into_hash(p_info, p_rec);
+
+#ifdef HAVE_FLEX_CL
+        cr_ren = changelog_rec_rename(p_rec);
+        DisplayLog(LVL_DEBUG, CHGLOG_TAG,
+                   "Rename: object="DFID", old parent/name="DFID"/%.*s, "
+                   "new parent/name="DFID"/%.*s",
+                   PFID(&cr_ren->cr_sfid), PFID(&cr_ren->cr_spfid),
+                   (int)changelog_rec_snamelen(p_rec),
+                   changelog_rec_sname(p_rec), PFID(&p_rec->cr_pfid),
+                   p_rec->cr_namelen, rh_get_cl_cr_name(p_rec));
+#else
+        DisplayLog(LVL_DEBUG, CHGLOG_TAG,
+                   "Rename: object="DFID", old parent/name="DFID"/%s, "
+                   "new parent/name="DFID"/%.*s",
+                   PFID(&p_rec->cr_sfid), PFID(&p_rec->cr_spfid),
+                   changelog_rec_sname(p_rec), PFID(&p_rec->cr_pfid),
+                   p_rec->cr_namelen, rh_get_cl_cr_name(p_rec));
+#endif
+
+        /* Ensure compatibility with older Lustre versions:
+         * push RNMFRM to remove the old path from NAMES table.
+         * push RNMTO to add target path information.
+         */
+        /* 1) build & push RNMFRM */
+        p_rec2 = create_fake_rename_record(p_info, p_rec);
+        insert_into_hash(p_info, p_rec2, PLR_FLG_FREE2);
+
+        /* 2) update RNMTO */
+        p_rec->cr_type = CL_EXT; /* CL_RENAME -> CL_RNMTO */
+#ifdef HAVE_FLEX_CL
+        p_rec->cr_tfid = cr_ren->cr_sfid; /* removed fid -> renamed fid */
+#else
+        p_rec->cr_tfid = p_rec->cr_sfid; /* removed fid -> renamed fid */
+#endif
+        insert_into_hash(p_info, p_rec, 0);
+    }
+    else
+#endif
+    {
+        /* This CL_RENAME is followed by CL_EXT, so keep it until then. */
+        p_info->cl_rename = p_rec;
+    }
+
+    return 0;
+}
+
+static int process_ext_log_rec(reader_thr_info_t *p_info, CL_REC_TYPE *p_rec)
+{
+    if (!p_info->cl_rename) {
+        /* Should never happen. */
+        DisplayLog(LVL_CRIT, CHGLOG_TAG, "Got CL_EXT without a CL_RENAME.");
+        dump_record(LVL_CRIT, p_info->mdtdevice, p_rec);
+        dump_op_queue(p_info, LVL_CRIT, 32);
+
+        /* Discarding bogus entry. */
+        llapi_changelog_free(&p_rec);
+
+        goto done;
+    }
+
+    if (!cl_reader_config.mds_has_lu543 &&
+        (FID_IS_ZERO(&p_rec->cr_tfid) ||
+         !entry_id_equal(&p_info->cl_rename->cr_tfid, &p_rec->cr_tfid))) {
+        /* tfid if 0, or the two fids are different, so we have LU-543. */
+        cl_reader_config.mds_has_lu543 = true;
+        DisplayLog(LVL_EVENT, CHGLOG_TAG,
+                   "LU-543 is fixed in this version of Lustre.");
+    }
+
+    /* We now have a CL_RENAME and a CL_EXT. */
+    /* If target fid is not zero: unlink the target.
+     * e.g. "mv a b" and b exists => rm b.
+     */
+    fake_unlink_create_insert_into_hash(p_info, p_rec);
+
+    /* Push the rename and the ext.
+     *
+     * TODO: we should be able to push only one RENAME/EXT now.
+     *
+     * This is a little racy if CL_RENAME and CL_EXT were not
+     * consecutive, because we are re-ordering the
+     * CL_RENAME. Clearing one of the record in the middle will
+     * also clear the RENAME with Lustre, however the RENAME
+     * hasn't been processed yet. To hit the race, that
+     * non-contiguous case should also happen while the changelog
+     * is shutting down. The chance of that happening in the real
+     * world should be rather slim to non-existent. */
+
+    /* indicate the target fid as the renamed entry */
+    p_rec->cr_tfid = p_info->cl_rename->cr_tfid;
+
+    insert_into_hash(p_info, p_info->cl_rename, 0);
+    p_info->cl_rename = NULL;
+    insert_into_hash(p_info, p_rec, 0);
+
+done:
+    return 0;
+}
+
 static int process_log_rec(reader_thr_info_t *p_info, CL_REC_TYPE *p_rec)
 {
     unsigned int opnum;
@@ -1038,12 +1190,13 @@ static int process_log_rec(reader_thr_info_t *p_info, CL_REC_TYPE *p_rec)
     dump_record(LVL_DEBUG, p_info->mdtdevice, p_rec);
 
     /* update stats */
-    opnum = p_rec->cr_type;
-    if (opnum < CL_LAST)
-        p_info->cl_counters[opnum]++;
+    opnum = p_rec->cr_type ;
+    if ((opnum >= 0) && (opnum < CL_LAST))
+        p_info->cl_counters[opnum] ++;
     else {
-        DisplayLog(LVL_CRIT, CHGLOG_TAG,
-                   "Log record type %d out of bounds.", opnum);
+        DisplayLog( LVL_CRIT, CHGLOG_TAG,
+                    "Log record type %d out of bounds.",
+                    opnum );
         return EINVAL;
     }
 
@@ -1052,167 +1205,29 @@ static int process_log_rec(reader_thr_info_t *p_info, CL_REC_TYPE *p_rec)
     if (can_ignore_record(p_info, p_rec)) {
         DisplayLog(LVL_FULL, CHGLOG_TAG, "Ignoring event %s",
                    changelog_type2str(opnum));
-        p_info->suppressed_records++;
+        DisplayChangelogs("(ignored redundant record %s:%llu)",
+                          p_info->mdtdevice, p_rec->cr_index);
+        p_info->suppressed_records ++;
         llapi_changelog_free(&p_rec);
         goto done;
     }
 
-    p_info->interesting_records++;
+    p_info->interesting_records ++;
 
-    if (p_rec->cr_type == CL_RENAME) {
-        /* Ensure there is no pending rename. */
-        if (p_info->cl_rename) {
-            /* Should never happen. */
-            DisplayLog(LVL_CRIT, CHGLOG_TAG,
-                       "Got 2 CL_RENAME in a row without a CL_EXT.");
-            dump_record(LVL_CRIT, p_info->mdtdevice, p_rec);
-            dump_op_queue(p_info, LVL_CRIT, 32);
-
-            /* Discarding bogus entry. */
-            llapi_changelog_free(&p_info->cl_rename);
-            p_info->cl_rename = NULL;
-        }
-#if defined(HAVE_CHANGELOG_EXTEND_REC) || defined(HAVE_FLEX_CL)
-        /* extended record: 1 single RENAME record per rename op;
-         * there is no EXT. */
-        if (rh_is_rename_one_record(p_rec)) {
-            CL_REC_TYPE *p_rec2;
-#ifdef HAVE_FLEX_CL
-            struct changelog_ext_rename *cr_ren;
-#endif
-
-            /* The MDS sent an extended record, so we have both LU-543
-             * and LU-1331. */
-            if (!cl_reader_config.mds_has_lu543 ||
-                !cl_reader_config.mds_has_lu1331) {
-                DisplayLog(LVL_EVENT, CHGLOG_TAG,
-                           "LU-1331 is fixed in this version of Lustre.");
-
-                cl_reader_config.mds_has_lu543 = true;
-                cl_reader_config.mds_has_lu1331 = true;
-            }
-
-            if (!FID_IS_ZERO(&p_rec->cr_tfid)) {
-                CL_REC_TYPE *unlink;
-                unsigned int insert_flags;
-
-                unlink = create_fake_unlink_record(p_info,
-                                                   p_rec, &insert_flags);
-                if (unlink) {
-                    insert_into_hash(p_info, unlink, insert_flags);
-                } else {
-                    DisplayLog(LVL_CRIT, CHGLOG_TAG,
-                               "Could not allocate an UNLINK record.");
-                }
-            }
-#ifdef HAVE_FLEX_CL
-            cr_ren = changelog_rec_rename(p_rec);
-            DisplayLog(LVL_DEBUG, CHGLOG_TAG,
-                       "Rename: object=" DFID ", old parent/name=" DFID
-                       "/%.*s, new parent/name=" DFID "/%.*s",
-                       PFID(&cr_ren->cr_sfid), PFID(&cr_ren->cr_spfid),
-                       (int)changelog_rec_snamelen(p_rec),
-                       changelog_rec_sname(p_rec), PFID(&p_rec->cr_pfid),
-                       p_rec->cr_namelen, rh_get_cl_cr_name(p_rec));
-#else
-            DisplayLog(LVL_DEBUG, CHGLOG_TAG,
-                       "Rename: object=" DFID ", old parent/name=" DFID
-                       "/%s, new parent/name=" DFID "/%.*s",
-                       PFID(&p_rec->cr_sfid), PFID(&p_rec->cr_spfid),
-                       changelog_rec_sname(p_rec), PFID(&p_rec->cr_pfid),
-                       p_rec->cr_namelen, rh_get_cl_cr_name(p_rec));
-#endif
-
-            /* Ensure compatibility with older Lustre versions:
-             * push RNMFRM to remove the old path from NAMES table.
-             * push RNMTO to add target path information.
-             */
-            /* 1) build & push RNMFRM */
-            p_rec2 = create_fake_rename_record(p_info, p_rec);
-            insert_into_hash(p_info, p_rec2, PLR_FLG_FREE2);
-
-            /* 2) update RNMTO */
-            p_rec->cr_type = CL_EXT;    /* CL_RENAME -> CL_RNMTO */
-#ifdef HAVE_FLEX_CL
-            p_rec->cr_tfid = cr_ren->cr_sfid;   /* removed fid -> renamed fid */
-#else
-            p_rec->cr_tfid = p_rec->cr_sfid;    /* removed fid -> renamed fid */
-#endif
+    switch (p_rec->cr_type) {
+        case CL_RENAME:
+            process_rename_log_rec(p_info, p_rec);
+            break;
+        case CL_EXT:
+            process_ext_log_rec(p_info, p_rec);
+            break;
+        default:
+            /* build the record to be processed in the pipeline */
             insert_into_hash(p_info, p_rec, 0);
-        } else
-#endif
-        {
-            /* This CL_RENAME is followed by CL_EXT, so keep it until
-             * then. */
-            p_info->cl_rename = p_rec;
-        }
-    } else if (p_rec->cr_type == CL_EXT) {
-
-        if (!p_info->cl_rename) {
-            /* Should never happen. */
-            DisplayLog(LVL_CRIT, CHGLOG_TAG, "Got CL_EXT without a CL_RENAME.");
-            dump_record(LVL_CRIT, p_info->mdtdevice, p_rec);
-            dump_op_queue(p_info, LVL_CRIT, 32);
-
-            /* Discarding bogus entry. */
-            llapi_changelog_free(&p_rec);
-
-            goto done;
-        }
-
-        if (!cl_reader_config.mds_has_lu543 &&
-            (FID_IS_ZERO(&p_rec->cr_tfid) ||
-             !entry_id_equal(&p_info->cl_rename->cr_tfid, &p_rec->cr_tfid))) {
-            /* tfid if 0, or the two fids are different, so we have LU-543. */
-            cl_reader_config.mds_has_lu543 = true;
-            DisplayLog(LVL_EVENT, CHGLOG_TAG,
-                       "LU-543 is fixed in this version of Lustre.");
-        }
-
-        /* We now have a CL_RENAME and a CL_EXT. */
-        /* If target fid is not zero: unlink the target.
-         * e.g. "mv a b" and b exists => rm b.
-         */
-        if (!FID_IS_ZERO(&p_rec->cr_tfid)) {
-            CL_REC_TYPE *unlink;
-            unsigned int insert_flags;
-
-            /* Push an unlink. */
-            unlink = create_fake_unlink_record(p_info, p_rec, &insert_flags);
-
-            if (unlink) {
-                insert_into_hash(p_info, unlink, insert_flags);
-            } else {
-                DisplayLog(LVL_CRIT, CHGLOG_TAG,
-                           "Could not allocate an UNLINK record.");
-            }
-        }
-
-        /* Push the rename and the ext.
-         *
-         * TODO: we should be able to push only one RENAME/EXT now.
-         *
-         * This is a little racy if CL_RENAME and CL_EXT were not
-         * consecutive, because we are re-ordering the
-         * CL_RENAME. Clearing one of the record in the middle will
-         * also clear the RENAME with Lustre, however the RENAME
-         * hasn't been processed yet. To hit the race, that
-         * non-contiguous case should also happen while the changelog
-         * is shutting down. The chance of that happening in the real
-         * world should be rather slim to non-existent. */
-
-        /* indicate the target fid as the renamed entry */
-        p_rec->cr_tfid = p_info->cl_rename->cr_tfid;
-
-        insert_into_hash(p_info, p_info->cl_rename, 0);
-        p_info->cl_rename = NULL;
-        insert_into_hash(p_info, p_rec, 0);
-    } else {
-        /* build the record to be processed in the pipeline */
-        insert_into_hash(p_info, p_rec, 0);
+            break;
     }
 
- done:
+done:
     return 0;
 }
 
