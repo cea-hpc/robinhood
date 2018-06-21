@@ -39,6 +39,11 @@ typedef struct global_config_t {
     /* filesystem description */
     char    fs_path[RBH_PATH_MAX];
     char    fs_type[FILENAME_MAX];
+    /* Array of filesystem mount points.
+     * Contains fs_path first, then alternatives sorted in ascending order.
+     */
+    char  **fs_mount_points;
+    int     fs_mpoints_num;
 
     /* lock file */
     char    lock_file[RBH_PATH_MAX];
