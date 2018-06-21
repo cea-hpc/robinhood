@@ -53,6 +53,7 @@
 #define DB_DEADLOCK            16
 #define DB_BAD_SCHEMA          17
 #define DB_NEED_ALTER          18
+#define DB_RBH_SIG_SHUTDOWN    19
 
 static inline const char *lmgr_err2str(int err)
 {
@@ -93,6 +94,8 @@ static inline const char *lmgr_err2str(int err)
         return "invalid DB schema";
     case DB_NEED_ALTER:
         return "schema needs to be altered";
+    case DB_RBH_SIG_SHUTDOWN:
+        return "robinhood signal shutdown";
     default:
         return "unknown error";
     }
@@ -207,6 +210,11 @@ typedef struct lmgr_config_t {
 
 /** config handlers */
 extern mod_cfg_funcs_t lmgr_cfg_hdlr;
+
+/** Cancel SQL retries flag.
+ * Set in SIGTERM handler.
+ */
+extern volatile bool lmgr_cancel_retry;
 
 /** indicate if batched requests can be done simultaneously
  * (risk of deadlock on ACCT table).
