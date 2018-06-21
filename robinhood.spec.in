@@ -218,6 +218,15 @@ BuildRequires: shook-server
 Shook module for robinhood
 %endif
 
+%package devel
+Summary: Robinhood include headers
+Group: Development/Applications
+Provides: robinhood-devel = %{version}
+Requires: %{name} = %{version}
+
+%description devel
+This package contains the headers required to build robinhood extension plugins.
+
 %prep
 %setup -q -n @PACKAGE@-%{version}
 
@@ -242,6 +251,13 @@ install -m 644 scripts/sysconfig_robinhood $RPM_BUILD_ROOT/%{_sysconfdir}/syscon
 
 install -m 644 scripts/ld.so.robinhood.conf $RPM_BUILD_ROOT/%{_sysconfdir}/ld.so.conf.d/robinhood.conf
 
+mkdir $RPM_BUILD_ROOT/%{_includedir}/robinhood
+mv $RPM_BUILD_ROOT/%{_includedir}/*.h $RPM_BUILD_ROOT/%{_includedir}/lustre \
+	$RPM_BUILD_ROOT/%{_includedir}/robinhood/
+
+rm -f $RPM_BUILD_ROOT/%{_libdir}/robinhood/librbh_mod_*.la
+rm -f $RPM_BUILD_ROOT/%{_libdir}/robinhood/librbh_mod_*.a
+
 %if %{with common_rpms}
 mkdir -p $RPM_BUILD_ROOT/%{installdir_www}/robinhood
 cp -r web_gui/gui_v3/* $RPM_BUILD_ROOT/%{installdir_www}/robinhood/.
@@ -249,9 +265,6 @@ cp    web_gui/gui_v3/api/.htaccess $RPM_BUILD_ROOT/%{installdir_www}/robinhood/a
 mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/httpd/conf.d/
 install -m 644 web_gui/robinhood.conf $RPM_BUILD_ROOT/%{_sysconfdir}/httpd/conf.d/.
 %endif
-
-rm -f $RPM_BUILD_ROOT/%{_libdir}/robinhood/librbh_mod_*.a
-rm -f $RPM_BUILD_ROOT/%{_libdir}/robinhood/librbh_mod_*.la
 
 # Add an unmutable copy of the templates for the tests
 %if %{with common_rpms}
@@ -397,6 +410,11 @@ rm -rf $RPM_BUILD_ROOT
 %{_sysconfdir}/robinhood.d/templates/example_shook.conf
 %endif
 
+%files devel
+%{_libdir}/robinhood/*.a
+%{_libdir}/robinhood/*.la
+%{_includedir}/robinhood/*
+
 # robinhood RPM name for lustre is robinhood-lustre
 %if %{with lustre}
 %files lustre
@@ -427,6 +445,7 @@ rm -rf $RPM_BUILD_ROOT
 %exclude %{_libdir}/robinhood/librbh_mod_shook*.so*
 %endif
 %{_libdir}/robinhood/librbh_mod_*.so*
+%{_libdir}/robinhood/librbhmodules.so*
 
 # All man pages but the lhsmtool_cmd one
 %{_mandir}/man1/r*
