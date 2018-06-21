@@ -31,6 +31,7 @@
 #include "global_config.h"
 #include "rbh_cfg_helpers.h"
 #include "chglog_reader.h"
+#include "chglog_postproc.h"
 
 #include <pthread.h>
 #include <errno.h>
@@ -125,6 +126,7 @@ typedef struct reader_thr_info_t {
     /** Queue of pending changelogs to push to the pipeline. */
     struct rh_list_head op_queue;
     unsigned int op_queue_count;
+    bool op_queue_updated;
 
     /** Store the ops for easier access. Each element in the hash
      * table is also in the op_queue list. This hash table doesn't
@@ -643,10 +645,32 @@ static void process_op_queue(reader_thr_info_t *p_info, bool push_all)
 {
     time_t oldest = time(NULL) - cl_reader_config.queue_max_age;
     CL_REC_TYPE *rec;
+    unsigned int cpp_idx;
+    cpp_instance_t *cppi;
 
     DisplayLog(LVL_FULL, CHGLOG_TAG, "processing changelog queue");
 
-    while (!rh_list_empty(&p_info->op_queue)) {
+    if (p_info->op_queue_updated && !rh_list_empty(&p_info->op_queue))
+        for (cpp_idx = 0; cpp_idx < cl_reader_config.cppi_count; ++cpp_idx) {
+            cppi = cl_reader_config.cppi_def[cpp_idx];
+            if (cppi->enabled && cppi->cpp->action) {
+
+                DisplayLog(LVL_FULL, CHGLOG_TAG, "before '%s' post-processor",
+                           cppi->name);
+                dump_op_queue(p_info, LVL_FULL, -1);
+
+                cppi->cpp->action(&p_info->op_queue, &p_info->op_queue_count,
+                                  cppi->cpp->instance_data);
+
+                DisplayLog(LVL_FULL, CHGLOG_TAG, "after '%s' post-processor",
+                           cppi->name);
+                dump_op_queue(p_info, LVL_FULL, -1);
+
+                p_info->op_queue_updated = false;
+            }
+        }
+
+    while(!rh_list_empty(&p_info->op_queue)) {
         entry_proc_op_t *op =
             rh_list_first_entry(&p_info->op_queue, entry_proc_op_t, list);
 
@@ -736,6 +760,8 @@ static int insert_into_hash(reader_thr_info_t *p_info, CL_REC_TYPE *p_rec,
     /* ... and the hash table. */
     slot = get_hash_slot(p_info->id_hash, &op->entry_id);
     rh_list_add_tail(&op->id_hash_list, &slot->list);
+
+    p_info->op_queue_updated = true;
 
     return 0;
 }
@@ -1457,6 +1483,7 @@ int cl_reader_start(run_flags_t flags, int mdt_index)
         info->last_report = time(NULL);
         info->id_hash = id_hash_init(
             max_count_to_hash_size(cl_reader_config.queue_max_size), false);
+        info->op_queue_updated = false;
 
         snprintf(mdtdevice, 128, "%s-%s", get_fsname(),
                  cl_reader_config.mdt_def[i].mdt_name);

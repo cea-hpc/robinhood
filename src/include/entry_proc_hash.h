@@ -20,6 +20,7 @@
 #define _ENTRY_PROC_HASH_H
 
 #include <glib.h>
+#include "list.h"
 
 /* A hash table slot. */
 struct id_hash_slot {

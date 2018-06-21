@@ -24,6 +24,7 @@
 #include "policy_rules.h"
 #include "policy_run.h"
 #include "status_manager.h"
+#include "chglog_postproc.h"
 
 
 /**
@@ -62,6 +63,19 @@ typedef struct rbh_module {
  * \return The status manager or NULL on error
  */
 status_manager_t *module_get_status_manager(const char *name);
+
+/**
+ * Get the changelog post-processor associated to a robinhood dynamic module.
+ * This function will dlopen() the appropriate module if necessary. The library
+ * handle will then remain cached until module_unload_all() is called.
+ *
+ * \param[in] name Module name from which to acquire the Chnagelog
+ *                 post-processor.
+ * \param[out] sym_addr Address of the Changelog post-processor.
+ *
+ * \return 0 on success, -EINVAL on failure
+ */
+int module_get_chglog_postproc(const char *name, void **sym_addr);
 
 /**
  * Get an action function from a robinhood dynamic module. Actions function
