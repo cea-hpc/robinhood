@@ -549,6 +549,7 @@ static void *stats_thr(void *arg)
 static void terminate_handler(int sig)
 {
     terminate_sig = sig;
+    lmgr_cancel_retry = true;
 }
 
 static void reload_handler(int sig)

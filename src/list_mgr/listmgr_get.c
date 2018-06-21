@@ -35,6 +35,7 @@ int ListMgr_Exists(lmgr_t *p_mgr, const entry_id_t *p_id)
     result_handle_t result;
     char           *str_count = NULL;
     DEF_PK(pk);
+    int             retry_status;
 
     /* retrieve primary key */
     entry_id2pk(p_id, PTR_PK(pk));
@@ -46,9 +47,13 @@ int ListMgr_Exists(lmgr_t *p_mgr, const entry_id_t *p_id)
 retry:
     /* execute the request (must return negative value on error) */
     rc = -db_exec_sql(&p_mgr->conn, req->str, &result);
-    if (lmgr_delayed_retry(p_mgr, -rc))
+    retry_status = lmgr_delayed_retry(p_mgr, -rc);
+    if (retry_status == 1)
         goto retry;
-    else if (rc)
+    else if (retry_status == 2) {
+        rc = ECANCELED;
+        goto free_str;
+    } else if (rc)
         goto free_str;
 
     rc = db_next_record(&p_mgr->conn, &result, &str_count, 1);
@@ -56,12 +61,18 @@ retry:
         rc = 1; /* return 1 if entry exists */
     else if (rc != DB_END_OF_LIST)
     {
-        if (lmgr_delayed_retry(p_mgr, -rc))
+        retry_status = lmgr_delayed_retry(p_mgr, -rc);
+        if (retry_status == 1)
             goto retry;
+        else if (retry_status == 2) {
+            rc = ECANCELED;
+            goto free_result;
+        }
     }
     else
         rc = 0;
 
+free_result:
     db_result_free(&p_mgr->conn, &result);
 
 free_str:
@@ -437,12 +448,16 @@ int ListMgr_Get( lmgr_t * p_mgr, const entry_id_t * p_id, attr_set_t * p_info )
 {
     int rc;
     DEF_PK(pk);
+    int retry_status;
 
     entry_id2pk(p_id, PTR_PK(pk));
 retry:
     rc = listmgr_get_by_pk(p_mgr, pk, p_info);
-    if (lmgr_delayed_retry(p_mgr, rc))
+    retry_status = lmgr_delayed_retry(p_mgr, rc);
+    if (retry_status == 1)
         goto retry;
+    else if (retry_status == 2)
+        rc = ECANCELED;
     return rc;
 }
 
@@ -457,6 +472,7 @@ int ListMgr_Get_FID_from_Path( lmgr_t * p_mgr, const entry_id_t * parent_fid,
     DEF_PK(pk);
     int rc;
     char            *str_info[1];
+    int             retry_status;
 
     entry_id2pk(parent_fid, PTR_PK(pk));
 
@@ -467,16 +483,24 @@ int ListMgr_Get_FID_from_Path( lmgr_t * p_mgr, const entry_id_t * parent_fid,
 
 retry:
     rc = db_exec_sql(&p_mgr->conn, req->str, &result);
-    if (lmgr_delayed_retry(p_mgr, rc))
+    retry_status = lmgr_delayed_retry(p_mgr, rc);
+    if (retry_status == 1)
         goto retry;
-    else if (rc)
+    else if (retry_status == 2) {
+        rc = ECANCELED;
+        goto free_str;
+    } else if (rc)
         goto free_str;
 
     rc = db_next_record(&p_mgr->conn, &result, str_info, 1);
 
-    if (lmgr_delayed_retry(p_mgr, rc))
+    retry_status = lmgr_delayed_retry(p_mgr, rc);
+    if (retry_status == 1)
         goto retry;
-    else if (rc != DB_SUCCESS)
+    else if (retry_status == 2) {
+        rc = ECANCELED;
+        goto free_res;
+    } else if (rc != DB_SUCCESS)
         goto free_res;
 
     rc = pk2entry_id(p_mgr, str_info[0], fid);

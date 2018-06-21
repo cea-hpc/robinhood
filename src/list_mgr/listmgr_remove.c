@@ -184,26 +184,32 @@ int ListMgr_Remove(lmgr_t *p_mgr, const entry_id_t *p_id,
                    const attr_set_t *p_attr_set, bool last)
 {
     int rc;
+    int retry_status;
 
     /* We want the remove operation to be atomic */
 retry:
     rc = lmgr_begin(p_mgr);
-    if (lmgr_delayed_retry(p_mgr, rc))
+    retry_status = lmgr_delayed_retry(p_mgr, rc);
+    if (retry_status == 1)
         goto retry;
+    else if (retry_status == 2)
+        return ECANCELED;
     else if (rc)
         return rc;
 
     rc = listmgr_remove_no_tx(p_mgr, p_id, p_attr_set, last);
-    if (lmgr_delayed_retry(p_mgr, rc))
+    retry_status = lmgr_delayed_retry(p_mgr, rc);
+    if (retry_status == 1)
         goto retry;
-    else if (rc)
+    else if (rc || retry_status == 2)
     {
         lmgr_rollback(p_mgr);
-        return rc;
+        return (retry_status == 2) ? ECANCELED : rc;
     }
 
     rc = lmgr_commit(p_mgr);
-    if (lmgr_delayed_retry(p_mgr, rc))
+    retry_status = lmgr_delayed_retry(p_mgr, rc);
+    if (retry_status == 1)
         goto retry;
     if (!rc)
          p_mgr->nbop[OPIDX_RM]++;
