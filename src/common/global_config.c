@@ -21,11 +21,17 @@
 #include "rbh_logs.h"
 #include <errno.h>
 
+#include <limits.h>
+#include <stdlib.h>
+
 #define GLOBAL_CONFIG_BLOCK "General"
 
 /* exported variable available to all modules */
 global_config_t global_config;
 
+static int read_mount_points(config_item_t config_blck, const char *block_name,
+                             char ***mount_points, int *n_mount_points,
+                             char *msg_out);
 /* name 2 fskey value */
 static inline fs_key_t name2fskey(const char *name)
 {
@@ -49,6 +55,8 @@ static void global_cfg_set_default(void *module_config)
 #else
     rh_strncpy(conf->fs_type, "", FILENAME_MAX);
 #endif
+    conf->fs_mount_points = NULL;
+    conf->fs_mpoints_num = 0;
     conf->stay_in_fs = true;
     conf->check_mounted = true;
     conf->last_access_only_atime = false;
@@ -68,6 +76,11 @@ static void global_cfg_write_default(FILE *output)
     print_line(output, 1, "fs_type       :  lustre");
 #else
     print_line(output, 1, "fs_type       :  [MANDATORY]");
+#endif
+#ifdef _LUSTRE
+    print_line(output, 1, "mountpoint    :  [OPTIONAL, MULTIPLE]");
+#else
+    print_line(output, 1, "mountpoint    :  [NOT SUPPORTED]");
 #endif
     print_line(output, 1, "fs_key        :  fsname");
     print_line(output, 1, "stay_in_fs    :  yes");
@@ -89,7 +102,7 @@ static int global_cfg_read(config_file_t config, void *module_config,
     int              rc;
 
     static const char * const allowed_params[] = {
-        "fs_path", "fs_type", "stay_in_fs", "check_mounted",
+        "fs_path", "fs_type", "mount_point", "stay_in_fs", "check_mounted",
         "direct_mds_stat", "fs_key", "last_access_only_atime",
         "uid_gid_as_numbers", NULL
     };
@@ -155,8 +168,89 @@ static int global_cfg_read(config_file_t config, void *module_config,
         }
     }
 
+#ifdef _LUSTRE
+    /* Fill alternative mount points array */
+    conf->fs_mount_points = malloc(sizeof(char*));
+    if (conf->fs_mount_points == NULL) {
+        sprintf(msg_out, "Not enough memory for mount points array");
+        return ENOMEM;
+    }
+    conf->fs_mount_points[0] = strdup(conf->fs_path);
+    if (conf->fs_mount_points[0] == NULL) {
+        rc = errno;
+        sprintf(msg_out, "Failed to copy main mount point: %s",
+                strerror(rc));
+        free(conf->fs_mount_points);
+        conf->fs_mount_points = NULL;
+        return rc;
+    }
+    conf->fs_mpoints_num = 1;
+    rc = read_mount_points(general_block, GLOBAL_CONFIG_BLOCK,
+                           &conf->fs_mount_points, &conf->fs_mpoints_num,
+                           msg_out);
+    /* TODO add result processing */
+#endif
+
     /* check unknown parameters */
     CheckUnknownParameters(general_block, GLOBAL_CONFIG_BLOCK, allowed_params);
+
+    return 0;
+}
+
+#define critical_err_check(_ptr_, _blkname_) do { if (!(_ptr_)) {\
+          sprintf(msg_out, "Internal error reading %s block in config file",\
+                  (_blkname_)); \
+          return EFAULT; \
+        }\
+    } while (0)
+
+static int read_mount_points(config_item_t config_blck, const char *block_name,
+                             char ***mount_points, int *n_mount_points,
+                             char *msg_out)
+{
+    char *mount_point_path;
+    unsigned int item_index;
+    config_item_t curr_item;
+    char *item_name;  /* Temporary reference */
+    char *item_value; /* Temporary reference */
+    int   have_extra_args; /* Temporary value, formal */
+    int   rc;
+    char **tmp_mount_points;
+
+    for (item_index = 0; item_index < rh_config_GetNbItems(config_blck);
+         ++item_index) {
+
+        curr_item = rh_config_GetItemByIndex(config_blck, item_index);
+        critical_err_check(curr_item, GLOBAL_CONFIG_BLOCK);
+
+        if (rh_config_ItemType(curr_item) != CONFIG_ITEM_VAR)
+            continue;
+
+        rc = rh_config_GetKeyValue(curr_item, &item_name, &item_value,
+                                   &have_extra_args);
+
+        if (rc != 0 || strcmp(item_name, "mount_point") != 0)
+            continue;
+
+        mount_point_path = realpath(item_value, NULL);
+        if (mount_point_path == NULL) {
+            rc = errno;
+            strcpy(msg_out,
+                   "Not enough memory to store absolute path for mount point");
+            return rc;
+        }
+        tmp_mount_points = realloc(*mount_points, (*n_mount_points + 1) * sizeof(char*));
+        if (tmp_mount_points == NULL) {
+            rc = errno;
+            strcpy(msg_out,
+                   "Not enough memory to add absolute path for mount point");
+            free(mount_point_path);
+            return rc;
+        }
+        tmp_mount_points[*n_mount_points] = mount_point_path;
+        ++*n_mount_points;
+        *mount_points = tmp_mount_points;
+    }
 
     return 0;
 }
@@ -164,6 +258,8 @@ static int global_cfg_read(config_file_t config, void *module_config,
 static int global_cfg_set(void *module_config, bool reload)
 {
     global_config_t *conf = (global_config_t *) module_config;
+    bool             mpoints_differ = false;
+    int              mpoint_idx;
 
     if (!reload) {
         /* copy the whole structure content */
@@ -179,6 +275,18 @@ static int global_cfg_set(void *module_config, bool reload)
         DisplayLog(LVL_MAJOR, "GlobalConfig",
                    GLOBAL_CONFIG_BLOCK
                    "::fs_type changed in config file, but cannot be modified dynamically");
+
+    mpoints_differ = (conf->fs_mpoints_num != global_config.fs_mpoints_num);
+    for (mpoint_idx = 0; mpoint_idx < conf->fs_mpoints_num && !mpoints_differ;
+         ++mpoint_idx) {
+        mpoints_differ = (strcmp(conf->fs_mount_points[mpoint_idx],
+                                 global_config.fs_mount_points[mpoint_idx]) !=
+                          0);
+    }
+    if (mpoints_differ)
+        DisplayLog(LVL_MAJOR, "GlobalConfig",
+                   GLOBAL_CONFIG_BLOCK
+                   "::mount_point list changed in config file, but cannot be modified dynamically");
 
     if (global_config.stay_in_fs != conf->stay_in_fs) {
         DisplayLog(LVL_EVENT, "GlobalConfig",
@@ -245,6 +353,13 @@ static void global_cfg_write_template(FILE *output)
                "# filesystem property used as FS key: fsname, devid or fsid (fsid NOT recommended)");
     print_line(output, 1, "fs_key = fsname ;");
     fprintf(output, "\n");
+#endif
+#ifdef _HAVE_FID
+    print_line(output, 1, "# alternative mount point");
+    print_line(output, 1, "mount_point = \"/mnt/lustre1\" ;");
+    print_line(output, 1, "# another alternative mount point");
+    print_line(output, 1, "mount_point = \"/mnt/lustre2\" ;");
+    print_line(output, 0, "");
 #endif
     print_line(output, 1,
                "# check that objects are in the same device as 'fs_path',");
