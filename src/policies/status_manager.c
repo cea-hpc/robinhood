@@ -362,12 +362,10 @@ sm_instance_t *create_sm_instance(const char *pol_name, const char *sm_name)
         goto out_free;
 
     /* <instance_name>_status */
-    asprintf(&smi->db_field, "%s_status", smi->instance_name);
-    if (smi->db_field == NULL)
+    if (asprintf(&smi->db_field, "%s_status", smi->instance_name) < 0)
         goto out_free;
 
-    asprintf(&smi->user_name, "%s.status", smi->instance_name);
-    if (smi->user_name == NULL)
+    if (asprintf(&smi->user_name, "%s.status", smi->instance_name) < 0)
         goto out_free;
 
     /* @TODO load its configuration */
@@ -408,16 +406,27 @@ sm_instance_t *create_sm_instance(const char *pol_name, const char *sm_name)
     for (i = 0; i < sm->nb_info; i++) {
         int tgt_idx = sm_attr_count - sm->nb_info + i;
 
-        asprintf((char **)&sm_attr_info[tgt_idx].db_attr_name, "%s_%s",
-                 smi->instance_name, smi->sm->info_types[i].db_name);
-        asprintf((char **)&sm_attr_info[tgt_idx].user_attr_name, "%s.%s",
-                 smi->instance_name, smi->sm->info_types[i].user_name);
+        if (asprintf((char **)&sm_attr_info[tgt_idx].db_attr_name, "%s_%s",
+                     smi->instance_name, smi->sm->info_types[i].db_name) < 0)
+            goto out_free_attrs;
+        if (asprintf((char **)&sm_attr_info[tgt_idx].user_attr_name, "%s.%s",
+                     smi->instance_name, smi->sm->info_types[i].user_name) < 0)
+            goto out_free_attrs_db;
         sm_attr_info[tgt_idx].def = &smi->sm->info_types[i];
         sm_attr_info[tgt_idx].smi = smi;
     }
 
     return smi;
+ out_free_attrs_db:
+    free((char **)sm_attr_info[sm_attr_count - sm->nb_info + i].db_attr_name);
+ out_free_attrs:
+    /* start freeing from where we failed */
+    for (i--; i >= 0; i--) {
+        int tgt_idx = sm_attr_count - sm->nb_info + i;
 
+        free((char **)sm_attr_info[tgt_idx].db_attr_name);
+        free((char **)sm_attr_info[tgt_idx].user_attr_name);
+    }
  out_free:
     if (smi) {
         free(smi->user_name);

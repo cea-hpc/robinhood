@@ -353,8 +353,14 @@ static int total_blocks(unsigned long long *total_user_blocks,
 {
     struct statfs stfs;
     char traverse_path[RBH_PATH_MAX];
+    int rc;
 
-    snprintf(traverse_path, RBH_PATH_MAX, "%s/.", global_config.fs_path);
+    rc = snprintf(traverse_path, RBH_PATH_MAX, "%s/.", global_config.fs_path);
+    if (rc >= RBH_PATH_MAX) {
+        DisplayLog(LVL_MAJOR, TAG, "Path too long: %s/.",
+                   global_config.fs_path);
+        return ENAMETOOLONG;
+    }
 
     if (statfs(traverse_path, &stfs) != 0) {
         int err = errno;
@@ -372,8 +378,14 @@ static int total_blocks(unsigned long long *total_user_blocks,
 static int get_fs_usage(policy_info_t *pol, struct statfs *stfs)
 {
     char traverse_path[RBH_PATH_MAX];
+    int rc;
 
-    snprintf(traverse_path, RBH_PATH_MAX, "%s/.", global_config.fs_path);
+    rc = snprintf(traverse_path, RBH_PATH_MAX, "%s/.", global_config.fs_path);
+    if (rc >= RBH_PATH_MAX) {
+        DisplayLog(LVL_MAJOR, tag(pol), "Path too long: %s/.",
+                   global_config.fs_path);
+        return ENAMETOOLONG;
+    }
 
     if (!CheckFSDevice(pol))
         return ENODEV;
@@ -735,6 +747,7 @@ static int check_report_thresholds(trigger_item_t *p_trigger,
 {
     const char *what = (p_trigger->target_type == TGT_USER ? "user" : "group");
     char buff[1024];
+    int rc;
 
     if (res_count != 2) {
         DisplayLog(LVL_MAJOR, TAG,
@@ -756,9 +769,13 @@ static int check_report_thresholds(trigger_item_t *p_trigger,
                    result[1].value_u.val_biguint, p_trigger->lw_count);
 
         if (p_trigger->alert_hw) {
-            snprintf(buff, sizeof(buff),
-                     "Inode quota exceeded for %s '%s' (in %s)", what,
-                     id_as_str(&result[0].value_u), global_config.fs_path);
+            rc = snprintf(buff, sizeof(buff),
+                         "Inode quota exceeded for %s '%s' (in %s)", what,
+                         id_as_str(&result[0].value_u), global_config.fs_path);
+            if (rc >= sizeof(buff)) {
+                DisplayLog(LVL_DEBUG, TAG, "Alert title truncated for %s",
+                           what);
+            }
             RaiseAlert(buff,
                        "%s\n" "%s:       %s\n" "quota:      %llu inodes\n"
                        "usage:      %llu inodes", buff, what,
@@ -792,9 +809,13 @@ static int check_report_thresholds(trigger_item_t *p_trigger,
 
             FormatFileSize(usage_str, sizeof(usage_str),
                            result[1].value_u.val_biguint * 512);
-            snprintf(buff, sizeof(buff),
-                     "Volume quota exceeded for %s '%s' (in %s)", what,
-                     id_as_str(&result[0].value_u), global_config.fs_path);
+            rc = snprintf(buff, sizeof(buff),
+                         "Volume quota exceeded for %s '%s' (in %s)", what,
+                         id_as_str(&result[0].value_u), global_config.fs_path);
+            if (rc >= sizeof(buff)) {
+                DisplayLog(LVL_DEBUG, TAG, "Alert title truncated for %s",
+                           what);
+            }
             RaiseAlert(buff, "%s\n%s:       %s\nquota:      %s\nspace used: %s",
                        buff, what, id_as_str(&result[0].value_u), hw_str,
                        usage_str);
@@ -1245,6 +1266,7 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
     char bw_buff[128];
     unsigned int spent;
     time_t time_end = time(NULL);
+    int rc;
 
     print_ctr(LVL_DEBUG, tag(pol), "target", &param->target_ctr, param->target);
     print_ctr(LVL_DEBUG, tag(pol), "done", &summary->action_ctr, param->target);
@@ -1254,13 +1276,25 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
         pol->trigger_info[trigger_index].last_ctr = summary->action_ctr;
         counters_add(&pol->trigger_info[trigger_index].total_ctr,
                      &summary->action_ctr);
-        asprintf(&trigger_buff, "trigger: %s (%s), target: %s",
-                 trigger2str(&pol->config->trigger_list[trigger_index]),
-                 one_shot(pol) ? "one-shot command" : "daemon",
-                 param2targetstr(param, buff, sizeof(buff)));
+        if (asprintf(&trigger_buff, "trigger: %s (%s), target: %s",
+                     trigger2str(&pol->config->trigger_list[trigger_index]),
+                     one_shot(pol) ? "one-shot command" : "daemon",
+                     param2targetstr(param, buff, sizeof(buff))) < 0) {
+            DisplayLog(LVL_CRIT, tag(pol),
+                       "Could not allocate string: %s (%s), target: %s",
+                       trigger2str(&pol->config->trigger_list[trigger_index]),
+                       one_shot(pol) ? "one-shot command" : "daemon",
+                       param2targetstr(param, buff, sizeof(buff)));
+            return;
+        }
     } else {
-        asprintf(&trigger_buff, "manual run, target: %s",
-                 param2targetstr(param, buff, sizeof(buff)));
+        if (asprintf(&trigger_buff, "manual run, target: %s",
+                     param2targetstr(param, buff, sizeof(buff))) < 0) {
+            DisplayLog(LVL_CRIT, tag(pol),
+                       "Could not allocate string: manual run, target: %s",
+                       param2targetstr(param, buff, sizeof(buff)));
+            return;
+        }
     }
 
     spent = time_end - summary->policy_start;
@@ -1280,10 +1314,17 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
                    (float)summary->action_ctr.count / (float)spent,
                    vol_buff, bw_buff, summary->skipped, summary->errors);
 
-        asprintf(&status_buff,
-                 "%llu successful actions, volume: %s; %u entries skipped; %u errors",
-                 summary->action_ctr.count, vol_buff, summary->skipped,
-                 summary->errors);
+        if (asprintf(&status_buff,
+                     "%llu successful actions, volume: %s; %u entries skipped; %u errors",
+                     summary->action_ctr.count, vol_buff, summary->skipped,
+                     summary->errors) < 0) {
+            DisplayLog(LVL_CRIT, tag(pol),
+                       "Could not allocate string: %llu successful actions, volume: %s; %u entries skipped; %u errors",
+                       summary->action_ctr.count, vol_buff, summary->skipped,
+                       summary->errors);
+            free(trigger_buff);
+            return;
+        }
 
         if (counter_not_reached(&summary->action_ctr, &param->target_ctr)) {
             trigger_item_t *trig = NULL;
@@ -1303,9 +1344,13 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
                     char ctr1[1024];
                     char ctr2[1024];
 
-                    snprintf(title, sizeof(title),
-                             "%s on %s: could not reach policy target",
-                             tag(pol), global_config.fs_path);
+                    rc = snprintf(title, sizeof(title),
+                                  "%s on %s: could not reach policy target",
+                                  tag(pol), global_config.fs_path);
+                    if (rc >= sizeof(title)) {
+                        DisplayLog(LVL_DEBUG, tag(pol),
+                                   "alert title truncated");
+                    }
 
                     sprint_ctr(ctr1, sizeof(ctr1), &summary->action_ctr,
                                param->target);
@@ -1345,10 +1390,15 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
                    (float)summary->action_ctr.count / (float)spent,
                    vol_buff, bw_buff, summary->skipped, summary->errors);
 
-        asprintf(&status_buff,
-                 "Policy run aborted after %llu successful actions, volume: %s; %u entries skipped; %u errors",
-                 summary->action_ctr.count, vol_buff, summary->skipped,
-                 summary->errors);
+        if (asprintf(&status_buff,
+                     "Policy run aborted after %llu successful actions, volume: %s; %u entries skipped; %u errors",
+                     summary->action_ctr.count, vol_buff, summary->skipped,
+                     summary->errors) < 0) {
+            DisplayLog(LVL_CRIT, tag(pol),
+                       "Could not allocate string for status buffer");
+            free(trigger_buff);
+            return;
+        }
     } else {
         update_trigger_status(pol, trigger_index, TRIG_CHECK_ERROR);
         DisplayLog(LVL_CRIT, tag(pol), "Error running policy on %s. "
@@ -1357,10 +1407,15 @@ static void report_policy_run(policy_info_t *pol, policy_param_t *param,
                    summary->action_ctr.count, vol_buff,
                    summary->skipped, summary->errors);
 
-        asprintf(&status_buff,
-                 "Fatal error running policy after %llu successful actions, volume: %s; %u entries skipped; %u errors",
-                 summary->action_ctr.count, vol_buff, summary->skipped,
-                 summary->errors);
+        if (asprintf(&status_buff,
+                     "Fatal error running policy after %llu successful actions, volume: %s; %u entries skipped; %u errors",
+                     summary->action_ctr.count, vol_buff, summary->skipped,
+                     summary->errors) < 0) {
+            DisplayLog(LVL_CRIT, tag(pol),
+                       "Could not allocate string for status buffer");
+            free(trigger_buff);
+            return;
+        }
     }
 
     store_policy_run_stats(pol, summary->policy_start, time_end,
@@ -1430,9 +1485,16 @@ static int check_trigger(policy_info_t *pol, unsigned trigger_index)
         /* insert info to DB about current trigger
          * (for rbh-report --activity) */
         char *trigger_buff;
-        asprintf(&trigger_buff, "trigger: %s (%s), target: %s",
-                 trigger2str(trig), one_shot(pol) ?
-                 "one-shot command" : "daemon", buff);
+        if (asprintf(&trigger_buff, "trigger: %s (%s), target: %s",
+                     trigger2str(trig), one_shot(pol) ?
+                     "one-shot command" : "daemon", buff) < 0) {
+            DisplayLog(LVL_CRIT, tag(pol),
+                       "Could not allocate string: trigger: %s (%s), target: %s",
+                       trigger2str(trig), one_shot(pol) ?
+                       "one-shot command" : "daemon", buff);
+            rc = ENOMEM;
+            break;
+        }
         store_policy_start_stats(pol, time(NULL), trigger_buff);
         free(trigger_buff);
 
@@ -1583,7 +1645,13 @@ static int targeted_run(policy_info_t *pol, const policy_opt_t *opt)
         /* insert info to DB about current trigger
          * (for rbh-report --activity) */
         char *trigger_buff;
-        asprintf(&trigger_buff, "manual run, target: %s", buff);
+        if (asprintf(&trigger_buff, "manual run, target: %s", buff) < 0) {
+            DisplayLog(LVL_CRIT, tag(pol),
+                       "Could not allocate trigger string for target: %s",
+                       buff);
+            rc = -ENOMEM;
+            goto out;
+        }
         store_policy_start_stats(pol, time(NULL), trigger_buff);
         free(trigger_buff);
 

@@ -89,7 +89,7 @@ static bool TestPathRegexp(const char *regexp, const char *to_be_tested,
     char full_path[RBH_PATH_MAX];
     const char *full_regexp = regexp;
     bool any_level = (flags & REGEXP_ANY_LEVEL);
-    int match_flag = 0;
+    int match_flag = 0, rc;
 
     if (flags & REGEXP_IS_CHILD)
         match_flag |= FNM_LEADING_DIR;
@@ -102,7 +102,13 @@ static bool TestPathRegexp(const char *regexp, const char *to_be_tested,
      */
     if (!IS_ABSOLUTE_PATH(regexp) && !(any_level && (regexp[0] == '*'))) {
         /* add root path to the path to be tested */
-        sprintf(full_path, "%s/%s", global_config.fs_path, regexp);
+        rc = snprintf(full_path, RBH_PATH_MAX, "%s/%s",
+                      global_config.fs_path, regexp);
+        if (rc >= RBH_PATH_MAX) {
+            DisplayLog(LVL_VERB, POLICY_TAG,
+                       "Path name too long: %s/%s. Try matching anyway.",
+                       global_config.fs_path, regexp);
+        }
         full_regexp = full_path;
     }
 

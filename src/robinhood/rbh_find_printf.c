@@ -599,7 +599,10 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
 
         switch (chunk->directive) {
         case 0:
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-security"
             printf(format);
+#pragma GCC diagnostic pop
             break;
 
         case 'A':
