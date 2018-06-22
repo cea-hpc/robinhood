@@ -96,7 +96,9 @@ static int subst_one_param(const char *key, const char *val, void *udata)
     char *descr = NULL;
     int rc;
 
-    asprintf(&descr, "parameter %s='%s'", key, val);
+    if (asprintf(&descr, "parameter %s='%s'", key, val) < 0) {
+        return -ENOMEM;
+    }
     new_val = subst_params(val, descr, args->id, args->attrs, args->params,
                            args->subst_array, args->smi, false, false);
     free(descr);
@@ -307,8 +309,14 @@ static int policy_action(entry_context_t *ectx)
                                 sizeof(addl_params) / sizeof(char *),
                                 ectx->rule, ectx->fileset);
 
-                asprintf(&descr, "action command '%s'",
-                         actionp->action_u.command[0]);
+                if (asprintf(&descr, "action command '%s'",
+                             actionp->action_u.command[0]) < 0) {
+                    DisplayLog(LVL_CRIT, tag(pol),
+                               "Could not allocate string for action command '%s'",
+                               actionp->action_u.command[0]);
+                    rc = -ENOMEM;
+                    break;
+                }
 
                 /* replaces placeholders in command */
                 rc = subst_shell_params(actionp->action_u.command, descr,
@@ -1799,7 +1807,12 @@ static int execute_prepost_run_command(const policy_info_t *policy,
         /* nothing to do */
         return 0;
 
-    asprintf(&descr, "%s_run_command '%s'", pre, command[0]);
+    if (asprintf(&descr, "%s_run_command '%s'", pre, command[0]) < 0) {
+        DisplayLog(LVL_CRIT, tag(policy),
+                   "Could not allocate string for %s_run_command '%s'",
+                   pre, command[0]);
+        return -ENOMEM;
+    }
 
     /* replaces placeholders in command */
     rc = subst_shell_params(command, descr, NULL, NULL, NULL, NULL,

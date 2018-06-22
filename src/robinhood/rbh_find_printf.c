@@ -599,7 +599,18 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
 
         switch (chunk->directive) {
         case 0:
+#if __GNUC__ >= 7
+/*
+ * "format" below is constructed safely, ignore the warning.
+ * Old GCC versions do not like these statements
+ */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-security"
+#endif
             printf(format);
+#if __GNUC__ >= 7
+#pragma GCC diagnostic pop
+#endif
             break;
 
         case 'A':
@@ -812,6 +823,7 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
         }
     }
 }
+#pragma GCC diagnostic error "-Wformat-security"
 
 /**
  * Release the ressources allocated by prepare_printf_format.

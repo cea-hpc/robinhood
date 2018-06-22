@@ -914,8 +914,8 @@ void print_attr_list_custom(int rank_field, unsigned int *attr_list,
             }
             if (p_profile->range_ratio_len > 0) {
                 char tmp[128];
-                char tmp1[128];
-                char tmp2[128];
+                char tmp1[40];
+                char tmp2[40];
                 if (p_profile->range_ratio_start + p_profile->range_ratio_len ==
                     SZ_PROFIL_COUNT)
                     sprintf(tmp, "ratio(%s..inf)",
@@ -1038,8 +1038,8 @@ void display_report(const report_field_descr_t *descr,
 
                 if (prof_descr->range_ratio_len > 0) {
                     char tmp[128];
-                    char tmp1[128];
-                    char tmp2[128];
+                    char tmp1[40];
+                    char tmp2[40];
                     if (prof_descr->range_ratio_start +
                         prof_descr->range_ratio_len == SZ_PROFIL_COUNT)
                         sprintf(tmp, "ratio(%s..inf)",
