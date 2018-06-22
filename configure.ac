@@ -138,9 +138,6 @@ AC_ARG_ENABLE( [data-version], AS_HELP_STRING([--disable-data-version],
                [support_dv="$enableval"],[support_dv="yes"] )
 DV_CMD="stat -c %Y-%s"
 
-# program to be used for mailing
-AX_PROG_MAIL
-
 AC_ARG_ENABLE([common-rpms], AS_HELP_STRING([--disable-common-rpms],
               [Disable build of common RPMs, only build FS specific packages]),
               [common_rpms="$enableval"],[common_rpms="yes"])

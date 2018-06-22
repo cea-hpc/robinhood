@@ -302,10 +302,10 @@ const entry_id_t *get_root_id(void)
  */
 int SendMail(const char *recipient, const char *subject, const char *message)
 {
-    char buffer[MAIL_TITLE_MAX];
+    char buffer[MAIL_TITLE_MAX + MAIL_ADDRESS_MAX + 32];
     FILE *fichier;
 
-    snprintf(buffer, MAIL_TITLE_MAX, MAIL " -s \"%s\" %s", subject, recipient);
+    snprintf(buffer, MAIL_TITLE_MAX, "mailx -s \"%s\" %s", subject, recipient);
 
     if ((fichier = popen(buffer, "w")) == NULL) {
         DisplayLog(LVL_CRIT, "SENDMAIL",

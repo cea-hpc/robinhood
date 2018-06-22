@@ -45,7 +45,7 @@ typedef struct log_config__ {
                                  * account, use a path from cmd line */
     char        report_file[RBH_PATH_MAX];
 
-    char        alert_mail[256];
+    char        alert_mail[MAIL_ADDRESS_MAX];
     char        alert_file[RBH_PATH_MAX];
 
     char        changelogs_file[RBH_PATH_MAX];
