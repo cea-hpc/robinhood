@@ -135,7 +135,12 @@ static int alerter_alert(const entry_id_t *p_entry_id, attr_set_t *p_attrs,
     if (ATTR_MASK_TEST(p_attrs, fullpath)) {
         str_id = ATTR(p_attrs, fullpath);
     } else {
-        asprintf(&str_id, DFID, PFID(p_entry_id));
+        if (asprintf(&str_id, DFID, PFID(p_entry_id)) < 0) {
+            DisplayLog(LVL_MAJOR, TAG,
+                       "Could not allocate string for fid "DFID" path in %s",
+                       PFID(p_entry_id), __func__);
+            return -ENOMEM;
+        };
         str_is_alloc = true;
     }
 
