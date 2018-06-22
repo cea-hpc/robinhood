@@ -280,10 +280,12 @@ static int lmgr_cfg_read(config_file_t config, void *module_config,
                     strerror(errno));
             return rc;
         }
-        fscanf(passfile, "%1023s", tmpstr);
-        if (ferror(passfile)) {
+        rc = fscanf(passfile, "%1023s", tmpstr);
+        if (ferror(passfile) || rc < 1) {
             rc = errno;
-            strerror_r(rc, errstr, 1024);
+            if (strerror_r(rc, errstr, sizeof(errstr))) {
+                snprintf(errstr, sizeof(errstr), "%d", rc);
+            }
             sprintf(msg_out, "Error reading password file %s : %s", tmpstr,
                     errstr);
             return rc;

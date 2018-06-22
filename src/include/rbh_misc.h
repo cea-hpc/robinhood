@@ -80,7 +80,7 @@
 
 #define rh_strncpy(_s1, _s2, _sz) do { \
         if (_sz > 0) {                 \
-            strncpy(_s1, _s2, _sz-1);  \
+            strncpy(_s1, _s2, _sz);    \
             (_s1)[_sz-1] = '\0';       \
         }                              \
     } while (0)
