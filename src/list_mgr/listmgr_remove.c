@@ -273,6 +273,8 @@ static int listmgr_rm_all(lmgr_t * p_mgr)
 /** try to build the full path, if it is missing */
 static void set_fullpath(lmgr_t *p_mgr, attr_set_t *attrs)
 {
+    int rc;
+
     /* if fullpath is not determined, try to build it */
     if (!ATTR_MASK_TEST(attrs, fullpath)
         && ATTR_MASK_TEST(attrs, parent_id)
@@ -285,8 +287,12 @@ static void set_fullpath(lmgr_t *p_mgr, attr_set_t *attrs)
         if ((ListMgr_Get(p_mgr, &ATTR(attrs, parent_id), &dir_attrs) == DB_SUCCESS)
             && ATTR_MASK_TEST(&dir_attrs, fullpath))
         {
-            snprintf(ATTR(attrs, fullpath), RBH_PATH_MAX, "%s/%s",
-                     ATTR(&dir_attrs, fullpath), ATTR(attrs, name));
+            rc = snprintf(ATTR(attrs, fullpath), RBH_PATH_MAX, "%s/%s",
+                          ATTR(&dir_attrs, fullpath), ATTR(attrs, name));
+            if (rc > RBH_PATH_MAX) {
+                DisplayLog(LVL_EVENT, LISTMGR_TAG, "path truncated: %s/%s",
+                           ATTR(&dir_attrs, fullpath), ATTR(attrs, name));
+            }
             ATTR_MASK_SET(attrs, fullpath);
         }
         else /* display fullpath as <parent_id>/<name>*/
@@ -296,7 +302,7 @@ static void set_fullpath(lmgr_t *p_mgr, attr_set_t *attrs)
 
             /* prefix with parent id */
             entry_id2pk(&ATTR(attrs, parent_id), PTR_PK(parent_pk));
-            sprintf(tmp, "%s/%s", parent_pk, ATTR(attrs, name));
+            snprintf(tmp, RBH_PATH_MAX, "%s/%s", parent_pk, ATTR(attrs, name));
             fullpath_db2attr(tmp, ATTR(attrs, fullpath));
             ATTR_MASK_SET(attrs, fullpath);
         }

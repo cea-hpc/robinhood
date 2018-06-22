@@ -646,6 +646,7 @@ static void FlushAlerts(bool release_mutex_asap)
     GString        *contents = NULL;
     time_t          now;
     struct tm       date;
+    int             rc;
 
     /* first list scan, to determine the number of alerts, etc... */
     for (pcurr = alert_list; pcurr != NULL; pcurr = pcurr->next) {
@@ -662,9 +663,14 @@ static void FlushAlerts(bool release_mutex_asap)
     now = time(NULL);
     localtime_r(&now, &date);
 
-    snprintf(title, MAIL_TITLE_MAX,
-             "robinhood alert summary (%s on %s): %u alerts",
-             global_config.fs_path, machine_name, alert_count);
+    rc = snprintf(title, MAIL_TITLE_MAX,
+                  "robinhood alert summary (%s on %s): %u alerts",
+                  global_config.fs_path, machine_name, alert_count);
+    if (rc >= MAIL_TITLE_MAX) {
+        DisplayLog(LVL_VERB, "LogAlert",
+                   "Mail title truncated, full title: robinhood alert summary (%s on %s): %u alerts",
+                   global_config.fs_path, machine_name, alert_count);
+    }
 
     contents = g_string_new("");
     g_string_printf(contents, "Date: %.4d/%.2d/%.2d %.2d:%.2d:%.2d\n"
@@ -842,7 +848,8 @@ void RaiseEntryAlert(const char *alert_name,    /* alert name (if set) */
                      const char *entry_path,    /* entry path */
                      const char *entry_info)
 {   /* alert related attributes */
-    char title[1024];
+    char title[MAIL_TITLE_MAX];
+    int rc;
 
     /* lockless check (not a big problem if some alerts are sent without
      * being batched).
@@ -851,7 +858,7 @@ void RaiseEntryAlert(const char *alert_name,    /* alert name (if set) */
         if (alert_name && !EMPTY_STRING(alert_name))
             strcpy(title, alert_name);
         else {
-            if (snprintf(title, 1024, "unnamed alert %s", alert_string) > 80) {
+            if (snprintf(title, MAIL_TITLE_MAX, "unnamed alert %s", alert_string) > 80) {
                 /* truncate at 80 char: */
                 strcpy(title + 77, "...");
             }
@@ -859,13 +866,18 @@ void RaiseEntryAlert(const char *alert_name,    /* alert name (if set) */
 
         Alert_Add(title, entry_path, entry_info);
     } else {
-        if (alert_name && !EMPTY_STRING(alert_name))
-            snprintf(title, 1024, "Robinhood alert (%s on %s): %s",
-                     global_config.fs_path, machine_name, alert_name);
-        else
-            snprintf(title, 1024,
-                     "Robinhood alert (%s on %s): entry matches alert rule",
-                     global_config.fs_path, machine_name);
+        rc = snprintf(title, MAIL_TITLE_MAX, "Robinhood alert (%s on %s): %s",
+                     global_config.fs_path, machine_name,
+                     (alert_name && !EMPTY_STRING(alert_name) ?
+                      alert_name : "entry matches alert rule"));
+
+        if (rc >= MAIL_TITLE_MAX) {
+            DisplayLog(LVL_VERB, "LogAlert",
+                       "Mail title truncated, full title: Robinhood alert (%s on %s): %s",
+                       global_config.fs_path, machine_name,
+                       (alert_name && !EMPTY_STRING(alert_name) ?
+                        alert_name : "entry matches alert rule"));
+        }
 
         if (log_config.alert_show_attrs)
             RaiseAlert(title, "Entry: %s\nAlert condition: %s\n"
@@ -882,10 +894,11 @@ void RaiseAlert(const char *title, const char *format, ...)
 {
     va_list     args;
     char        mail[MAX_MAIL_LEN];
-    char        title2[1024];
+    char        title2[MAIL_TITLE_MAX];
     int         written;
     time_t      now = time(NULL);
     struct tm   date;
+    int         rc;
 
     log_init_check();
 
@@ -907,8 +920,13 @@ void RaiseAlert(const char *title, const char *format, ...)
         vsnprintf(mail + written, MAX_MAIL_LEN - written, format, args);
         va_end(args);
 
-        snprintf(title2, 1024, "%s (%s on %s)", title, global_config.fs_path,
-                 machine_name);
+        rc = snprintf(title2, MAIL_TITLE_MAX, "%s (%s on %s)", title,
+                      global_config.fs_path, machine_name);
+        if (rc >= MAIL_TITLE_MAX) {
+            DisplayLog(LVL_VERB, "LogAlert",
+                       "Mail title truncated, full title: %s (%s on %s)",
+                       title, global_config.fs_path, machine_name);
+        }
         SendMail(log_config.alert_mail, title2, mail);
     }
 
@@ -943,7 +961,8 @@ static void log_cfg_set_default(void *module_config)
     rh_strncpy(conf->report_file, "/var/log/robinhood_actions.log",
                RBH_PATH_MAX);
 
-    rh_strncpy(conf->alert_file, "/var/log/robinhood_alerts.log", 1024);
+    rh_strncpy(conf->alert_file, "/var/log/robinhood_alerts.log",
+               RBH_PATH_MAX);
     conf->alert_mail[0] = '\0';
 
 #ifdef HAVE_CHANGELOGS
@@ -1096,7 +1115,8 @@ static int log_cfg_read(config_file_t config, void *module_config,
 
     /* read specific parameters */
     rc = GetStringParam(log_block, RBH_LOG_CONFIG_BLOCK, "debug_level",
-                        PFLG_NO_WILDCARDS, tmpstr, 1024, NULL, NULL, msg_out);
+                        PFLG_NO_WILDCARDS, tmpstr, sizeof(tmpstr), NULL,
+                        NULL, msg_out);
     if ((rc != 0) && (rc != ENOENT))
         return rc;
     else if (rc != ENOENT) {
@@ -1113,7 +1133,8 @@ static int log_cfg_read(config_file_t config, void *module_config,
     }
 
     rc = GetStringParam(log_block, RBH_LOG_CONFIG_BLOCK, "syslog_facility",
-                        PFLG_NO_WILDCARDS, tmpstr, 1024, NULL, NULL, msg_out);
+                        PFLG_NO_WILDCARDS, tmpstr, sizeof(tmpstr), NULL,
+                        NULL, msg_out);
     if ((rc != 0) && (rc != ENOENT))
         return rc;
     else if (rc == 0) {

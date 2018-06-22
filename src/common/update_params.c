@@ -83,8 +83,8 @@ static void write_update_params_template(FILE *output)
 static inline const char *update_param2str(updt_param_item_t *pol,
                                            char *buffer)
 {
-    char tmpbuf1[256];
-    char tmpbuf2[256];
+    char tmpbuf1[100];
+    char tmpbuf2[100];
 
     switch (pol->when) {
     case UPDT_NEVER:

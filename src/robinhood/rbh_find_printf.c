@@ -586,6 +586,9 @@ static void printf_date(const struct fchunk *chunk, time_t date)
     }
 }
 
+/* disable warning for printf(format), the format is constructed safely */
+#pragma GCC diagnostic ignored "-Wformat-security"
+
 /**
  * Output the desired information for one file.
  */
@@ -812,6 +815,7 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
         }
     }
 }
+#pragma GCC diagnostic error "-Wformat-security"
 
 /**
  * Release the ressources allocated by prepare_printf_format.

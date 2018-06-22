@@ -1,8 +1,8 @@
-/* A Bison parser, made by GNU Bison 3.0.2.  */
+/* A Bison parser, made by GNU Bison 3.0.4.  */
 
 /* Bison implementation for Yacc-like parsers in C
 
-   Copyright (C) 1984, 1989-1990, 2000-2013 Free Software Foundation, Inc.
+   Copyright (C) 1984, 1989-1990, 2000-2015 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -44,7 +44,7 @@
 #define YYBISON 1
 
 /* Bison version.  */
-#define YYBISON_VERSION "3.0.2"
+#define YYBISON_VERSION "3.0.4"
 
 /* Skeleton name.  */
 #define YYSKELETON_NAME "yacc.c"
@@ -200,7 +200,7 @@ extern int yydebug;
 
 /* Value type.  */
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
-typedef union YYSTYPE YYSTYPE;
+
 union YYSTYPE
 {
 #line 52 "conf_yacc.y" /* yacc.c:355  */
@@ -212,6 +212,8 @@ union YYSTYPE
 
 #line 214 "conf_yacc.c" /* yacc.c:355  */
 };
+
+typedef union YYSTYPE YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define YYSTYPE_IS_DECLARED 1
 #endif
@@ -225,7 +227,7 @@ int yyparse (void);
 
 /* Copy the second part of user declarations.  */
 
-#line 229 "conf_yacc.c" /* yacc.c:358  */
+#line 231 "conf_yacc.c" /* yacc.c:358  */
 
 #ifdef short
 # undef short
@@ -1364,245 +1366,245 @@ yyreduce:
         case 2:
 #line 101 "conf_yacc.y" /* yacc.c:1646  */
     {DEBUG_YACC(stderr,(yyvsp[0].list));program_result=(yyvsp[0].list);}
-#line 1368 "conf_yacc.c" /* yacc.c:1646  */
+#line 1370 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 3:
 #line 105 "conf_yacc.y" /* yacc.c:1646  */
     {rh_config_AddItem((yyvsp[0].list),(yyvsp[-1].item));(yyval.list)=(yyvsp[0].list);}
-#line 1374 "conf_yacc.c" /* yacc.c:1646  */
+#line 1376 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 4:
 #line 106 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.list)=rh_config_CreateItemsList();}
-#line 1380 "conf_yacc.c" /* yacc.c:1646  */
+#line 1382 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 5:
 #line 110 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.item)=rh_config_CreateBlock((yyvsp[-4].str_val),(yyvsp[-3].str_val),(yyvsp[-1].list));}
-#line 1386 "conf_yacc.c" /* yacc.c:1646  */
+#line 1388 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 6:
 #line 111 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.item)=rh_config_CreateBlock((yyvsp[-3].str_val),NULL,(yyvsp[-1].list));}
-#line 1392 "conf_yacc.c" /* yacc.c:1646  */
+#line 1394 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 7:
 #line 115 "conf_yacc.y" /* yacc.c:1646  */
     {rh_config_AddItem((yyvsp[0].list),(yyvsp[-1].item));(yyval.list)=(yyvsp[0].list);}
-#line 1398 "conf_yacc.c" /* yacc.c:1646  */
+#line 1400 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 8:
 #line 116 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.list)=rh_config_CreateItemsList();}
-#line 1404 "conf_yacc.c" /* yacc.c:1646  */
+#line 1406 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 11:
 #line 125 "conf_yacc.y" /* yacc.c:1646  */
     {strcpy((yyval.str_val),(yyvsp[0].str_val));}
-#line 1410 "conf_yacc.c" /* yacc.c:1646  */
+#line 1412 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 12:
 #line 126 "conf_yacc.y" /* yacc.c:1646  */
     {strcpy((yyval.str_val),(yyvsp[0].str_val));}
-#line 1416 "conf_yacc.c" /* yacc.c:1646  */
+#line 1418 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 13:
 #line 127 "conf_yacc.y" /* yacc.c:1646  */
     {rh_config_resolv_var((yyval.str_val),(yyvsp[0].str_val));}
-#line 1422 "conf_yacc.c" /* yacc.c:1646  */
+#line 1424 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 14:
 #line 131 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.item)=rh_config_CreateAffect((yyvsp[-2].str_val), (yyvsp[0].str_val));}
-#line 1428 "conf_yacc.c" /* yacc.c:1646  */
+#line 1430 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 15:
 #line 134 "conf_yacc.y" /* yacc.c:1646  */
     {rh_config_SetArglist( (yyvsp[-4].item), (yyvsp[-2].arg_list) ); (yyval.item)=(yyvsp[-4].item);}
-#line 1434 "conf_yacc.c" /* yacc.c:1646  */
+#line 1436 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 16:
 #line 135 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.item)=(yyvsp[-1].item);}
-#line 1440 "conf_yacc.c" /* yacc.c:1646  */
+#line 1442 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 17:
 #line 139 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.item)=rh_config_CreateKeyValueExpr((yyvsp[-2].str_val),OP_EQUAL, (yyvsp[0].str_val));}
-#line 1446 "conf_yacc.c" /* yacc.c:1646  */
+#line 1448 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 18:
 #line 140 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.item)=rh_config_CreateKeyValueExpr((yyvsp[-2].str_val),OP_DIFF, (yyvsp[0].str_val));}
-#line 1452 "conf_yacc.c" /* yacc.c:1646  */
+#line 1454 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 19:
 #line 141 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.item)=rh_config_CreateKeyValueExpr((yyvsp[-2].str_val),OP_GT, (yyvsp[0].str_val));}
-#line 1458 "conf_yacc.c" /* yacc.c:1646  */
+#line 1460 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 20:
 #line 142 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.item)=rh_config_CreateKeyValueExpr((yyvsp[-2].str_val),OP_GT_EQ, (yyvsp[0].str_val));}
-#line 1464 "conf_yacc.c" /* yacc.c:1646  */
+#line 1466 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 21:
 #line 143 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.item)=rh_config_CreateKeyValueExpr((yyvsp[-2].str_val),OP_LT, (yyvsp[0].str_val));}
-#line 1470 "conf_yacc.c" /* yacc.c:1646  */
+#line 1472 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 22:
 #line 144 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.item)=rh_config_CreateKeyValueExpr((yyvsp[-2].str_val),OP_LT_EQ, (yyvsp[0].str_val));}
-#line 1476 "conf_yacc.c" /* yacc.c:1646  */
+#line 1478 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 23:
 #line 148 "conf_yacc.y" /* yacc.c:1646  */
     {rh_config_AddArg( (yyvsp[-2].arg_list), (yyvsp[0].str_val) ); (yyval.arg_list)=(yyvsp[-2].arg_list);}
-#line 1482 "conf_yacc.c" /* yacc.c:1646  */
+#line 1484 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 24:
 #line 149 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.arg_list)=rh_config_CreateArgList(); rh_config_AddArg((yyval.arg_list),(yyvsp[0].str_val));}
-#line 1488 "conf_yacc.c" /* yacc.c:1646  */
+#line 1490 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 25:
 #line 153 "conf_yacc.y" /* yacc.c:1646  */
     {rh_config_SetArglist( (yyvsp[-3].item), (yyvsp[-1].arg_list) ); (yyval.item)=(yyvsp[-3].item);}
-#line 1494 "conf_yacc.c" /* yacc.c:1646  */
+#line 1496 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 26:
 #line 154 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.item)=(yyvsp[0].item);}
-#line 1500 "conf_yacc.c" /* yacc.c:1646  */
+#line 1502 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 27:
 #line 155 "conf_yacc.y" /* yacc.c:1646  */
     { (yyval.item)=rh_config_CreateKeyValueExpr((yyvsp[-3].str_val),OP_CMD, (yyvsp[-1].str_val));  }
-#line 1506 "conf_yacc.c" /* yacc.c:1646  */
+#line 1508 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 28:
 #line 159 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.item)=(yyvsp[0].item);}
-#line 1512 "conf_yacc.c" /* yacc.c:1646  */
+#line 1514 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 29:
 #line 160 "conf_yacc.y" /* yacc.c:1646  */
     { (yyval.item)=rh_config_CreateBoolExpr_Unary( BOOL_OP_NOT, (yyvsp[0].item) ); }
-#line 1518 "conf_yacc.c" /* yacc.c:1646  */
+#line 1520 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 30:
 #line 161 "conf_yacc.y" /* yacc.c:1646  */
     { (yyval.item)=rh_config_CreateBoolExpr_Unary( BOOL_OP_NOT, (yyvsp[-1].item) ); }
-#line 1524 "conf_yacc.c" /* yacc.c:1646  */
+#line 1526 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 31:
 #line 162 "conf_yacc.y" /* yacc.c:1646  */
     { (yyval.item)=(yyvsp[-1].item); }
-#line 1530 "conf_yacc.c" /* yacc.c:1646  */
+#line 1532 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 32:
 #line 163 "conf_yacc.y" /* yacc.c:1646  */
     { (yyval.item)=rh_config_CreateBoolExpr_Binary( BOOL_OP_AND, (yyvsp[-2].item), (yyvsp[0].item) ); }
-#line 1536 "conf_yacc.c" /* yacc.c:1646  */
+#line 1538 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 33:
 #line 164 "conf_yacc.y" /* yacc.c:1646  */
     { (yyval.item)=rh_config_CreateBoolExpr_Binary( BOOL_OP_OR, (yyvsp[-2].item), (yyvsp[0].item) ); }
-#line 1542 "conf_yacc.c" /* yacc.c:1646  */
+#line 1544 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 34:
 #line 168 "conf_yacc.y" /* yacc.c:1646  */
     { (yyval.item)=(yyvsp[-1].item); }
-#line 1548 "conf_yacc.c" /* yacc.c:1646  */
+#line 1550 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 35:
 #line 169 "conf_yacc.y" /* yacc.c:1646  */
     { (yyval.item)=rh_config_CreateSet_Unary( SET_OP_NOT, (yyvsp[0].item) ); }
-#line 1554 "conf_yacc.c" /* yacc.c:1646  */
+#line 1556 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 36:
 #line 170 "conf_yacc.y" /* yacc.c:1646  */
     { (yyval.item)=rh_config_CreateSet_Binary( SET_OP_UNION, (yyvsp[-2].item), (yyvsp[0].item) ); }
-#line 1560 "conf_yacc.c" /* yacc.c:1646  */
+#line 1562 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 37:
 #line 171 "conf_yacc.y" /* yacc.c:1646  */
     { (yyval.item)=rh_config_CreateSet_Binary( SET_OP_INTER, (yyvsp[-2].item), (yyvsp[0].item) ); }
-#line 1566 "conf_yacc.c" /* yacc.c:1646  */
+#line 1568 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 38:
 #line 172 "conf_yacc.y" /* yacc.c:1646  */
     { (yyval.item)=rh_config_CreateSet_Singleton( (yyvsp[0].str_val) ); }
-#line 1572 "conf_yacc.c" /* yacc.c:1646  */
+#line 1574 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 39:
 #line 176 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.item)=rh_config_CreateBlock((yyvsp[-4].str_val),(yyvsp[-3].str_val),(yyvsp[-1].list));}
-#line 1578 "conf_yacc.c" /* yacc.c:1646  */
+#line 1580 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 40:
 #line 177 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.item)=rh_config_CreateBoolExpr((yyvsp[-4].str_val),(yyvsp[-3].str_val),(yyvsp[-1].item));}
-#line 1584 "conf_yacc.c" /* yacc.c:1646  */
+#line 1586 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 41:
 #line 178 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.item)=rh_config_CreateBlock((yyvsp[-3].str_val),NULL,(yyvsp[-1].list));}
-#line 1590 "conf_yacc.c" /* yacc.c:1646  */
+#line 1592 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 42:
 #line 179 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.item)=rh_config_CreateBoolExpr((yyvsp[-3].str_val),NULL,(yyvsp[-1].item));}
-#line 1596 "conf_yacc.c" /* yacc.c:1646  */
+#line 1598 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
   case 43:
 #line 180 "conf_yacc.y" /* yacc.c:1646  */
     {(yyval.item)=rh_config_CreateSet((yyvsp[-3].str_val),NULL,(yyvsp[-1].item));}
-#line 1602 "conf_yacc.c" /* yacc.c:1646  */
+#line 1604 "conf_yacc.c" /* yacc.c:1646  */
     break;
 
 
-#line 1606 "conf_yacc.c" /* yacc.c:1646  */
+#line 1608 "conf_yacc.c" /* yacc.c:1646  */
       default: break;
     }
   /* User semantic actions sometimes alter yychar, and that requires
@@ -1835,19 +1837,26 @@ yyreturn:
 
 void yyerror(const char *s)
 {
-	if (local_errormsg[0] && s[0])
-		snprintf(extern_errormsg, 1024, "%s (%s) at '%s' line %d in '%s'",
-				 local_errormsg, s, (yytext?yytext:"???"), yylineno,
-				 current_file->str);
-	else if (local_errormsg[0])
-		snprintf(extern_errormsg, 1024, "%s at '%s' line %d in '%s'",
-				 local_errormsg, (yytext?yytext:"???"), yylineno, current_file->str);
-	else if (s[0])
-		snprintf(extern_errormsg, 1024, "%s at '%s' line %d in '%s'",
-				 s, (yytext?yytext:"???"), yylineno, current_file->str);
-	else
-		snprintf(extern_errormsg, 1024, "Syntax error at '%s' line %d in '%s'",
-				 (yytext?yytext:"???"), yylineno, current_file->str);
+    int rc;
+    if (local_errormsg[0] && s[0])
+        rc = snprintf(extern_errormsg, 1024, "%s (%s) at '%s' line %d in '%s'",
+                      local_errormsg, s, (yytext?yytext:"???"), yylineno,
+                      current_file->str);
+    else if (local_errormsg[0])
+        rc = snprintf(extern_errormsg, 1024, "%s at '%s' line %d in '%s'",
+                      local_errormsg, (yytext?yytext:"???"), yylineno,
+                      current_file->str);
+    else if (s[0])
+        rc = snprintf(extern_errormsg, 1024, "%s at '%s' line %d in '%s'",
+                      s, (yytext?yytext:"???"), yylineno, current_file->str);
+    else
+        rc = snprintf(extern_errormsg, 1024,
+                      "Syntax error at '%s' line %d in '%s'",
+                      (yytext?yytext:"???"), yylineno, current_file->str);
+
+    if (rc >= sizeof(extern_errormsg)) {
+        snprintf(extern_errormsg + sizeof(extern_errormsg) - 4, 4, "...");
+    }
 }
 
 void set_error(const char * s)

@@ -345,7 +345,7 @@ static int TerminateScan(int scan_complete, time_t end)
         if (!op) {
             DisplayLog(LVL_CRIT, FSSCAN_TAG,
                        "CRITICAL ERROR: Failed to allocate a new op");
-            return -1;
+            return -ENOMEM;
         }
 
         op->pipeline_stage = entry_proc_descr.GC_OLDENT;
@@ -438,8 +438,12 @@ static int TerminateScan(int scan_complete, time_t end)
          * only use global std parameters (no entry attrs, nor action params,
          * nor additional specific parameters).
          */
-        asprintf(&descr, "scan completion command '%s'",
-                 fs_scan_config.completion_command[0]);
+        if (asprintf(&descr, "scan completion command '%s'",
+                     fs_scan_config.completion_command[0]) < 0) {
+            DisplayLog(LVL_CRIT, FSSCAN_TAG,
+                       "CRITICAL ERROR: Failed to allocate scan completion command string");
+            return -ENOMEM;
+        }
 
         rc = subst_shell_params(fs_scan_config.completion_command, descr,
                                 NULL, NULL, NULL, NULL, NULL, true, &cmd);
@@ -820,7 +824,13 @@ static int process_one_entry(thread_scan_info_t *p_info,
     int no_md = 0;
 
     /* build absolute path */
-    snprintf(entry_path, RBH_PATH_MAX, "%s/%s", p_task->path, entry_name);
+    rc = snprintf(entry_path, RBH_PATH_MAX, "%s/%s", p_task->path, entry_name);
+    if (rc >= RBH_PATH_MAX) {
+        DisplayLog(LVL_EVENT, FSSCAN_TAG,
+                   "Path too long: %s/%s, skipping entry",
+                   p_task->path, entry_name);
+        return -ENAMETOOLONG;
+    }
 
     /* retrieve information about the entry (to know if it's a directory
      * or something else) */
@@ -873,7 +883,7 @@ static int process_one_entry(thread_scan_info_t *p_info,
         if (!op) {
             DisplayLog(LVL_CRIT, FSSCAN_TAG,
                        "CRITICAL ERROR: Failed to allocate a new op");
-            return -1;
+            return -ENOMEM;
         }
 #ifdef _HAVE_FID
         op->pipeline_stage = entry_proc_descr.GET_ID;

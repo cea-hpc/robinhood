@@ -816,7 +816,7 @@ static int set_time_filter(char *str, unsigned int multiplier,
 
 static void print_entry(const wagon_t *id, const attr_set_t *attrs)
 {
-    char classbuf[1024] = "";
+    char classbuf[1028] = "";
     char statusbuf[1024] = "";
     GString *osts = NULL;
 
