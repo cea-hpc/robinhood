@@ -164,7 +164,7 @@ static int mk_path_filter(lmgr_filter_t *filter, bool do_display,
                           bool *initialized)
 {
     filter_value_t fv;
-    char path_regexp[RBH_PATH_MAX] = "";
+    char path_regexp[RBH_PATH_MAX+10] = "";
     char tmp[RBH_PATH_MAX] = "";
     size_t len;
     int rc;

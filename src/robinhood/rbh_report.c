@@ -1089,7 +1089,7 @@ typedef enum { DUMP_ALL, DUMP_USR, DUMP_GROUP, DUMP_OST,
 static int append_path_filter(lmgr_filter_t *filter, bool *initialized)
 {
     filter_value_t fv;
-    char path_regexp[RBH_PATH_MAX] = "";
+    char path_regexp[RBH_PATH_MAX+10] = "";
     char tmp[RBH_PATH_MAX] = "";
     size_t len;
     int rc;
@@ -1152,9 +1152,15 @@ static int append_path_filter(lmgr_filter_t *filter, bool *initialized)
     str_subst(tmp, "?", ".");
 
     /* match 'path$' OR 'path/.*' */
-    snprintf(path_regexp, sizeof(path_regexp), "%s%s($|/.*)",
-             global_config.fs_path, tmp);
+    rc = snprintf(path_regexp, sizeof(path_regexp), "%s%s($|/.*)",
+                  global_config.fs_path, tmp);
     fv.value.val_str = path_regexp;
+    if (rc > sizeof(path_regexp)) {
+        DisplayLog(LVL_CRIT, REPORT_TAG,
+                   "Error: '%s%s($|/.*)' is toolong to fit into regexp",
+                   global_config.fs_path, tmp);
+        return -ENAMETOOLONG;
+    }
 
     return lmgr_simple_filter_add(filter, ATTR_INDEX_fullpath, RLIKE, fv, 0);
 }
@@ -1273,8 +1279,14 @@ static const char *ResolvName(const entry_id_t *p_id, attr_set_t *attrs,
     else if (ATTR_MASK_TEST(attrs, parent_id) && ATTR_MASK_TEST(attrs, name)) {
         char tmpstr[RBH_PATH_MAX];
         if (TryId2path(&lmgr, &ATTR(attrs, parent_id), tmpstr) == 0) {
-            snprintf(ATTR(attrs, fullpath), RBH_PATH_MAX, "%s/%s", tmpstr,
-                     ATTR(attrs, name));
+            int rc;
+            rc = snprintf(ATTR(attrs, fullpath), RBH_PATH_MAX, "%s/%s",
+                          tmpstr, ATTR(attrs, name));
+            if (rc >= RBH_PATH_MAX) {
+                DisplayLog(LVL_EVENT, REPORT_TAG,
+                           "ERROR: Entry '%s/%s' truncated",
+                           tmpstr, ATTR(attrs, name));
+            }
             return ATTR(attrs, fullpath);
         } else {    /* print <parent_id>/name */
 

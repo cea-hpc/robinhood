@@ -185,19 +185,26 @@ subblock:
 
 void yyerror(const char *s)
 {
-	if (local_errormsg[0] && s[0])
-		snprintf(extern_errormsg, 1024, "%s (%s) at '%s' line %d in '%s'",
-				 local_errormsg, s, (yytext?yytext:"???"), yylineno,
-				 current_file->str);
-	else if (local_errormsg[0])
-		snprintf(extern_errormsg, 1024, "%s at '%s' line %d in '%s'",
-				 local_errormsg, (yytext?yytext:"???"), yylineno, current_file->str);
-	else if (s[0])
-		snprintf(extern_errormsg, 1024, "%s at '%s' line %d in '%s'",
-				 s, (yytext?yytext:"???"), yylineno, current_file->str);
-	else
-		snprintf(extern_errormsg, 1024, "Syntax error at '%s' line %d in '%s'",
-				 (yytext?yytext:"???"), yylineno, current_file->str);
+    int rc;
+    if (local_errormsg[0] && s[0])
+        rc = snprintf(extern_errormsg, 1024, "%s (%s) at '%s' line %d in '%s'",
+                      local_errormsg, s, (yytext?yytext:"???"), yylineno,
+                      current_file->str);
+    else if (local_errormsg[0])
+        rc = snprintf(extern_errormsg, 1024, "%s at '%s' line %d in '%s'",
+                      local_errormsg, (yytext?yytext:"???"), yylineno,
+                      current_file->str);
+    else if (s[0])
+        rc = snprintf(extern_errormsg, 1024, "%s at '%s' line %d in '%s'",
+                      s, (yytext?yytext:"???"), yylineno, current_file->str);
+    else
+        rc = snprintf(extern_errormsg, 1024,
+                      "Syntax error at '%s' line %d in '%s'",
+                      (yytext?yytext:"???"), yylineno, current_file->str);
+
+    if (rc >= sizeof(extern_errormsg)) {
+        snprintf(extern_errormsg + sizeof(extern_errormsg) - 4, 4, "...");
+    }
 }
 
 void set_error(const char * s)
