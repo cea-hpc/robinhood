@@ -73,7 +73,6 @@ Source0: @PACKAGE@-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires: glib2-devel >= 2.16
 BuildRequires: libattr-devel
-BuildRequires: mailx
 %if %{with_systemd}
 %if %{defined suse_version}
 BuildRequires: systemd-rpm-macros
@@ -122,6 +121,7 @@ Conflicts: robinhood-posix
 Provides: robinhood = %{version}-%{release}
 Obsoletes: robinhood-tmpfs < 3.0, robinhood-tmpfs-lustre < 3.0
 Obsoletes: robinhood-backup < 3.0, robinhood-lhsm < 3.0
+Requires: mailx
 %if %{with jemalloc}
 Requires: jemalloc
 %endif
@@ -142,6 +142,7 @@ Group: Applications/System
 Conflicts: robinhood-lustre
 Provides: robinhood = %{version}-%{release}
 Obsoletes: robinhood-tmpfs < 3.0, robinhood-tmpfs-posix < 3.0
+Requires: mailx
 %if %{with jemalloc}
 Requires: jemalloc
 %endif

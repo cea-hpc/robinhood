@@ -302,19 +302,26 @@ const entry_id_t *get_root_id(void)
  */
 int SendMail(const char *recipient, const char *subject, const char *message)
 {
-    char buffer[MAIL_TITLE_MAX];
-    FILE *fichier;
+    char *buffer;
+    FILE *file;
 
-    snprintf(buffer, MAIL_TITLE_MAX, MAIL " -s \"%s\" %s", subject, recipient);
+    if (asprintf(&buffer, "mailx -s \"%s\" %s", subject, recipient) == -1) {
+        DisplayLog(LVL_CRIT, "SENDMAIL",
+                   "Could not allocate title buffer for \"%s\"", subject);
+        return -1;
+    }
 
-    if ((fichier = popen(buffer, "w")) == NULL) {
+    if ((file = popen(buffer, "w")) == NULL) {
         DisplayLog(LVL_CRIT, "SENDMAIL",
                    "Error %d sending mail with the following command=%s", errno,
                    buffer);
+        free(buffer);
         return -1;
     }
-    fwrite(message, strlen(message), 1, fichier);
-    pclose(fichier);
+
+    fwrite(message, strlen(message), 1, file);
+    free(buffer);
+    pclose(file);
     return 0;
 }
 
