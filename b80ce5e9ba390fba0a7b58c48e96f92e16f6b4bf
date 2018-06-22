@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "2bd013f3_571e1dbc",
+        "filename": "scripts/robinhood@.service.in",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2018-06-22T01:29:10Z",
+      "side": 1,
+      "message": "note: robinhood.service.in needs the same kind of modifications if you want to keep it, but I remove it in the next commit so I didn\u0027t bother. If we drop the last patch this needs to be done here.",
+      "revId": "b80ce5e9ba390fba0a7b58c48e96f92e16f6b4bf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    }
+  ]
+}
