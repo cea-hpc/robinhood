@@ -16,6 +16,23 @@
       "revId": "b80ce5e9ba390fba0a7b58c48e96f92e16f6b4bf",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "8e092b70_bbc0e78d",
+        "filename": "scripts/robinhood@.service.in",
+        "patchSetId": 1
+      },
+      "lineNbr": 3,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2018-06-23T04:41:44Z",
+      "side": 1,
+      "message": "Probably need to add Requires\u003dmariadb.service here (or Wants, or After? Requires\u003dx starts x before and fail if x fails, Wants\u003dx starts x before, After\u003dx starts x before iff it would be scheduled at some point in the transition (e.g. enabled with same target, at start or otherwise))\nFor some reason most services seem to only use After, but I think it\u0027s ok for us to write Requires here, probably...",
+      "revId": "b80ce5e9ba390fba0a7b58c48e96f92e16f6b4bf",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
     }
   ]
 }
