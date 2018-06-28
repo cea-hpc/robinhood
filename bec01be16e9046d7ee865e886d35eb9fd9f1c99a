@@ -48,6 +48,30 @@
     },
     {
       "key": {
+        "uuid": "901a0f1c_caa27848",
+        "filename": "src/modules/mod_internal.c",
+        "patchSetId": 7
+      },
+      "lineNbr": 306,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-06-28T19:20:18Z",
+      "side": 1,
+      "message": "The previous mkdir is actually recursive. So, perfectly reverting this parent directory creation would require to keep track of all created levels of directories.\nOn the other way, the open failure is likely transient and is not supposed to happen in a sane production system, so it\u0027s worthwhile keeping the target directory for the next time open is working.",
+      "parentUuid": "33210e16_1abdc498",
+      "range": {
+        "startLine": 306,
+        "startChar": 13,
+        "endLine": 306,
+        "endChar": 23
+      },
+      "revId": "bec01be16e9046d7ee865e886d35eb9fd9f1c99a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
         "uuid": "a3c84bb5_3ef6c65d",
         "filename": "tests/test_suite/2-run-tests.sh",
         "patchSetId": 7
