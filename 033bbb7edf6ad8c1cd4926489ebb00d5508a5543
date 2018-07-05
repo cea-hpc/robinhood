@@ -36,6 +36,75 @@
     },
     {
       "key": {
+        "uuid": "7c363452_bcc62f91",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 3
+      },
+      "lineNbr": 3941,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-07-05T14:03:43Z",
+      "side": 1,
+      "message": "(nitpick) If there is a newline in a file\u0027s name, the count will not be accurate (I realise I am the one that suggested this code in the first place \u003d/). A few options to pick a solution from:\n\n# With a function\n\ncount_files()\n{\n    printf $#\n}\n\ncount_files \"$trashed\"*\n\n# With an array\n\nfiles\u003d(\"$trashed\"*)\nprintf \"%i\" ${#files[@]}\n\n# With find (credits to https://stackoverflow.com/a/15663760)\n\nfind \"$trashed\"* -printf \u0027.\u0027 | wc -c",
+      "range": {
+        "startLine": 3941,
+        "startChar": 4,
+        "endLine": 3941,
+        "endChar": 42
+      },
+      "revId": "033bbb7edf6ad8c1cd4926489ebb00d5508a5543",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "cf30c25b_3976e64b",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 3
+      },
+      "lineNbr": 3942,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-07-05T14:03:43Z",
+      "side": 1,
+      "message": "(typo) Expect -\u003e Expected",
+      "range": {
+        "startLine": 3942,
+        "startChar": 25,
+        "endLine": 3942,
+        "endChar": 31
+      },
+      "revId": "033bbb7edf6ad8c1cd4926489ebb00d5508a5543",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "437213e0_1db152f8",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 3
+      },
+      "lineNbr": 3942,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-07-05T14:03:43Z",
+      "side": 1,
+      "message": "The dollar sign is not needed inside the (( )) construct, and it can lead to subtle bugs: (($n++)) is a syntax error, while ((n++)) is not.",
+      "range": {
+        "startLine": 3942,
+        "startChar": 6,
+        "endLine": 3942,
+        "endChar": 12
+      },
+      "revId": "033bbb7edf6ad8c1cd4926489ebb00d5508a5543",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
         "uuid": "d87b1ea2_f2fa8b68",
         "filename": "tests/test_suite/2-run-tests.sh",
         "patchSetId": 3
@@ -47,6 +116,29 @@
       "writtenOn": "2018-07-05T12:47:55Z",
       "side": 1,
       "message": "${trashed} is missing quotes here (necessary for spaces)\n. . . But then again quotes are missing quite a lot later on (quick glance: each file in the arrays, echo qsdml.. \u003e $f) so I guess we can assume $RH_ROOT won\u0027t contain any",
+      "revId": "033bbb7edf6ad8c1cd4926489ebb00d5508a5543",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "74e17282_6211f47b",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 3
+      },
+      "lineNbr": 3956,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-07-05T14:03:43Z",
+      "side": 1,
+      "message": "...",
+      "range": {
+        "startLine": 3956,
+        "startChar": 6,
+        "endLine": 3956,
+        "endChar": 7
+      },
       "revId": "033bbb7edf6ad8c1cd4926489ebb00d5508a5543",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": true
