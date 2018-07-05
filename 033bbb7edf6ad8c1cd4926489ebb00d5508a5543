@@ -1,0 +1,55 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "2c5804e6_53f6abb5",
+        "filename": "src/modules/common_actions.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 224,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2018-07-05T12:47:55Z",
+      "side": 1,
+      "message": "Just a note that this function only accepts creating a tree within the filesystem (I guess that\u0027s ok, rename won\u0027t work out of tree anyway), but also does exactly like mkdir -p e.g. calls mkdir on every part of the tree...\nI think™ we should make mkdir_recursive stat-and-mkdir instead before using this seriously.",
+      "revId": "033bbb7edf6ad8c1cd4926489ebb00d5508a5543",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "582f3f20_dd70e22b",
+        "filename": "src/modules/common_actions.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 252,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2018-07-05T12:47:55Z",
+      "side": 1,
+      "message": "Do we want to set that in case of errors? entry didn\u0027t get moved in both goto cases",
+      "revId": "033bbb7edf6ad8c1cd4926489ebb00d5508a5543",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "d87b1ea2_f2fa8b68",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 3
+      },
+      "lineNbr": 3955,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2018-07-05T12:47:55Z",
+      "side": 1,
+      "message": "${trashed} is missing quotes here (necessary for spaces)\n. . . But then again quotes are missing quite a lot later on (quick glance: each file in the arrays, echo qsdml.. \u003e $f) so I guess we can assume $RH_ROOT won\u0027t contain any",
+      "revId": "033bbb7edf6ad8c1cd4926489ebb00d5508a5543",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    }
+  ]
+}
