@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "ecfddee8_8e3971ca",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1190,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-07-05T12:38:06Z",
+      "side": 1,
+      "message": "dump_record() always writes the changelog to a specific changelog file, whatever the log level. The log level controls the writing to the standard log file. It doesn\u0027t seam desirable to always write all changelogs to the main log file which would result in huge log file, and flooding other meaningful messages.",
+      "range": {
+        "startLine": 1190,
+        "startChar": 20,
+        "endLine": 1190,
+        "endChar": 25
+      },
+      "revId": "fadbed03e41066d40ea4e1213c7a2ebe35c84f08",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    }
+  ]
+}
