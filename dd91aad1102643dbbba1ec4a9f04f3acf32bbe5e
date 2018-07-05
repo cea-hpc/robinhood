@@ -1,0 +1,78 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "fdf808a4_cd125d25",
+        "filename": "src/list_mgr/listmgr_get.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 54,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-07-05T12:04:27Z",
+      "side": 1,
+      "message": "The return code of this function is expected to be a DB error status, as defined at the beginning of \"src/include/list_mgr.h\".\nFeel free to add a new error code in there if existing ones don\u0027t suit this case.",
+      "range": {
+        "startLine": 54,
+        "startChar": 7,
+        "endLine": 54,
+        "endChar": 23
+      },
+      "revId": "dd91aad1102643dbbba1ec4a9f04f3acf32bbe5e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "7cd3dd77_29d165e6",
+        "filename": "src/list_mgr/listmgr_get.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 68,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-07-05T12:04:27Z",
+      "side": 1,
+      "message": "idem",
+      "revId": "dd91aad1102643dbbba1ec4a9f04f3acf32bbe5e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "376bfc14_40603931",
+        "filename": "src/list_mgr/listmgr_get.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 460,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-07-05T12:04:27Z",
+      "side": 1,
+      "message": "idem",
+      "revId": "dd91aad1102643dbbba1ec4a9f04f3acf32bbe5e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "fc87d194_22ac12ef",
+        "filename": "src/list_mgr/listmgr_get.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 490,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-07-05T12:04:27Z",
+      "side": 1,
+      "message": "idem",
+      "revId": "dd91aad1102643dbbba1ec4a9f04f3acf32bbe5e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    }
+  ]
+}
