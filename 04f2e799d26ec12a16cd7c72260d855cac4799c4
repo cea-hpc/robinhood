@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "33a6fdb3_ce8d2f92",
+        "filename": "configure.ac",
+        "patchSetId": 2
+      },
+      "lineNbr": 142,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-07-05T10:15:53Z",
+      "side": 0,
+      "message": "Then you can fully drop this file:\nautotools/m4/progs.m4",
+      "revId": "04f2e799d26ec12a16cd7c72260d855cac4799c4",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    }
+  ]
+}
