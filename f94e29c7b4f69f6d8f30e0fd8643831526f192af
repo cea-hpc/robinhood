@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "70da35fa_a0aebad1",
+        "filename": "tests/test_suite/2-run-tests.sh",
+        "patchSetId": 8
+      },
+      "lineNbr": 3927,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-07-05T13:32:44Z",
+      "side": 1,
+      "message": "(nitpicking) I would have gone for:\n\n[ -e \"$RH_ROOT\"/backup/*/file.3 ] || error \"...\"",
+      "range": {
+        "startLine": 3927,
+        "startChar": 4,
+        "endLine": 3927,
+        "endChar": 98
+      },
+      "revId": "f94e29c7b4f69f6d8f30e0fd8643831526f192af",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    }
+  ]
+}
