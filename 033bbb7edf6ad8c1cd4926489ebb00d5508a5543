@@ -36,6 +36,24 @@
     },
     {
       "key": {
+        "uuid": "5780ded4_0075c53f",
+        "filename": "src/modules/common_actions.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 252,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-07-06T11:50:53Z",
+      "side": 1,
+      "message": "Even if no action was taken on it, attributes must have been updated prior to this action execution (in the policy run), so it\u0027s worthwhile updating the attributes at the end.\nHowever, I agree this should be the responsability of the one who updated the entry to set \"after\" value.",
+      "parentUuid": "582f3f20_dd70e22b",
+      "revId": "033bbb7edf6ad8c1cd4926489ebb00d5508a5543",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
         "uuid": "7c363452_bcc62f91",
         "filename": "tests/test_suite/2-run-tests.sh",
         "patchSetId": 3
