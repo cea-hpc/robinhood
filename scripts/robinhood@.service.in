@@ -1,5 +1,6 @@
 [Unit]
 Description=Robinhood server for %I
+After=remote-fs.target
 
 [Service]
 Type=simple
@@ -9,3 +10,6 @@ EnvironmentFile=-@CONFDIR@/sysconfig/robinhood.%I
 LimitNOFILE=8096
 ExecStart=@SBINDIR@/robinhood $RBH_OPT -f @CONFDIR@/robinhood.d/%I.conf
 ExecReload=/bin/kill -HUP $MAINPID
+
+[Install]
+WantedBy=multi-user.target
