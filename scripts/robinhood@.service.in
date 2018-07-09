@@ -1,14 +1,29 @@
+# Automatically start Robinhood instance once respective filesystem is mounted
+#
+# Requires suffix of sysconfig file and prefix Robinhood config to be equal to
+# filesystem's mount point (fs_path in Robinhood config), run through
+# `systemd-escape -p`.
+# Example:
+#  fs_path = "/mnt/foo";
+#  systemd-escape -p /mnt/foo
+#    -> mnt-foo
+#  -> place environment settings in
+#       @CONFDIR@/sysconfig/robinhood.mnt-foo
+#  -> place Robinhood config in
+#       @CONFDIR@/robinhood.d/mnt-foo.conf
+#
 [Unit]
 Description=Robinhood server for %I
-After=remote-fs.target
+Requires=%i.mount
+After=%i.mount
 
 [Service]
 Type=simple
 KillMode=mixed
 EnvironmentFile=-@CONFDIR@/sysconfig/robinhood
-EnvironmentFile=-@CONFDIR@/sysconfig/robinhood.%I
+EnvironmentFile=-@CONFDIR@/sysconfig/robinhood.%i
 LimitNOFILE=8096
-ExecStart=@SBINDIR@/robinhood $RBH_OPT -f @CONFDIR@/robinhood.d/%I.conf
+ExecStart=@SBINDIR@/robinhood $RBH_OPT -f @CONFDIR@/robinhood.d/%i.conf
 ExecReload=/bin/kill -HUP $MAINPID
 
 [Install]
