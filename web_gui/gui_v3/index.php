@@ -96,7 +96,9 @@ foreach ($fields as $field) {
         echo '<li><a href="#" onclick="GetGraph(\''.$field.'\')">'.l($field).'</a></li>';
 }
 
-echo '<li><a href="#"  onclick="GetGraph(\'Files\')">Files</a></li>';
+if ($SHOW_FILES == True) {
+        echo '<li><a href="#"  onclick="GetGraph(\'Files\')">Files</a></li>';
+}
 
 echo plugins_call("ui_menu_top", "<!--Data from plugins-->\n");
 ?>
@@ -116,15 +118,20 @@ echo plugins_call("ui_menu_top", "<!--Data from plugins-->\n");
             <fieldset class="form-group">
                 <input type="text" class="form-control" id="formGID" name="gid" placeholder="GID">
             </fieldset>
-            <fieldset class="form-group">
+
+<?php
+if ($SHOW_FILES == True) {
+      echo '<fieldset class="form-group">
                 <input type="text" class="form-control" id="formFilename" name="filename" placeholder="Filename">
             </fieldset>
 
             <fieldset class="form-group">
             <label>Size range</label>
-            <input id="ex1" data-slider-id='ex1Slider' type="text" name=minsize />
-            <input id="ex2" data-slider-id='ex2Slider' type="text" name=maxsize />
-            </fieldset>
+            <input id="ex1" data-slider-id=\'ex1Slider\' type="text" name=minsize />
+            <input id="ex2" data-slider-id=\'ex2Slider\' type="text" name=maxsize />
+            </fieldset>';
+}
+?>
 
 <script>
 $('#ex1').slider({
