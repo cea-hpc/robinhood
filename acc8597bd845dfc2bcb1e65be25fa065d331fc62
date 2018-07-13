@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "e5e4e97e_fb023de9",
+        "filename": "src/robinhood/rbh_find_printf.c",
+        "patchSetId": 6
+      },
+      "lineNbr": 602,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2018-07-13T07:18:42Z",
+      "side": 1,
+      "message": "This appears to work on both el6/el7\nI\u0027m not sure if I need to compare version with gcc 7 or gcc 8 here now, but gcc 7 should support the pragma push/pop so I think (hope?) this is safe...\nOh, actually centos7 is gcc 7 and this worked, so this is safe.",
+      "revId": "acc8597bd845dfc2bcb1e65be25fa065d331fc62",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
