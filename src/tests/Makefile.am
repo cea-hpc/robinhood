@@ -17,9 +17,11 @@ noinst_PROGRAMS=$(check_PROGRAMS)
 
 test_forcestripe_LDADD=$(DB_LDFLAGS) $(PURPOSE_LDFLAGS) $(FS_LDFLAGS)
 
-test_uidgidcache_SOURCES=test_uidgidcache.c ../common/uidgidcache.c ../common/RW_Lock.c
-test_params_SOURCES=test_params.c ../common/rbh_params.c
-test_confparam_SOURCES=test_confparam.c ../common/param_utils.c ../common/rbh_params.c
+test_uidgidcache_SOURCES=test_uidgidcache.c
+test_uidgidcache_LDADD=../common/libcommontools.la
+test_params_SOURCES=test_params.c
+test_params_LDADD=../common/libcommontools.la
+test_confparam_SOURCES=test_confparam.c
 test_confparam_LDFLAGS=$(DB_LDFLAGS) $(PURPOSE_LDFLAGS) $(FS_LDFLAGS)
 test_confparam_LDADD=../policies/libpolicies.la ../common/libcommontools.la
 test_parse_SOURCES	    = test_parse.c
