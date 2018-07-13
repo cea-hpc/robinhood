@@ -89,15 +89,16 @@ lcov:
 mans:
 	chmod +x ./scripts/make_mans.sh && ./scripts/make_mans.sh
 
+# Wildcard paths need to be prefixed with $(srcdir) for out-of-tree make dist
 EXTRA_DIST= robinhood.spec robinhood.spec.in \
 	autogen.sh \
 	LICENSE.fr.txt LICENSE.en.txt README.md \
 	doc/admin_guides \
 	doc/install_webgui.txt \
-	doc/templates/includes/*.inc \
-	doc/templates/*.conf \
 	ChangeLog \
-	man/*.1
+	$(srcdir)/doc/templates/includes/*.inc \
+	$(srcdir)/doc/templates/*.conf \
+	$(srcdir)/man/*.1
 
 
 
