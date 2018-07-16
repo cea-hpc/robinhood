@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "363da0e6_5e2cecaf",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 2
+      },
+      "lineNbr": 9,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2018-07-16T13:33:53Z",
+      "side": 1,
+      "message": "(Also added that line to commit message, not that I have opened the issue -- Thomas, if you\u0027ve got a few minutes, could you add this section to project.config in the refs/meta/config branch? I don\u0027t have access:\n\n [commentlink \"github\"]\n  match \u003d \"#(\\\\d+)\"\n  link \u003d https://github.com/cea-hpc/robinhood/issues/$1\n\n(this is a bit of a broad match, but github is very lax with its syntax, a full regex (untested) would be something like match \u003d \"(close[sd]?|fix(e[sd])?|resolve[sd]?):? #(\\\\d+)\" and $3 in the link... perhaps? Just matching #number is probably good enough, not like false positives do any harm)\n)",
+      "revId": "49fba457fcfbf0b8578249acc739e6b6f0b4297f",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    }
+  ]
+}
