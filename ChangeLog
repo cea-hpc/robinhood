@@ -1,3 +1,40 @@
+Summary on changes in minor versions 3.1.x:
+3.1.4:
+* Configuration files: support %include directives in sub-blocks.
+* New parameter to 'common.copy': "mkdir=yes" creates target directories
+  prior to the copy operation.
+* New action 'common.move' (move an entry from one path/name to another).
+* Command copytool 'lhsmtool_cmd': add man page.
+Performances:
+    * Improved rules-to-SQL conversion engine. Enable faster policy runs.
+    * Auto-tune hash table sizes (changelog reader and entry processor).
+    * Pipeline tuning to reduce CPU usage and improve ingestion rate.
+    * Default linking to jemalloc memory allocator for better performance.
+      Note: it is advised to start MariaDB with this allocator too
+      to achieve maximal performance.
+    * Fix performance-critical bug in changelog reader (appeared in v3.1.3).
+3.1.3:
+* Policies: add matching modes "auto_update_attrs" and "auto_update_all"
+* Faster changelog reader shutdown when the process is terminated by a signal
+* Changelog optimization: drop CREATE/UNLINK and MKDIR/RMDIR changelog pairs
+* rbh-find:
+    ° add "-links" criterion
+    ° "-ost" accepts OST sets
+    ° add "-iname" option for case-insensitive name matching
+    ° support "-not" for links, size and dates
+* FS scan optimization (use openat() to walk through the filesystem instead
+  of full paths).
+* Fix rules-to-SQL conversion
+3.1.2:
+* Implement command rbh-rebind command to assign an archived entry to a newly
+  created fid (e.g. used for undelete operation).
+* Make lhsm undelete more resilient to error cases
+* lhsm: add tunable to allow custom/smaller UUID
+* REST API:
+    ° add nagios plugin
+    ° add graph preview in console plugin
+    ° add new filters
+
 Main changes in robinhood 3.1:
 * Ingest rate optimizations: up to x10
 * New plugin type: action schedulers
