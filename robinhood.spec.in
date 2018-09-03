@@ -461,6 +461,9 @@ rm -rf $RPM_BUILD_ROOT
 
 %changelog
 
+* Mon Sep 3 2018 Thomas Leibovici <thomas.leibovici@cea.fr> 3.1.4-1
+- Robinhood 3.1.4
+
 * Tue Sep 26 2017 Thomas Leibovici <thomas.leibovici@cea.fr> 3.1-1
 - Robinhood 3.1
 
