@@ -3910,6 +3910,9 @@ function test_copy
     echo 123 > $RH_ROOT/file.2
     echo 123 > $RH_ROOT/file.3
     echo 123 > $RH_ROOT/file.4
+    echo 123 > $RH_ROOT/file.5
+    mkdir $RH_ROOT/one_dir
+    ln -s "$RH_ROOT/one_dir" $RH_ROOT/one_link
 
     $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scan error"
     check_db_error rh_scan.log
@@ -3925,6 +3928,8 @@ function test_copy
     (( $(find $RH_ROOT/backup -name file.2 | wc -l) == 1 )) || error "file.2 backup not found"
     grep "Error applying action on entry $RH_ROOT/file.3" rh_migr.log || error "copy of file.3 should have failed"
     (( $(ls $RH_ROOT/backup/*/file.3 | wc -l) == 0 )) || error "no backup copy of file.3 expected"
+    grep "copy success for '$RH_ROOT/file.5', matching rule 'copy_link_to_dir'" rh_migr.log || error "no copy of file.5"
+    (( $(find $RH_ROOT/one_dir -name file.5 | wc -l) == 1 )) || error "file.5 backup not found"
 }
 
 # helper for test_move

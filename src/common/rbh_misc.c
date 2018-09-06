@@ -2176,6 +2176,31 @@ int path2id(const char *path, entry_id_t *id, const struct stat *st)
     return 0;
 }
 
+/**
+ * Check if the entry exists and is a directory.
+ * \param follow    Allow the entry to be a symlink to a directory.
+ * \return 0 if it exists and is a directory, -errno on error
+ * (in particular, -ENOENT if the entry doesn't exist).
+ */
+static int check_directory(const char *path, bool follow)
+{
+    struct stat st;
+    int rc;
+
+    if (follow)
+        rc = stat(path, &st);
+    else
+        rc = lstat(path, &st);
+
+    if (rc != 0)
+        return -errno;
+
+    if (!S_ISDIR(st.st_mode))
+        return -ENOTDIR;
+
+    return 0;
+}
+
 #define MKDIR_TAG "MkDir"
 int mkdir_recurse(const char *full_path, mode_t mode, entry_id_t *dir_id)
 {
@@ -2218,6 +2243,17 @@ int mkdir_recurse(const char *full_path, mode_t mode, entry_id_t *dir_id)
         /* extract directory name */
         rh_strncpy(path_copy, full_path, path_len);
 
+        /* Check if the directory already exists to work around problems
+         * of LU-10235 */
+        rc = check_directory(path_copy, true);
+        if (rc == 0)
+            goto next;
+        else if (rc != -ENOENT) {
+            DisplayLog(LVL_CRIT, MKDIR_TAG, "Failed to lookup '%s': %s",
+                       path_copy, strerror(-rc));
+            return rc;
+        }
+
         DisplayLog(LVL_FULL, MKDIR_TAG, "mkdir(%s)", path_copy);
         if ((mkdir(path_copy, mode) != 0) && (errno != EEXIST)) {
             rc = -errno;
@@ -2226,6 +2262,7 @@ int mkdir_recurse(const char *full_path, mode_t mode, entry_id_t *dir_id)
             return rc;
         }
 
+next:
         curr++;
     }
 
