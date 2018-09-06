@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "c09c0ef8_bfd9ee6e",
+        "filename": "ChangeLog",
+        "patchSetId": 2
+      },
+      "lineNbr": 5,
+      "author": {
+        "id": 1003556
+      },
+      "writtenOn": "2018-09-06T08:32:19Z",
+      "side": 1,
+      "message": "`mkdir_recurse` still behaves like mkdir -p and does mkdir on all intermediate directories, I wonder if we should make it lstat-before-mkdir to work-around LU-10235 to avoid people \"bad surprises\"... (before release that is, it\u0027s not difficult to do/test)",
+      "revId": "6db8849960449119c663fbfc852e457c27c8414b",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    }
+  ]
+}
