@@ -2208,6 +2208,8 @@ int mkdir_recurse(const char *full_path, mode_t mode, entry_id_t *dir_id)
     curr++;
 
     while ((curr = strchr(curr, '/')) != NULL) {
+        struct stat st;
+
         /* if fullpath = '/a/b',
          * curr = &(fullpath[2]);
          * so, copy 2 chars to get '/a'.
@@ -2218,12 +2220,20 @@ int mkdir_recurse(const char *full_path, mode_t mode, entry_id_t *dir_id)
         /* extract directory name */
         rh_strncpy(path_copy, full_path, path_len);
 
-        DisplayLog(LVL_FULL, MKDIR_TAG, "mkdir(%s)", path_copy);
-        if ((mkdir(path_copy, mode) != 0) && (errno != EEXIST)) {
-            rc = -errno;
-            DisplayLog(LVL_CRIT, MKDIR_TAG, "mkdir(%s) failed: %s",
-                       path_copy, strerror(-rc));
-            return rc;
+        /* Check if the target location exists before
+         * creating the directory.
+         * If the target is not a directory, the copy
+         * will fail anyhow with the appropriate error. */
+        if (lstat(path_copy, &st) != 0 && errno == ENOENT) {
+            DisplayLog(LVL_FULL, MKDIR_TAG, "mkdir(%s)", path_copy);
+            /* Test EEXIST because the directory may have been crated by
+             * another thread in the meantime. */
+            if (mkdir(path_copy, mode) != 0 && errno != EEXIST) {
+                rc = -errno;
+                DisplayLog(LVL_CRIT, MKDIR_TAG, "mkdir(%s) failed: %s",
+                           path_copy, strerror(-rc));
+                return rc;
+            }
         }
 
         curr++;
