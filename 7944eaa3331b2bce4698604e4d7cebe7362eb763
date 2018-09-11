@@ -1,0 +1,297 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "b17bd2aa_687b74ca",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 1
+      },
+      "lineNbr": 7,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-09-11T15:22:24Z",
+      "side": 1,
+      "message": "Add empty line after title line (else, it explodes the patch title summary)",
+      "range": {
+        "startLine": 7,
+        "startChar": 60,
+        "endLine": 7,
+        "endChar": 61
+      },
+      "revId": "7944eaa3331b2bce4698604e4d7cebe7362eb763",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "c91ccd63_e2489a9d",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 1
+      },
+      "lineNbr": 347,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-09-11T15:22:24Z",
+      "side": 1,
+      "message": "2018",
+      "range": {
+        "startLine": 347,
+        "startChar": 7,
+        "endLine": 347,
+        "endChar": 17
+      },
+      "revId": "7944eaa3331b2bce4698604e4d7cebe7362eb763",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "3a8e4441_5f2ddfae",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 1
+      },
+      "lineNbr": 350,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-09-11T15:22:24Z",
+      "side": 1,
+      "message": "missing closing \u0027)\u0027",
+      "range": {
+        "startLine": 350,
+        "startChar": 29,
+        "endLine": 350,
+        "endChar": 38
+      },
+      "revId": "7944eaa3331b2bce4698604e4d7cebe7362eb763",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "eb0b5c84_4e71fda8",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 1
+      },
+      "lineNbr": 352,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-09-11T15:22:24Z",
+      "side": 1,
+      "message": "(suggest) \"add parameter to disable files view in the UI\"",
+      "range": {
+        "startLine": 352,
+        "startChar": 10,
+        "endLine": 352,
+        "endChar": 13
+      },
+      "revId": "7944eaa3331b2bce4698604e4d7cebe7362eb763",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "eb6d7012_7cbf4481",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 1
+      },
+      "lineNbr": 353,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-09-11T15:22:24Z",
+      "side": 1,
+      "message": "information-less, you can remove this line",
+      "range": {
+        "startLine": 353,
+        "startChar": 5,
+        "endLine": 353,
+        "endChar": 26
+      },
+      "revId": "7944eaa3331b2bce4698604e4d7cebe7362eb763",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "6d9de50d_30b00ab8",
+        "filename": "web_gui/gui_v3/cron.php",
+        "patchSetId": 1
+      },
+      "lineNbr": 3,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-09-11T15:22:24Z",
+      "side": 1,
+      "message": "2018",
+      "range": {
+        "startLine": 3,
+        "startChar": 17,
+        "endLine": 3,
+        "endChar": 25
+      },
+      "revId": "7944eaa3331b2bce4698604e4d7cebe7362eb763",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "e1fc67bc_8dae9688",
+        "filename": "web_gui/gui_v3/plugin.php",
+        "patchSetId": 1
+      },
+      "lineNbr": 52,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-09-11T15:22:24Z",
+      "side": 1,
+      "message": "Remaining TODO",
+      "range": {
+        "startLine": 52,
+        "startChar": 1,
+        "endLine": 52,
+        "endChar": 45
+      },
+      "revId": "7944eaa3331b2bce4698604e4d7cebe7362eb763",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "c7cb5eb8_049c68e3",
+        "filename": "web_gui/gui_v3/plugin.php",
+        "patchSetId": 1
+      },
+      "lineNbr": 182,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-09-11T15:22:24Z",
+      "side": 1,
+      "message": "empty if clause?",
+      "revId": "7944eaa3331b2bce4698604e4d7cebe7362eb763",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "55cf2ac5_8d70a357",
+        "filename": "web_gui/gui_v3/plugins/netauth/plugin.php",
+        "patchSetId": 1
+      },
+      "lineNbr": 3,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-09-11T15:22:24Z",
+      "side": 1,
+      "message": "2018",
+      "range": {
+        "startLine": 3,
+        "startChar": 17,
+        "endLine": 3,
+        "endChar": 26
+      },
+      "revId": "7944eaa3331b2bce4698604e4d7cebe7362eb763",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "0f0c4225_22fdb235",
+        "filename": "web_gui/gui_v3/plugins/netauth/plugin.php",
+        "patchSetId": 1
+      },
+      "lineNbr": 40,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-09-11T15:22:24Z",
+      "side": 1,
+      "message": "If \"force_netauth\" is a boolean, why not just testing: \"force_netauth\" instead of \"force_netauth \u003d\u003d true\"",
+      "range": {
+        "startLine": 40,
+        "startChar": 26,
+        "endLine": 40,
+        "endChar": 54
+      },
+      "revId": "7944eaa3331b2bce4698604e4d7cebe7362eb763",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "71c29621_d97b1105",
+        "filename": "web_gui/gui_v3/plugins/netauth/plugin.php",
+        "patchSetId": 1
+      },
+      "lineNbr": 41,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-09-11T15:22:24Z",
+      "side": 1,
+      "message": "idem",
+      "range": {
+        "startLine": 41,
+        "startChar": 6,
+        "endLine": 41,
+        "endChar": 31
+      },
+      "revId": "7944eaa3331b2bce4698604e4d7cebe7362eb763",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "0a1a1b19_15091a4f",
+        "filename": "web_gui/gui_v3/plugins/tasks/plugin.php",
+        "patchSetId": 1
+      },
+      "lineNbr": 3,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-09-11T15:22:24Z",
+      "side": 1,
+      "message": "2018",
+      "range": {
+        "startLine": 3,
+        "startChar": 17,
+        "endLine": 3,
+        "endChar": 26
+      },
+      "revId": "7944eaa3331b2bce4698604e4d7cebe7362eb763",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "e240e75c_ad6dd78a",
+        "filename": "web_gui/gui_v3/plugins/tasks/plugin.php",
+        "patchSetId": 1
+      },
+      "lineNbr": 125,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-09-11T15:22:24Z",
+      "side": 1,
+      "message": "long line, consider splitting, (e.g. after each ||)",
+      "range": {
+        "startLine": 125,
+        "startChar": 0,
+        "endLine": 125,
+        "endChar": 135
+      },
+      "revId": "7944eaa3331b2bce4698604e4d7cebe7362eb763",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    }
+  ]
+}
