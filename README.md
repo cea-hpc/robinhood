@@ -1,7 +1,7 @@
 I - License
 ===========
 
-Copyright (C) 2004-2017 CEA/DAM.  
+Copyright (C) 2004-2017 CEA/DAM.
 Copyright 2013-2016 Cray Inc. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify
@@ -18,18 +18,18 @@ II - Compiling
 -------------------------
 
 It is advised to build RobinHood on your target system, to ensure the best
-compatibility with your Lustre and MySQL versions. 
- 
+compatibility with your Lustre and MySQL versions.
+
 Build requirements: glib2-devel, libattr-devel, mysql-devel or mariadb-devel,
-mailx, bison, flex.  
+mailx, bison, flex.
 For lustre support: lustre or lustre-client
 
 Unzip and untar the source distribution:
-> tar zxvf robinhood-3.x.x.tar.gz  
+> tar zxvf robinhood-3.x.x.tar.gz
 > cd robinhood-3.x.x
 
 Configure and build:
-> ./configure  
+> ./configure
 > make rpm
 
 RPMs are generated in the 'rpms/RPMS/*arch*' directory.
@@ -41,9 +41,9 @@ Install git, and autotools stuff:
 > yum install git automake autoconf libtool
 
 Retrieve robinhood sources
-> git clone https://github.com/cea-hpc/robinhood.git  
-> cd robinhood  
-> git checkout master *(or other branch)*  
+> git clone https://github.com/cea-hpc/robinhood.git
+> cd robinhood
+> git checkout master *(or other branch)*
 > sh autogen.sh
 
 Then refer to section 2.1 for next compilation steps.
@@ -55,7 +55,7 @@ Then refer to section 2.1 for next compilation steps.
 Only requirements: rpm-build, gcc, flex, bison
 
 To create src rpm on a host with minimal requirements, run:
-> ./configure --enable-dist  
+> ./configure --enable-dist
 > make srpm
 
 ### 2.3.2 - Building from src rpm
@@ -77,7 +77,7 @@ incompatibility issues between lustreapi versions.
 III - Install
 =============
 
-For installing robinhood on your target system, install **robinhood-adm** RPM.  
+For installing robinhood on your target system, install **robinhood-adm** RPM.
 It includes configuration helper for DB, changelogs, ...
 
 * For lustre filesystems install **robinhood-lustre** RPM.
@@ -145,5 +145,5 @@ Example: to regularly scan filesystem and run all policies:
 > RBH_OPT="--scan --run=all"
 
 Start the daemon:
-> [el6] service robinhood start  
+> [el6] service robinhood start
 > [el7] systemctl start robinhood@*fsname*
