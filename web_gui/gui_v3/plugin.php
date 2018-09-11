@@ -18,6 +18,48 @@ class Plugin {
     public $Description = "Something about your plugin";
     public $Version = "0";
 
+    /* php lib required to run the plugin */
+    public $Req_lib = array();
+    /* plugin required by this plugin */
+    public $Req_plug = array();
+
+    /* Required table for plugin */
+    /* *Create them if they don't exist */
+    public $Req_table = array();
+
+    /* pre_init status */
+    const INIT_OK = 0;
+    /* Non present php lib */
+    const INIT_REQLIB = 1;
+    /* Waiting for another plugin */
+    const INIT_WAITPLUG = 2;
+    /* The other plugin is missing */
+    const INIT_MISSPLUG = 3;
+
+
+    /* Called from UI and api */
+    function pre_init() {
+	global $db;
+	global $DBA;
+         /* Check if the plugin est loadable */
+	foreach ($this->Req_lib as $lib) {
+		if (!extension_loaded($lib)) {
+			return $this::INIT_REQLIB;
+		}
+	}
+
+	$confdb = getDB("config")[0];
+	/* @TODO should failed if db doesn't work */
+	foreach ($this->Req_table as $table=>$fields) {
+		$result = $db[$confdb]->query("SELECT * FROM information_schema.columns WHERE (table_name = '$table') AND TABLE_SCHEMA = '".$DBA[$confdb]["DB_NAME"]."';");
+		if ($result->rowCount()<1) {
+			$db[$confdb]->query("CREATE TABLE IF NOT EXISTS $table $fields");
+		}
+	}
+
+	return $this::INIT_OK;
+    }
+
     /* Called from UI and api */
     function init() {
             /* Plugin init */
@@ -109,6 +151,17 @@ class Plugin {
     function ui_header($param) {
             /* HTML inside <header></header> */
     }
+
+    /* Called from Common to identify the user */
+    function get_user($param) {
+	/* User identity */
+    }
+
+    /* Called from cron */
+    function cron() {
+	/* called each time cron.php is runned */
+    }
+
 }
 
 /**
@@ -123,7 +176,14 @@ function plugins_load() {
 
     foreach ($PLUGINS_REG as $p) {
         require_once "plugins/$p/plugin.php";
-        $PLUGINS_INST[] = new $p();
+	$new_plugin = new $p();
+	$init_result = $new_plugin->pre_init();
+	if ($init_result==$new_plugin::INIT_REQLIB) {
+
+	} elseif ($init_result==$new_plugin::INIT_OK) {
+	        $PLUGINS_INST[] = $new_plugin;
+	}
+
     }
 }
 
