@@ -96,7 +96,10 @@ foreach ($fields as $field) {
         echo '<li><a href="#" onclick="GetGraph(\''.$field.'\')">'.l($field).'</a></li>';
 }
 
-echo '<li><a href="#"  onclick="GetGraph(\'Files\')">Files</a></li>';
+if (!$DISABLE_FILES_PAGE)
+{
+	echo '<li><a href="#" onclick="GetGraph(\'Files\')">Files</a></li>';
+}
 
 echo plugins_call("ui_menu_top", "<!--Data from plugins-->\n");
 ?>
@@ -179,10 +182,6 @@ $('#ex2').slider({
 $permission = getFilePermission("config.php");
 if ($permission != "640") {
         echo "<script>$(msg_danger(\"Bad permission on config.php ($permission) shoud be 640 .\"))</script>";
-}
-
-if ($DB_TYPE == "" || $DB_HOST == "" || $DB_NAME == "" || $DB_USER == "") {
-        echo "<script>$(msg_danger(\"You need to configure the database in config.php ! Type/home/db_name or user is missing !\"))</script>";
 }
 
 if ($DB_LASTERROR != "") {

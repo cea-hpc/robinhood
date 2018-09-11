@@ -24,6 +24,9 @@ class ldapauth extends Plugin {
     public $Description = "Use ldap informations for access control";
     public $Version = "V0.1";
 
+    public $Req_lib = array('ldap');
+
+
     /* The ui page which allows the user to check his access */
     public $ui_page = true;
 
@@ -120,11 +123,6 @@ class ldapauth extends Plugin {
         /* Custom api call */
         if ($param[0] == "ldapauth") {
             $data = $this->get_user_info_int(get_user());
-            return $data;
-        }
-
-        if ($param[0] == "ldapauth_flat") {
-            $data = $this->get_user_info("andrieuj");
             return $data;
         }
 

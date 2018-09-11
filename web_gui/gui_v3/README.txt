@@ -100,6 +100,8 @@ Functions provided by the API
         -return args as json (debug purposes)
     *<server-url>/api/current_auth
         -return your current authentification
+    *<server-url>/api/db_info
+        -return database configuration with status and errors
     *<server-url>/api/graph/(uid/gid/sizes/files/*_status)
         -return datas as json using graphjs datasets format
     *<server-url>/api/data/(uid/gid/files/*_status)
@@ -342,6 +344,15 @@ VI - TODO
 
 VII - Changelog
 ==============
+v0.3 @ 18/09/2018
+     -Update GraphJS to 2.7.2 (previously 2.6)
+      -Add plugins
+        -tasks (Copy data in other databases)
+        -netauth (Give access by ip source/hostname)
+        -customgraph (create custom graphs)
+     -Add parameter to disable files view in the UI
+     -Improve console plugin
+     -Partial support for multidatabases
 
 v0.2 @ 25/09/2017
     -Add plugins

@@ -15,18 +15,27 @@ function ConsoleRun() {
         $.ajax({
                 url: "api/index.php?request=" + request
         }).then(function(data) {
-
+                defaultx = ""
                 document.getElementById("consoledata").innerHTML="Number of result: " + data.length;
                 if (Array.isArray(data)) {
                         document.getElementById("consoledatabox").value=JSON.stringify(data,null,2);
                         graphx = document.getElementById("consolerequestgraphx")
                         graphy = document.getElementById("consolerequestgraphy")
+                        graphs = document.getElementById("consolerequestseries")
                         while (graphx.options.length) graphx.remove(0);
                         while (graphy.options.length) graphy.remove(0);
+                        while (graphs.options.length) graphs.remove(0);
+                        graphs.add(new Option("None", "None"));
                         for (var item in data[0]) {
-                                graphx.options[graphx.options.length] = new Option(item, item)
-                                graphy.options[graphy.options.length] = new Option(item, item)
+                                if (defaultx=="" || item=="CronDate") { 
+                                    defaultx=item
+                                }
+                                graphx.add(new Option(item, item));
+                                graphy.add(new Option(item, item));
+                                graphs.add(new Option(item, item));
                         }
+                graphx.value=defaultx
+
                 } else {
                         document.getElementById("consoledatabox").value=data;
                 }
@@ -44,7 +53,7 @@ function ConsoleGraphRun() {
         xitem = document.getElementById("consolerequestgraphx").value;
         yitem = document.getElementById("consolerequestgraphy").value;
         type = document.getElementById("consolerequestgraph").value;
-
+        series = document.getElementById("consolerequestseries").value;
         /* scatter graph */
         if (type=="scatter") {
 
@@ -75,9 +84,75 @@ function ConsoleGraphRun() {
 
         }
 
-        /* bar graph */
-        if (type=="bar") {
+        /* line graph */
+        if (type=="line" || type=="line stacked" || type=="bar") {
 
+        if (series != 'None')
+        {
+    
+        //series_label =  {}
+        series_title = {}
+        series_x = {}
+        series_index={}
+        for (var item in data)
+        {
+            series_title[data[item][series]]=""
+            series_x[data[item][xitem]]=""
+            key = data[item][series]+"_"+data[item][xitem]
+            series_index[key] = data[item][yitem]
+        }
+
+        labels = []
+        for (var t in series_x) 
+        {
+            labels.push(t)
+        }
+        datasets=[]
+        for (var s in series_title)
+        {
+                datay=[]
+                for (var t in series_x) 
+                {
+                    key = s+"_"+t
+                    if (key in series_index) {
+                        datay.push(series_index[key])
+                    } else {
+                        datay.push(0)
+                    }
+                }
+                console.log("Color:"+stringToColour(s));
+                if (type=="line") {
+                    dataset = {
+                        label: s,
+                        borderColor: stringToColour(s),
+                        backgroundColor: "#00000000",
+                        data: datay,
+                    }
+                } else {
+                    dataset = {
+                        label: s,
+                        borderColor: "#000000",
+                        backgroundColor: stringToColour(s),
+                        data: datay,
+                    }
+
+                }
+
+                datasets.push(dataset)
+        
+        }        
+
+
+
+        console.log(datay)
+        console.log(labels)
+
+       lineChartData = {
+            labels: labels,
+            datasets: datasets
+       };
+
+        } else {
         datay = []
         labels = []
         for (var item in data)
@@ -85,11 +160,11 @@ function ConsoleGraphRun() {
                 datay.push(data[item][yitem])
                 labels.push(data[item][xitem])
         }
-
+        
         console.log(datay)
         console.log(labels)
 
-       barChartData = {
+       lineChartData = {
             labels: labels,
             datasets: [{
                 label: "Dataset",
@@ -97,23 +172,56 @@ function ConsoleGraphRun() {
                 backgroundColor: "00FF00",
                 data: datay,
                 }]};
+        }
+
 
         var ctx = document.getElementById("ctx").getContext("2d");
-        window.myBar = Chart.Bar(ctx, {
-                data: barChartData,
+
+        if (type=="line") {
+        window.myBar = Chart.Line(ctx, {
+                data: lineChartData,
                 options: {
                     title: {
                          display: true,
-                         text: 'Chart.js bar Chart'
+                         text: 'Chart.js line Chart'
+                        },
+                }
+        });
+        } else if (type=="line stacked") {
+        window.myBar = Chart.Line(ctx, {
+                data: lineChartData,
+                options: {
+                    title: {
+                         display: true,
+                         text: 'Chart.js line stacked Chart'
+                        },
+                    scales: {
+                        yAxes: [{stacked: true,}]
+                    },
+                }
+        });
+        } else if (type=="bar") {
+
+        window.mybar = Chart.Bar(ctx, {
+                data: lineChartData,
+                options: {
+                    title: {
+                         display: true,
+                         text: 'chart.js bar chart'
                         },
                 }
         });
 
+
         }
+
+
+        }
+
         });
 }
 
-function console_GetInfo(){
+function console_GetInfo(request){
 
         /* Create the table template */
         document.getElementById("main_content").innerHTML = `
@@ -133,15 +241,31 @@ function console_GetInfo(){
                 <h2>Graph</h2>
                 <form id="consoleformgraph" name="consoleformgraph" class="form-inline">
                 <fieldset class="form-group">
-                <label for="interativegraph">Axis field</label>
-                <select  class="form-control" id="consolerequestgraphx" name="consolerequestgraphx" placeholder="fieldx"></select>
-                <select  class="form-control" id="consolerequestgraphy" name="consolerequestgraphy" placeholder="fieldy"></select>
-                <select  class="form-control" id="consolerequestgraph" name="consolerequestgraph" placeholder="type">
-                    <option value="scatter">Scatter</option>
+                 <div class="form-group">
+                <label>Type</label>
+                <select  class="form-control" id="consolerequestgraph" name="consolerequestgraph" placeholder="Type">
+                    <option value="line">Line</option>
+                    <option value="line stacked">Line stacked</option>
                     <option value="bar">Bar</option>
+                    <option value="pie">Pie</option>
+                    <option value="scatter">Scatter</option>
                 </select>
-
+                </div>
+                 <div class="form-group">
+                    <label>Label/X</label>
+                    <select  class="form-control" id="consolerequestgraphx" name="consolerequestgraphx" placeholder="fieldx" placeholder="Label/X" ></select>
+                </div>
+                 <div class="form-group">
+            <label>Values/Y</label>
+                    <select  class="form-control" id="consolerequestgraphy" name="consolerequestgraphy" placeholder="fieldy" placeholder="Y"></select>
+                </div>
+                 <div class="form-group">
+            <label>Series</label>
+                    <select  class="form-control" id="consolerequestseries" name="consolerequestseries" placeholder="series" placeholder="series"></select>
+                </div>
+                 <div class="form-group">
                 <button type="button" id="RunGraph" class="btn btn-primary" autocomplete="off" onclick="ConsoleGraphRun()">Show in graph</button>
+                </div>
                 </fieldset>
                 </form>
                 <div name="consolegraph" id="consolegraph"></div>
@@ -150,6 +274,11 @@ function console_GetInfo(){
                 <p>Example: native/files/uid.filter/robin/ to get all the files and directories of robin.</p>
                 <p>Please refer to README.txt for more filter and request</p>
                 `;
+
+        if (request) {
+            document.getElementById("consolerequest").value = request;
+            ConsoleRun();
+        }
 
         //Add keypress event for filter form
         $('#consoleform input').on('keypress', function(event){
