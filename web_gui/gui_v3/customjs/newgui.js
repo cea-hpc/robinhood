@@ -94,6 +94,21 @@ function getRGB(str){
     return rgb;
 }
 
+var stringToColour = function(str) {
+    var hash = 0;
+    str=str+str+str+str+str+str+str+str;
+    for (var i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    var colour = '#';
+    for (var i = 0; i < 3; i++) {
+        var value = (hash >> (i * 8)) & 0xFF;
+        colour += ('00' + value.toString(16)).substr(-2);
+    }
+    return colour;
+}
+
+
 function msg_warning(str){
     $('#messagebox').append('<div class="alert alert-warning">'+
             '<a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>' +
