@@ -110,6 +110,43 @@ function ConsoleGraphRun() {
         });
 
         }
+
+        /* line graph */
+        if (type=="line") {
+
+        datay = []
+        labels = []
+        for (var item in data)
+        {
+                datay.push(data[item][yitem])
+                labels.push(data[item][xitem])
+        }
+
+        console.log(datay)
+        console.log(labels)
+
+       lineChartData = {
+            labels: labels,
+            datasets: [{
+                label: "Dataset",
+                borderColor: "FF0000",
+                backgroundColor: "00FF00",
+                data: datay,
+                }]};
+
+        var ctx = document.getElementById("ctx").getContext("2d");
+        window.myBar = Chart.Line(ctx, {
+                data: lineChartData,
+                options: {
+                    title: {
+                         display: true,
+                         text: 'Chart.js line Chart'
+                        },
+                }
+        });
+
+        }
+
         });
 }
 
@@ -133,14 +170,20 @@ function console_GetInfo(){
                 <h2>Graph</h2>
                 <form id="consoleformgraph" name="consoleformgraph" class="form-inline">
                 <fieldset class="form-group">
-                <label for="interativegraph">Axis field</label>
-                <select  class="form-control" id="consolerequestgraphx" name="consolerequestgraphx" placeholder="fieldx"></select>
-                <select  class="form-control" id="consolerequestgraphy" name="consolerequestgraphy" placeholder="fieldy"></select>
-                <select  class="form-control" id="consolerequestgraph" name="consolerequestgraph" placeholder="type">
-                    <option value="scatter">Scatter</option>
+                <label>Type</label>
+                <select  class="form-control" id="consolerequestgraph" name="consolerequestgraph" placeholder="Type">
+                    <option value="line">Line</option>
                     <option value="bar">Bar</option>
+                    <option value="pie">Pie</option>
+                    <option value="scatter">Scatter</option>
                 </select>
-
+		<br>
+                <label>Label/X</label>
+                <select  class="form-control" id="consolerequestgraphx" name="consolerequestgraphx" placeholder="fieldx" placeholder="Label/X" ></select>
+		<br>
+		<label>Values/Y</label>
+                <select  class="form-control" id="consolerequestgraphy" name="consolerequestgraphy" placeholder="fieldy" placeholder="Y"></select>
+		<br>
                 <button type="button" id="RunGraph" class="btn btn-primary" autocomplete="off" onclick="ConsoleGraphRun()">Show in graph</button>
                 </fieldset>
                 </form>
