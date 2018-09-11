@@ -14,13 +14,20 @@
 /*****************************
 *        Database            *
 *****************************/
-//Support at least mysql/pgsql/sqlite
-$DB_TYPE     = "mysql";
-$DB_HOST     = "localhost";
-$DB_NAME     = "";
-$DB_USER     = "";
-$DB_PASSWD   = "";
 
+$DEFAULT_DB = "main";
+//Support at least mysql/pgsql/sqlite
+
+$DBA = array();
+
+$DBA[$DEFAULT_DB] = [
+"DB_TYPE"     => "mysql",
+"DB_HOST"     => "localhost",
+"DB_NAME"     => "",
+"DB_USER"     => "",
+"DB_PASSWD"   => "",
+"DB_USAGE"    => array("data","config"),
+];
 /*****************************
 *        Access              *
 *****************************/
@@ -28,6 +35,7 @@ $DB_PASSWD   = "";
 $ACCESS_LIST = array();
 $ACCESS_LIST['webgui'] = array();
 $ACCESS_LIST['api-ro'] = array();
+$ACCESS_LIST['dbinfo'] = array();
 $ACCESS_LIST['datatables'] = array();
 $ACCESS_LIST['graphs'] = array();
 $ACCESS_LIST['native_vars'] = array();
@@ -36,12 +44,17 @@ $ACCESS_LIST['native_files'] = array();
 $ACCESS_LIST['native_entries'] = array();
 $ACCESS_LIST['native_names'] = array();
 
+
+$ACCESS_LIST['tasks'] = array();
+$ACCESS_LIST['customgraph'] = array();
 /* Beware, by default everyone can access to everything */
 
 //Web GUI with graphs and lists
 $ACCESS_LIST['webgui'][] = '*';
 //Read Only API, required for webgui
 $ACCESS_LIST['api-ro'][] = '*';
+//Show database configuration
+$ACCESS_LIST['dbinfo'][] = '*';
 //Datatables
 $ACCESS_LIST['datatables'][] = '*';
 //Graphs
@@ -52,6 +65,9 @@ $ACCESS_LIST['native_acct'][] = '*';
 $ACCESS_LIST['native_files'][] = '*';
 $ACCESS_LIST['native_entries'][] = '*';
 $ACCESS_LIST['native_names'][] = '*';
+
+$ACCESS_LIST['tasks'][] = '*';
+$ACCESS_LIST['customgraph'][] = '*';
 /*****************************
 *        General parameters  *
 *****************************/
@@ -61,6 +77,13 @@ $MAX_ROWS = 1000;
 $JSON_OPTIONS = null;
 if (version_compare(phpversion(), '5.4.0', '>='))
     $JSON_OPTIONS |= JSON_PRETTY_PRINT;
+
+//Only allow cron from console
+$CONSOLE_CRON_ONLY = true;
+
+//Disable webgui files access
+//Use the access list to disable completly the access to files
+$DISABLE_FILES_PAGE = false;
 
 /*****************************
 *       ChartJS/dataTable    *
@@ -132,6 +155,8 @@ $PLUGINS_REG[] = "internalstats";
 $PLUGINS_REG[] = "browser";
 $PLUGINS_REG[] = "console";
 $PLUGINS_REG[] = "output";
+#$PLUGINS_REG[] = "tasks";
+#$PLUGINS_REG[] = "customgraph";
 //This plugin requires a valid ldap conf.
 //$PLUGINS_REG[] = "ldapauth";
 
@@ -155,12 +180,22 @@ if (!@include "config_local.php") {
 *        DB Connection       *
 *****************************/
 $DB_LASTERROR = "";
-try {
-    $db = new PDO("$DB_TYPE:host=$DB_HOST;dbname=$DB_NAME", $DB_USER, $DB_PASSWD);
-    $db->exec("USE $DB_NAME;");
-} catch(Exception $e) {
-    $DB_LASTERROR = $e->getMessage();
-}
 
+foreach ($DBA as $k=>$v) {
+    try {
+        $db[$k] = new PDO($DBA[$k]["DB_TYPE"].":host=".$DBA[$k]["DB_HOST"].";dbname=".$DBA[$k]["DB_NAME"], $DBA[$k]["DB_USER"], $DBA[$k]["DB_PASSWD"]);
+    	$DBA[$k]["DB_PASSWD"]="****";
+	    $db[$k]->exec("USE ".$DBA[$k]["DB_NAME"].";");
+    	$DBA[$k]["DB_STATUS"] = "Ok";
+    } catch(Exception $e) {
+    	$DBA[$k]["DB_PASSWD"]="****";
+	    $DBA[$k]["DB_STATUS"] = "Error";
+    	$DBA[$k]["DB_ERROR"] = $e->getMessage();
+	    echo $e->getMessage();
+        $DB_LASTERROR .= $e->getMessage();
+    }
+}
+//Set defaut DB as current
+$CURRENT_DB = $DEFAULT_DB;
 
 ?>

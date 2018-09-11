@@ -54,16 +54,31 @@ class MyAPI extends API
 
 
     /***************************************
+     * return your current AUTH
+     **************************************/
+    protected function db_info() {
+	global $DBA;
+        if ($this->method == 'GET') {
+            if (!check_access('dbinfo'))
+		return "Permission denied";
+	    return $DBA;
+        } else {
+            return "\"Faint hearts never won fair ladies.\"";
+        }
+    }
+
+
+    /***************************************
      * return differents kinds of graph
      * JSON output with graphjs format
      **************************************/
     protected function native() {
         global $db;
+	global $CURRENT_DB;
 
         if ($this->method == 'GET') {
 
             $content_requested = $this->verb;
-
             switch ($content_requested) {
             case 'vars':
                 $self='$SELF';
@@ -73,7 +88,7 @@ class MyAPI extends API
                         return "Permission denied";
                 }
 
-                $req = $db->prepare("SELECT * from VARS;");
+                $req = $db[$CURRENT_DB]->prepare("SELECT * from VARS;");
                 $req->execute();
                 $data = array();
                 while($sqldata = $req->fetch(PDO::FETCH_ASSOC)){
@@ -89,7 +104,7 @@ class MyAPI extends API
                         return "Permission denied";
                 }
                 $fullfilter = build_advanced_filter($this->args, $self, "ACCT_STAT");
-                $req = $db->prepare($fullfilter[0]);
+                $req = $db[$CURRENT_DB]->prepare($fullfilter[0]);
                 $req->execute($fullfilter[1]);
                 $data = $req->fetchall(PDO::FETCH_ASSOC);
                 break;
@@ -102,7 +117,7 @@ class MyAPI extends API
                         return "Permission denied";
                 }
                 $fullfilter = build_advanced_filter($this->args, $self, "NAMES", "ENTRIES");
-                $req = $db->prepare($fullfilter[0]);
+                $req = $db[$CURRENT_DB]->prepare($fullfilter[0]);
                 $req->execute($fullfilter[1]);
                 $data = $req->fetchall(PDO::FETCH_ASSOC);
                 break;
@@ -115,7 +130,7 @@ class MyAPI extends API
                         return "Permission denied";
                 }
                 $fullfilter = build_advanced_filter($this->args, $self, "ENTRIES");
-                $req = $db->prepare($fullfilter[0]);
+                $req = $db[$CURRENT_DB]->prepare($fullfilter[0]);
                 $req->execute($fullfilter[1]);
                 $data = $req->fetchall(PDO::FETCH_ASSOC);
                 break;
@@ -128,7 +143,7 @@ class MyAPI extends API
                         return "Permission denied";
                 }
                 $fullfilter = build_advanced_filter($this->args, $self, "NAMES");
-                $req = $db->prepare($fullfilter[0]);
+                $req = $db[$CURRENT_DB]->prepare($fullfilter[0]);
                 $req->execute($fullfilter[1]);
                 $data = $req->fetchall(PDO::FETCH_ASSOC);
                 break;
@@ -150,7 +165,7 @@ class MyAPI extends API
      **************************************/
     protected function graph() {
         global $db;
-
+	global $CURRENT_DB;
         if ($this->method == 'GET') {
             $self = '$SELF';
             if (!check_access("graphs")) {
@@ -174,7 +189,7 @@ class MyAPI extends API
                 $havingfilter = $fullfilter[2];
                 $sqlreq = "SELECT $content_requested, SUM(size) AS ssize, SUM(count) AS scount FROM ACCT_STAT $sqlfilter GROUP BY $content_requested $havingfilter";
                 $sqlreq = plugins_call("graph_presql_uid", $sqlreq);
-                $req = $db->prepare($sqlreq);
+                $req = $db[$CURRENT_DB]->prepare($sqlreq);
                 $req->execute($fullfilter[1]);
                 while($sqldata = $req->fetch(PDO::FETCH_ASSOC)) {
                     $labels[] = $sqldata[$content_requested];
@@ -204,7 +219,7 @@ class MyAPI extends API
                     $select_str = $select_str.", SUM($ssz) AS s$ssz";
                 $sqlreq = "SELECT $select_str FROM ACCT_STAT $sqlfilter;";
                 $sqlreq = plugins_call("graph_presql_sizes", $sqlreq);
-                $req = $db->prepare($sqlreq);
+                $req = $db[$CURRENT_DB]->prepare($sqlreq);
                 $req->execute($fullfilter[1]);
                 while($sqldata = $req->fetch(PDO::FETCH_ASSOC)) {
                     foreach ($ssize as $ssz) {
@@ -234,7 +249,7 @@ class MyAPI extends API
                     $offset = intval($fullfilter[1]['k_offset']);
                     unset($fullfilter[1]['k_offset']);
                 }
-                $req = $db->prepare("SELECT uid, gid, size, blocks, name, type, creation_time, last_access, last_mod ".
+                $req = $db[$CURRENT_DB]->prepare("SELECT uid, gid, size, blocks, name, type, creation_time, last_access, last_mod ".
                     "FROM ENTRIES LEFT JOIN NAMES ON ENTRIES.id = NAMES.id $sqlfilter LIMIT $MAX_ROWS OFFSET $offset");
                 $req->execute($fullfilter[1]);
                 $count = $req->rowCount();
@@ -264,7 +279,7 @@ class MyAPI extends API
                 $sqlfilter = $fullfilter[0];
 
                 if (endsWith($content_requested, "_status")) {
-                    $req = $db->prepare("SELECT $content_requested AS sstatus, SUM(size) AS ssize, SUM(count) AS scount FROM ACCT_STAT $sqlfilter GROUP BY $content_requested;");
+                    $req = $db[$CURRENT_DB]->prepare("SELECT $content_requested AS sstatus, SUM(size) AS ssize, SUM(count) AS scount FROM ACCT_STAT $sqlfilter GROUP BY $content_requested;");
                     $req->execute($fullfilter[1]);
                     while($sqldata = $req->fetch(PDO::FETCH_ASSOC)) {
                         $labels[] = ($sqldata['sstatus'] == '') ? 'None': $sqldata['sstatus'];
@@ -305,6 +320,7 @@ class MyAPI extends API
     protected function data() {
         if ($this->method == 'GET') {
             global $db;
+	    global $CURRENT_DB;
 
             $self='$SELF';
             if (!check_access("datatables")) {
@@ -328,7 +344,7 @@ class MyAPI extends API
                 $columns[] = array('title' => 'Size');
                 $columns[] = array('title' => 'File Count');
                 $columnsDefs[] = array('type' => 'file-size', 'targets' => 1);
-                $req = $db->prepare("SELECT $content_requested, SUM(size) AS ssize, SUM(count) AS scount FROM ACCT_STAT $sqlfilter GROUP BY $content_requested;");
+                $req = $db[$CURRENT_DB]->prepare("SELECT $content_requested, SUM(size) AS ssize, SUM(count) AS scount FROM ACCT_STAT $sqlfilter GROUP BY $content_requested;");
                 $req->execute($fullfilter[1]);
                 while($sqldata = $req->fetch(PDO::FETCH_ASSOC)) {
                     $datasets[] = array( $sqldata[$content_requested],formatSizeNumber($sqldata['ssize']),$sqldata['scount']);
@@ -346,7 +362,7 @@ class MyAPI extends API
                     $select_str = $select_str.", SUM($ssz) AS s$ssz";
                     $columns[] = array('title' => l($ssz));
                 }
-                $req = $db->prepare("SELECT uid, $select_str FROM ACCT_STAT $sqlfilter GROUP BY uid;");
+                $req = $db[$CURRENT_DB]->prepare("SELECT uid, $select_str FROM ACCT_STAT $sqlfilter GROUP BY uid;");
                 $req->execute($fullfilter[1]);
                 while($sqldata = $req->fetch(PDO::FETCH_ASSOC)) {
                     $list = array();
@@ -367,7 +383,7 @@ class MyAPI extends API
                     $offset=intval($fullfilter[1]['k_offset']);
                     unset($fullfilter[1]['k_offset']);
                 }
-                $req = $db->prepare("SELECT uid, gid, size, blocks, name, type, from_unixtime(creation_time) AS creation_time".
+                $req = $db[$CURRENT_DB]->prepare("SELECT uid, gid, size, blocks, name, type, from_unixtime(creation_time) AS creation_time".
                     ", from_unixtime(last_access) AS last_access, from_unixtime(last_mod) AS last_mod".
                     " FROM ENTRIES LEFT JOIN NAMES ON ENTRIES.id = NAMES.id $sqlfilter LIMIT $MAX_ROWS OFFSET $offset");
                 $req->execute($fullfilter[1]);
@@ -402,7 +418,7 @@ class MyAPI extends API
                     $columns[] = array('title' => 'Size');
                     $columns[] = array('title' => 'File Count');
                     $columnsDefs[] = array('type' => 'file-size', 'targets' => 1);
-                    $req = $db->prepare("SELECT $content_requested AS sstatus, SUM(size) AS ssize, SUM(count) AS scount FROM ACCT_STAT $sqlfilter GROUP BY $content_requested;");
+                    $req = $db[$CURRENT_DB]->prepare("SELECT $content_requested AS sstatus, SUM(size) AS ssize, SUM(count) AS scount FROM ACCT_STAT $sqlfilter GROUP BY $content_requested;");
                     $req->execute($fullfilter[1]);
 
                     while($sqldata = $req->fetch()) {

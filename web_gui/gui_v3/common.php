@@ -10,6 +10,10 @@
  * accept its terms.
  */
 
+function is_assoc($var)
+{
+        return is_array($var) && array_diff_key($var,array_keys(array_keys($var)));
+}
 
 /**
  *
@@ -47,6 +51,9 @@ function endsWith($haystack, $needle) {
  */
 function formatSizeNumber( $number, $precision=2 )
 {
+    if ($number === 0)
+	return '0';
+
     $base = log($number, 1024);
     $suffixes = array('B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZT', 'YT');
 
@@ -63,12 +70,13 @@ function formatSizeNumber( $number, $precision=2 )
 function get_acct_columns($all=false) {
     global $FIELD_LIST;
     global $DB_LASTERROR;
-    global $DB_NAME;
+    global $DBA;
+    global $CURRENT_DB;
     global $db;
     $final = array();
-    if (!$db)
+    if (!$db[$CURRENT_DB])
         return $final;
-    $result = $db->query("select column_name from information_schema.columns where table_name = 'ACCT_STAT' AND TABLE_SCHEMA = '$DB_NAME';");
+    $result = $db[$CURRENT_DB]->query("select column_name from information_schema.columns where table_name = 'ACCT_STAT' AND TABLE_SCHEMA = '".$DBA[$CURRENT_DB]["DB_NAME"]."';");
     if ($result->rowCount() <1) {
         $DB_LASTERROR = 'Something goes wrong with db schema: ACCT_STAT doesn\'t exist';
         return $final;
@@ -103,6 +111,7 @@ function get_user()
     } else {
             $user = '$NOAUTH';
     }
+    $user = plugins_call("get_user", $user);
     return $user;
 }
 /**
@@ -282,7 +291,9 @@ function build_filter($args, $filter, $self='$SELF') {
 function build_advanced_filter($args, $access = '$SELF', $table, $join = false) {
     global $db;
     global $DB_LASTERROR;
-    global $DB_NAME;
+    global $DBA;
+    global $CURRENT_DB;
+
     $shortcuts = array();
     $fields = array();
     $select = array();
@@ -316,7 +327,7 @@ function build_advanced_filter($args, $access = '$SELF', $table, $join = false) 
     if ($join)
         $ttable = $ttable." OR table_name='$join'";
 
-    $result = $db->query("SELECT column_name,column_type,table_name FROM information_schema.columns WHERE ($ttable) AND TABLE_SCHEMA = '$DB_NAME';");
+    $result = $db[$CURRENT_DB]->query("SELECT column_name,column_type,table_name FROM information_schema.columns WHERE ($ttable) AND TABLE_SCHEMA = '".$DBA[$CURRENT_DB]["DB_NAME"]."';");
     if ($result->rowCount() <1) {
         $DB_LASTERROR = 'Something goes wrong with db schema: $TABLE doesn\'t exist';
         exit;
@@ -573,4 +584,24 @@ function callGraph() {
     }
     $js.= "</script>\n";
     return $js;
+}
+
+
+/**
+ *
+ * Return DBs from type
+ *
+ * @param string filter
+ * @return list of db name
+ */
+function getDB($filter)
+{
+    global $DBA;
+    $result = array();
+    foreach ($DBA as $k=>$v) {
+	if (in_array($filter,$v["DB_USAGE"])) {
+		array_push($result,$k);
+	}
+    }
+    return $result;
 }
