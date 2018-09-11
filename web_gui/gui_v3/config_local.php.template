@@ -21,13 +21,14 @@ You can redefine any of the parameter from config.php.
 *        Database            *
 *****************************/
 
-//Support at least mysql/pgsql/sqlite
-$DB_TYPE     = "mysql";
-$DB_HOST     = "localhost";
-$DB_NAME     = "";
-$DB_USER     = "";
-$DB_PASSWD   = "";
-
+$DBA[$DEFAULT_DB] = [
+"DB_TYPE"     => "mysql",
+"DB_HOST"     => "localhost",
+"DB_NAME"     => "",
+"DB_USER"     => "",
+"DB_PASSWD"   => "",
+"DB_USAGE"    => array("data","config"),
+];
 
 /*****************************
 *        Access              *
