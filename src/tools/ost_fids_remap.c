@@ -22,7 +22,8 @@
 
 #include <stdio.h>
 #include <sys/types.h>
-#include <attr/xattr.h>
+#include <sys/xattr.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <sys/param.h>
 #include <search.h>
