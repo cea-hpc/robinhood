@@ -15,7 +15,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <linux/limits.h>
-#include <attr/xattr.h>
+#include <sys/xattr.h>
 
 #include "lustre_extended_types.h"
 

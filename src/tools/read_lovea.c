@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <sys/types.h>
-#include <attr/xattr.h>
+#include <sys/xattr.h>
 #include "lustre_extended_types.h"
 
 static const char * pattern2str(uint32_t pattern)
