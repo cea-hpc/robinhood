@@ -20,7 +20,7 @@
 
 #include <stdio.h>
 #include <sys/types.h>
-#include <attr/xattr.h>
+#include <sys/xattr.h>
 #include <stdlib.h>
 #include <sys/param.h>
 

@@ -386,7 +386,7 @@ fi # end of Lustre support
 AC_SUBST(DV_CMD)
 AC_SUBST(INPUT_OPT)
 
-AC_CHECK_HEADERS([attr/xattr.h],[],[AC_MSG_ERROR([libattr-devel is not installed.])])
+AC_CHECK_HEADERS([sys/xattr.h],[],[AC_MSG_ERROR([glibc-devel is not installed.])])
 
 AC_CHECK_LIB([pthread], [pthread_getsequence_np], [have_pthread_getsequence_np="yes"],[have_pthread_getsequence_np="no"])
     test "x$have_pthread_getsequence_np" = "xyes" && AC_DEFINE(HAVE_PTHREAD_GETSEQUENCE_NP, 1, [pthread_getsequence_np function exists])

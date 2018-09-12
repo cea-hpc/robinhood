@@ -31,7 +31,7 @@
 #include <stdbool.h>
 #include <glib.h>
 #include <sys/types.h>
-#include <attr/xattr.h>
+#include <sys/xattr.h>
 
 /* config block name */
 #define LHSM_BLOCK "lhsm_config"
