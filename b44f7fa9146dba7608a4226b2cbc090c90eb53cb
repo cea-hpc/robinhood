@@ -22,6 +22,30 @@
       "revId": "b44f7fa9146dba7608a4226b2cbc090c90eb53cb",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "a06704e9_1c88cca3",
+        "filename": "web_gui/gui_v3/plugins/ldapauth/plugin.php",
+        "patchSetId": 1
+      },
+      "lineNbr": 127,
+      "author": {
+        "id": 1008417
+      },
+      "writtenOn": "2018-09-14T06:53:16Z",
+      "side": 0,
+      "message": "Done",
+      "parentUuid": "a2d6508e_638ac155",
+      "range": {
+        "startLine": 127,
+        "startChar": 42,
+        "endLine": 127,
+        "endChar": 50
+      },
+      "revId": "b44f7fa9146dba7608a4226b2cbc090c90eb53cb",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
