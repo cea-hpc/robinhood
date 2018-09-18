@@ -1,0 +1,67 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "71897c91_9417fa6c",
+        "filename": "web_gui/gui_v3/README.txt",
+        "patchSetId": 4
+      },
+      "lineNbr": 352,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-09-18T13:10:42Z",
+      "side": 1,
+      "message": "un-homogeneous indentation (tabs then spaces)",
+      "range": {
+        "startLine": 350,
+        "startChar": 1,
+        "endLine": 352,
+        "endChar": 12
+      },
+      "revId": "d4b65b1b4aea70ec2b4c16cb7058f59603f2ab5a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "89718150_3fdaf6cf",
+        "filename": "web_gui/gui_v3/plugins/customgraph/script.js",
+        "patchSetId": 4
+      },
+      "lineNbr": 133,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-09-18T13:10:42Z",
+      "side": 1,
+      "message": "space at end of line\n(+ others in this files)",
+      "revId": "d4b65b1b4aea70ec2b4c16cb7058f59603f2ab5a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "573d45a2_baa54ce3",
+        "filename": "web_gui/gui_v3/plugins/tasks/script.js",
+        "patchSetId": 4
+      },
+      "lineNbr": 86,
+      "author": {
+        "id": 1003874
+      },
+      "writtenOn": "2018-09-18T13:10:42Z",
+      "side": 1,
+      "message": "space",
+      "range": {
+        "startLine": 86,
+        "startChar": 0,
+        "endLine": 86,
+        "endChar": 16
+      },
+      "revId": "d4b65b1b4aea70ec2b4c16cb7058f59603f2ab5a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    }
+  ]
+}
