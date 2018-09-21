@@ -22,6 +22,30 @@
       "revId": "fadbed03e41066d40ea4e1213c7a2ebe35c84f08",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "0fe93f82_2836e1c5",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1190,
+      "author": {
+        "id": 1014483
+      },
+      "writtenOn": "2018-09-21T23:29:19Z",
+      "side": 1,
+      "message": "Sorry about this. I may have made a mistake when rebasing against current master, or I may have picked the change from a development branch created by the original patch author. I replaced this with LVL_DEBUG in the updated patch version.",
+      "parentUuid": "ecfddee8_8e3971ca",
+      "range": {
+        "startLine": 1190,
+        "startChar": 20,
+        "endLine": 1190,
+        "endChar": 25
+      },
+      "revId": "fadbed03e41066d40ea4e1213c7a2ebe35c84f08",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
     }
   ]
 }
