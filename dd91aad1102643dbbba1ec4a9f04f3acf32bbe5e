@@ -25,6 +25,30 @@
     },
     {
       "key": {
+        "uuid": "8fd6c4dd_0d4446b6",
+        "filename": "src/list_mgr/listmgr_get.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 54,
+      "author": {
+        "id": 1014483
+      },
+      "writtenOn": "2018-09-21T21:09:21Z",
+      "side": 1,
+      "message": "Done; thanks!\n\nUnfortunately, I have not been able to test this patchset version, due to problems with my test setup; I will try again, though, and post any updates here.\n\nBtw, are error return values from ListMgr_Exists() handled correctly? E.g., if mysql_error_convert() in _db_exec_sql() returns DB_REQUEST_FAILED, this is returned from ListMgr_Exists() and assigned to p_op-\u003edb_exists, which is a bitfield and is assigned \u00271\u0027. I have not looked at this part of the code closely, though, so I could be wrong.",
+      "parentUuid": "fdf808a4_cd125d25",
+      "range": {
+        "startLine": 54,
+        "startChar": 7,
+        "endLine": 54,
+        "endChar": 23
+      },
+      "revId": "dd91aad1102643dbbba1ec4a9f04f3acf32bbe5e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
         "uuid": "7cd3dd77_29d165e6",
         "filename": "src/list_mgr/listmgr_get.c",
         "patchSetId": 2
@@ -39,6 +63,24 @@
       "revId": "dd91aad1102643dbbba1ec4a9f04f3acf32bbe5e",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "03d1b6a5_85ec64b5",
+        "filename": "src/list_mgr/listmgr_get.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 68,
+      "author": {
+        "id": 1014483
+      },
+      "writtenOn": "2018-09-21T21:09:21Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "7cd3dd77_29d165e6",
+      "revId": "dd91aad1102643dbbba1ec4a9f04f3acf32bbe5e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     },
     {
       "key": {
@@ -59,6 +101,24 @@
     },
     {
       "key": {
+        "uuid": "dbb83c18_2c4780b3",
+        "filename": "src/list_mgr/listmgr_get.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 460,
+      "author": {
+        "id": 1014483
+      },
+      "writtenOn": "2018-09-21T21:09:21Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "376bfc14_40603931",
+      "revId": "dd91aad1102643dbbba1ec4a9f04f3acf32bbe5e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "fc87d194_22ac12ef",
         "filename": "src/list_mgr/listmgr_get.c",
         "patchSetId": 2
@@ -73,6 +133,24 @@
       "revId": "dd91aad1102643dbbba1ec4a9f04f3acf32bbe5e",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "bf6e10cf_1fdd4ef9",
+        "filename": "src/list_mgr/listmgr_get.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 490,
+      "author": {
+        "id": 1014483
+      },
+      "writtenOn": "2018-09-21T21:09:21Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "fc87d194_22ac12ef",
+      "revId": "dd91aad1102643dbbba1ec4a9f04f3acf32bbe5e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
