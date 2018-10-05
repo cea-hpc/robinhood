@@ -324,7 +324,7 @@ static inline bool is_shell_special(char c)
     return false;
 }
 
-#define is_allowed_char(_c) (isprint(_c) && !isspace(_c) \
+#define is_allowed_char(_c) (isprint(_c) && isascii(_c) && !isspace(_c) \
                              && !is_shell_special(_c))
 
 /* clean non printable characters, spaces, special chars, ... */
