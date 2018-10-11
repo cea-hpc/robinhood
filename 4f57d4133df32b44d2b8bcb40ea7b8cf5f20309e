@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "d17bd36b_4cc9ebfa",
+        "filename": "src/list_mgr/listmgr_remove.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 886,
+      "author": {
+        "id": 1011072
+      },
+      "writtenOn": "2018-10-11T10:50:54Z",
+      "side": 1,
+      "message": "this if is required to avoid assert on next else if, none is not a valid table index for order by.",
+      "range": {
+        "startLine": 886,
+        "startChar": 0,
+        "endLine": 886,
+        "endChar": 5
+      },
+      "revId": "4f57d4133df32b44d2b8bcb40ea7b8cf5f20309e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    }
+  ]
+}
