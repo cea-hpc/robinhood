@@ -2295,7 +2295,7 @@ static void report_deferred_rm(int flags)
     sort.attr_index = ATTR_INDEX_rm_time;
     sort.order = REVERSE(flags) ? SORT_DESC : SORT_ASC;
 
-    rmlist = ListMgr_RmList(&lmgr, is_filter ? &filter : NULL, &sort);
+    rmlist = ListMgr_RmList(&lmgr, is_filter ? &filter : NULL, &sort, NULL);
 
     lmgr_simple_filter_free(&filter);
 

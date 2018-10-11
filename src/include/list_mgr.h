@@ -736,7 +736,8 @@ int ListMgr_SoftRemove_Discard(lmgr_t *p_mgr, const entry_id_t *p_id);
  * Selecting 'expired' entries is done using an rm_time criteria in p_filter
  */
 struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *filter,
-                                      const lmgr_sort_type_t *p_sort_type);
+                                      const lmgr_sort_type_t *p_sort_type,
+                                      const lmgr_iter_opt_t *p_opt);
 
 /**
  * Get next entry to be removed.
