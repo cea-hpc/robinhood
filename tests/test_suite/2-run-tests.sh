@@ -10108,6 +10108,52 @@ function test_hsm_remove_order
     return 0
 }
 
+function test_hsm_remove_limit
+{
+    if [[ $is_lhsm == 0 ]] ; then
+        echo "Lustre/HSM test only: skipped"
+        set_skipped
+        return 1
+    fi
+
+    config_file=$1
+    my_log_file=rh_hsm_remove.log
+    rm -f $my_log_file
+
+    # need full scan first, even if FS is empty
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once 2>&1 > /dev/null
+
+    # run hsm_remove
+    $RH -f $RBH_CFG_DIR/$config_file --run=lhsm_remove -O -l FULL -L $my_log_file 2>&1 > /dev/null
+    if [[ $? -ne 0 ]] ; then
+        error "Robinhood run error"
+    fi
+
+    grep "SELECT" $my_log_file | grep "SOFT_RM" | grep "LIMIT" > /dev/null
+    LIMITRC=$?
+    cat $my_log_file
+    rm -vf $my_log_file
+
+    echo "$config_file" | grep "nolimit" > /dev/null
+    CFGRC=$?
+
+    if [[ ${CFGRC} -eq 0 ]] && [[ ${LIMITRC} -ne 0 ]] ; then
+        # OK
+        return 0
+    elif [[ ${CFGRC} -ne 0 ]] && [[ ${LIMITRC} -eq 0 ]] ; then
+        # OK
+        return 0
+    elif [[ ${CFGRC} -eq 0 ]] && [[ ${LIMITRC} -eq 0 ]] ; then
+      # error
+        error "Unexpected LIMIT found in SOFT_RM select"
+    else
+      # error
+        error "LIMIT not found in SOFT_RM select"
+    fi
+
+    return 0
+}
+
 function test_multirule_select
 {
     # test doesnt work for POSIX as there are harcoded /mnt/lustre path in
@@ -13483,6 +13529,8 @@ run_test 245   test_move        test_move.conf "test trash policy based on commo
 run_test 246   test_hsm_invalidate test_hsm_invalidate.conf "HSM invalidate deleted files"
 run_test 247a   test_hsm_remove_order  test_hsm_remove_order.conf "hsm_remove default order by"
 run_test 247b   test_hsm_remove_order  test_hsm_remove_noorder.conf "hsm_remove override order by"
+run_test 248a   test_hsm_remove_limit  test_hsm_remove_nolimit.conf "hsm_remove default select no limits"
+run_test 248b   test_hsm_remove_limit  test_hsm_remove_limit.conf "hsm_remove limit DB result rows"
 
 #### triggers ####
 

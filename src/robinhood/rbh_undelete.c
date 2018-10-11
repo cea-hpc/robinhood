@@ -274,7 +274,7 @@ static int list_rm(void)
         mk_path_filter(&filter, false, &filter_init);
 
         /* list all deferred rm */
-        rm_list = ListMgr_RmList(&lmgr, filter_init ? &filter : NULL, NULL);
+        rm_list = ListMgr_RmList(&lmgr, filter_init ? &filter : NULL, NULL, NULL);
 
         if (filter_init)
             lmgr_simple_filter_free(&filter);
@@ -417,7 +417,7 @@ static int undelete(void)
         mk_path_filter(&filter, false, &filter_init);
 
         /* list files to be recovered */
-        list = ListMgr_RmList(&lmgr, filter_init ? &filter : NULL, NULL);
+        list = ListMgr_RmList(&lmgr, filter_init ? &filter : NULL, NULL, NULL);
 
         if (filter_init)
             lmgr_simple_filter_free(&filter);
