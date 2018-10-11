@@ -877,11 +877,14 @@ struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *p_filter,
         }
     }
 
-    /* is there a sort order ? */
-    if (p_sort_type == NULL || p_sort_type->order == SORT_NONE)
+    /* is there a sort order ? add default order only if not specified, do not add order by if if none is set */
+    if (p_sort_type == NULL)
     {
         /* default is rm_time */
         g_string_append(req, " ORDER BY rm_time ASC");
+    }
+    else if (p_sort_type->order == SORT_NONE) {
+        // do nothing
     }
     else if (!is_softrm_field(p_sort_type->attr_index))
     {
