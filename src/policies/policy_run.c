@@ -1525,7 +1525,7 @@ static inline int iter_open(lmgr_t *lmgr,
         break;
 
     case IT_RMD:
-        it->it.rmd_iter = ListMgr_RmList(lmgr, filter, sort_type);
+        it->it.rmd_iter = ListMgr_RmList(lmgr, filter, sort_type, opt);
         if (it->it.rmd_iter == NULL)
             return DB_REQUEST_FAILED;
         break;
@@ -1959,9 +1959,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
 
     /* Do not retrieve all entries at once, as the result may exceed
      * the client memory! */
-    /* Except for SOFT_RM: we can't split the result as it has no md_update field. */
-    if (!p_pol_info->descr->manage_deleted)
-        opt.list_count_max = p_pol_info->config->db_request_limit;
+    opt.list_count_max = p_pol_info->config->db_request_limit;
     nb_returned = 0;
     total_returned = 0;
 

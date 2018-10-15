@@ -838,7 +838,8 @@ typedef struct lmgr_rm_list_t
 
 /* XXX selecting 'expired' entries is done using a rm_time criteria in p_filter */
 struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *p_filter,
-                                      const lmgr_sort_type_t *p_sort_type)
+                                      const lmgr_sort_type_t *p_sort_type,
+                                      const lmgr_iter_opt_t *p_opt)
 {
     int             rc, nb;
     lmgr_rm_list_t *p_list = MemAlloc(sizeof(lmgr_rm_list_t));
@@ -902,6 +903,11 @@ struct lmgr_rm_list_t *ListMgr_RmList(lmgr_t *p_mgr, lmgr_filter_t *p_filter,
         g_string_append_printf(req, " ORDER BY %s %s",
                                field_name(p_sort_type->attr_index),
                                p_sort_type->order == SORT_ASC ? "ASC" : "DESC");
+    }
+
+    // Add limit to query result
+    if (p_opt && p_opt->list_count_max > 0) {
+        g_string_append_printf(req, " LIMIT %d", p_opt->list_count_max);
     }
 
     p_list->p_mgr = p_mgr;
