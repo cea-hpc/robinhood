@@ -10073,6 +10073,51 @@ function test_hsm_invalidate
     return 0
 }
 
+function test_hsm_remove_order
+{
+    if [[ $is_lhsm == 0 ]] ; then
+        echo "Lustre/HSM test only: skipped"
+        set_skipped
+        return 1
+    fi
+
+    config_file=$1
+    my_log_file=rh_hsm_remove.log
+    rm -f $my_log_file
+
+    # test_hsm_remove_noorder.conf
+    # test_hsm_remove_order.conf
+
+    # need full scan first, even if FS is empty
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once 2>&1 > /dev/null
+
+    # run hsm_remove
+    $RH -f $RBH_CFG_DIR/$config_file --run=lhsm_remove -O -l FULL -L $my_log_file 2>&1 > /dev/null
+
+    grep "SELECT" $my_log_file | grep "SOFT_RM" | grep "ORDER BY" > /dev/null
+    ORDERRC=$?
+    rm -f $my_log_file
+
+    echo "$config_file" | grep "noorder" > /dev/null
+    CFGRC=$?
+
+    if [[ ${CFGRC} -eq 0 ]] && [[ ${ORDERRC} -ne 0 ]] ; then
+        # OK
+        return 0
+    elif [[ ${CFGRC} -ne 0 ]] && [[ ${ORDERRC} -eq 0 ]] ; then
+        # OK
+        return 0
+    elif [[ ${CFGRC} -eq 0 ]] && [[ ${ORDERRC} -eq 0 ]] ; then
+      # error
+        error "Unexpected ORDER BY found in SOFT_RM select"
+    else
+      # error
+        error "ORDER BY not found in SOFT_RM select"
+    fi
+
+    return 0
+}
+
 function test_multirule_select
 {
     # test doesnt work for POSIX as there are harcoded /mnt/lustre path in
@@ -13446,6 +13491,8 @@ run_test 243   test_iname       test_iname.conf "test iname criterion"
 run_test 244   test_copy        test_copy.conf "test common.copy specific parameters"
 run_test 245   test_move        test_move.conf "test trash policy based on common.move"
 run_test 246   test_hsm_invalidate test_hsm_invalidate.conf "HSM invalidate deleted files"
+run_test 247a   test_hsm_remove_order  test_hsm_remove_order.conf "hsm_remove default order by"
+run_test 247b   test_hsm_remove_order  test_hsm_remove_noorder.conf "hsm_remove override order by"
 
 #### triggers ####
 
