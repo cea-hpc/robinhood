@@ -90,6 +90,8 @@ Robinhood needs a MySQL database for storing information about files.
 This database can run on a different node from Robinhood daemon.
 
 * Install MySQL server on the machine (mysql-server and mysql packages).
+    * RHEL6: yum install mysql-server
+    * RHEL7: yum install mariadb-server mariadb-devel
 * Start the DB engine:
     * RHEL6: service mysqld start
     * RHEL7: systemctl start mariadb
