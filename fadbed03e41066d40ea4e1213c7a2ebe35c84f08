@@ -2,6 +2,52 @@
   "comments": [
     {
       "key": {
+        "uuid": "64a561cc_9d6beb74",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1083,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "Is this still code we want to keep? @tl-cea?",
+      "range": {
+        "startLine": 1074,
+        "startChar": 8,
+        "endLine": 1083,
+        "endChar": 9
+      },
+      "revId": "fadbed03e41066d40ea4e1213c7a2ebe35c84f08",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "620df434_4500bd6a",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1153,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "same as l.1074",
+      "range": {
+        "startLine": 1146,
+        "startChar": 4,
+        "endLine": 1153,
+        "endChar": 5
+      },
+      "revId": "fadbed03e41066d40ea4e1213c7a2ebe35c84f08",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
         "uuid": "ecfddee8_8e3971ca",
         "filename": "src/chglog_reader/chglog_reader.c",
         "patchSetId": 1
@@ -42,6 +88,29 @@
         "startChar": 20,
         "endLine": 1190,
         "endChar": 25
+      },
+      "revId": "fadbed03e41066d40ea4e1213c7a2ebe35c84f08",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "dbf4c114_8ec9aace",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1218,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "(style) @tl-cea will have to advise on this, but the preferred coding style might be:\n\nswitch (cond) {\ncase A:\n    break;\ndefault:\n    break;\n}\n\nie. the case and switch keywords are aligned.",
+      "range": {
+        "startLine": 1218,
+        "startChar": 4,
+        "endLine": 1218,
+        "endChar": 8
       },
       "revId": "fadbed03e41066d40ea4e1213c7a2ebe35c84f08",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",

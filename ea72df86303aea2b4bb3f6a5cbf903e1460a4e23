@@ -1,0 +1,389 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "6a94d6d7_9ad90c3c",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1030,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "(style) I find it a bit confusing. How about \"create_and_insert_fake_unlink_into_hash\"?",
+      "range": {
+        "startLine": 1030,
+        "startChar": 12,
+        "endLine": 1030,
+        "endChar": 47
+      },
+      "revId": "ea72df86303aea2b4bb3f6a5cbf903e1460a4e23",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "63bf738b_0a2f595a",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1033,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "(style) use a single space please",
+      "range": {
+        "startLine": 1033,
+        "startChar": 15,
+        "endLine": 1033,
+        "endChar": 17
+      },
+      "revId": "ea72df86303aea2b4bb3f6a5cbf903e1460a4e23",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "71f3b60f_4fe5ade0",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1034,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "(style) use a single space please",
+      "range": {
+        "startLine": 1034,
+        "startChar": 16,
+        "endLine": 1034,
+        "endChar": 18
+      },
+      "revId": "ea72df86303aea2b4bb3f6a5cbf903e1460a4e23",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "f3f6f6a7_b8cf17f6",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1037,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "(nitpick) I think this check should rather surround the call to fake_unlink_create_insert_into_hash().",
+      "range": {
+        "startLine": 1036,
+        "startChar": 4,
+        "endLine": 1037,
+        "endChar": 15
+      },
+      "revId": "ea72df86303aea2b4bb3f6a5cbf903e1460a4e23",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "48090c5b_c46dc2d2",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1049,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "(minor) this function always returns 0, and its return code is never checked.",
+      "range": {
+        "startLine": 1049,
+        "startChar": 7,
+        "endLine": 1049,
+        "endChar": 10
+      },
+      "revId": "ea72df86303aea2b4bb3f6a5cbf903e1460a4e23",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "8eb22738_6663c8eb",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1111,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "(minor) p_rec2 might be NULL, please add a check about it.",
+      "range": {
+        "startLine": 1110,
+        "startChar": 8,
+        "endLine": 1111,
+        "endChar": 56
+      },
+      "revId": "ea72df86303aea2b4bb3f6a5cbf903e1460a4e23",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "d619a2b0_bdf9a2da",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1122,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "(style) put \"else\" on the line above please",
+      "revId": "ea72df86303aea2b4bb3f6a5cbf903e1460a4e23",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "837560b6_e3eb2df4",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1132,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "(minor) this function always returns 0, and its return code is never checked.",
+      "range": {
+        "startLine": 1132,
+        "startChar": 7,
+        "endLine": 1132,
+        "endChar": 10
+      },
+      "revId": "ea72df86303aea2b4bb3f6a5cbf903e1460a4e23",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "d61c09ce_63c22a6e",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1143,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "(nitpick) arguably, this could be \"return 0;\"",
+      "range": {
+        "startLine": 1143,
+        "startChar": 8,
+        "endLine": 1143,
+        "endChar": 18
+      },
+      "revId": "ea72df86303aea2b4bb3f6a5cbf903e1460a4e23",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "a30cbc14_9984fb75",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1193,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "(style) remove this space please",
+      "range": {
+        "startLine": 1193,
+        "startChar": 26,
+        "endLine": 1193,
+        "endChar": 27
+      },
+      "revId": "ea72df86303aea2b4bb3f6a5cbf903e1460a4e23",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "d0c234d8_731239e0",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1195,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "(style) remove this space please",
+      "range": {
+        "startLine": 1195,
+        "startChar": 34,
+        "endLine": 1195,
+        "endChar": 35
+      },
+      "revId": "ea72df86303aea2b4bb3f6a5cbf903e1460a4e23",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "a78675e5_c5e06f79",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1197,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "(style) remove this space please",
+      "range": {
+        "startLine": 1197,
+        "startChar": 19,
+        "endLine": 1197,
+        "endChar": 20
+      },
+      "revId": "ea72df86303aea2b4bb3f6a5cbf903e1460a4e23",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "cadfb31d_56389880",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1198,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "...",
+      "range": {
+        "startLine": 1198,
+        "startChar": 19,
+        "endLine": 1198,
+        "endChar": 20
+      },
+      "revId": "ea72df86303aea2b4bb3f6a5cbf903e1460a4e23",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "5c340dd0_740950c2",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1199,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "...",
+      "range": {
+        "startLine": 1199,
+        "startChar": 25,
+        "endLine": 1199,
+        "endChar": 26
+      },
+      "revId": "ea72df86303aea2b4bb3f6a5cbf903e1460a4e23",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "858fd5c9_d699dac4",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1199,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "...",
+      "range": {
+        "startLine": 1199,
+        "startChar": 19,
+        "endLine": 1199,
+        "endChar": 20
+      },
+      "revId": "ea72df86303aea2b4bb3f6a5cbf903e1460a4e23",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "241e0d01_7f101e59",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1212,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "(nitpick) arguably, this could be \"return 0;\"",
+      "range": {
+        "startLine": 1212,
+        "startChar": 8,
+        "endLine": 1212,
+        "endChar": 18
+      },
+      "revId": "ea72df86303aea2b4bb3f6a5cbf903e1460a4e23",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "dcdef32a_daa8d59c",
+        "filename": "src/chglog_reader/chglog_reader.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1215,
+      "author": {
+        "id": 1010215
+      },
+      "writtenOn": "2018-11-22T22:20:40Z",
+      "side": 1,
+      "message": "...",
+      "range": {
+        "startLine": 1215,
+        "startChar": 31,
+        "endLine": 1215,
+        "endChar": 32
+      },
+      "revId": "ea72df86303aea2b4bb3f6a5cbf903e1460a4e23",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": true
+    }
+  ]
+}
