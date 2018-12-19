@@ -150,7 +150,11 @@ static int sched_tbf_schedule(void *sched_data, const entry_id_t *id,
     diff = timediff(&state->refill, &now);
     if (diff >= state->cfg.refill_period) {
         state->count_tokens = state->cfg.count_capacity;
-        state->size_tokens = state->cfg.size_capacity;
+        state->size_tokens += state->cfg.size_capacity;
+
+        if (state->size_tokens > state->cfg.size_capacity)
+            state->size_tokens = state->cfg.size_capacity;
+
         state->refill = now;
     }
     pthread_rwlock_unlock(&state->rwlock);
@@ -236,7 +240,7 @@ static int sched_tbf_cfg_read_from_block(config_item_t parent, void *cfg,
     const cfg_param_t tbf_params[] = {
         {"max_count", PT_INT, PFLG_POSITIVE, &conf->count_capacity, 0},
         {"max_size", PT_SIZE, PFLG_POSITIVE, &conf->size_capacity, 0},
-        {"period",   PT_INT,  PFLG_POSITIVE | PFLG_NOT_NULL,
+        {"period_ms",   PT_INT,  PFLG_POSITIVE | PFLG_NOT_NULL,
                      &conf->refill_period, 0},
         END_OF_PARAMS
     };
