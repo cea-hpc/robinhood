@@ -26,6 +26,7 @@
  */
 #define TBF_DEFAULT_CAPACITY 100
 #define TBF_DEFAULT_SIZE     0 /* unlimited */
+#define TBF_DEFAULT_MAX_WAIT_COUNTS     3600 /* unlimited */
 
 /**
  * Default period (in milliseconds) between two consecutive refills.
@@ -40,6 +41,7 @@ typedef struct sched_tbf_config {
     int     count_capacity;
     int64_t size_capacity;
     int     refill_period;
+    int     max_wait_counts;
 } sched_tbf_config_t;
 
 /** internal state for TBF rate limiter */
@@ -48,6 +50,7 @@ struct sched_tbf_state {
     pthread_rwlock_t    rwlock;
     struct timespec     refill;
     int                 count_tokens;
+    int                 wait_counts;
     int64_t             size_tokens;
 };
 
@@ -88,6 +91,7 @@ static int sched_tbf_init(void *config, void **p_sched_data)
     state->cfg = *cfg;
     state->count_tokens = TBF_DEFAULT_CAPACITY;
     state->size_tokens = TBF_DEFAULT_SIZE;
+    state->wait_counts = TBF_DEFAULT_MAX_WAIT_COUNTS;
 
     *p_sched_data = state;
 
@@ -106,6 +110,7 @@ static int sched_tbf_reset(void *sched_data)
     pthread_rwlock_wrlock(&state->rwlock);
     state->count_tokens = state->cfg.count_capacity;
     state->size_tokens = state->cfg.size_capacity;
+    state->wait_counts = state->cfg.max_wait_counts;
     getclock(&now);
     state->refill = now;
     pthread_rwlock_unlock(&state->rwlock);
@@ -134,6 +139,7 @@ static int sched_tbf_schedule(void *sched_data, const entry_id_t *id,
     struct sched_tbf_state *state = sched_data;
     struct timespec now;
     long diff;
+    bool force_release = false;
 
     getclock(&now);
 
@@ -150,30 +156,47 @@ static int sched_tbf_schedule(void *sched_data, const entry_id_t *id,
     diff = timediff(&state->refill, &now);
     if (diff >= state->cfg.refill_period) {
         state->count_tokens = state->cfg.count_capacity;
-        state->size_tokens = state->cfg.size_capacity;
+        state->size_tokens += state->cfg.size_capacity;
+
+        if (state->size_tokens > state->cfg.size_capacity)
+            state->size_tokens = state->cfg.size_capacity;
+
+        if (state->cfg.max_wait_counts > 0 && state->wait_counts <= 0) {
+            force_release = true;
+            DisplayLog(LVL_DEBUG, SCHED_NAME,
+                      "Delayed too many actions, releasing scheduler");
+        }
+
         state->refill = now;
     }
     pthread_rwlock_unlock(&state->rwlock);
 
 proceed:
     /* check if configured limits are reached */
-    if ((state->cfg.count_capacity > 0) && (state->count_tokens <= 0)) {
+    if (!force_release && (state->cfg.count_capacity > 0)
+        && (state->count_tokens <= 0)) {
         DisplayLog(LVL_DEBUG, SCHED_NAME,
                   "Throttling after %d actions per %dms happened",
                   state->cfg.count_capacity, state->cfg.refill_period);
+        ATOMIC_DEC(state->wait_counts, 1) ;
         return SCHED_DELAY;
     }
 
-    if ((state->cfg.size_capacity > 0) && (state->size_tokens <= 0)) {
+    if (!force_release && (state->cfg.size_capacity > 0)
+        && (state->size_tokens <= 0)) {
         char buf[128];
 
         FormatFileSize(buf, sizeof(buf), state->cfg.size_capacity);
         DisplayLog(LVL_DEBUG, SCHED_NAME,
                   "Throttling after %s per %dms happened", buf,
                   state->cfg.refill_period);
+        ATOMIC_DEC(state->wait_counts, 1) ;
         return SCHED_DELAY;
     }
 
+    pthread_rwlock_wrlock(&state->rwlock);
+    state->wait_counts = state->cfg.max_wait_counts;
+    pthread_rwlock_unlock(&state->rwlock);
     /* Enough credits, invoke the action callback */
     if (state->cfg.count_capacity > 0)
         ATOMIC_DEC(state->count_tokens, 1);
@@ -211,6 +234,7 @@ static void sched_tbf_cfg_write_default(int indent, FILE *output)
     print_line(output, indent + 1, "max_size:   0 (unlimited)");
     print_line(output, indent + 1, "period_ms:  %d",
                TBF_DEFAULT_REFILL_PERIOD_MS);
+    print_line(output, indent + 1, "max_waits:   0 (unlimited)");
     print_end_block(output, indent);
 }
 
@@ -223,6 +247,8 @@ static void sched_tbf_cfg_write_template(int indent, FILE *output)
     print_line(output, indent + 1, "max_size  = 10GB;");
     print_line(output, indent + 1, "# refill period in milliseconds");
     print_line(output, indent + 1, "period_ms = 5000;");
+    print_line(output, indent + 1, "# Max waits count, to avoid timeouts");
+    print_line(output, indent + 1, "max_waits = 3600;");
     print_end_block(output, indent);
 }
 
@@ -232,12 +258,14 @@ static int sched_tbf_cfg_read_from_block(config_item_t parent, void *cfg,
 {
     sched_tbf_config_t *conf = cfg;
     static const char *const allowed_params[] = { "max_count", "max_size",
-                                                  "period_ms", NULL };
+                                                  "period_ms", "max_waits",
+                                                  NULL };
     const cfg_param_t tbf_params[] = {
         {"max_count", PT_INT, PFLG_POSITIVE, &conf->count_capacity, 0},
         {"max_size", PT_SIZE, PFLG_POSITIVE, &conf->size_capacity, 0},
-        {"period",   PT_INT,  PFLG_POSITIVE | PFLG_NOT_NULL,
+        {"period_ms",   PT_INT,  PFLG_POSITIVE | PFLG_NOT_NULL,
                      &conf->refill_period, 0},
+        {"max_waits", PT_INT, PFLG_POSITIVE, &conf->max_wait_counts, 0},
         END_OF_PARAMS
     };
     config_item_t block;
