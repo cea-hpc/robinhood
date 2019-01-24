@@ -19,3 +19,4 @@ function install_hook
 
 install_hook git_prepare_hook prepare-commit-msg
 install_hook pre-commit pre-commit
+install_hook commit-msg commit-msg
