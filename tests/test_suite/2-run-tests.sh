@@ -7066,7 +7066,7 @@ function test_diff_apply_fs # test diff --apply=fs in particular for entry recov
     diff find.out find2.out || error "unexpected differences between initial and final state"
 
 
-    lvers=$(cat /proc/fs/lustre/version | grep "lustre:" | awk '{print $2}' | cut -d '.' -f 1,2)
+    lvers=$(lustre_version | cut -d '.' -f 1,2)
     if [[ "$lvers" == "2.1" ]]; then
         # lovea and fid_remap must have been generated for newly created files
         [[ -f lovea ]] || error "lovea not generated"
