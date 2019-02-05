@@ -5341,13 +5341,17 @@ function wait_run_count
 {
     local log=$1
     local cnt=$2
+    local timeo=$3
 
     # wait for end of run
     while (( $(grep "End of current pass" $log | wc -l) < $cnt )); do
         echo "waiting end of pass..."
         sleep 1
+        ((timeo=$timeo - 1))
+        (($timeo == 0)) && return 1
         continue
     done
+    return 0
 }
 
 function test_periodic_trigger
@@ -5410,7 +5414,7 @@ function test_periodic_trigger
     clean_caches # blocks is cached
     # it first must have purged *.1 files (not others)
 
-    wait_run_count rh_purge.log 1
+    wait_run_count rh_purge.log 1 60 || error "pass timeout"
 
     # make sure the policy delay is not elapsed
     check_released "$RH_ROOT/file.1" || error "$RH_ROOT/file.1 should have been released after $delta s"
@@ -5430,7 +5434,7 @@ function test_periodic_trigger
     # now, *.2 must have been purged
     echo "3.2-checking trigger for second policy run..."
 
-    wait_run_count rh_purge.log 2
+    wait_run_count rh_purge.log 2 60 || error "pass timeout"
 
     t2=`date +%s`
     ((delta=$t2 - $t0))
@@ -5454,7 +5458,7 @@ function test_periodic_trigger
     # *.4 must be preserved
     echo "3.3-checking trigger for third policy..."
 
-    wait_run_count rh_purge.log 3
+    wait_run_count rh_purge.log 3 60 || error "pass timeout"
     t3=`date +%s`
     ((delta=$t3 - $t0))
 
