@@ -7004,8 +7004,8 @@ function test_diff_apply_fs # test diff --apply=fs in particular for entry recov
     # copy 2 instances /bin in the filesystem
     echo "Populating filesystem..."
     $LFS setstripe -c 2 $RH_ROOT/.
-    cp -ar /etc/. $RH_ROOT/bin.1 || error "copy failed"
-    cp -ar /etc/. $RH_ROOT/bin.2 || error "copy failed"
+    cp -ar . $RH_ROOT/bin.1 || error "copy failed"
+    cp -ar . $RH_ROOT/bin.2 || error "copy failed"
 
     # run initial scan
     echo "Initial scan..."
