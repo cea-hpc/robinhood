@@ -7012,7 +7012,7 @@ function test_diff_apply_fs # test diff --apply=fs in particular for entry recov
     $RH -f $RBH_CFG_DIR/$config_file --scan --once -l EVENT -L rh_scan.log  || error "performing initial scan"
 
     # save contents of bin.1
-    find $RH_ROOT/bin.1 -printf "%n %y %m %T@ %g %u %p %l\n" > find.out || error "find error"
+    find $RH_ROOT/bin.1 -printf "%n %y %m %T@ %g %u %p %l\n" | sort -k 7 > find.out || error "find error"
 
     # remove it
     echo "removing objects"
@@ -7023,21 +7023,27 @@ function test_diff_apply_fs # test diff --apply=fs in particular for entry recov
     sleep 1
 
     echo "running recovery..."
-    strace -f $DIFF -f $RBH_CFG_DIR/$config_file --apply=fs > diff.out 2> diff.log || error "rbh-diff error"
+    # clear umask for recovery
+    old_umask=$(umask)
+    umask 0000
+    strace -e open,mkdir -f $DIFF -f $RBH_CFG_DIR/$config_file --apply=fs > diff.out 2> diff.log || error "rbh-diff error"
+    umask "$old_umask"
 
     cr1=$(grep -E '^\+\+[^+]' diff.out | wc -l)
-    cr2=$(grep -E 'create|mkdir' diff.log | wc -l)
+    # recursive directory creation for files returns EEXIST, don't count it
+    cr2=$(grep -v EEXIST diff.log | grep -E "O_CREAT|mkdir" | wc -l)
     cr3=$(wc -l find.out | awk '{print $1}')
+    echo "diff would create $cr1 entries, $cr2 entries created, $cr3 entries initially in directory"
     rmhl=0
     if (($cr1 != $cr2)) || (($cr1 != $cr3)); then
         miss=0
         for h in $(grep "type=file" diff.out | grep -E "nlink=[^1]"| sed -e "s/.*nlink=\([0-9]*\),.*/\1/"); do
             ((miss=$h-1+$miss))
         done
-        echo "detected $miss missing hardlinks"
+        (( $miss > 0 )) && echo "detected $miss missing hardlinks"
         rmhl=1
         if (($cr3 == $cr1 + $miss)); then
-            echo "WARNING: $miss hardlinks not restored"
+            (( $miss > 0 )) && echo "WARNING: $miss hardlinks not restored"
         else
             error "Unexpected number of objects created: rbh-diff displayed $cr1, rbh-diff log indicates $cr2, expected $cr3 according to find"
         fi
@@ -7045,7 +7051,7 @@ function test_diff_apply_fs # test diff --apply=fs in particular for entry recov
         echo "OK: $cr1 objects created"
     fi
 
-    find $RH_ROOT/bin.1 -printf "%n %y %m %T@ %g %u %p %l\n" > find2.out || error "find error"
+    find $RH_ROOT/bin.1 -printf "%n %y %m %T@ %g %u %p %l\n" | sort -k 7 > find2.out || error "find error"
 
     if (($rmhl == 1)); then
         # remove file hardlinks from diff as their are erroneous
