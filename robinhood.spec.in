@@ -186,7 +186,7 @@ Tools for MDS recovery.
 %package tests
 Summary: Test suite for Robinhood
 Group: Applications/System
-Requires: robinhood robinhood-adm bc
+Requires: robinhood robinhood-adm bc strace
 # mariadb or mysql
 Requires: /usr/bin/mysql
 Release: @RELEASE@
