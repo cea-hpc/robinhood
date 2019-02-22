@@ -93,16 +93,58 @@ int Lustre_Init(void)
     return 0;
 }
 
+static void set_empty_stripe(stripe_info_t *p_stripe_info,
+                             stripe_items_t *p_stripe_items)
+{
+    if (p_stripe_info) {
+        memset(p_stripe_info, 0, sizeof(stripe_info_t));
+#ifdef HAVE_LLAPI_FSWAP_LAYOUTS
+        p_stripe_info->validator = VALID_NOSTRIPE;
+#endif
+    }
+
+    if (p_stripe_items)
+        memset(p_stripe_items, 0, sizeof(stripe_items_t));
+}
+
+
+
+/** copy object info to an allocated array of stripe_items */
+static void objects2stripe_items(stripe_items_t *stripe_items,
+                                 const struct lov_user_ost_data_v1 *objects,
+                                 int count)
+{
+    for (int i = 0; i < count; i++) {
+        stripe_items->stripe[i].ost_idx = objects[i].l_ost_idx;
+        stripe_items->stripe[i].ost_gen = objects[i].l_ost_gen;
+#ifdef HAVE_OBJ_ID
+        stripe_items->stripe[i].obj_id = objects[i].l_object_id;
+#ifdef HAVE_OBJ_SEQ
+        stripe_items->stripe[i].obj_seq = objects[i].l_object_seq;
+#else
+        stripe_items->stripe[i].obj_seq = objects[i].l_object_gr;
+#endif
+#else /* new structure (union of fid and id/seq) */
+        stripe_items->stripe[i].obj_id = objects[i].l_ost_oi.oi.oi_id;
+        stripe_items->stripe[i].obj_seq = objects[i].l_ost_oi.oi.oi_seq;
+#endif
+    }
+}
+
 /** Fill stripe info from lumv1 */
 static int stripe_info_lumv1(struct lov_user_md *lum,
                              stripe_info_t *stripe_info,
                              stripe_items_t *stripe_items)
 {
-    int i;
-
     if (stripe_info) {
         stripe_info->stripe_size = lum->lmm_stripe_size;
-        stripe_info->stripe_count = lum->lmm_stripe_count;
+
+        /* no stripe for released layouts */
+        if (lum->lmm_pattern & LOV_PATTERN_F_RELEASED)
+            stripe_info->stripe_count = 0;
+        else
+            stripe_info->stripe_count = lum->lmm_stripe_count;
+
         stripe_info->pool_name[0] = '\0';
 #ifdef HAVE_LLAPI_FSWAP_LAYOUTS
         stripe_info->validator = lum->lmm_layout_gen;
@@ -120,35 +162,13 @@ static int stripe_info_lumv1(struct lov_user_md *lum,
         return 0;
     }
 
-   stripe_items->count = lum->lmm_stripe_count;
-   stripe_items->stripe = MemCalloc(lum->lmm_stripe_count,
-                                    sizeof(stripe_item_t));
+    stripe_items->count = lum->lmm_stripe_count;
+    stripe_items->stripe = MemCalloc(lum->lmm_stripe_count,
+                                     sizeof(stripe_item_t));
     if (stripe_items->stripe == NULL)
         return -ENOMEM;
 
-    /* fill OST ids */
-    for (i = 0; i < lum->lmm_stripe_count; i++) {
-        stripe_items->stripe[i].ost_idx =
-            lum->lmm_objects[i].l_ost_idx;
-        stripe_items->stripe[i].ost_gen =
-            lum->lmm_objects[i].l_ost_gen;
-#ifdef HAVE_OBJ_ID
-        stripe_items->stripe[i].obj_id =
-            lum->lmm_objects[i].l_object_id;
-#ifdef HAVE_OBJ_SEQ
-        stripe_items->stripe[i].obj_seq =
-            lum->lmm_objects[i].l_object_seq;
-#else
-        stripe_items->stripe[i].obj_seq =
-            lum->lmm_objects[i].l_object_gr;
-#endif
-#else /* new structure (union of fid and id/seq) */
-        stripe_items->stripe[i].obj_id =
-            lum->lmm_objects[i].l_ost_oi.oi.oi_id;
-        stripe_items->stripe[i].obj_seq =
-            lum->lmm_objects[i].l_ost_oi.oi.oi_seq;
-#endif
-    }
+    objects2stripe_items(stripe_items, lum->lmm_objects, lum->lmm_stripe_count);
     return 0;
 }
 
@@ -158,8 +178,6 @@ static int stripe_info_lumv3(struct lov_user_md_v3 *lum,
                              stripe_info_t *stripe_info,
                              stripe_items_t *stripe_items)
 {
-    int i;
-
     if (stripe_info) {
         stripe_info->stripe_size = lum->lmm_stripe_size;
         stripe_info->stripe_count = lum->lmm_stripe_count;
@@ -189,32 +207,67 @@ static int stripe_info_lumv3(struct lov_user_md_v3 *lum,
     if (stripe_items->stripe == NULL)
         return -ENOMEM;
 
-    /* fill OST ids */
-    for (i = 0; i < lum->lmm_stripe_count; i++) {
-        stripe_items->stripe[i].ost_idx =
-            lum->lmm_objects[i].l_ost_idx;
-        stripe_items->stripe[i].ost_gen =
-            lum->lmm_objects[i].l_ost_gen;
-#ifdef HAVE_OBJ_ID
-        stripe_items->stripe[i].obj_id =
-            lum->lmm_objects[i].l_object_id;
-#ifdef HAVE_OBJ_SEQ
-        stripe_items->stripe[i].obj_seq =
-            lum->lmm_objects[i].l_object_seq;
-#else
-        stripe_items->stripe[i].obj_seq =
-            lum->lmm_objects[i].l_object_gr;
-#endif
-#else /* new structure (union of fid and id/seq) */
-        stripe_items->stripe[i].obj_id =
-            lum->lmm_objects[i].l_ost_oi.oi.oi_id;
-        stripe_items->stripe[i].obj_seq =
-            lum->lmm_objects[i].l_ost_oi.oi.oi_seq;
-#endif
-    }
+    objects2stripe_items(stripe_items, lum->lmm_objects, lum->lmm_stripe_count);
     return 0;
 }
+#endif
 
+#ifdef LOV_USER_MAGIC_COMP_V1
+static inline struct lov_user_md *
+lov_comp_entry(struct lov_comp_md_v1 *comp_v1, int ent_idx)
+{
+    return (struct lov_user_md *)((char *)comp_v1 +
+            comp_v1->lcm_entries[ent_idx].lcme_offset);
+}
+
+/**
+ * Forward declaration of fill_stripe_info, as i can be used
+ * recursively for processing PFL.
+ */
+static int fill_stripe_info(struct lov_user_md *lum,
+                            stripe_info_t *stripe_info,
+                            stripe_items_t *stripe_items);
+
+/* FIXME This initial implementation is a workaround to provide minimal
+ * support of progressive file layouts.
+ * It only saves the striping information of the last initialized
+ * component of a layout.
+ * A better support of PFL will require a DB schema change.
+ */
+static int stripe_info_compv1(struct lov_comp_md_v1 *lcm,
+                              stripe_info_t *stripe_info,
+                              stripe_items_t *stripe_items)
+{
+    struct lov_user_md *lum;
+    int rc;
+
+    /* use first layout by default */
+    int last_init_index = 0;
+
+    if (lcm->lcm_entry_count == 0)
+        /* no stripe info */
+        set_empty_stripe(stripe_info, stripe_items);
+
+    /* Search the last initialized element of the layout */
+    for (int i = 1; i < lcm->lcm_entry_count; i++) {
+        struct lov_comp_md_entry_v1 *lcme = &lcm->lcm_entries[i];
+
+        if (lcme->lcme_flags & LCME_FL_INIT)
+            last_init_index = i;
+    }
+
+    /* fill stripe information accordingly */
+    lum = lov_comp_entry(lcm, last_init_index);
+
+    rc = fill_stripe_info(lum, stripe_info, stripe_items);
+
+    /* Use composite layout generation number instead of
+     * sub-layout generation */
+    if (stripe_info)
+        stripe_info->validator = lcm->lcm_layout_gen;
+
+    return rc;
+}
 #endif
 
 static int fill_stripe_info(struct lov_user_md *lum,
@@ -234,27 +287,17 @@ static int fill_stripe_info(struct lov_user_md *lum,
         return stripe_info_lumv3((struct lov_user_md_v3 *)lum, stripe_info,
                                  stripe_items);
 #endif
-
+#ifdef LOV_USER_MAGIC_COMP_V1
+    case LOV_USER_MAGIC_COMP_V1:
+        return stripe_info_compv1((struct lov_comp_md_v1 *)lum, stripe_info,
+                                 stripe_items);
+#endif
     default:
         DisplayLog(LVL_CRIT, TAG_STRIPE,
                    "Unsupported Luster magic number from getstripe: %#X",
                    lum->lmm_magic);
         return -EINVAL;
     }
-}
-
-static void set_empty_stripe(stripe_info_t *p_stripe_info,
-                             stripe_items_t *p_stripe_items)
-{
-    if (p_stripe_info) {
-        memset(p_stripe_info, 0, sizeof(stripe_info_t));
-#ifdef HAVE_LLAPI_FSWAP_LAYOUTS
-        p_stripe_info->validator = VALID_NOSTRIPE;
-#endif
-    }
-
-    if (p_stripe_items)
-        memset(p_stripe_items, 0, sizeof(stripe_items_t));
 }
 
 #define LUM_SIZE_MAX (sizeof(struct lov_user_md_v3) + \
