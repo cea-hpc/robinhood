@@ -4332,9 +4332,9 @@ function test_sched_ratelim
     done
 
     # Limit processing to 2 files and 100KB per second
-    export ratelim_capacity=2
-    export ratelim_size="100KB"
-    export ratelim_refill="1000"
+    export ratelim_capacity=1
+    export ratelim_size="50KB"
+    export ratelim_refill="500"
 
     # Initial scan
     echo "Initial scan..."
@@ -4363,8 +4363,8 @@ function test_sched_ratelim
     :> rh_migr.log
 
     # Limit processing to 10 files and 10KB per second
-    export ratelim_capacity=10
-    export ratelim_size="10KB"
+    export ratelim_capacity=5
+    export ratelim_size="5KB"
 
     # migrate 10K files, must be limited to 10K/sec (1 file)
     $RH -f $RBH_CFG_DIR/$config_file --run=migration \
@@ -4387,8 +4387,8 @@ function test_sched_ratelim
 
     :> rh_migr.log
     # test the behavior when files are larger than the size limit
-    export ratelim_capacity=10
-    export ratelim_size="1KB"
+    export ratelim_capacity=5
+    export ratelim_size="512"
 
     # migrate 10K files, must be limited to 10K/sec (1 file)
     $RH -f $RBH_CFG_DIR/$config_file --run=migration \
@@ -4398,7 +4398,7 @@ function test_sched_ratelim
     # (but not on count)
     grep "Throttling after $ratelim_capacity actions" rh_migr.log &&
         error "unexpected throttling on action count"
-    grep "Throttling after [0-9.]* KB" rh_migr.log ||
+    grep "Throttling after $ratelim_size" rh_migr.log ||
         error "expected throttling on size"
 
     grep "run summary" rh_migr.log || error "Found no policy run summary"
