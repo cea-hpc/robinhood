@@ -102,7 +102,7 @@ static time_t last_time_flush_log = 0;
 static pthread_mutex_t alert_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct alert_type {
-    char            title[MAIL_TITLE_MAX];
+    char           *title;
     char          **entries;
     char          **info;
     unsigned int    count;
@@ -642,11 +642,10 @@ static void FlushAlerts(bool release_mutex_asap)
     alert_type_t   *pcurr;
     unsigned int    alert_types = 0;
     unsigned int    mail_size = 0;
-    char            title[MAIL_TITLE_MAX];
+    char           *title;
     GString        *contents = NULL;
     time_t          now;
     struct tm       date;
-    int             rc;
 
     /* first list scan, to determine the number of alerts, etc... */
     for (pcurr = alert_list; pcurr != NULL; pcurr = pcurr->next) {
@@ -663,13 +662,14 @@ static void FlushAlerts(bool release_mutex_asap)
     now = time(NULL);
     localtime_r(&now, &date);
 
-    rc = snprintf(title, MAIL_TITLE_MAX,
-                  "robinhood alert summary (%s on %s): %u alerts",
-                  global_config.fs_path, machine_name, alert_count);
-    if (rc >= MAIL_TITLE_MAX) {
-        DisplayLog(LVL_VERB, "LogAlert",
-                   "Mail title truncated, full title: robinhood alert summary (%s on %s): %u alerts",
+    if (asprintf(&title, "robinhood alert summary (%s on %s): %u alerts",
+                 global_config.fs_path, machine_name, alert_count) == -1) {
+        if (release_mutex_asap)
+            V(alert_mutex);
+        DisplayLog(LVL_CRIT, "LogAlert",
+                   "Could not allocate mail title (robinhood alert summary (%s on %s): %u alerts",
                    global_config.fs_path, machine_name, alert_count);
+        return;
     }
 
     contents = g_string_new("");
@@ -711,6 +711,7 @@ static void FlushAlerts(bool release_mutex_asap)
         /* free the list of entries */
         free(pcurr->entries);
         free(pcurr->info);
+        free(pcurr->title);
 
         /* set the list to the next item */
         alert_list = pcurr->next;
@@ -757,6 +758,7 @@ static void FlushAlerts(bool release_mutex_asap)
         flush_log_descr(&alert);
     }
 
+    free(title);
     g_string_free(contents, TRUE);
     /* mutex already released, can go out now */
 
@@ -785,7 +787,11 @@ static void Alert_Add(const char *title, const char *entry, const char *info)
         if (!pcurr)
             goto out_unlock;
 
-        strcpy(pcurr->title, title);
+        pcurr->title = strdup(title);
+        if (!pcurr->title) {
+            free(pcurr);
+            goto out_unlock;
+        }
         pcurr->estim_size = strlen(title);
         pcurr->count = 0;
         pcurr->entries = NULL;
@@ -848,35 +854,41 @@ void RaiseEntryAlert(const char *alert_name,    /* alert name (if set) */
                      const char *entry_path,    /* entry path */
                      const char *entry_info)
 {   /* alert related attributes */
-    char title[MAIL_TITLE_MAX];
-    int rc;
+    const char *title;
+    bool free_title = false;
 
     /* lockless check (not a big problem if some alerts are sent without
      * being batched).
      */
     if (alert_batching) {
         if (alert_name && !EMPTY_STRING(alert_name))
-            strcpy(title, alert_name);
+            title = alert_name;
         else {
-            if (snprintf(title, MAIL_TITLE_MAX, "unnamed alert %s", alert_string) > 80) {
-                /* truncate at 80 char: */
-                strcpy(title + 77, "...");
+            if (asprintf((char **)&title, "unnamed alert %s", alert_string)
+                == -1) {
+                DisplayLog(LVL_CRIT, "LogAlert",
+                           "Could not allocate title for unnamed alert %s",
+                           alert_string);
+                title = alert_string;
+            } else {
+                free_title = true;
             }
         }
 
         Alert_Add(title, entry_path, entry_info);
     } else {
-        rc = snprintf(title, MAIL_TITLE_MAX, "Robinhood alert (%s on %s): %s",
+        if (asprintf((char **)&title, "Robinhood alert (%s on %s): %s",
                      global_config.fs_path, machine_name,
                      (alert_name && !EMPTY_STRING(alert_name) ?
-                      alert_name : "entry matches alert rule"));
-
-        if (rc >= MAIL_TITLE_MAX) {
-            DisplayLog(LVL_VERB, "LogAlert",
-                       "Mail title truncated, full title: Robinhood alert (%s on %s): %s",
+                      alert_name : "entry matches alert rule")) == -1) {
+            DisplayLog(LVL_CRIT, "LogAlert",
+                       "Could not allocate log alert title: Robinhood alert (%s on %s): %s",
                        global_config.fs_path, machine_name,
                        (alert_name && !EMPTY_STRING(alert_name) ?
                         alert_name : "entry matches alert rule"));
+            title = global_config.fs_path;
+        } else {
+            free_title = true;
         }
 
         if (log_config.alert_show_attrs)
@@ -886,6 +898,9 @@ void RaiseEntryAlert(const char *alert_name,    /* alert name (if set) */
             RaiseAlert(title, "Entry: %s\nAlert condition: %s\n",
                        entry_path, alert_string);
     }
+
+    if (free_title)
+        free((char *)title);
 }
 
 /* Display a message in alert file */
@@ -894,11 +909,10 @@ void RaiseAlert(const char *title, const char *format, ...)
 {
     va_list     args;
     char        mail[MAX_MAIL_LEN];
-    char        title2[MAIL_TITLE_MAX];
+    char       *title2;
     int         written;
     time_t      now = time(NULL);
     struct tm   date;
-    int         rc;
 
     log_init_check();
 
@@ -920,14 +934,17 @@ void RaiseAlert(const char *title, const char *format, ...)
         vsnprintf(mail + written, MAX_MAIL_LEN - written, format, args);
         va_end(args);
 
-        rc = snprintf(title2, MAIL_TITLE_MAX, "%s (%s on %s)", title,
-                      global_config.fs_path, machine_name);
-        if (rc >= MAIL_TITLE_MAX) {
-            DisplayLog(LVL_VERB, "LogAlert",
-                       "Mail title truncated, full title: %s (%s on %s)",
+        if (asprintf(&title2, "%s (%s on %s)", title,
+                     global_config.fs_path, machine_name) == -1) {
+            DisplayLog(LVL_CRIT, "LogAlert",
+                       "Could not allocate alert title: %s (%s on %s)",
                        title, global_config.fs_path, machine_name);
+            title2 = global_config.fs_path;
         }
         SendMail(log_config.alert_mail, title2, mail);
+
+        if (title2 != global_config.fs_path)
+            free(title2);
     }
 
     if (!EMPTY_STRING(log_config.alert_file)) {

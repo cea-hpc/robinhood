@@ -127,7 +127,6 @@
 /**
  * Send a mail
  */
-#define MAIL_TITLE_MAX  1024
 int SendMail(const char *recipient, const char *subject, const char *message);
 
 /**
