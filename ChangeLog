@@ -1,5 +1,11 @@
 Summary on changes in minor versions 3.1.x:
 
+3.1.5:
+- Lustre: compatibility with FPL and DoM (no full-featured support)
+- Fix and improvement of ratelimit scheduler
+- Stop retrying SQL requests on SIGTERM
+- Faster remove policies (disable sorting)
+
 3.1.4:
 * Web gui:
     - new access control criteria: IP address, hostname;
