@@ -45,6 +45,10 @@
 #include <string.h>
 #include <fcntl.h>
 
+#ifdef _PANFS
+#include <sys/types.h>
+#include <sys/xattr.h>
+#endif
 fs_scan_config_t fs_scan_config;
 run_flags_t fsscan_flags = 0;
 const char *partial_scan_root = NULL;
@@ -464,10 +468,12 @@ static int TerminateScan(int scan_complete, time_t end)
             g_strfreev(cmd);
         }
     }
-
+#ifdef _PANFS
+    signal_scan_finished();
+#else
     if (fsscan_once)
         signal_scan_finished();
-
+#endif
     FlushLogs();
 
     return 0;
@@ -795,6 +801,35 @@ static int stat_entry(const char *path, const char *name, int parentfd,
     if (parentfd != -1) {
         if (fstatat(parentfd, name, inode, AT_SYMLINK_NOFOLLOW) == -1)
             return -errno;
+#ifdef _PANFS 
+        ssize_t vallentmp;
+        char *valtmp;
+        char *key;
+             
+        vallentmp = lgetxattr(path, "system.panfs.obj_id", NULL, 0);
+        if (vallentmp == -1){
+            DisplayLog(LVL_CRIT, "StatGetxattrErr","Fatal Error. lgetxattr doesn't return any size for path %s. Error number = %d.\n",path,errno);
+            exit(1);
+        }
+        else if (vallentmp > 0) {
+            valtmp = malloc(vallentmp + 1);
+            if(valtmp!=NULL){
+                vallentmp = lgetxattr(path, "system.panfs.obj_id", valtmp, vallentmp);
+                valtmp[vallentmp] = 0;
+                key=strchr(valtmp, 'U')+1;
+		        free(valtmp);
+            }
+            else{
+                DisplayLog(LVL_CRIT, "StatGetxattrErr","Fatal Error. Out of space.\n");   
+                exit(1);
+            }    
+        }
+        else if (vallentmp == 0){
+            DisplayLog(LVL_MAJOR, "StatgetxattrErr","Fatal Error. No value for size of lgetxattr.");	
+            exit(1);	
+        }
+        inode->st_ino=strtoull(key,&key,16);
+#endif        
     } else
 #endif
 #if defined(_LUSTRE) && defined(_MDS_STAT_SUPPORT)
@@ -810,6 +845,37 @@ static int stat_entry(const char *path, const char *name, int parentfd,
     if (lstat(path, inode) == -1)
         return -errno;
 
+#ifdef _PANFS
+    else{
+        ssize_t vallentmp;
+        char *valtmp;
+        char *key;
+        
+        vallentmp = lgetxattr(path, "system.panfs.obj_id", NULL, 0);
+        if (vallentmp == -1){
+            DisplayLog(LVL_CRIT, "StatGetxattrErr","Fatal Error. lgetxattr doesn't return any size for path %s. Error number = %d.\n",path,errno);
+            exit(1);
+        }
+        else if (vallentmp > 0) {
+            valtmp = malloc(vallentmp + 1);
+            if(valtmp!=NULL){
+                vallentmp = lgetxattr(path, "system.panfs.obj_id", valtmp, vallentmp);
+                valtmp[vallentmp] = 0;
+                key=strchr(valtmp, 'U')+1;
+                free(valtmp);
+                inode->st_ino=strtoull(key,&key,16);
+            }
+            else{
+                DisplayLog(LVL_CRIT, "StatGetxattrErr","Fatal Error. Out of space.\n");   
+                exit(1);
+            }    
+        }
+        else{
+            DisplayLog(LVL_CRIT, "StatGetxattrErr","Fatal Error. Out of space.\n");   
+            exit(1);
+        } 
+    }
+#endif
     return 0;
 }
 
@@ -1207,6 +1273,36 @@ static int push_dir_list(robinhood_task_t *parent_task)
             return rc;
         }
 
+#ifdef _PANFS
+        size_t vallentmp;
+        char *valtmp;
+        char *key;
+               
+        vallentmp = lgetxattr(new_task_path, "system.panfs.obj_id", NULL, 0);
+        if (vallentmp == -1){
+            DisplayLog(LVL_CRIT, "StatGetxattrErr","Fatal Error. lgetxattr doesn't return any size for path %s. Error number = %d.\n"
+                        ,new_task_path,errno);
+            exit(1);
+        }
+        else if (vallentmp > 0) {
+            valtmp = malloc(vallentmp + 1);
+            if(valtmp!=NULL){
+                vallentmp = lgetxattr(new_task_path, "system.panfs.obj_id", valtmp, vallentmp);
+                valtmp[vallentmp] = 0;
+                key=strchr(valtmp, 'U')+1;
+                free(valtmp);
+                inode.st_ino =strtoull(key,&key,16);
+            }
+            else{
+                DisplayLog(LVL_CRIT, "StatGetxattrErr","Fatal Error. Out of space.\n");   
+                exit(1);
+            }
+        }
+        else if (vallentmp == 0){
+            DisplayLog(LVL_MAJOR, "StatgetxattrErr","Fatal Error. No value for size of lgetxattr.");	
+            exit(1);
+        }        
+#endif
         DisplayLog(LVL_FULL, FSSCAN_TAG, "Pushing dir '%s' to reach "
                    "sub-tree '%s'", new_task_path, fs_scan_config.dir_list[i]);
 
@@ -1246,6 +1342,36 @@ static int process_one_task(robinhood_task_t *p_task,
                        "Error accessing filesystem: exiting");
             Exit(1);
         }
+#ifdef _PANFS      
+        ssize_t vallentmp;
+        char *valtmp;
+        char *key;
+                       
+        vallentmp = lgetxattr(p_task->path, "system.panfs.obj_id", NULL, 0);
+        if (vallentmp == -1){
+            DisplayLog(LVL_CRIT, "StatGetxattrErr","Fatal Error. lgetxattr doesn't return any size for path %s. Error number = %d.\n"
+                        ,p_task->path,errno);
+            exit(1);
+        }
+        else if (vallentmp > 0) {
+            valtmp = malloc(vallentmp + 1);
+            if(valtmp!=NULL){
+                vallentmp = lgetxattr(p_task->path, "system.panfs.obj_id", valtmp, vallentmp);
+                valtmp[vallentmp] = 0;
+                key=strchr(valtmp, 'U')+1;
+                free(valtmp);
+                p_task->dir_md.st_ino=strtoull(key,&key,16);
+            }
+            else{
+                DisplayLog(LVL_CRIT, "StatGetxattrErr","Fatal Error. Out of space.\n");   
+                exit(1);
+            }
+        }
+        else if (vallentmp == 0){
+            DisplayLog(LVL_MAJOR, "StatgetxattrErr","Fatal Error. No value for size of lgetxattr.");	
+            exit(1);
+        }
+#endif
         if (check_entry_dev(p_task->dir_md.st_dev, &fsdev, p_task->path, true))
             p_task->dir_md.st_dev = fsdev;  /* just updated */
 

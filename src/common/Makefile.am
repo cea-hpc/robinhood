@@ -6,6 +6,9 @@ noinst_LTLIBRARIES=libcommontools.la
 if LUSTRE
 FS_SRC=lustre_tools.c
 endif
+if PANFS
+FS_SRC=panfs_config.c
+endif
 if MNTENTCOMPAT
 COMPAT_SRC=mntent_compat.c mntent_compat.h
 endif
