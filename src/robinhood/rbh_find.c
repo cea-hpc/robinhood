@@ -454,6 +454,7 @@ static const char *help_string =
     "    " _B "-ost" B_ " " _U "ost_index|ost_set" U_ "\n"
     "    " _B "-pool" B_ " " _U "ost_pool" U_ "\n"
 #endif
+    "    " _B "-class" B_ " " _U "class" U_ "\n"
     "    " _B "-status" B_ " " _U "status_name" U_ ":" _U "status_value" U_ "\n"
     "\n"
     "    " _B "-not" B_ ", " _B "-!" B_ " \t Negate next argument\n"
