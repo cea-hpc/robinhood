@@ -1240,9 +1240,15 @@ static cl_status_e cl_get_one(reader_thr_info_t *info, CL_REC_TYPE **pp_rec)
         info->nb_read++;
         return cl_ok;
 
+    case -EINTR:
+        DisplayLog(LVL_EVENT, CHGLOG_TAG,
+                   "llapi_changelog_recv() interrupted. Retrying.");
+        return cl_continue;
+
     case 1:    /* EOF */
     case -EINVAL:  /* FS unmounted */
     case -EPROTO:  /* error in KUC channel */
+    default:
 
         /* warn if it is an error */
         if (rc != 1)
@@ -1276,26 +1282,13 @@ static cl_status_e cl_get_one(reader_thr_info_t *info, CL_REC_TYPE **pp_rec)
         if (rc) {
             /* will try to recover from this error */
             rh_sleep(1);
+            DisplayLog(LVL_EVENT, CHGLOG_TAG,
+                       "Error reopening changelog "
+                       "will try again soon: %d - %s", rc, strerror(-rc));
         }
 
         return cl_continue;
-
-    case -EINTR:
-        DisplayLog(LVL_EVENT, CHGLOG_TAG,
-                   "llapi_changelog_recv() interrupted. Retrying.");
-        return cl_continue;
-
-    default:
-        DisplayLog(LVL_CRIT, CHGLOG_TAG,
-                   "Error in llapi_changelog_recv(): %d: %s",
-                   rc, strerror(abs(rc)));
-
-        /* will try to recover from this error */
-        rh_sleep(1);
-
-        return cl_continue;
     }
-
     /* Unreachable */
     return cl_continue;
 }
