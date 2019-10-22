@@ -1907,6 +1907,9 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     if (p_param->target == TGT_FILE)
         return single_file_run(p_pol_info, lmgr, p_param, p_summary);
 
+    /* record policy start time */
+    p_pol_info->progress.policy_start = time(NULL);
+
     /* Do nothing if no previous scan was done
      * (except if --force is specified). */
     rc = check_scan_done(p_pol_info, lmgr);
@@ -1976,8 +1979,10 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
         return -1;
     }
 
-    p_pol_info->progress.policy_start = p_pol_info->progress.last_report
-        = time(NULL);
+    /* Set last_report time after first DB query returns,
+     * makese sense to wait for first query to complete before
+     * printing any progress stat */
+    p_pol_info->progress.last_report = time(NULL);
 
     /* reinit schedulers */
     for (i = 0; i < p_pol_info->config->sched_count; i++) {
