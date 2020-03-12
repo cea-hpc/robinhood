@@ -369,6 +369,18 @@ static int total_blocks(unsigned long long *total_user_blocks,
                    global_config.fs_path, err, strerror(err));
         return err;
     }
+    /* On some buggy systems, statfs() reports no error but the returned
+     * structure is inconsistent or is filled with zeros... */
+    if (stfs.f_blocks + stfs.f_bavail - stfs.f_bfree <= 0) {
+        DisplayLog(LVL_CRIT, TAG,
+                   "ERROR: statfs on %s returned inconsistent values!!!",
+                   global_config.fs_path);
+        DisplayLog(LVL_CRIT, TAG,
+                   "Detail: blks=%" PRIu64 " avail=%" PRIu64 " free=%" PRIu64,
+                   stfs.f_blocks, stfs.f_bavail, stfs.f_bfree);
+        return EIO;
+    }
+
     /* number of blocks available to users */
     *total_user_blocks = (stfs.f_blocks + stfs.f_bavail - stfs.f_bfree);
     *bsize = stfs.f_bsize;
