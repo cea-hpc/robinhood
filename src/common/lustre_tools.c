@@ -845,14 +845,29 @@ int Get_pool_usage(const char *poolname, struct statfs *pool_statfs)
 }
 #endif
 
+
+/* A new LL_IOC_MDC_GETINFO has been defined since Lustre 2.12.4,
+ * but it doesn't return a struct stat.
+ * Use the old (compatible) ioctl() instead.
+ */
+#ifdef IOC_MDC_GETFILEINFO_OLD
+#   define IOC_MDC_GETFILEINFO_V1   IOC_MDC_GETFILEINFO_OLD
+#else
+#   define IOC_MDC_GETFILEINFO_V1   IOC_MDC_GETFILEINFO
+#endif
+
+
 /* This code is an adaptation of llapi_mds_getfileinfo() in liblustreapi.
  * It is unused for now, but could be useful when SOM will be implemented.
  */
 int lustre_mds_stat(const char *fullpath, int parentfd, struct stat *inode)
 {
-    /* this buffer must be large enough for handling filename */
-    char buffer[1024];
-    struct lov_user_mds_data *lmd = (struct lov_user_mds_data *)buffer;
+    /* This buffer must be large enough for handling a filename + \0
+     * as well as the output structure (much smaller).
+     */
+    char buffer[MAXNAMLEN + 1];
+    /* always use lov_user_mds_data_v1, as we want a struct stat as output. */
+    struct lov_user_mds_data_v1 *lmd = (struct lov_user_mds_data_v1 *)buffer;
     const char *filename;
     int rc;
 
@@ -865,7 +880,7 @@ int lustre_mds_stat(const char *fullpath, int parentfd, struct stat *inode)
     memset(lmd, 0, sizeof(buffer));
     rh_strncpy(buffer, filename, strlen(filename) + 1);
 
-    rc = ioctl(parentfd, IOC_MDC_GETFILEINFO, (void *)lmd);
+    rc = ioctl(parentfd, IOC_MDC_GETFILEINFO_V1, (void *)lmd);
     if (rc < 0)
         rc = -errno;
 
@@ -908,8 +923,10 @@ static pthread_mutex_t dir_lock = PTHREAD_MUTEX_INITIALIZER;
 int lustre_mds_stat_by_fid(const entry_id_t *p_id, struct stat *inode)
 {
     char filename[MAXNAMLEN];
-    char buffer[1024];
-    struct lov_user_mds_data *lmd = (struct lov_user_mds_data *)buffer;
+    /* the buffer must be large enough to contain "<mnt>/.lustre/fid/FID" path */
+    char buffer[RBH_PATH_MAX];
+    /* always use lov_user_mds_data_v1, as we want a struct stat as output. */
+    struct lov_user_mds_data_v1 *lmd = (struct lov_user_mds_data_v1 *)buffer;
     int rc;
 
     /* ensure fid directory is opened */
@@ -939,7 +956,7 @@ int lustre_mds_stat_by_fid(const entry_id_t *p_id, struct stat *inode)
     memset(lmd, 0, sizeof(buffer));
     rh_strncpy(buffer, filename, strlen(filename) + 1);
 
-    rc = ioctl(dirfd(fid_dir_fd), IOC_MDC_GETFILEINFO, (void *)lmd);
+    rc = ioctl(dirfd(fid_dir_fd), IOC_MDC_GETFILEINFO_V1, (void *)lmd);
 
     if (rc) {
         if (errno == ENOTTY) {
