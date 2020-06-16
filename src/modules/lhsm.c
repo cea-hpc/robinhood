@@ -127,7 +127,7 @@ static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
 
     /* if archive_id is explicitely specified in action parameters, use it */
     rc = get_archive_id(params);
-    if (rc == 0) {
+    if (rc >= 0) {
         archive_id = rc;
     } else if (rc == -ENOENT) {
         /* for HSM_REMOVE, try to get it from previous attrs */
@@ -149,7 +149,7 @@ static int lhsm_action(enum hsm_user_action action, const entry_id_t *p_id,
             }
         }
         /* all other cases: keep default */
-    } else if (rc < 0)
+    } else
         return rc;
 
     /* Serialize the parameters to pass them to the copytool.
