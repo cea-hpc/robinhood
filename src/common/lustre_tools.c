@@ -859,6 +859,8 @@ int Get_pool_usage(const char *poolname, struct statfs *pool_statfs)
 
 /* This code is an adaptation of llapi_mds_getfileinfo() in liblustreapi.
  * It is unused for now, but could be useful when SOM will be implemented.
+ *
+ * @return 0 on success, -1*POSIX error code on failure.
  */
 int lustre_mds_stat(const char *fullpath, int parentfd, struct stat *inode)
 {
@@ -873,12 +875,14 @@ int lustre_mds_stat(const char *fullpath, int parentfd, struct stat *inode)
 
     /* sanity checks */
     if ((fullpath == NULL) || (inode == NULL))
-        return EINVAL;
+        return -EINVAL;
 
     filename = rh_basename(fullpath);
 
     memset(lmd, 0, sizeof(buffer));
-    rh_strncpy(buffer, filename, strlen(filename) + 1);
+
+    if (snprintf(buffer, sizeof(buffer), "%s", filename) > MAXNAMLEN)
+        return -EOVERFLOW;
 
     rc = ioctl(parentfd, IOC_MDC_GETFILEINFO_V1, (void *)lmd);
     if (rc < 0)
@@ -920,9 +924,14 @@ int lustre_mds_stat(const char *fullpath, int parentfd, struct stat *inode)
 static DIR *fid_dir_fd = NULL;
 static pthread_mutex_t dir_lock = PTHREAD_MUTEX_INITIALIZER;
 
+/**
+ * Call IOC_MDC_GETFILEINFO for a given fid.
+ *
+ * @return 0 on success, -1*POSIX error code on failure.
+ */
 int lustre_mds_stat_by_fid(const entry_id_t *p_id, struct stat *inode)
 {
-    char filename[MAXNAMLEN];
+    char filename[MAXNAMLEN + 1];
     /* the buffer must be large enough to contain "<mnt>/.lustre/fid/FID" path */
     char buffer[RBH_PATH_MAX];
     /* always use lov_user_mds_data_v1, as we want a struct stat as output. */
@@ -949,27 +958,29 @@ int lustre_mds_stat_by_fid(const entry_id_t *p_id, struct stat *inode)
         }
         V(dir_lock);
         if (fid_dir_fd == NULL)
-            return errno;
+            return -errno;
     }
 
     sprintf(filename, DFID, PFID(p_id));
     memset(lmd, 0, sizeof(buffer));
-    rh_strncpy(buffer, filename, strlen(filename) + 1);
+
+    if (snprintf(buffer, sizeof(buffer), "%s", filename) > MAXNAMLEN)
+        return -EOVERFLOW;
 
     rc = ioctl(dirfd(fid_dir_fd), IOC_MDC_GETFILEINFO_V1, (void *)lmd);
 
     if (rc) {
         if (errno == ENOTTY) {
-            return ENOTSUP;
+            return -ENOTSUP;
         } else if ((errno == ENOENT) || (errno == ESTALE)) {
             DisplayLog(LVL_MAJOR, TAG_MDSSTAT, "Warning: %s: %s does not exist",
                        __func__, filename);
-            return ENOENT;
+            return -ENOENT;
         } else {
             DisplayLog(LVL_CRIT, TAG_MDSSTAT,
                        "Error: %s: IOC_MDC_GETFILEINFO failed for %s",
                        __func__, filename);
-            return errno;
+            return -errno;
         }
     }
 

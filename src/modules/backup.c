@@ -570,7 +570,10 @@ static int move_orphan(const char *path)
     int rc;
 
     /* does the trash directory exist? */
-    sprintf(dest, "%s/%s", config.root, TRASH_DIR);
+    if (snprintf(dest, sizeof(dest), "%s/%s", config.root, TRASH_DIR)
+            >= RBH_PATH_MAX)
+        return -EOVERFLOW;
+
     if ((mkdir(dest, 0750) != 0) && (errno != EEXIST)) {
         rc = -errno;
         DisplayLog(LVL_MAJOR, TAG, "Error creating directory %s: %s",
@@ -584,7 +587,9 @@ static int move_orphan(const char *path)
         return -EINVAL;
     }
     /* move the orphan to the directory */
-    snprintf(dest, RBH_PATH_MAX, "%s/%s/%s", config.root, TRASH_DIR, fname);
+    if (snprintf(dest, RBH_PATH_MAX, "%s/%s/%s", config.root, TRASH_DIR, fname)
+            >= RBH_PATH_MAX)
+            return -EOVERFLOW;
 
     if (rename(path, dest) != 0) {
         rc = -errno;
@@ -1174,7 +1179,9 @@ static int get_orig_dir_md(const char *target_dir, struct stat *st,
         return rc;
 
     /* orig path is '<fs_root>/<rel_path>' */
-    sprintf(orig_path, "%s/%s", src_root, rel_path);
+    if (snprintf(orig_path, sizeof(orig_path), "%s/%s", src_root, rel_path)
+            >= RBH_PATH_MAX)
+          return -EOVERFLOW;
 
     DisplayLog(LVL_FULL, TAG, "Target directory: %s, source directory: %s",
                target_dir, orig_path);
@@ -1513,7 +1520,7 @@ static void path_replace(struct attr_save *save, attr_set_t *p_attrs,
         strdup(ATTR(p_attrs, fullpath)) : NULL;
 
     ATTR_MASK_SET(p_attrs, fullpath);
-    strncpy(ATTR(p_attrs, fullpath), path, sizeof(ATTR(p_attrs, fullpath)));
+    rh_strncpy(ATTR(p_attrs, fullpath), path, sizeof(ATTR(p_attrs, fullpath)));
 }
 
 /**
