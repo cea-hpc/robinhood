@@ -306,22 +306,32 @@ function clean_logs
 	done
 }
 
+function list_actions
+{
+    if [[ -n "$MDS" ]]; then
+        ssh $MDS lctl get_param -n 'mdt.lustre-*.hsm.actions' | \
+            egrep -v "SUCCEED|CANCELED"
+    else
+        lctl get_param -n 'mdt.lustre-*.hsm.actions' | \
+            egrep -v "SUCCEED|CANCELED"
+    fi
+}
+
+function count_actions
+{
+    list_actions | wc -l
+}
 
 function wait_done
 {
 	max_sec=$1
 	sec=0
-	if [[ -n "$MDS" ]]; then
-		cmd="ssh $MDS lctl get_param -n mdt.lustre-*.hsm.actions | egrep -v \"SUCCEED|CANCELED\""
-	else
-		cmd="lctl get_param -n mdt.lustre-*.hsm.actions | egrep -v \"SUCCEED|CANCELED\""
-	fi
 
-	action_count=`$cmd | wc -l`
+	action_count=$(count_actions)
 
 	if (( $action_count > 0 )); then
 		echo "Current actions:"
-		$cmd
+		list_actions
 
 		echo -n "Waiting for copy requests to end."
 		while (( $action_count > 0 )) ; do
@@ -329,9 +339,9 @@ function wait_done
 			sleep 1;
 			((sec=$sec+1))
 			(( $sec > $max_sec )) && return 1
-			action_count=`$cmd | wc -l`
+			action_count=$(count_actions)
 		done
-		$cmd
+		list_actions
 		echo " Done ($sec sec)"
 	fi
 
