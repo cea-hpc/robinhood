@@ -3103,7 +3103,7 @@ function update_test
         # => must only update once
         while (( `date "+%s"` - $start < $event_updt_min - 2 )); do
             touch $RH_ROOT/file
-            usleep 10000
+            sleep 0.01
         done
 
         # force flushing log
@@ -3131,7 +3131,7 @@ function update_test
 
         # wait for 5s to be fully elapsed
         while (( `date "+%s"` - $start <= $event_updt_min )); do
-            usleep 100000
+            sleep 0.1
         done
     done
 
@@ -3153,9 +3153,9 @@ function update_test
         # => must only update once
         while (( `date "+%s"` - $start < $event_updt_min - 2 )); do
             mv $RH_ROOT/file $RH_ROOT/file.2
-            usleep 10000
+            sleep 0.01
             mv $RH_ROOT/file.2 $RH_ROOT/file
-            usleep 10000
+            sleep 0.01
         done
 
         # force flushing log
@@ -12925,9 +12925,9 @@ function TEST_OTHER_PARAMETERS_2
     # count the number of "STATS" dump
     nb_Stats=$(get_nb_stat rh_migr.log)
 
-    local stime=$(echo "5500000-(1000000*($t1-$t0))"| bc -l)
-    echo "Sleep $stime useconds"
-    usleep $stime
+    local stime=$(echo "5.5-($t1-$t0)"| bc -l)
+    echo "Sleep $stime seconds"
+    sleep $stime
 
     # count the number of "STATS" dump
     nb_Stats2=$(get_nb_stat rh_migr.log)
