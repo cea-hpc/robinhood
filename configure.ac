@@ -484,6 +484,9 @@ AC_SUBST(SBINDIR)
 AS_AC_EXPAND(LIBDIR, $libdir)
 AC_SUBST(LIBDIR)
 
+if test "$ac_configure_args" = "" ; then
+    ac_configure_args="''"
+fi
 # for exporting to Makefile.in
 AC_SUBST(ac_configure_args)
 

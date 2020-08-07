@@ -53,6 +53,7 @@ else
   rpmbuild_opt += --without jemalloc
 endif
 
+rpmbuild_opt += --define="configure_flags @ac_configure_args@"
 
 new: clean all
 
@@ -64,16 +65,13 @@ rpms: robinhood.spec mydist
 	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
 	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" \
 		--define="dbversion $(dbversion)" --define="_prefix $(prefix)" \
-		--define="configure_flags @ac_configure_args@" \
-        --define="_sysconfdir @CONFDIR@" \
+		--define="_sysconfdir @CONFDIR@" \
 		-ta $(distdir).tar.gz
 
 rpm: robinhood.spec mydist
 	mkdir -p $(rpm_dir)/BUILD $(rpm_dir)/SPECS $(rpm_dir)/SRPMS $(rpm_dir)/RPMS
 	rpmbuild $(rpmbuild_opt) --define="_topdir $(rpm_dir)" --define="_prefix $(prefix)" \
-		--define="dbversion $(dbversion)" \
-		--define="configure_flags @ac_configure_args@" \
-        --define="_sysconfdir @CONFDIR@" \
+		--define="dbversion $(dbversion)" --define="_sysconfdir @CONFDIR@" \
 		--define="_prefix $(prefix)" -tb $(distdir).tar.gz
 
 srpm: robinhood.spec mydist
