@@ -212,7 +212,11 @@ EOF
     echo "Database successfully created!"
 }
 
-
+function fsnames
+{
+    lctl list_param mdd.* | sed -e "s/mdd.//" -e "s/-MDT[0-9]*//" | sort -u |
+        xargs
+}
 
 function enable_changelogs
 {
@@ -228,7 +232,7 @@ function enable_changelogs
     if (($interactive != 0 )); then
             # check if we are on mdt
             echo -n "Checking available MDTs...    "
-           fslist=`ls -d  /proc/{fs,sys}/{lnet,lustre}/mdd/*-MDT* 2>/dev/null | sed -e "s/-MDT[0-9]*//" | awk -F '/' '{print $NF}' | uniq | xargs`
+            fslist=$(fsnames)
             echo $fslist
 
             if [[ -z $fslist ]]; then
@@ -260,7 +264,7 @@ function enable_changelogs
             done
     else
         fsname=$1
-        fslist=`ls -d  /proc/{fs,sys}/{lnet,lustre}/mdd/*-MDT* 2>/dev/null | sed -e "s/-MDT[0-9]*//" | awk -F '/' '{print $NF}' | uniq | xargs`
+        fslist=$(fsnames)
         if [[ $fslist = *$fsname* ]]; then
                 echo "file system '$fsname' exists"
         else
@@ -269,19 +273,19 @@ function enable_changelogs
         fi
     fi
     # check mdt count
-    mdtcnt=$(ls -ld /proc/{fs,sys}/{lnet,lustre}/mdd/$fsname-MDT* 2>/dev/null | wc -l)
+    mdtcnt=$(lctl list_param mdd.* | wc -l)
 
     echo "Checking if \"cl1\" is already registered for $fsname ($mdtcnt MDTs on this host)..."
-    is_cl1=`grep cl1 /proc/{fs,sys}/{lnet,lustre}/mdd/$fsname-MDT*/changelog_users 2>/dev/null | wc -l`
+    nb_cl1=$(lctl get_param mdd.$fsname-MDT*.changelog_users | grep cl1 | wc -l)
 
-    if (( $is_cl1 == $mdtcnt )); then
+    if (( $nb_cl1 == $mdtcnt )); then
         echo "\"cl1\" is already registered. Skipping registration."
-    elif (( $is_cl1 < $mdtcnt )); then
+    elif (( $nb_cl1 < $mdtcnt )); then
         echo "\"cl1\" is not registered on all MDTs on this host ($mdtcnt)..."
-        for m in $(ls -d /proc/{fs,sys}/{lnet,lustre}/mdd/$fsname-MDT* 2>/dev/null); do
-           grep cl1 $m > /dev/null 2> /dev/null
+        for m in $(lctl list_param mdd.$fsname-MDT*); do
+           lctl get_param $m.changelog_users | grep cl1 > /dev/null 2> /dev/null
            if (( $? != 0 )); then
-               short=$(basename $m)
+               short=$(echo $m | cut -d '.' -f 2)
                echo "No client registered on $short yet"
                lctl --device $short changelog_register || echo "FAILED to register to $short"
            fi

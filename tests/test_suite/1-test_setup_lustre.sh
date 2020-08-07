@@ -52,19 +52,19 @@ fi
 
 if [[ $PURPOSE = "LUSTRE_HSM" ]]; then
 
-	for mdt in /proc/fs/lustre/mdt/lustre-MDT* ; do
+	for mdt in $(lctl list_param mdt.*) ; do
 		echo -n "checking coordinator status on $(basename $mdt): "
-		status=`cat $mdt/hsm_control`
+		status=`lctl get_param -n $mdt.hsm_control`
 		echo $status
 
 		if [[ $status != "enabled" ]]; then
-			$LCTL set_param mdt.$(basename $mdt).hsm_control=enabled
+			$LCTL set_param $mdt.hsm_control=enabled
 			sleep 2
 		fi
 
-		$LCTL set_param mdt.$(basename $mdt).hsm.grace_delay=10
-		$LCTL set_param mdt.$(basename $mdt).hsm.loop_period=1
-		$LCTL set_param mdt.$(basename $mdt).hsm.max_requests=8
+		$LCTL set_param $mdt.hsm.grace_delay=10
+		$LCTL set_param $mdt.hsm.loop_period=1
+		$LCTL set_param $mdt.hsm.max_requests=8
 	done
 
     # start copytool on a distinct mount point
@@ -91,15 +91,10 @@ if [[ $PURPOSE = "LUSTRE_HSM" ]]; then
 fi
 
 # workaround for statahead issues
-list=`ls /proc/fs/lustre/llite/lustre-*/statahead_max`
-for f in $list; do
-    [[ -n "$f" ]] && echo 0 > $f
-done
+lctl set_param llite.lustre-*.statahead_max=0
 
-# lazy statfs make tests fail
-for f in $(ls /proc/fs/lustre/llite/*/lazystatfs); do
-    echo 1 > $f;
-done
+# lazy statfs make 'df' tests fail
+lctl set_param llite.lustre-*.lazystatfs=0
 
 # create testuser
 getent passwd testuser || useradd testuser || exit 1

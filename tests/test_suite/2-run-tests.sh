@@ -312,9 +312,9 @@ function wait_done
 	max_sec=$1
 	sec=0
 	if [[ -n "$MDS" ]]; then
-		cmd="ssh $MDS egrep -v \"SUCCEED|CANCELED\" /proc/fs/lustre/mdt/lustre-MDT0000/hsm/actions"
+		cmd="ssh $MDS lctl get_param -n mdt.lustre-*.hsm.actions | egrep -v \"SUCCEED|CANCELED\""
 	else
-		cmd="egrep -v SUCCEED|CANCELED /proc/fs/lustre/mdt/lustre-MDT0000/hsm/actions"
+		cmd="lctl get_param -n mdt.lustre-*.hsm.actions | egrep -v \"SUCCEED|CANCELED\""
 	fi
 
 	action_count=`$cmd | wc -l`
@@ -357,9 +357,9 @@ function clean_fs
 	if (( $is_lhsm != 0 )); then
 		echo "Cancelling agent actions..."
 		if [[ -n "$MDS" ]]; then
-			ssh $MDS "echo purge > /proc/fs/lustre/mdt/lustre-MDT0000/hsm_control"
+			ssh $MDS "lctl set_param mdt.lustre-*.hsm_control=purge"
 		else
-			echo "purge" > /proc/fs/lustre/mdt/lustre-MDT0000/hsm_control
+			lctl set_param "mdt.lustre-*.hsm_control=purge"
 		fi
 
 		echo "Waiting for end of data migration..."
@@ -1539,7 +1539,7 @@ function test_lhsm_remove
 
     clean_logs
 
-    local default_archive=$(cat /proc/fs/lustre/mdt/lustre-MDT0000/hsm/default_archive_id)
+    local default_archive=$(lctl get_param mdt.lustre-MDT0000.hsm.default_archive_id)
 
     # create nb_archive + 3 more files to test:
     # - hsm_archive with no option
