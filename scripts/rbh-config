@@ -55,7 +55,7 @@ function db_check
     running=0
     echo "Checking service $service..."
     if [ -x /usr/bin/systemctl ]; then
-        /usr/bin/systemctl status $service && running=1
+        /usr/bin/systemctl --quiet is-active $service && running=1
     else
         /sbin/service $service status && running=1
     fi
