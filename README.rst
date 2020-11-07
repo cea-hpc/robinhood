@@ -70,8 +70,8 @@ The project is divided into a core library and a set of applications:
 * rbh-sync_: a tool to synchronize two robinhood backends;
 * rbh-find_: a close twin of find(1).
 
-Coming soon: rbh-fsevent_, a tool to incrementally update a robinhood backend
+Coming soon: rbh-fsevents_, a tool to incrementally update a robinhood backend
 without having to issue a full rescan.
 
 .. _librobinhood: https://github.com/cea-hpc/librobinhood
-.. _rbh-fsevent: https://github.com/cea-hpc/rbh-fsevent
+.. _rbh-fsevents: https://github.com/cea-hpc/rbh-fsevents
