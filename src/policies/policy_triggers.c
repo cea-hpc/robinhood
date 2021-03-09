@@ -1510,6 +1510,9 @@ static int check_trigger(policy_info_t *pol, unsigned trigger_index)
         store_policy_start_stats(pol, time(NULL), trigger_buff);
         free(trigger_buff);
 
+        /* make sure to reset first eligible file for each target */
+        pol->first_eligible = 0;
+
         memset(&summary, 0, sizeof(summary));
         /* run the policy */
         rc = run_policy(pol, &param, &summary, &pol->lmgr);
@@ -1666,6 +1669,9 @@ static int targeted_run(policy_info_t *pol, const policy_opt_t *opt)
         }
         store_policy_start_stats(pol, time(NULL), trigger_buff);
         free(trigger_buff);
+
+        /* make sure to reset first eligible file for each target */
+        pol->first_eligible = 0;
 
         memset(&summary, 0, sizeof(summary));
         /* run the policy */
