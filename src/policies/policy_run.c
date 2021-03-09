@@ -1266,6 +1266,13 @@ static int entry2tgt_amount(const policy_param_t *p_param,
          * blocks.
          */
 #ifdef _LUSTRE
+        /* When targeting a pool, the selected files are only striped on this
+         * pool, so takes the whole file into account */
+        if (p_param->target == TGT_POOL) {
+            p_ctr->targeted = ATTR(attrs, blocks);
+            return 0;
+        }
+
         /* FIXME what about pool? */
         if (p_param->target != TGT_OST && p_param->target)
 #else
