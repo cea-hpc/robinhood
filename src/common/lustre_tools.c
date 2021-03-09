@@ -822,9 +822,10 @@ int Get_pool_usage(const char *poolname, struct statfs *pool_statfs)
             return EINVAL;
         }
 
+
         /* skip '-' */
         ost++;
-        if (sscanf(ost, "OST%d", &index) != 1) {
+        if (sscanf(ost, "OST%x", &index) != 1) {
             DisplayLog(LVL_CRIT, TAG_POOLDF, "Could not find OST index in"
                        " string '%s'", ost);
             return EINVAL;
