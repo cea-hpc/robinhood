@@ -392,6 +392,8 @@ static inline int get_sort_attr(policy_info_t *p, const attr_set_t *p_attrs)
         return ATTR(p_attrs, last_access);
     case ATTR_INDEX_rm_time:
         return ATTR(p_attrs, rm_time);
+    case ATTR_INDEX_size:
+        return ATTR(p_attrs, size);
     default:
         return -1;
     }
