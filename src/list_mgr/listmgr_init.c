@@ -2150,7 +2150,7 @@ static int create_table_softrm(db_conn_t *pconn, bool *affects_trig)
 #define VERSION_VAR_TRIG    "VersionTriggerSet"
 
 #define FUNCTIONSET_VERSION    "1.6"
-#define TRIGGERSET_VERSION     "1.4"
+#define TRIGGERSET_VERSION     "1.5"
 
 static int check_functions_version(db_conn_t *conn)
 {
@@ -2490,7 +2490,7 @@ static int create_trig_acct_update(db_conn_t *pconn, bool *affects_trig)
 
     /* update size range values */
     g_string_append_printf(request,
-                           "%s%s=CAST(%s as SIGNED)-CAST(((OLD.size=0)+(NEW.size=0)) as SIGNED)",
+                           "%s%s=CAST(%s as SIGNED)-CAST((OLD.size=0) as SIGNED)+CAST((NEW.size=0) as SIGNED)",
                            is_first_field ? "" : ",", sz_field[0], sz_field[0]);
     is_first_field = false;
     for (i = 1; i < SZ_PROFIL_COUNT - 1; i++) { /* 2nd to before the last */
