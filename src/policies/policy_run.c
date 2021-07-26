@@ -435,6 +435,11 @@ static inline void set_max_time_attrs(policy_info_t *p, attr_set_t *p_attrs,
         ATTR(p_attrs, creation_time) = value;
         break;
 
+    case ATTR_INDEX_size:
+        ATTR_MASK_SET(p_attrs, size);
+        ATTR(p_attrs, size) = value;
+        break;
+
     default:
         if (is_sm_info(p->config->lru_sort_attr)) {
             int *dup = malloc(sizeof(int));
@@ -1931,8 +1936,12 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     /* sort by last access */
     // TODO manage random
     sort_type.attr_index = p_pol_info->config->lru_sort_attr;
+    /* entries are sorted:
+     * - by size, largest first;
+     * - by time, oldest first. */
     sort_type.order = p_pol_info->config->lru_sort_attr == LRU_ATTR_NONE ?
-        SORT_NONE : SORT_ASC;
+        SORT_NONE : p_pol_info->config->lru_sort_attr == ATTR_INDEX_size ?
+        SORT_DESC : SORT_ASC;
 
     rc = lmgr_simple_filter_init(&filter);
     if (rc)

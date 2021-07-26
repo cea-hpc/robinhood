@@ -229,6 +229,8 @@ unsigned int str2lru_attr(const char *str, const struct sm_instance *smi)
         return ATTR_INDEX_creation_time;
     else if (!strcasecmp(str, criteria2str(CRITERIA_RMTIME)))
         return ATTR_INDEX_rm_time;
+    else if (!strcasecmp(str, criteria2str(CRITERIA_SIZE)))
+        return ATTR_INDEX_size;
     else if (!strcasecmp(str, "none"))
         return LRU_ATTR_NONE;
 

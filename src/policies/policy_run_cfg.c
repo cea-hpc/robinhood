@@ -784,10 +784,10 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
     if ((rc != 0) && (rc != ENOENT))
         return rc;
     if (rc != ENOENT) {
-        /* is it a time attribute? */
+        /* is it a sortable attribute? */
         rc = str2lru_attr(tmp, smi);
         if (rc == LRU_ATTR_INVAL) {
-            strcpy(msg_out, "time attribute expected for 'lru_sort_attr': "
+            strcpy(msg_out, "sortable attribute expected for 'lru_sort_attr': "
                    ALLOWED_LRU_ATTRS_STR "...");
             return EINVAL;
         }

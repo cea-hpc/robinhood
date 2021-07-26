@@ -1022,7 +1022,7 @@ function test_lru_policy
     # modification times
 	echo -n "  Modifying files 2 3 4 6 7, "
 	for i in 2 3 4 6 7; do
-	    echo "data" > $RH_ROOT/file.$i || error "modifying file.$i"
+	    echo "data" >> $RH_ROOT/file.$i || error "modifying file.$i"
 	done
 	echo "sleeping $cr_sleep seconds..."
     sleep $cr_sleep
@@ -13435,7 +13435,7 @@ run_test 220c test_lru_policy lru_sort_mod_2pass.conf "" "0 1 2 3 4 5 6 7 8 9" 3
 run_test 220d test_lru_policy lru_sort_access.conf "" "0 2 3 6 8 9" 20 "lru sort on last_access"
 run_test 220e test_lru_policy lru_sort_archive.conf "0 1 2 3 4 5 6 7 8 9" "" 15 "lru sort on last_archive"
 run_test 220f test_lru_policy lru_sort_creat_last_arch.conf "0 1 2 3" "4 5 6 7 8 9" 10 "lru sort on creation and last_archive==0"
-run_test 220g test_lru_policy lru_sort_size.conf "2 5 8 4 7" "1" 20 "lru sort on size"
+run_test 220g test_lru_policy lru_sort_size.conf "2 5 8" "1 4 7" 10 "lru sort on size"
 run_test 221  test_suspend_on_error migr_fail.conf  2 "suspend migration if too many errors"
 run_test 222  test_custom_purge test_custom_purge.conf 2 "custom purge command"
 run_test 223  test_default test_default_case.conf "ignore entries if no default case is specified"
