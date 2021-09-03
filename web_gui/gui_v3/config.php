@@ -191,7 +191,6 @@ foreach ($DBA as $k=>$v) {
     	$DBA[$k]["DB_PASSWD"]="****";
 	    $DBA[$k]["DB_STATUS"] = "Error";
     	$DBA[$k]["DB_ERROR"] = $e->getMessage();
-	    echo $e->getMessage();
         $DB_LASTERROR .= $e->getMessage();
     }
 }
