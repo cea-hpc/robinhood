@@ -40,7 +40,8 @@
 
 /* ------------ Types and global variables ------------ */
 
-#define is_count_trigger(_t_) ((_t_)->hw_type == COUNT_THRESHOLD)
+#define is_count_trigger(_t_) ((_t_)->hw_type == COUNT_THRESHOLD || \
+                               (_t_)->hw_type == CNTPCT_THRESHOLD)
 #define check_only(_p) ((_p)->flags & RUNFLG_CHECK_ONLY)
 #define one_shot(_p) ((_p)->flags & RUNFLG_ONCE)
 
@@ -279,9 +280,9 @@ static int check_count_thresholds(trigger_item_t *p_trigger,
                                   const char *storage_descr,
                                   const struct statfs *p_statfs,
                                   unsigned long long *to_be_purged,
-                                  unsigned long long *count_used)
+                                  double *p_count_pct_used)
 {
-    unsigned long long inode_used;
+    unsigned long long inode_used = 0;
 
     *to_be_purged = 0;
 
@@ -298,54 +299,97 @@ static int check_count_thresholds(trigger_item_t *p_trigger,
     /* number of inodes used */
     inode_used = p_statfs->f_files - p_statfs->f_ffree;
 
-    /* return last usage */
-    if (count_used)
-        *count_used = inode_used;
+    /* expected to be != NULL */
+    if (p_count_pct_used == NULL)
+        RBH_BUG("Unexpected NULL pointer as parameter");
 
-    /* check it is a condition on inode count */
-    if ((p_trigger->hw_type != COUNT_THRESHOLD)
-        || (p_trigger->lw_type != COUNT_THRESHOLD)) {
+    /* compute the inode use percentage */
+    *p_count_pct_used = 100.0 * ((double)inode_used)
+                        /((double)p_statfs->f_files);
+
+    /* check it is a condition on inode count or in count percentage */
+    if ((p_trigger->hw_type != COUNT_THRESHOLD
+           && p_trigger->hw_type != CNTPCT_THRESHOLD)
+        || (p_trigger->lw_type != COUNT_THRESHOLD
+            && p_trigger->lw_type != CNTPCT_THRESHOLD)) {
         DisplayLog(LVL_CRIT, TAG,
-                   "Unexpected threshold types %d, %d. Trigger skipped.",
+                   "Unexpected threshold types h=%d, l=%d. Trigger skipped.",
                    p_trigger->hw_type, p_trigger->lw_type);
         return -EINVAL;
     }
 
-    DisplayLog(LVL_EVENT, TAG, "%s entry count: %llu / high threshold: %llu",
-               storage_descr, inode_used, p_trigger->hw_count);
-
-    if (inode_used < p_trigger->hw_count) {
-        DisplayLog(LVL_VERB, TAG,
-                   "%s inode count is under high threshold: nothing to do.",
-                   storage_descr);
-        return 0;
-    } else if (p_trigger->alert_hw) {
-        char buff[1024];
-        snprintf(buff, sizeof(buff), "High threshold reached on %s",
-                 storage_descr);
-        RaiseAlert(buff, "%s\nentry count: %llu, high threshold: %llu", buff,
-                   inode_used, p_trigger->hw_count);
-    }
-
-    /* if we reach this point, high threshold is exceeded compute the amount
-     * of data for reaching low threshold */
-    DisplayLog(LVL_VERB, TAG, "Target entry count: %llu", p_trigger->lw_count);
-
-    if (inode_used <= p_trigger->lw_count) {
+    if (p_trigger->lw_type == COUNT_THRESHOLD) {
         DisplayLog(LVL_EVENT, TAG,
-                   "Inode count is already under low threshold. Do nothing.");
-        return 0;
+               "%s entry count: %llu (%.2f%%) / high threshold: %llu",
+               storage_descr, inode_used, *p_count_pct_used,
+               p_trigger->hw_count);
+        if (inode_used < p_trigger->hw_count) {
+            DisplayLog(LVL_VERB, TAG,
+                       "%s (%.2f%%) inode count is under high threshold: "
+                       "nothing to do.", storage_descr,*p_count_pct_used);
+            return 0;
+        } else if (p_trigger->alert_hw) {
+           char buff[1024];
+           snprintf(buff, sizeof(buff), "High threshold reached on %s",
+                    storage_descr);
+           RaiseAlert(buff, "%s\nentry count: %llu (%.2f%%), "
+                      "high threshold: %llu", buff, inode_used,
+                      *p_count_pct_used, p_trigger->hw_count);
+        }
+        /* if we reach this point, high threshold is exceeded compute the amount
+        * of data for reaching low threshold */
+        DisplayLog(LVL_VERB, TAG, "Target entry count: %llu",
+                   p_trigger->lw_count);
+        if (inode_used <= p_trigger->lw_count) {
+            DisplayLog(LVL_EVENT, TAG,
+                     "Inode count is already under low threshold. Do nothing.");
+            return 0;
+        }
+        *to_be_purged = inode_used - p_trigger->lw_count;
+        DisplayLog(LVL_EVENT, TAG,
+                   "%llu entries must be processed in %s (used=%llu (%.2f%%), "
+                   "target=%llu)", *to_be_purged, storage_descr, inode_used,
+                   *p_count_pct_used, p_trigger->lw_count);
+
+    } else if (p_trigger->lw_type == CNTPCT_THRESHOLD) {
+        unsigned long long inode_lw = (unsigned long long)
+                (p_trigger->lw_percent * (double)p_statfs->f_files) / 100.0;
+
+        DisplayLog(LVL_EVENT, TAG,
+                   "%s entry count: %llu (%.2f%%) / high threshold: %.2f%%",
+                   storage_descr, inode_used, *p_count_pct_used,
+                   p_trigger->hw_percent);
+        if (*p_count_pct_used < p_trigger->hw_percent) {
+            DisplayLog(LVL_VERB, TAG,
+                   "%s (%.2f%%) inode count is under high threshold: "
+                   "nothing to do.", storage_descr,*p_count_pct_used);
+            return 0;
+        } else if (p_trigger->alert_hw) {
+            char buff[1024];
+            snprintf(buff, sizeof(buff), "High threshold reached on %s",
+                     storage_descr);
+            RaiseAlert(buff, "%s\nentry count percentage  %.2f%%, "
+                       "high threshold: %.2f%%", buff, *p_count_pct_used,
+                       p_trigger->hw_percent);
+        }
+        /* If we reach this point, high threshold is exceeded.
+         * Compute the amount of data for reaching low threshold */
+        DisplayLog(LVL_VERB, TAG, "Target entry count: %llu (%.2f%%)",
+                   inode_lw, p_trigger->lw_percent);
+        if (inode_used <= inode_lw) {
+            DisplayLog(LVL_EVENT, TAG,
+                       "Inode count percentage is already under low "
+                        "threshold. Do nothing.");
+            return 0;
+        }
+        *to_be_purged = inode_used - inode_lw;
+        DisplayLog(LVL_EVENT, TAG, "%llu entries must be processed in %s "
+                   "(used=%llu (%.2f%%), target=%llu (%.2f%%))", *to_be_purged,
+                   storage_descr, inode_used, *p_count_pct_used,
+                   inode_lw, p_trigger->lw_percent);
     }
-
-    *to_be_purged = inode_used - p_trigger->lw_count;
-
-    DisplayLog(LVL_EVENT, TAG,
-               "%llu entries must be processed in %s (used=%llu, target=%llu)",
-               *to_be_purged, storage_descr, inode_used, p_trigger->lw_count);
     return 0;
 }
-
-/* -------- NEW CODE -------- */
 
 /** get the total number of usable blocks in the filesystem */
 static int total_blocks(unsigned long long *total_user_blocks,
@@ -594,7 +638,8 @@ static int get_ost_max(struct statfs *df, trigger_value_type_t tr_type,
     unsigned long long ost_blocks;
     struct statfs stat_max, stat_tmp;
     double max_pct = 0.0, curr_pct = 0.0;
-    unsigned long long max_vol = 0LL, curr_vol = 0;
+    unsigned long long max_vol = 0LL, curr_vol = 0, curr_inode_used = 0,
+                       max_cnt_inodes = 0;
     char ostname[128];
 
     for (ost_index = 0;; ost_index++) {
@@ -628,6 +673,26 @@ static int get_ost_max(struct statfs *df, trigger_value_type_t tr_type,
                 stat_max = stat_tmp;
             }
             break;
+        case COUNT_THRESHOLD:
+            /* number of inodes used */
+            curr_inode_used = stat_tmp.f_files - stat_tmp.f_ffree;
+            if (curr_inode_used > max_cnt_inodes) {
+                ost_max = ost_index;
+                max_cnt_inodes = curr_inode_used;
+                stat_max = stat_tmp;
+            }
+            break;
+
+        case CNTPCT_THRESHOLD:
+            curr_inode_used = stat_tmp.f_files - stat_tmp.f_ffree;
+            curr_pct = 100.0 * (double)curr_inode_used/(double)stat_tmp.f_files;
+            if (curr_pct > max_pct) {
+                ost_max = ost_index;
+                max_pct = curr_pct;
+                stat_max = stat_tmp;
+            }
+            break;
+
         default:
             RBH_BUG("Unexpected OST trigger type");
         }
@@ -729,14 +794,14 @@ static int check_statfs_thresholds(trigger_item_t *trig, const char *tgt_name,
 {
     int rc;
     double tmp_usage = 0.0;
-    unsigned long long tmp_count = 0;
+    double tmp_count_pct = 0.0;
 
     if (is_count_trigger(trig)) {
         /* inode count */
         rc = check_count_thresholds(trig, tgt_name, stfs, &limit->count,
-                                    &tmp_count);
-        if (tmp_count > tinfo->last_count)
-            tinfo->last_count = tmp_count;
+                                    &tmp_count_pct);
+        if (tmp_count_pct > tinfo->last_count)
+            tinfo->last_count = tmp_count_pct;
     } else if (trig->target_type == TGT_FS) {
         /* block threshold */
         rc = check_blocks_thresholds(trig, tgt_name, stfs, &limit->blocks,
@@ -762,6 +827,7 @@ static int check_report_thresholds(trigger_item_t *p_trigger,
 {
     const char *what = (p_trigger->target_type == TGT_USER ? "user" : "group");
     char buff[1024];
+    char hw_str[128];
     int rc;
 
     if (res_count != 2) {
@@ -771,6 +837,11 @@ static int check_report_thresholds(trigger_item_t *p_trigger,
     }
 
     if (is_count_trigger(p_trigger)) {
+        if (p_trigger->hw_type == COUNT_THRESHOLD)
+            FormatFileSize(hw_str, sizeof(hw_str), p_trigger->hw_count);
+        else if (p_trigger->hw_type == CNTPCT_THRESHOLD)
+            snprintf(hw_str, sizeof(hw_str), "%.2f%%", p_trigger->hw_percent);
+
         DisplayLog(LVL_EVENT, TAG, "%s '%s' exceeds high threshold: "
                    "used: %llu inodes / high threshold: %llu inodes.",
                    what, id_as_str(&result[0].value_u),
@@ -792,14 +863,12 @@ static int check_report_thresholds(trigger_item_t *p_trigger,
                            what);
             }
             RaiseAlert(buff,
-                       "%s\n" "%s:       %s\n" "quota:      %llu inodes\n"
+                       "%s\n" "%s:       %s\n" "quota:      %s inodes\n"
                        "usage:      %llu inodes", buff, what,
-                       id_as_str(&result[0].value_u), p_trigger->hw_count,
+                       id_as_str(&result[0].value_u), hw_str,
                        result[1].value_u.val_biguint);
         }
     } else {
-        char hw_str[128];
-
         if (p_trigger->hw_type == VOL_THRESHOLD)
             FormatFileSize(hw_str, sizeof(hw_str), p_trigger->hw_volume);
         else if (p_trigger->hw_type == PCT_THRESHOLD)

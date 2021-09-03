@@ -57,9 +57,11 @@ typedef enum {
  */
 
 typedef enum {
-    PCT_THRESHOLD,          /**< threshold is specified as a percentage */
-    VOL_THRESHOLD,          /**< threshold is specified as a (used) size (in Bytes) */
-    COUNT_THRESHOLD         /**< threshold is specified as a number of entries */
+    PCT_THRESHOLD,    /**< threshold is specified as a percentage */
+    VOL_THRESHOLD,    /**< threshold is specified as a (used) size (in Bytes) */
+    COUNT_THRESHOLD,  /**< threshold is specified as a number of entries */
+    CNTPCT_THRESHOLD  /**< threshold is specified as a percentage of
+                           the number of available inodes */
 } trigger_value_type_t;
 
 typedef union {
@@ -311,8 +313,8 @@ typedef struct trigger_status__ {
 
     /* its usage, the last time it was checked for OST and global FS triggers */
     double              last_usage;
-    /* for inode based thresholds */
-    ull_t               last_count;
+    /* for inode based thresholds there is also percentage */
+    double              last_count;
 } trigger_info_t;
 
 /* policy runtime information */

@@ -4999,7 +4999,7 @@ function test_cnt_trigger
 {
 	config_file=$1
 	file_count=$2
-	exp_purge_count=$3
+	expected_purge_count=$3
 	policy_str="$4"
 
 	clean_logs
@@ -5014,8 +5014,8 @@ function test_cnt_trigger
 
 	# initial inode count
 	empty_count=`df -i $RH_ROOT/ | grep "$RH_ROOT" | xargs | awk '{print $(NF-3)}'`
-    export high_cnt=$((file_count + $empty_count))
-    export low_cnt=$(($high_cnt - $exp_purge_count))
+    export high_cnt=$(($file_count + $empty_count))
+    export low_cnt=$(($high_cnt - $expected_purge_count))
 
     [ "$DEBUG" = "1" ] && echo "Initial inode count $empty_count, creating additional $file_count files"
 
@@ -5053,12 +5053,168 @@ function test_cnt_trigger
 
 	nb_release=`grep "$REL_STR" rh_purge.log | wc -l`
 
-	if (($nb_release == $exp_purge_count)); then
+	if (($nb_release == $expected_purge_count)); then
 		echo "OK: $nb_release files released"
 	else
-		error ": $nb_release files released, $exp_purge_count expected"
+		error ": $nb_release files released, $expected_purge_count expected"
 	fi
 }
+
+function test_cntpct_trigger
+{
+    config_file=$1
+    file_count=$2
+    dummy=$3
+    policy_str="$4"
+
+    clean_logs
+    wait_stable_df
+
+    total_count=`df -i $RH_ROOT/ | grep "$RH_ROOT" | xargs |
+            awk '{print $(NF-4)}'`
+    init_pct=`df -i $RH_ROOT/ | grep "$RH_ROOT" | xargs |
+            awk '{print $(NF-1)}'| sed -e 's/%//'`
+    one_pct=$(($total_count/100))
+
+    [ "$DEBUG" = "1" ] &&
+        echo "Initial percentage $init_pct, creating additional $one_pct files"
+
+    # create additional 2% of inodes
+    #create test files
+    for i in `seq 1 $((2*$one_pct))`; do
+        touch $RH_ROOT/file.$i || error "creating $RH_ROOT/file.$i"
+    done
+
+    wait_stable_df
+
+    # new pct should be at least +1
+    new_pct=`df -i $RH_ROOT/ | grep "$RH_ROOT" | xargs | awk '{print $(NF-1)}' |
+            sed -e 's/%//'`
+
+    (($new_pct > $init_pct)) ||
+        error "New inode pourcentage $new_pct should be > $init_pct"
+
+    # export high/low threshold count to config file
+    export high_pct="$init_pct%"
+    export low_pct="$init_pct%"
+    export trig_type=global_usage
+
+    # scan
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log \
+        2>/dev/null || error "executing $CMD --scan"
+    check_db_error rh_chglogs.log
+
+    # apply purge trigger
+    $RH -f $RBH_CFG_DIR/$config_file --run=cleanup --once -l FULL \
+        -L rh_purge.log
+
+    nb_clean=`grep "cleanup success for" rh_purge.log | wc -l`
+
+    echo "$nb_clean files deleted"
+
+    # clean file must be > 1%
+    (( $nb_clean > $one_pct )) || error "At least $one_pct should have been cleaned"
+
+    # cleaned files must be <= 2%
+    (( $nb_clean <= 2*$one_pct )) || error "Max $((2*$one_pct)) should have been cleaned"
+}
+
+
+function test_cntpct_ost_trigger
+{
+    config_file=$1
+    file_count=$2
+    dummy=$3
+    policy_str="$4"
+
+    clean_logs
+
+    if [ -n "$POSIX_MODE" ]; then
+      echo "Lustre-only test"
+      set_skipped
+      return 1
+    fi
+
+    wait_stable_df
+
+    total_count_ost=`lfs df -i $RH_ROOT/ | grep "OST:" | head -n 1 | xargs |
+            awk '{print $(NF-4)}'`
+    init_pct=`lfs df -i $RH_ROOT/ | grep "OST:" | head -n 1 | xargs |
+            awk '{print $(NF-1)}'| sed -e 's/%//'`
+    one_pct=$(($total_count_ost/100))
+
+    echo "Initial OST usage percentage $init_pct"
+
+    ost_count=$(lfs df -i $RH_ROOT/ | grep "OST:" | wc -l)
+
+    for i in $(seq 1 $ost_count); do
+      ost=$(($i -1))
+      echo "Creating additional $(($i*$one_pct)) files on OST$ost"
+
+      # create additional 1% of inodes * ost rank
+      # create test files
+      for i in `seq 1 $(($i*$one_pct))`; do
+          lfs setstripe -c 1 -i $ost $RH_ROOT/file.$ost.$i ||
+          error "creating $RH_ROOT/file.$i"
+      done
+    done
+
+    wait_stable_df
+
+    for i in $(seq 1 $ost_count); do
+        ost=$(($i -1))
+
+        # new pct should be at least +1*ost_rank
+        new_pct=`lfs df -i $RH_ROOT/ | grep "OST:$ost" | head -n 1 | xargs |
+            awk '{print $(NF-1)}' | sed -e 's/%//'`
+
+        (($new_pct > $init_pct+$ost)) ||
+            error "New inode pourcentage $new_pct should be > $(($init_pct+$ost))"
+    done
+
+    # export high/low threshold count to config file
+    export high_pct="$init_pct%"
+    export low_pct="$init_pct%"
+    export trig_type=ost_usage
+
+    # scan
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log \
+        2>/dev/null || error "executing $CMD --scan"
+    check_db_error rh_chglogs.log
+
+    # apply purge trigger
+    $RH -f $RBH_CFG_DIR/$config_file --run=cleanup --once -l FULL \
+        -L rh_purge.log
+
+    # checking triggers:
+    # - fullest OST first
+    # - OST0: 1 <= purged < one_pct
+    # - OST1: one_pct <= purged < 2*one_pct
+    # - OST2: 2*one_pct <= purged < 3*one_pct
+    # - OST3: 3*one_pct <= purged < 4*one_pct
+
+    sequence=$(grep "Policy run summary" rh_purge.log | cut -d '|' -f 2 |
+        awk '{print $5}' | xargs | sed -e 's/target=OST#//g' | tr -d ';')
+
+    if [ "$sequence" = "3 2 1 0" ]; then
+        echo "OK: right purge sequence $sequence"
+    else
+        error "Invalid purge sequence: should be fullest first"
+    fi
+
+    for i in $(seq 1 $ost_count); do
+        ost=$(($i -1))
+
+        nb_clean=$(grep "Policy run summary" rh_purge.log | grep "target=OST#$ost;" |
+            cut -d '|' -f 2 | awk '{print $6}')
+
+        [ "$DEBUG" = "1" ] && echo "OST $ost: $nb_clean files cleaned"
+
+        (( $nb_clean > $ost*$one_pct )) || error "At least $(($ost*$one_pct+1)) should have been cleaned"
+        (( $nb_clean <= $i*$one_pct )) || error "Max $(($i*$one_pct)) should have been cleaned"
+    done
+}
+
 
 
 function test_ost_trigger
@@ -5637,17 +5793,17 @@ function projectid_test_run
     :>rh_purge.log
     $RH -f $RBH_CFG_DIR/$config_file --run=purge -I --target=projid:1 --once -l DEBUG -L rh_purge.log || error "purging files"
     nb=$(grep "$REL_STR" rh_purge.log | wc -l)
-    (($nb == 1)) || error "Unexpected number of purged files for projid 1"
+    (($nb == 1)) || error "Unexpected number of purged files for projid 1: $nb"
 
     :>rh_purge.log
     $RH -f $RBH_CFG_DIR/$config_file --run=purge -I --target=projid:2 --once -l DEBUG -L rh_purge.log || error "purging files"
     nb=$(grep "$REL_STR" rh_purge.log | wc -l)
-    (($nb == 2)) || error "Unexpected number of purged files for projid 2"
+    (($nb == 2)) || error "Unexpected number of purged files for projid 2: $nb"
 
     :>rh_purge.log
     $RH -f $RBH_CFG_DIR/$config_file --run=purge -I --target=projid:3 --once -l DEBUG -L rh_purge.log || error "purging files"
     nb=$(grep "$REL_STR" rh_purge.log | wc -l)
-    (($nb == 3)) || error "Unexpected number of purged files for projid 3"
+    (($nb == 3)) || error "Unexpected number of purged files for projid 3: $nb"
 }
 
 
@@ -13960,6 +14116,8 @@ run_test 301    test_ost_trigger test_trig2.conf 150 110 "trigger on OST usage"
 run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 80 5 10 40
 run_test 303    test_periodic_trigger test_trig4.conf 5 "periodic trigger"
 run_test 304    test_ost_order test_trig2.conf "OST purge order"
+run_test 305a   test_cntpct_trigger test_trig_cntpct.conf "trigger on inode usage percentage"
+run_test 305b   test_cntpct_ost_trigger test_trig_cntpct.conf "trigger on inode usage percentage on OSTs"
 
 ### projectid related tests
 run_test 350    projectid_test_find info_collect.conf   "Lustre project id and rbh-find"

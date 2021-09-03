@@ -395,6 +395,17 @@ static int read_threshold_params(config_item_t config_blk,
         cnt++;
     }
 
+    rc = GetFloatParam(config_blk, block_name,
+                       mk_threshold_param(prefix, "cntpct", buff),
+                       PFLG_POSITIVE | PFLG_ALLOW_PCT_SIGN, &val->percent,
+                       NULL, NULL, msg_out);
+    if ((rc != 0) && (rc != ENOENT))    /* real error */
+        return rc;
+    if (rc == 0) {
+        *type = CNTPCT_THRESHOLD;
+        cnt++;
+    }
+
     rc = GetInt64Param(config_blk, block_name,
                        mk_threshold_param(prefix, "cnt", buff),
                        PFLG_POSITIVE, &tmpval, NULL, NULL, msg_out);
@@ -426,20 +437,10 @@ static int read_threshold_params(config_item_t config_blk,
 
     if (cnt == 0) {
         sprintf(msg_out, "No %s_threshold found in trigger (mandatory): "
-                " '%s_threshold_pct', '%s_threshold_vol'"
+                " '%s_threshold_pct', '%s_threshold_vol', '%s_threshold_cntpct"
                 "or '%s_threshold_cnt' expected", prefix, prefix,
-                prefix, prefix);
+                prefix, prefix, prefix);
         return ENOENT;
-    }
-
-    /* count threshold is only support for global FS usage */
-    if ((*type == COUNT_THRESHOLD)
-        && (p_trigger->target_type != TGT_FS)
-        && (p_trigger->target_type != TGT_USER)
-        && (p_trigger->target_type != TGT_GROUP)) {
-        strcpy(msg_out, "Threshold on entry count is only supported "
-               "for 'global_usage', 'user_usage' and 'group_usage' triggers");
-        return EINVAL;
     }
 
     return 0;
@@ -800,8 +801,8 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
         /* Leave unchanged (default to "asc") if no parameter is specified. */
         if (extra_cnt > 1) {
             sprintf(msg_out, "Too many parameters found for lru_sort_attr = "
-                             " '%s' in block '%s': '(asc)' or '(desc)' expected",
-                             tmp, block_name);
+                    " '%s' in block '%s': '(asc)' or '(desc)' expected",
+                    tmp, block_name);
             return EINVAL;
         }
         if (extra_cnt == 1) {
@@ -1116,6 +1117,15 @@ static void update_triggers(trigger_item_t *trigger_tgt,
                 trigger_tgt[i].hw_count = trigger_new[i].hw_count;
             }
             break;
+        case CNTPCT_THRESHOLD:
+            if (trigger_new[i].hw_percent != trigger_tgt[i].hw_percent) {
+                DisplayLog(LVL_EVENT, TAG,
+                           "High threshold updated for trigger %s: "
+                           "%.2f%%->%.2f%%", tname, trigger_tgt[i].hw_percent,
+                           trigger_new[i].hw_percent);
+                trigger_tgt[i].hw_percent = trigger_new[i].hw_percent;
+            }
+            break;
         }
 
         switch (trigger_new[i].lw_type) {
@@ -1146,6 +1156,15 @@ static void update_triggers(trigger_item_t *trigger_tgt,
                            tname, trigger_tgt[i].lw_count,
                            trigger_new[i].lw_count);
                 trigger_tgt[i].lw_count = trigger_new[i].lw_count;
+            }
+            break;
+        case CNTPCT_THRESHOLD:
+            if (trigger_new[i].lw_percent != trigger_tgt[i].lw_percent) {
+                DisplayLog(LVL_EVENT, TAG,
+                           "Low threshold updated for trigger %s: %.2f%%->%.2f%%",
+                           tname, trigger_tgt[i].lw_percent,
+                           trigger_new[i].lw_percent);
+                trigger_tgt[i].lw_percent = trigger_new[i].lw_percent;
             }
             break;
         }

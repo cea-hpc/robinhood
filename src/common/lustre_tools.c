@@ -754,6 +754,8 @@ int Get_OST_usage(const char *fs_path, unsigned int ost_index,
     ost_statfs->f_blocks = stat_buf.os_blocks;
     ost_statfs->f_bfree = stat_buf.os_bfree;
     ost_statfs->f_bavail = stat_buf.os_bavail;
+    ost_statfs->f_ffree = stat_buf.os_ffree;
+    ost_statfs->f_files = stat_buf.os_files;
 
     return 0;
 }
@@ -841,6 +843,8 @@ int Get_pool_usage(const char *poolname, struct statfs *pool_statfs)
         pool_statfs->f_bfree += ost_statfs.f_bfree;
         pool_statfs->f_bavail += ost_statfs.f_bavail;
         pool_statfs->f_bsize = ost_statfs.f_bsize;
+        pool_statfs->f_ffree += ost_statfs.f_ffree;
+        pool_statfs->f_files += ost_statfs.f_files;
     }
 
     return 0;
