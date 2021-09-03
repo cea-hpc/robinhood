@@ -531,6 +531,13 @@ typedef struct lmgr_simple_filter_t {
     unsigned int         prealloc;
 } lmgr_simple_filter_t;
 
+/** Sort types */
+typedef enum {
+    SORT_NONE, /**< no sorting */
+    SORT_ASC,  /**< sort from lower value to higher */
+    SORT_DESC  /**< sort from higher value to lower */
+} sort_order_t;
+
 /* needed here for defining filters, obj_type_t... */
 #include "policy_rules.h"
 
@@ -578,13 +585,6 @@ typedef struct lmgr_filter_t {
 /* for cleaner code */
 #define filter_simple   filter_u.simple_filter
 #define filter_boolexpr filter_u.boolean_expr
-
-/** Sort types */
-typedef enum {
-    SORT_NONE, /**< no sorting */
-    SORT_ASC,  /**< sort from lower value to higher */
-    SORT_DESC  /**< sort from higher value to lower */
-} sort_order_t;
 
 /** specifies result order */
 typedef struct lmgr_sort_type_t {
@@ -1292,6 +1292,9 @@ int lmgr_simple_filter_add_block(lmgr_filter_t *, enum filter_flags);
 bool cond2sql_ok(bool_node_t *boolexpr,
                       const struct sm_instance *smi,
                       const struct time_modifier *time_mod);
+
+/* return a sort_order_t or a negative value on error */
+int str2sort_order(const char *str);
 
 #endif
 

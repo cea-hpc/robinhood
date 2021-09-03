@@ -146,7 +146,8 @@ static inline void check_sort(const lmgr_sort_type_t *p_sort_type,
     *sort_dirattr = ATTR_INDEX_FLG_UNSPEC;
 
     /* is there a sort order ? */
-    if (p_sort_type == NULL || p_sort_type->order == SORT_NONE)
+    if (p_sort_type == NULL || p_sort_type->order == SORT_NONE
+        || ((p_sort_type->attr_index & ATTR_INDEX_FLG_UNSPEC) != 0))
         return;
 
     /* check sort order */

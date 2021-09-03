@@ -21,8 +21,8 @@
 #define _POLICIES_H
 
 #include "rbh_boolexpr.h"
-#include "list_mgr.h"
 #include "rbh_params.h"
+#include "list_mgr.h"
 #include <sys/time.h>
 
 /** whitelist item is just a boolean expression */
@@ -187,6 +187,8 @@ typedef struct policy_descr_t {
     /* attr index of the sort order (e.g. last_mod, creation_time, ...) */
     /* default value for policy_run_config_t.lru_sort_attr */
     unsigned int        default_lru_sort_attr;
+    /* default value for policy_run_config_t.lru_sort_order */
+    sort_order_t        default_lru_sort_order;
 
     policy_rules_t      rules;
 

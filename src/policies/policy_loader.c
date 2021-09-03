@@ -379,16 +379,38 @@ static int parse_policy_decl(config_item_t config_blk, const char *block_name,
     }
 
     /* smi must be set to call str2lru_attr */
+    extra = NULL;
+    extra_cnt = 0;
     rc = GetStringParam(config_blk, block_name, "default_lru_sort_attr",
                         PFLG_NO_WILDCARDS | PFLG_MANDATORY, tmpstr,
-                        sizeof(tmpstr), NULL, NULL, msg_out);
+                        sizeof(tmpstr), &extra, &extra_cnt, msg_out);
     if (rc)
         return rc;
-    /* is it a time attribute? */
+
+    /* check extra parameter (allowed values are "asc" or "desc"). */
+    if (extra_cnt > 1) {
+        sprintf(msg_out, "Too many parameters found for default_lru_sort_attr = "
+                         " '%s' in block '%s': '(asc)' or '(desc)' expected",
+                         tmpstr, block_name);
+        return EINVAL;
+    } else if (extra_cnt == 0) {
+        /* Default to "asc" if no parameter is specified. */
+        policy->default_lru_sort_order = SORT_ASC;
+    } else {
+        rc = str2sort_order(extra[0]);
+        if (rc < 0) {
+            sprintf(msg_out, "Invalid sort order '%s' in block '%s':"
+                    " 'asc' or 'desc' expected", extra[0], block_name);
+            return EINVAL;
+        }
+        policy->default_lru_sort_order = rc;
+    }
+
+    /* is it a supported attribute? */
     rc = str2lru_attr(tmpstr, policy->status_mgr);
     if (rc == LRU_ATTR_INVAL) {
-        strcpy(msg_out, "time attribute expected for 'default_lru_sort_attr': "
-               ALLOWED_LRU_ATTRS_STR "...");
+        strcpy(msg_out, "Attribute not supported for 'default_lru_sort_attr': "
+               "Expected: "ALLOWED_LRU_ATTRS_STR "...");
         return EINVAL;
     } else
         policy->default_lru_sort_attr = rc;

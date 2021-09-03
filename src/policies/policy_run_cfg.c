@@ -56,6 +56,7 @@ static int polrun_set_default(const policy_descr_t *pol,
 
     /* attr index of the sort order (e.g. last_mod, creation_time, ...) */
     cfg->lru_sort_attr = pol->default_lru_sort_attr;
+    cfg->lru_sort_order = pol->default_lru_sort_order;
 
     cfg->action = pol->default_action;
     cfg->action_params.param_set = NULL;
@@ -777,9 +778,11 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
 
     /* read specific parameters */
 
+    extra = NULL;
+    extra_cnt = 0;
     /* 'lru_sort_attr' overrides 'default_lru_sort_attr' from 'define_policy' */
     rc = GetStringParam(param_block, block_name, "lru_sort_attr",
-                        PFLG_NO_WILDCARDS, tmp, sizeof(tmp), NULL, NULL,
+                        PFLG_NO_WILDCARDS, tmp, sizeof(tmp), &extra, &extra_cnt,
                         msg_out);
     if ((rc != 0) && (rc != ENOENT))
         return rc;
@@ -792,6 +795,24 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
             return EINVAL;
         }
         conf->lru_sort_attr = rc;
+
+        /* check extra parameter (allowed values are "asc" or "desc"). */
+        /* Leave unchanged (default to "asc") if no parameter is specified. */
+        if (extra_cnt > 1) {
+            sprintf(msg_out, "Too many parameters found for lru_sort_attr = "
+                             " '%s' in block '%s': '(asc)' or '(desc)' expected",
+                             tmp, block_name);
+            return EINVAL;
+        }
+        if (extra_cnt == 1) {
+            rc = str2sort_order(extra[0]);
+            if (rc < 0) {
+                sprintf(msg_out, "Invalid sort order '%s' in block '%s':"
+                        " 'asc' or 'desc' expected", extra[0], block_name);
+                return EINVAL;
+            }
+            conf->lru_sort_order = rc;
+        }
     }
 
     /* 'action' overrides 'default_action' from 'define_policy' */

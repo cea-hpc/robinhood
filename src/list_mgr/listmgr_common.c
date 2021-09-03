@@ -2210,3 +2210,12 @@ void attr_mask_unset_readonly(attr_mask_t *mask)
 {
     *mask = attr_mask_and_not(mask, &readonly_attr_set);
 }
+
+int str2sort_order(const char *str)
+{
+    if (!strcasecmp(str, "ASC"))
+        return SORT_ASC;
+    if (!strcasecmp(str, "DESC"))
+        return SORT_DESC;
+    return -1;
+}

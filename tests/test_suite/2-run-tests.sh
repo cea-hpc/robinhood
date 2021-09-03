@@ -1004,18 +1004,20 @@ function test_lru_policy
     # 15s  | access        |      x           x   x       x
     # 20s  | 1st archive   |  $expected_migr_1
     # +$4  | 2nd archive   |  $expected_migr_2
+    # size (M)             |  1   2   3+  4+  5+  1   2+  3+  4   5
+    #			desc=	4 9 3 8 2=7 6 1
 
 	echo "1-Creating test files..."
     # creation times
 	echo -n "  Creating files 0 1 2 3, "
 	for i in {0..3}; do
-		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=$((1+i%3)) >/dev/null 2>/dev/null || error "writing file.$i"
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=$((1+i%5)) >/dev/null 2>/dev/null || error "writing file.$i"
 	done
 	echo "sleeping $cr_sleep seconds..."
     sleep $cr_sleep
 	echo -n "  Creating files 4 5 6 7 8 9, "
 	for i in {4..9}; do
-		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=$((1+i%3)) >/dev/null 2>/dev/null || error "writing file.$i"
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=$((1+i%5)) >/dev/null 2>/dev/null || error "writing file.$i"
 	done
 	echo "sleeping $cr_sleep seconds..."
     sleep $cr_sleep
@@ -13435,7 +13437,8 @@ run_test 220c test_lru_policy lru_sort_mod_2pass.conf "" "0 1 2 3 4 5 6 7 8 9" 3
 run_test 220d test_lru_policy lru_sort_access.conf "" "0 2 3 6 8 9" 20 "lru sort on last_access"
 run_test 220e test_lru_policy lru_sort_archive.conf "0 1 2 3 4 5 6 7 8 9" "" 15 "lru sort on last_archive"
 run_test 220f test_lru_policy lru_sort_creat_last_arch.conf "0 1 2 3" "4 5 6 7 8 9" 10 "lru sort on creation and last_archive==0"
-run_test 220g test_lru_policy lru_sort_size.conf "2 5 8" "1 4 7" 10 "lru sort on size"
+run_test 220g test_lru_policy lru_sort_size_desc.conf "3 4 8 9" "1 2 6 7" 10 "lru sort on size"
+run_test 220h test_lru_policy lru_sort_size_asc.conf "1 2 6 7" "3 4 8 9" 10 "lru sort on size"
 run_test 221  test_suspend_on_error migr_fail.conf  2 "suspend migration if too many errors"
 run_test 222  test_custom_purge test_custom_purge.conf 2 "custom purge command"
 run_test 223  test_default test_default_case.conf "ignore entries if no default case is specified"

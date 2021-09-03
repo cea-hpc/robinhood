@@ -1007,13 +1007,30 @@ static void set_ignore_filters(policy_info_t *policy, lmgr_filter_t *filter)
 }
 
 /**
+ * Return the required comparator to filter next entries, depending on the
+ * sort order.
+ */
+static filter_comparator_t policy_order_to_listmgr_comp(sort_order_t order)
+{
+    switch (order) {
+    case SORT_ASC:
+        return MORETHAN;
+    case SORT_DESC:
+        return LESSTHAN;
+    default:
+        RBH_BUG("Invalid policy order");
+    }
+}
+
+/**
  * Add time filter based on sort order and last checked entry
  */
-static void set_time_optim_filter(policy_info_t *policy, lmgr_filter_t *filter)
+static void set_optim_filter(policy_info_t *policy, lmgr_filter_t *filter)
 {
     filter_value_t fval;
     char datestr[128];
     struct tm ts;
+    const char *sort_char;
 
     /* no sort order or no previous filter: do nothing */
     if (policy->config->lru_sort_attr == LRU_ATTR_NONE
@@ -1025,12 +1042,21 @@ static void set_time_optim_filter(policy_info_t *policy, lmgr_filter_t *filter)
      * restart from initial file when no migration could be done. */
     fval.value.val_uint = policy->first_eligible;
     lmgr_simple_filter_add(filter, policy->config->lru_sort_attr,
-                           MORETHAN, fval, 0);
-    strftime(datestr, 128, "%Y/%m/%d %T",
-             localtime_r(&policy->first_eligible, &ts));
+                           policy_order_to_listmgr_comp(
+                                policy->config->lru_sort_order),
+                           fval, 0);
+
+    sort_char = policy->config->lru_sort_order == SORT_ASC ? ">=" : "<=";
+
+    if (policy->config->lru_sort_attr == ATTR_INDEX_size)
+        snprintf(datestr, 128, "%lu", policy->first_eligible);
+    else
+        strftime(datestr, 128, "%Y/%m/%d %T",
+                 localtime_r(&policy->first_eligible, &ts));
+
     DisplayLog(LVL_EVENT, tag(policy),
-               "Optimization: considering entries with %s newer than %s",
-               sort_attr_name(policy), datestr);
+               "Optimization: considering entries with %s %s %s",
+               sort_attr_name(policy), sort_char, datestr);
 }
 
 /**
@@ -1670,19 +1696,26 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
 
             /* filter on <sort_time> */
             if (pol->config->lru_sort_attr != LRU_ATTR_NONE) {
+                const char * sort_char;
+
                 fval.value.val_int = *last_sort_time;
                 rc = lmgr_simple_filter_add_or_replace(filter,
                                                pol->config->lru_sort_attr,
-                                               MORETHAN, fval,
-                                               FILTER_FLAG_ALLOW_NULL);
+                                               policy_order_to_listmgr_comp(
+                                                   pol->config->lru_sort_order),
+                                               fval, FILTER_FLAG_ALLOW_NULL);
                 if (rc)
                     return PASS_ERROR;
 
+                sort_char = pol->config->lru_sort_order == SORT_ASC ? ">=" :
+                                                                      "<=";
+
                 DisplayLog(LVL_DEBUG, tag(pol),
                            "Performing new request with a limit of %u entries"
-                           " and %s >= %d and md_update < %ld ",
+                           " and %s %s %d and md_update < %ld ",
                            req_opt->list_count_max, sort_attr_name(pol),
-                           *last_sort_time, pol->progress.policy_start);
+                           sort_char, *last_sort_time,
+                           pol->progress.policy_start);
             } else {
                 DisplayLog(LVL_DEBUG, tag(pol),
                            "Performing new request with a limit of %u entries"
@@ -1934,14 +1967,8 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
     attr_mask = db_attr_mask(p_pol_info, p_param);
 
     /* sort by last access */
-    // TODO manage random
     sort_type.attr_index = p_pol_info->config->lru_sort_attr;
-    /* entries are sorted:
-     * - by size, largest first;
-     * - by time, oldest first. */
-    sort_type.order = p_pol_info->config->lru_sort_attr == LRU_ATTR_NONE ?
-        SORT_NONE : p_pol_info->config->lru_sort_attr == ATTR_INDEX_size ?
-        SORT_DESC : SORT_ASC;
+    sort_type.order = p_pol_info->config->lru_sort_order;
 
     rc = lmgr_simple_filter_init(&filter);
     if (rc)
@@ -1976,7 +2003,7 @@ int run_policy(policy_info_t *p_pol_info, const policy_param_t *p_param,
         set_rule_filters(p_pol_info, &filter);
     }
 
-    set_time_optim_filter(p_pol_info, &filter);
+    set_optim_filter(p_pol_info, &filter);
 
     /* Do not retrieve all entries at once, as the result may exceed
      * the client memory! */
@@ -2888,6 +2915,16 @@ static void run_sched_cb(void *udata, sched_status_e st)
     }
 }
 
+static void update_first_eligible(policy_info_t *pol, int val)
+{
+    if ((!pol->first_eligible) ||
+        (pol->config->lru_sort_order == SORT_ASC
+         && val < pol->first_eligible) ||
+        (pol->config->lru_sort_order == SORT_DESC
+         && val > pol->first_eligible))
+        pol->first_eligible = val;
+}
+
 /**
 * Manage an entry by path or by fid, depending on FS
 */
@@ -2938,8 +2975,8 @@ static void process_entry(policy_info_t *pol, lmgr_t *lmgr,
 
     /* it is the first matching entry? */
     rc = get_sort_attr(pol, &p_item->entry_attr);
-    if (rc != -1 && (!pol->first_eligible || (rc < pol->first_eligible)))
-        pol->first_eligible = rc;
+    if (rc != -1)
+        update_first_eligible(pol, rc);
 
     ectx->time_save = rc;
 

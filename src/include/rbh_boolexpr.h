@@ -89,7 +89,7 @@ compare_criteria_t str2criteria(const char *str, const struct sm_instance *smi,
 #define LRU_ATTR_INVAL (ATTR_INDEX_FLG_UNSPEC | 0x1)
 
 #define ALLOWED_LRU_ATTRS_STR "none, creation, last_access, last_mod, "\
-                              "rm_time, or status manager specific."
+                              "rm_time, size, or status manager specific."
 
 /**
  * Return the attribute index for the given lru_sort_attr string.

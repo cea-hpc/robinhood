@@ -187,6 +187,8 @@ typedef struct policy_run_config_t {
     /** attr index of the sort order (e.g. last_mod, creation_time, ...).
      * overrides default_lru_sort_attr (from policy descr). */
     unsigned int        lru_sort_attr;
+    /* overrides default_lru_sort_order */
+    sort_order_t        lru_sort_order;
 
     /** if specified, overrides default_action from the policy descriptor.
      * Can then be overriden by rules. */
