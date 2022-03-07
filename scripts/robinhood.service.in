@@ -1,8 +1,11 @@
 [Unit]
 Description=Robinhood server
+#only works if config file is unique
 After=local-fs.target remote-fs.target
 Requires=local-fs.target
-#only works if config file is unique
+#to speedup the starting, remove the above two lines,
+#  then uncomment and modify the following 'RequiresMountsFor' directive
+#RequiresMountsFor=/path/to/scan
 
 [Service]
 Type=simple

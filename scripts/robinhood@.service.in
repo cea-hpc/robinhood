@@ -2,6 +2,9 @@
 Description=Robinhood server for %I
 After=local-fs.target remote-fs.target
 Requires=local-fs.target
+#to speedup the starting, remove the above two lines,
+#  then uncomment and modify the following 'RequiresMountsFor' directive
+#RequiresMountsFor=/path/to/scan
 
 [Service]
 Type=simple
