@@ -79,11 +79,13 @@
 #define OPT_FLAG_REVERSE        0x0100
 #define OPT_FLAG_SPROF          0x0200
 #define OPT_FLAG_BY_SZRATIO     0x0400
+#define OPT_FLAG_SPLITUSERPROJ  0x1000
 
 #define CSV(_x) !!((_x)&OPT_FLAG_CSV)
 #define NOHEADER(_x) !!((_x)&OPT_FLAG_NOHEADER)
 #define ISGROUP(_x) !!((_x)&OPT_FLAG_GROUP)
 #define ISSPLITUSERGROUP(_x) !!((_x)&OPT_FLAG_SPLITUSERGROUP)
+#define ISSPLITUSERPROJ(_x) !!((_x)&OPT_FLAG_SPLITUSERPROJ)
 #define FORCE_NO_ACCT(_x) !!((_x)&OPT_FLAG_NO_ACCT)
 #define SORT_BY_COUNT(_x) !!((_x)&OPT_FLAG_BY_COUNT)
 #define SORT_BY_AVGSIZE(_x) !!((_x)&OPT_FLAG_BY_AVGSIZE)
@@ -156,6 +158,7 @@ static struct option option_tab[] = {
     {"filter-class", required_argument, NULL, 'C'},
 // filter status
     {"split-user-groups", no_argument, NULL, 'S'},
+    {"split-user-projects", no_argument, NULL, 'J'},
     {"by-count", no_argument, NULL, OPT_BY_COUNT},
     {"by-avgsize", no_argument, NULL, OPT_BY_AVGSIZE},
     {"by-avg-size", no_argument, NULL, OPT_BY_AVGSIZE},
@@ -187,7 +190,7 @@ static struct option option_tab[] = {
 
 };
 
-#define SHORT_OPT_STRING    "aiDe:u:g:d:s:p:rU:P:C:Rf:cql:hVFSo:O:"
+#define SHORT_OPT_STRING    "aiDe:u:g:d:s:p:rU:P:C:Rf:cql:hVFSJo:O:"
 
 static const char *cmd_help = _B "Usage:" B_ " %s [options]\n";
 
@@ -290,6 +293,8 @@ static const char *acct_help =
     "        Reverse sort order\n"
     "    " _B "-S" B_ ", " _B "--split-user-groups" B_ "\n"
     "        Display the report by user AND group\n"
+    "    " _B "-J" B_ ", " _B "--split-user-projects" B_ "\n"
+    "        Display the report by user AND projid\n"
     "    " _B "-F" B_ ", " _B "--force-no-acct" B_ "\n"
     "        Generate the report without using accounting table (slower)\n";
 
@@ -1726,7 +1731,17 @@ static void report_usergroup_info(char *name, int flags)
      */
     report_field_descr_t user_info[USERINFOCOUNT_MAX];
 
-    if (ISSPLITUSERGROUP(flags) && ISGROUP(flags)) {
+    if (ISSPLITUSERPROJ(flags)) {
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_uid,
+                                REPORT_GROUP_BY,
+                                REVERSE(flags) ? SORT_DESC : SORT_ASC);
+        field_count++;
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_projid,
+                                REPORT_GROUP_BY,
+                                REVERSE(flags) ? SORT_DESC : SORT_ASC);
+        field_count++;
+        shift++;
+    } else if (ISSPLITUSERGROUP(flags) && ISGROUP(flags)) {
         set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gid,
                                 REPORT_GROUP_BY,
                                 REVERSE(flags) ? SORT_DESC : SORT_ASC);
@@ -2921,6 +2936,9 @@ int main(int argc, char **argv)
             break;
         case 'S':
             flags |= OPT_FLAG_SPLITUSERGROUP;
+            break;
+        case 'J':
+            flags |= OPT_FLAG_SPLITUSERPROJ;
             break;
         case OPT_BY_COUNT:
             flags |= OPT_FLAG_BY_COUNT;

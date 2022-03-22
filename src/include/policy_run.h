@@ -42,6 +42,7 @@ typedef enum {
 #ifdef _LUSTRE
     TGT_OST,    /* apply policies to the specified OST */
     TGT_POOL,   /* apply policies to the specified pool of OSTs */
+    TGT_PROJID, /* apply policies to the specified project id */
 #endif
     TGT_USER,   /* apply policies to the specified user */
     TGT_GROUP,  /* apply policies to the specified group */
@@ -123,6 +124,8 @@ static inline char *trigger2str(const trigger_item_t *trig)
         return "ost_usage";
     case TGT_POOL:
         return "pool_usage";
+    case TGT_PROJID:
+        return "projid_usage";
 #endif
     case TGT_USER:
         return "user_usage";

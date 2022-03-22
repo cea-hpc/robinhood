@@ -524,6 +524,9 @@ static const char *param2targetstr(const policy_param_t *param, char *str,
     case TGT_POOL:
         snprintf(str, len, "pool %s", param->optarg_u.name);
         return str;
+    case TGT_PROJID:
+        snprintf(str, len, "projid#%u", param->optarg_u.index);
+        return str;
 #endif
     case TGT_USER:
         snprintf(str, len, "user %s", param->optarg_u.name);
@@ -920,6 +923,8 @@ static int trig_target_it(target_iterator_t *it, policy_info_t *pol,
         /* check listed pools */
         it->info_u.next_pool_index = 0;
         break;
+    case TGT_PROJID:
+        RBH_BUG("No trigger expected on projid: only for manual actions");
 #endif
     case TGT_USER:
     case TGT_GROUP:
@@ -1066,6 +1071,9 @@ static int trig_target_next(target_iterator_t *it, target_u *tgt,
 #endif
     case TGT_USER:
     case TGT_GROUP:
+#ifdef _LUSTRE
+    case TGT_PROJID:
+#endif
         {
             db_value_t result[2];
             unsigned int result_count = 2;
@@ -1116,6 +1124,9 @@ static void trig_target_end(target_iterator_t *it)
 #endif
     case TGT_USER:
     case TGT_GROUP:
+#ifdef _LUSTRE
+    case TGT_PROJID:
+#endif
         ListMgr_CloseReport(it->info_u.db_report);
         break;
     default:

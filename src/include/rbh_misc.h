@@ -355,6 +355,13 @@ char *FormatDurationFloat(char *buff, size_t str_sz, time_t duration);
  */
 void append_stripe_list(GString *str, const stripe_items_t *p_stripe_items,
                         bool brief);
+
+/**
+ * Lustre Project ID
+ * \return positive project id on success, -errno on error
+ */
+int lustre_project_get_id(const char *pathname);
+
 #endif
 
 /*

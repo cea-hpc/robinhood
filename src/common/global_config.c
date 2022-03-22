@@ -58,6 +58,10 @@ static void global_cfg_set_default(void *module_config)
 #if defined(_LUSTRE) && defined(_MDS_STAT_SUPPORT)
     conf->direct_mds_stat = false;
 #endif
+
+#ifdef _LUSTRE
+    conf->lustre_projid = false;
+#endif
 }
 
 static void global_cfg_write_default(FILE *output)
@@ -78,6 +82,9 @@ static void global_cfg_write_default(FILE *output)
 #if defined(_LUSTRE) && defined(_MDS_STAT_SUPPORT)
     print_line(output, 1, "direct_mds_stat :   no");
 #endif
+#ifdef _LUSTRE
+    print_line(output, 1, "lustre_projid :  no");
+#endif
     print_end_block(output, 0);
 }
 
@@ -91,7 +98,7 @@ static int global_cfg_read(config_file_t config, void *module_config,
     static const char * const allowed_params[] = {
         "fs_path", "fs_type", "stay_in_fs", "check_mounted",
         "direct_mds_stat", "fs_key", "last_access_only_atime",
-        "uid_gid_as_numbers", NULL
+        "uid_gid_as_numbers", "lustre_projid", NULL
     };
     const cfg_param_t cfg_params[] = {
         {"fs_path", PT_STRING, PFLG_MANDATORY | PFLG_ABSOLUTE_PATH |
@@ -114,6 +121,10 @@ static int global_cfg_read(config_file_t config, void *module_config,
         ,
 #if defined(_LUSTRE) && defined(_MDS_STAT_SUPPORT)
         {"direct_mds_stat", PT_BOOL, 0, &conf->direct_mds_stat, 0}
+        ,
+#endif
+#ifdef _LUSTRE
+        {"lustre_projid", PT_BOOL, 0, &conf->lustre_projid, 0}
         ,
 #endif
         END_OF_PARAMS
@@ -222,6 +233,15 @@ static int global_cfg_set(void *module_config, bool reload)
     }
 #endif
 
+#ifdef _LUSTRE
+    if (conf->lustre_projid != global_config.lustre_projid) {
+        DisplayLog(LVL_EVENT, "FS_Scan_Config",
+                   GLOBAL_CONFIG_BLOCK "::lustre_projid updated: %u->%u",
+                   global_config.lustre_projid, conf->lustre_projid);
+        global_config.lustre_projid = conf->lustre_projid;
+    }
+#endif
+
     return 0;
 }
 
@@ -267,6 +287,9 @@ static void global_cfg_write_template(FILE *output)
                "# File info is asked directly to MDS on Lustre filesystems");
     print_line(output, 1, "# (scan faster, but size information is missing)");
     print_line(output, 1, "direct_mds_stat        =    no ;");
+#endif
+#ifdef _LUSTRE
+    print_line(output, 1, "lustre_projid          =    no ;");
 #endif
     print_end_block(output, 0);
 }

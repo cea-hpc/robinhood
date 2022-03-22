@@ -1406,6 +1406,18 @@ static int set_target_filter(const policy_info_t *pol,
                                       WILDCARDS_IN(fval.value.
                                                    val_str) ? LIKE : EQUAL,
                                       fval, 0);
+
+    case TGT_PROJID:    /* apply policies to the specified projid */
+        DisplayLog(LVL_MAJOR, tag(pol),
+                   "Starting policy run on project #%u files",
+                   p_param->optarg_u.index);
+
+        attr_mask->std |= ATTR_MASK_projid;
+
+        /* retrieve files for this projid */
+        fval.value.val_uint = p_param->optarg_u.index;
+        return lmgr_simple_filter_add(filter, ATTR_INDEX_projid, EQUAL,
+                                      fval, 0);
 #endif
 
     case TGT_USER: /* apply policies to the specified user */

@@ -647,6 +647,14 @@ int criteria2filter(const compare_triplet_t *p_comp,
             p_value->value.val_str = p_comp->val.str;
         break;
 
+#ifdef _LUSTRE
+    case CRITERIA_PROJID:
+        *p_attr_index = ATTR_INDEX_projid;
+        *p_compar = Policy2FilterComparator(p_comp->op, p_comp->flags);
+        p_value->value.val_int = p_comp->val.integer;
+        break;
+#endif
+
     case CRITERIA_SIZE:
         *p_attr_index = ATTR_INDEX_size;
         *p_compar = Policy2FilterComparator(p_comp->op, p_comp->flags);
@@ -959,6 +967,16 @@ static policy_match_t eval_condition(const entry_id_t *p_entry_id,
             else
                 return bool2policy_match(!rc);
         }
+
+#ifdef _LUSTRE
+    case CRITERIA_PROJID:
+        /* projid is required */
+        CHECK_ATTR(p_entry_attr, projid, no_warning);
+
+        rc = int_compare(ATTR(p_entry_attr, projid), p_triplet->op,
+                         p_triplet->val.integer);
+        return bool2policy_match(rc);
+#endif
 
     case CRITERIA_SIZE:
         /* size is required */

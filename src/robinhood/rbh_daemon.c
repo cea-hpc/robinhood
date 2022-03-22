@@ -276,7 +276,8 @@ static const char *run_help =
     "               " _B "all" B_ " (all entries), " _B "user" B_ ":" _U "username" U_ ", " _B "group" B_ ":" _U "grpname" U_ ",\n"
     "               " _B "file" B_ ":" _U "path" U_ ", " _B "class" B_ ":" _U "fileclass" U_
 #ifdef _LUSTRE
-    ", " _B "ost" B_ ":" _U "ost_idx" U_ ", " _B "pool" B_ ":" _U "poolname" U_
+    ", " _B "ost" B_ ":" _U "ost_idx" U_ ", " _B "pool" B_ ":" _U "poolname" U_",\n"
+    "               " _B "projid" B_":"_U "projid" U_
 #endif
     ".\n"
     "       " _B "max-count" B_ "=" _U "nbr" U_ "\n"
@@ -949,7 +950,7 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
                 opt->mdtidx = str2int(optarg);
                 if (opt->mdtidx == -1) {
                     fprintf(stderr,
-                            "Invalid argument to --read-log: expected numeric value for <mdt_index>.\n");
+                            "Invalid argument to --read-log: expected numerical value for <mdt_index>.\n");
                     return EINVAL;
                 }
             }
@@ -1189,7 +1190,7 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
 #ifdef _LUSTRE
 #define TGT_HELP "Allowed values: 'all', 'user:<username>', "\
                  "'group:<groupname>', 'file:<path>', 'class:<fileclass>', "\
-                 "'ost:<ost_idx>', 'pool:<poolname>'."
+                 "'ost:<ost_idx>', 'pool:<poolname>', 'projid:<numeric_id>'."
 #else
 #define TGT_HELP "Allowed values: 'all', 'user:<username>', "\
                  "'group:<groupname>', 'file:<path>', 'class:<fileclass>'."
@@ -1243,6 +1244,16 @@ static int policyopt_set_target(char *opt_string, policy_opt_t *opt)
             || opt->optarg_u.index < 0) {
             fprintf(stderr, "Invalid ost target specification: index expected. "
                     "E.g. --target=ost:42\n");
+            return EINVAL;
+        }
+    }
+    else if (!strcasecmp(c, "projid")) {
+        char extra_chr[MAX_OPT_LEN];
+        opt->target = TGT_PROJID;
+        if (sscanf(next, "%i%s", &opt->optarg_u.index, extra_chr) != 1
+            || opt->optarg_u.index < 0) {
+            fprintf(stderr, "Invalid projid: numerical id expected. "
+                    "E.g. --target=projid:34\n");
             return EINVAL;
         }
     } else if (!strcasecmp(c, "pool")) {

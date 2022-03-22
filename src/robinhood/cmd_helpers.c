@@ -766,6 +766,7 @@ static struct attr_display_spec {
         {ATTR_INDEX_parent_id, "parent_id", 20, 20},
         {ATTR_INDEX_uid,       "user", 10, 10,  print_res_string},
         {ATTR_INDEX_gid,       "group", 10, 10, print_res_string},
+        {ATTR_INDEX_projid,    "projid", 10, 10, print_res_int},
         {ATTR_INDEX_link,      "link", 20, 20},
         {ATTR_INDEX_fileclass, "fileclass", 30, 30, print_res_class},
         /* times */

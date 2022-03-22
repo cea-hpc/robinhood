@@ -45,6 +45,7 @@
 #define TAG_MDSSTAT     "mds_stat"
 #define TAG_FIDPATH     "FidPath"
 #define TAG_LLAPI       "llapi"
+#define TAG_PROJID      "projid"
 
 #if HAVE_LLAPI_LOG_CALLBACKS
 /**
@@ -1147,3 +1148,51 @@ ssize_t BuildLovEA(const entry_id_t *p_id, const attr_set_t *p_attrs,
     }
 }
 #endif
+
+/**
+ * Retrieve fsxattr.
+ * From lustre/utils/lfs_project.c
+ *
+ * \return 0 on success, -errno on error.
+ */
+static int project_get_xattr(const char *pathname, struct fsxattr *fsx)
+{
+        int ret;
+        int fd;
+        int rc;
+
+        fd = open(pathname, O_RDONLY | O_NOCTTY | O_NDELAY);
+        if (fd < 0) {
+            rc = -errno;
+            DisplayLog(LVL_CRIT, TAG_PROJID,
+                       "Error: %s: failed to open '%s': %s",
+                        __func__, pathname, strerror(-rc));
+            return rc;
+        }
+
+        ret = ioctl(fd, FS_IOC_FSGETXATTR, fsx);
+        if (ret) {
+            rc = -errno;
+            DisplayLog(LVL_CRIT, TAG_PROJID,
+                       "Error: %s: failed to get xattr for '%s': %s",
+                        __func__, pathname, strerror(-rc));
+            goto out_close;
+        }
+        rc = 0;
+
+out_close:
+        close(fd);
+        return rc;
+}
+
+int lustre_project_get_id(const char *pathname)
+{
+        struct fsxattr fsx;
+        int rc;
+
+        rc = project_get_xattr(pathname, &fsx);
+        if (rc < 0)
+            return rc;
+
+        return fsx.fsx_projid;
+}
