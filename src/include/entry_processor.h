@@ -218,6 +218,7 @@ typedef struct entry_proc_op_t {
                              ATTR_MASK_parent_id | ATTR_MASK_depth))
 #define NEED_GETATTR(_op) ((_op)->fs_attr_need.std & POSIX_ATTR_MASK)
 #define NEED_READLINK(_op) ((_op)->fs_attr_need.std & ATTR_MASK_link)
+#define NEED_GETPROJID(_op) ((_op)->fs_attr_need.std & ATTR_MASK_projid)
 
 /** config handlers */
 extern mod_cfg_funcs_t entry_proc_cfg_hdlr;

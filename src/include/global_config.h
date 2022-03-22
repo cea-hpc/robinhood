@@ -56,6 +56,10 @@ typedef struct global_config_t {
     bool    direct_mds_stat;
 #endif
 
+#ifdef _LUSTRE
+    /* Lustre project ID support */
+    bool    lustre_projid;
+#endif
 } global_config_t;
 
 /** global config structure available to all modules */

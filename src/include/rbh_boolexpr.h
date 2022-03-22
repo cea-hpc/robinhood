@@ -60,6 +60,7 @@ typedef enum {
 #ifdef _LUSTRE
     CRITERIA_POOL,
     CRITERIA_OST,
+    CRITERIA_PROJID,
 #endif
     CRITERIA_FILECLASS,
     CRITERIA_STATUS,

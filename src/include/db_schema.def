@@ -111,6 +111,7 @@ avgsize,        uint64_t,      DB_BIGUINT,     0, DIR_ATTR, type, NULL
 # POSIX attrs
 uid,        uidgid_u,   DB_UIDGID,  0,   FREQ_ACCESS
 gid,        uidgid_u,   DB_UIDGID,  0,   FREQ_ACCESS
+projid,  unsigned int,   DB_UINT,    0, FREQ_ACCESS
 size,       uint64_t,   DB_BIGUINT, 0,   FREQ_ACCESS
 blocks,     uint64_t,   DB_BIGUINT, 0,   FREQ_ACCESS
 creation_time,  unsigned int,   DB_UINT,    0, FREQ_ACCESS

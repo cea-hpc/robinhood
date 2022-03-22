@@ -30,6 +30,7 @@
 #define ACCT_FIELD_COUNT    "count"
 #define ACCT_DEFAULT_OWNER  "unknown"
 #define ACCT_DEFAULT_GROUP  "unknown"
+#define ACCT_DEFAULT_PROJID 0
 #define SZRANGE_FUNC        "sz_range"
 #define ONE_PATH_FUNC       "one_path"
 #define THIS_PATH_FUNC      "this_path"

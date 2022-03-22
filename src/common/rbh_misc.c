@@ -2709,6 +2709,46 @@ int set_gid_val(const char *groupname, db_type_u *val)
     return 0;
 }
 
+/* Resolved numerical project ID from a string.
+ * Return 0 on success, and non-zero on error. */
+int set_projid_val(const char *projidname, db_type_u *val)
+{
+    long projid;
+    char *endptr;
+
+    if (WILDCARDS_IN(projidname)) {
+        DisplayLog(LVL_CRIT, __func__,
+                   "ERROR: Wilcards not allowed in projid");
+        return -1;
+    }
+
+    errno = 0;
+    projid = strtol(projidname, &endptr, 0);
+
+    if ((errno == ERANGE && (projid == LONG_MAX || projid == LONG_MIN)) ||
+        (errno != 0 && projid == 0) || endptr == projidname) {
+        /* Not a number. */
+        DisplayLog(LVL_CRIT, __func__,
+                   "couldn't resolve projid for project '%s'", projidname);
+        return -1;
+    }
+
+    if (projid < 0) {
+        DisplayLog(LVL_CRIT, __func__,
+                   "ERROR: Given PROJID is negative (%ld)", projid);
+        return -1;
+    }
+
+    if (projid > UINT_MAX) {
+        DisplayLog(LVL_CRIT, __func__,
+                   "ERROR: Given PROJID is too big (%ld)", projid);
+        return -1;
+    }
+
+    val->val_int = projid;
+    return 0;
+}
+
 /* Returns a printable string for a UID or GID, whether it's a number
  * or an actual string. */
 const char *id_as_str(db_type_u *val)

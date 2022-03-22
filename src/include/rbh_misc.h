@@ -355,6 +355,12 @@ char *FormatDurationFloat(char *buff, size_t str_sz, time_t duration);
  */
 void append_stripe_list(GString *str, const stripe_items_t *p_stripe_items,
                         bool brief);
+
+/**
+ * Lustre Project ID
+ */
+int lustre_project_get_id(const char *pathname);
+
 #endif
 
 /*
@@ -622,6 +628,7 @@ int path2id(const char *path, entry_id_t *id, const struct stat *st);
 
 int set_uid_val(const char *username, db_type_u *val);
 int set_gid_val(const char *groupname, db_type_u *val);
+int set_projid_val(const char *projidname, db_type_u *val);
 const char *id_as_str(db_type_u *val);
 
 #endif
