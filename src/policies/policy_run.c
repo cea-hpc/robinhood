@@ -243,7 +243,7 @@ static int build_action_params(entry_context_t *ectx)
 }
 
 /** Execute a policy action. */
-static int policy_action(entry_context_t *ectx)
+static int policy_action(entry_context_t *ectx, match_source_t check_method)
 {
     int rc = 0;
     policy_info_t         *pol = ectx->policy;
@@ -251,8 +251,11 @@ static int policy_action(entry_context_t *ectx)
     sm_instance_t         *smi = pol->descr->status_mgr;
     const policy_action_t *actionp = NULL;
 
-    /* by default, update entry after running policy action */
-    ectx->after_action = PA_UPDATE;
+    /* if attrs has not been refreshed, skip the db update by default */
+    if (check_method == MS_NONE || check_method == MS_CACHE_ONLY)
+        ectx->after_action = PA_NONE;
+    else
+        ectx->after_action = PA_UPDATE;
 
     /* Get the action from policy rule, if defined.
      * Else, get the default action for the policy. */
@@ -337,9 +340,6 @@ static int policy_action(entry_context_t *ectx)
                     g_strfreev(cmd);
                     /* @TODO handle other hardlinks to the same entry */
                 }
-
-                /* external commands can't set 'after': default to update */
-                ectx->after_action = PA_UPDATE;
 
                 break;
             }
@@ -2824,7 +2824,7 @@ static void run_sched_cb(void *udata, sched_status_e st)
                 free_entry_context(ectx);
                 return;
             }
-            rc = policy_action(ectx);
+            rc = policy_action(ectx, pol->config->post_sched_match);
             action_fini(rc, sched_db_conn, ectx);
             return;
         }
@@ -2962,7 +2962,7 @@ static void process_entry(policy_info_t *pol, lmgr_t *lmgr,
     if (pol->config->sched_count == 0) {
 
         /* apply action to the entry! */
-        rc = policy_action(ectx);
+        rc = policy_action(ectx, check_method);
 
         action_fini(rc, lmgr, ectx);
         return;
