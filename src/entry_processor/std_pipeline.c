@@ -1404,14 +1404,14 @@ int EntryProc_get_info_fs(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
     /* projid: currently, only file and dir supported */
     if (global_config.lustre_projid && NEED_GETPROJID(p_op)
         && ATTR_FSorDB_TEST(p_op, type)
-        && (strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_FILE) != 0
-            || strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_DIR) != 0)) {
-        /* */
+        && (!strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_FILE)
+            || !strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_DIR))) {
+        /* file or dir, get project id */
         rc = lustre_project_get_id(path);
         if (rc < 0)  {
             DisplayLog(LVL_MAJOR, ENTRYPROC_TAG,
-                       "Failed to get lustre projid for %s: error %d",
-                       path, rc);
+                       "Failed to get lustre projid for %s (%s): error %d",
+                       path, ATTR_FSorDB(p_op, type), rc);
         } else {
             DisplayLog(LVL_FULL, ENTRYPROC_TAG, DFID ": projid=%u",
                        PFID(&p_op->entry_id), rc);
