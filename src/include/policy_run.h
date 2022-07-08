@@ -42,7 +42,7 @@ typedef enum {
 #ifdef _LUSTRE
     TGT_OST,    /* apply policies to the specified OST */
     TGT_POOL,   /* apply policies to the specified pool of OSTs */
-    TGT_PROJID,  /* apply policies to the specified group */
+    TGT_PROJID, /* apply policies to the specified project id */
 #endif
     TGT_USER,   /* apply policies to the specified user */
     TGT_GROUP,  /* apply policies to the specified group */
