@@ -495,12 +495,15 @@ static const char *help_string =
     "\t Robinhood’s \"creation time\", which is the oldest ctime seen for that file. It is always lesser or equal to the current ctime of the file. When Lustre changelogs are used, \"creation time\" is really the creation time. An "
     _B "strftime" B_ "(1) directive must be added. For example: " _B "%%RCc" B_
     ". This option can also take an strftime format option between curly brackets. For instance: "
-    _B "%%RC{%%A, %%B %%dth, %%Y %%F}" B_ ".\n" "            " _B "%%Rc" B_
-    "\t File class\n" "            " _B "%%Rf" B_ "\t Lustre FID\n"
+    _B "%%RC{%%A, %%B %%dth, %%Y %%F}" B_ ".\n"
+    "            " _B "%%Rc" B_ "\t File class\n"
+    "            " _B "%%Rf" B_ "\t Lustre FID\n"
     "            " _B "%%Rm" B_
     "\t Status manager module attribute, with the name specified between curly bracket. The name is the status manager module name, followed by a dot, followed by the attribute name. For example: "
     _B "%%Rm{lhsm.archive_id}" B_ ".\n" "            " _B "%%Ro" B_
-    "\t Lustre OSTS\n" "            " _B "%%Rp" B_ "\t Lustre parent FID\n"
+    "\t Lustre OSTS\n"
+    "            " _B "%%Rp" B_ "\t Lustre parent FID\n"
+    "            " _B "%%RP" B_ "\t Lustre project id\n"
     "            " _B "\\\\" B_ "\t Escapes \\\n" "            " _B "\\n" B_
     "\t Newline\n" "            " _B "\\t" B_ "\t Tab\n"
     "            " _B "\\NNN" B_ " Byte with octal value NNN (1 to 3 digits)\n"

@@ -466,6 +466,11 @@ static const char *extract_chunk(const char *str, struct fchunk *chunk)
                 g_string_append_c(chunk->format, 's');
                 break;
 
+            case 'P':
+                disp_mask.std |= ATTR_MASK_projid;
+                g_string_append_c(chunk->format, 'u');
+                break;
+
             case 'm':
                 /* Module name and attribute followed by
                  * format. e.g. "%Rm{lhsm.archive_id}". */
@@ -731,6 +736,10 @@ void printf_entry(GArray *chunks, const wagon_t *id, const attr_set_t *attrs)
                     sprintf(fid_str, DFID_NOBRACE, PFID(&id->id));
                     printf(format, fid_str);
                 }
+                break;
+
+            case 'P':
+                printf(format, ATTR_MASK_TEST(attrs, projid)?ATTR(attrs, projid):0);
                 break;
 
             case 'm':
