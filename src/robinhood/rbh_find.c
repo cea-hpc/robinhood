@@ -46,6 +46,7 @@
 #define INAME_OPT   264
 #define PRINT0_OPT  265
 #define NLINK_OPT   266
+#define PRINT_OPT   267
 
 static struct option option_tab[] = {
     {"user", required_argument, NULL, 'u'},
@@ -69,13 +70,14 @@ static struct option option_tab[] = {
 #ifdef _LUSTRE
     {"ost", required_argument, NULL, 'o'},
     {"pool", required_argument, NULL, 'P'},
+    {"projid", required_argument, NULL, 'p'},
     {"lsost", no_argument, NULL, 'O'},
 #endif
     {"lsclass", no_argument, NULL, LSCLASS_OPT},
     {"lsstatus", optional_argument, NULL, LSSTATUS_OPT},
 
     {"ls", no_argument, NULL, 'l'},
-    {"print", no_argument, NULL, 'p'},
+    {"print", no_argument, NULL, PRINT_OPT},
     {"printf", required_argument, NULL, PRINTF_OPT},
     {"print0", no_argument, NULL, PRINT0_OPT},
     {"escaped", no_argument, NULL, ESCAPED_OPT},
@@ -360,6 +362,23 @@ static int mkfilters(bool exclude_dirs)
         is_expr = 1;
         query_mask.std |= ATTR_MASK_stripe_info;
     }
+
+    if (prog_options.match_projid) {
+        compare_value_t val;
+        val.integer = prog_options.projid;
+
+        if (prog_options.projidneg)
+            comp = COMP_DIFF;
+        else
+            comp = COMP_EQUAL;
+
+        if (!is_expr)
+            CreateBoolCond(&match_expr, comp, CRITERIA_PROJID, val, 0);
+        else
+            AppendBoolCond(&match_expr, comp, CRITERIA_PROJID, val, 0);
+        is_expr = 1;
+        query_mask.std |= ATTR_MASK_projid;
+    }
 #endif
 
     if (prog_options.match_status) {
@@ -453,6 +472,7 @@ static const char *help_string =
 #ifdef _LUSTRE
     "    " _B "-ost" B_ " " _U "ost_index|ost_set" U_ "\n"
     "    " _B "-pool" B_ " " _U "ost_pool" U_ "\n"
+    "    " _B "-projid" B_ " " _U "projid" U_ "\n"
 #endif
     "    " _B "-class" B_ " " _U "class" U_ "\n"
     "    " _B "-status" B_ " " _U "status_name" U_ ":" _U "status_value" U_ "\n"
@@ -1080,6 +1100,36 @@ static int retrieve_root_id(entry_id_t *root_id)
     return rc;
 }
 
+/** retrieve attributes for filesystem root.
+ * Assumes fullpath attribute is set
+ */
+static void set_root_attrs(attr_set_t *root_attrs)
+{
+    struct stat st;
+    const char *path;
+
+    if (!ATTR_MASK_TEST(root_attrs, fullpath))
+        return;
+
+    path = ATTR(root_attrs, fullpath);
+    if (lstat(path, &st) != 0)
+        return;
+
+    stat2rbh_attrs(&st, root_attrs, true);
+
+#ifdef _LUSTRE
+    int rc;
+
+	rc = lustre_project_get_id(path);
+	if (rc > 0) {
+		ATTR(root_attrs, projid) = rc;
+		ATTR_MASK_SET(root_attrs, projid);
+	}
+#endif
+
+    ListMgr_GenerateFields(root_attrs, attr_mask_or(&disp_mask, &query_mask));
+}
+
 /**
  * Bulk filtering in the DB.
  */
@@ -1088,7 +1138,6 @@ static int list_bulk(void)
     attr_set_t root_attrs, attrs;
     entry_id_t root_id, id;
     int rc;
-    struct stat st;
     struct lmgr_iterator_t *it;
 
     /* no transversal => no wagon
@@ -1106,11 +1155,8 @@ static int list_bulk(void)
     ATTR_MASK_SET(&root_attrs, fullpath);
     strcpy(ATTR(&root_attrs, fullpath), global_config.fs_path);
 
-    if (lstat(ATTR(&root_attrs, fullpath), &st) == 0) {
-        stat2rbh_attrs(&st, &root_attrs, true);
-        ListMgr_GenerateFields(&root_attrs,
-                               attr_mask_or(&disp_mask, &query_mask));
-    }
+    set_root_attrs(&root_attrs);
+
     /* root has no name... */
     ATTR_MASK_SET(&root_attrs, name);
     ATTR(&root_attrs, name)[0] = '\0';
@@ -1240,7 +1286,6 @@ static int list_contents(char **id_list, int id_count)
                        id_list[i]);
 
             if (!is_id) {
-                struct stat st;
                 ATTR_MASK_SET(&root_attrs, fullpath);
                 strcpy(ATTR(&root_attrs, fullpath), id_list[i]);
 
@@ -1249,24 +1294,14 @@ static int list_contents(char **id_list, int id_count)
                 rh_strncpy(ATTR(&root_attrs, name), rh_basename(id_list[i]),
                            sizeof(ATTR(&root_attrs, name)));
 
-                if (lstat(ATTR(&root_attrs, fullpath), &st) == 0) {
-                    stat2rbh_attrs(&st, &root_attrs, true);
-                    ListMgr_GenerateFields(&root_attrs,
-                                           attr_mask_or(&disp_mask,
-                                                        &query_mask));
-                }
+                set_root_attrs(&root_attrs);
+
             } else if (entry_id_equal(&ids[i].id, &root_id)) {
                 /* this is root id */
-                struct stat st;
                 ATTR_MASK_SET(&root_attrs, fullpath);
                 strcpy(ATTR(&root_attrs, fullpath), global_config.fs_path);
 
-                if (lstat(ATTR(&root_attrs, fullpath), &st) == 0) {
-                    stat2rbh_attrs(&st, &root_attrs, true);
-                    ListMgr_GenerateFields(&root_attrs,
-                                           attr_mask_or(&disp_mask,
-                                                        &query_mask));
-                }
+                set_root_attrs(&root_attrs);
 
                 /* root has no name... */
                 ATTR_MASK_SET(&root_attrs, name);
@@ -1404,6 +1439,17 @@ int main(int argc, char **argv)
             prog_options.pool = optarg;
             break;
 
+        case 'p':
+            toggle_option(match_projid, "projid");
+            if (optarg == NULL) {
+                fprintf(stderr, "missing argument to option --projid\n");
+                exit(1);
+            }
+            prog_options.projid = atoi(optarg);
+            prog_options.projidneg = neg;
+            neg = false;
+            break;
+
         case 'O':
             prog_options.lsost = 1;
             prog_options.print = 0;
@@ -1532,7 +1578,7 @@ int main(int argc, char **argv)
             }
             break;
 
-        case 'p':
+        case PRINT_OPT:
             prog_options.print = 1;
             disp_mask = attr_mask_or(&disp_mask, &LS_DISPLAY_MASK);
             if (neg) {

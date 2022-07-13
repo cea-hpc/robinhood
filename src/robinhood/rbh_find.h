@@ -31,6 +31,7 @@ struct find_opt {
     const char     *pool;
     /* status manager for -lsstatus */
     const char     *lsstatus_name;
+    int            projid;
     sm_instance_t  *smi;
 
     /* status name and value for -status */
@@ -90,6 +91,7 @@ struct find_opt {
 #ifdef _LUSTRE
     unsigned int match_ost:1;
     unsigned int match_pool:1;
+    unsigned int match_projid:1;
 #endif
     unsigned int match_status:1;
     unsigned int statusneg:1;
@@ -99,6 +101,7 @@ struct find_opt {
     unsigned int groupneg:1;
     unsigned int nameneg:1;
     unsigned int classneg:1;
+    unsigned int projidneg:1;
 
     /* case insensitive name */
     unsigned int iname:1;
