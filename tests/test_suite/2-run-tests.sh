@@ -356,7 +356,12 @@ function wait_hsm_state {
     LIM=$((`date +%s`+10))
     while :
     do
-        [ `date +%s` -ge $LIM ] && error "HSM state for file \"$1\" isn't $2"
+        if [ `date +%s` -ge $LIM ]; then
+            error "HSM state for file \"$1\" isn't $2"
+            break # if EXIT_ON_ERROR is not set, error won't exit and this
+                  # will loop forever. So we break here.
+        fi
+
         $LFS hsm_state $1 | grep --quiet $2 && break
         sleep .5
     done
@@ -397,7 +402,7 @@ function clean_fs
 		rm -f rh.pid
 	fi
 
-	pgrep -f robinhood && sleep 1 && pkill -9 -f robinhood
+	pgrep robinhood && sleep 1 && pkill -9 robinhood
 	[ "$DEBUG" = "1" ] && echo "Cleaning robinhood's DB..."
 	$CFG_SCRIPT empty_db $RH_DB > /dev/null
 

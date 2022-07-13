@@ -27,13 +27,13 @@ else
 fi
 
 function start_service {
-if [ -x /usr/bin/systemctl ]; then
-	#RHEL7
-	systemctl start $1
-else
-	#RHEL6 or less
-	service $1 start
-fi
+    if [ -x /usr/bin/systemctl ]; then
+        #RHEL7
+        systemctl start $1
+    else
+        #RHEL6 or less
+        service $1 start
+    fi
 }
 
 if rpm -q mariadb; then
@@ -82,7 +82,7 @@ if [[ $PURPOSE = "LUSTRE_HSM" ]]; then
     fi
 
 	echo "Checking if copytool is already running..."
-	if (( `pgrep -f lhsmtool_posix | wc -l` > 0 )); then
+	if (( `pgrep lhsmtool_posix | wc -l` > 0 )); then
 		echo "Already running"
 	else
 		mkdir -p $BKROOT

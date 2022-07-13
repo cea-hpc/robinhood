@@ -850,11 +850,14 @@ int Get_pool_usage(const char *poolname, struct statfs *pool_statfs)
 /* A new LL_IOC_MDC_GETINFO has been defined since Lustre 2.12.4,
  * but it doesn't return a struct stat.
  * Use the old (compatible) ioctl() instead.
+ * In Lustre 2.15, IOC_MDC_GETFILEINFO_V1 is already defined.
  */
-#ifdef IOC_MDC_GETFILEINFO_OLD
-#   define IOC_MDC_GETFILEINFO_V1   IOC_MDC_GETFILEINFO_OLD
-#else
-#   define IOC_MDC_GETFILEINFO_V1   IOC_MDC_GETFILEINFO
+#ifndef IOC_MDC_GETFILEINFO_V1
+#   ifdef IOC_MDC_GETFILEINFO_OLD
+#       define IOC_MDC_GETFILEINFO_V1   IOC_MDC_GETFILEINFO_OLD
+#   else
+#       define IOC_MDC_GETFILEINFO_V1   IOC_MDC_GETFILEINFO
+#   endif
 #endif
 
 
