@@ -62,8 +62,6 @@
 #define OPT_BY_AVGSIZE    311
 #define OPT_COUNT_MIN     312
 
-#define OPT_TOPRMDIR      320
-
 #define OPT_SIZE_PROFILE  330
 #define OPT_BY_SZ_RATIO   331
 
@@ -129,15 +127,7 @@ static struct option option_tab[] = {
     {"top-size", optional_argument, NULL, 's'},
     {"topusers", optional_argument, NULL, 'U'},
     {"top-users", optional_argument, NULL, 'U'},
-
-    {"toppurge", optional_argument, NULL, 'p'}, /* deprecated */
-    {"top-purge", optional_argument, NULL, 'p'},    /* deprecated */
-    /* replacement for top-purge */
     {"oldest-files", optional_argument, NULL, 'o'},
-
-    {"toprmdir", optional_argument, NULL, OPT_TOPRMDIR},    /* deprecated */
-    {"top-rmdir", optional_argument, NULL, OPT_TOPRMDIR},   /* deprecated */
-    /* replacement for top-rmdir */
     {"oldest-empty-dirs", optional_argument, NULL, 'O'},
 
     {"deferred-rm", no_argument, NULL, 'R'},
@@ -190,7 +180,7 @@ static struct option option_tab[] = {
 
 };
 
-#define SHORT_OPT_STRING    "aiDe:u:g:d:s:p:rU:P:C:Rf:cql:hVFSJo:O:"
+#define SHORT_OPT_STRING    "aiDe:u:g:d:s:rU:P:C:Rf:cql:hVFSJo:O:"
 
 static const char *cmd_help = _B "Usage:" B_ " %s [options]\n";
 
@@ -2826,16 +2816,6 @@ int main(int argc, char **argv)
             } else
                 topsize = DEFAULT_TOP_SIZE;
             break;
-
-        case 'p':
-            fprintf(stderr,
-                    "ERROR: --top-purge report is deprecated. You can use --oldest-files instead.\n");
-            return EINVAL;
-
-        case OPT_TOPRMDIR:
-            fprintf(stderr,
-                    "ERROR: --top-rmdir report is deprecated. You can use --oldest-empty-dirs instead.\n");
-            return EINVAL;
 
         case 'o':
             if (optarg) {
