@@ -1702,7 +1702,7 @@ static void report_usergroup_info(char *name, int flags)
     filter_value_t fv;
     int rc;
     unsigned int field_count = 0;
-    unsigned int shift = 0;
+    unsigned int head = 0;
     bool is_filter = false;
     bool display_header = !NOHEADER(flags);
     unsigned long long total_size, total_used, total_count;
@@ -1721,53 +1721,37 @@ static void report_usergroup_info(char *name, int flags)
      */
     report_field_descr_t user_info[USERINFOCOUNT_MAX];
 
-    if (ISSPLITUSERPROJ(flags)) {
+    head = 0;
+    /* user first, except if reporting groups */
+    if (!ISGROUP(flags)) {
         set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_uid,
                                 REPORT_GROUP_BY,
                                 REVERSE(flags) ? SORT_DESC : SORT_ASC);
         field_count++;
+        head++;
+    }
+    /* then add group if this is a group request or if the split is requested */
+    if (ISGROUP(flags) || ISSPLITUSERGROUP(flags)) {
+        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gid,
+                                REPORT_GROUP_BY,
+                                REVERSE(flags) ? SORT_DESC : SORT_ASC);
+        field_count++;
+        head++;
+    }
+    /* split by project if requested */
+    if (ISSPLITUSERPROJ(flags)) {
         set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_projid,
                                 REPORT_GROUP_BY,
                                 REVERSE(flags) ? SORT_DESC : SORT_ASC);
         field_count++;
-        shift++;
-    } else if (ISSPLITUSERGROUP(flags) && ISGROUP(flags)) {
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gid,
-                                REPORT_GROUP_BY,
-                                REVERSE(flags) ? SORT_DESC : SORT_ASC);
-        field_count++;
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_uid,
-                                REPORT_GROUP_BY,
-                                REVERSE(flags) ? SORT_DESC : SORT_ASC);
-        field_count++;
-        shift++;
-    } else if (ISSPLITUSERGROUP(flags) && !ISGROUP(flags)) {
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_uid,
-                                REPORT_GROUP_BY,
-                                REVERSE(flags) ? SORT_DESC : SORT_ASC);
-        field_count++;
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gid,
-                                REPORT_GROUP_BY,
-                                REVERSE(flags) ? SORT_DESC : SORT_ASC);
-        field_count++;
-        shift++;
-    } else if (ISGROUP(flags)) {
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_gid,
-                                REPORT_GROUP_BY,
-                                REVERSE(flags) ? SORT_DESC : SORT_ASC);
-        field_count++;
-    } else {
-        set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_uid,
-                                REPORT_GROUP_BY,
-                                REVERSE(flags) ? SORT_DESC : SORT_ASC);
-        field_count++;
+        head++;
     }
 
     set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_type,
                             REPORT_GROUP_BY,
                             REVERSE(flags) ? SORT_DESC : SORT_ASC);
     field_count++;
-    shift++;
+    head++;
 
     set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_COUNT,
                             REPORT_COUNT, SORT_NONE);
@@ -1857,11 +1841,11 @@ static void report_usergroup_info(char *name, int flags)
                        0);
         display_header = false; /* just display it once */
 
-        total_count += result[1 + shift].value_u.val_biguint;
+        total_count += result[head].value_u.val_biguint;
         /* this is a sum(size) => keep it as is */
-        total_size += result[2 + shift].value_u.val_biguint;
+        total_size += result[head + 1].value_u.val_biguint;
         /* this is a block count => multiply by 512 to get the space in bytes */
-        total_used += (result[3 + shift].value_u.val_biguint * DEV_BSIZE);
+        total_used += (result[head + 2].value_u.val_biguint * DEV_BSIZE);
     }
 
     ListMgr_CloseReport(it);
@@ -1878,7 +1862,6 @@ static void report_usergroup_info(char *name, int flags)
                "space used: %llu bytes (%s)\n",
                total_count, total_size, strsz, total_used, strus);
     }
-
 }
 
 static void report_topdirs(unsigned int count, int flags)
