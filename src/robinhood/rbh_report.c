@@ -146,6 +146,7 @@ static struct option option_tab[] = {
     /* additional options for topusers etc... */
     {"filter-path", required_argument, NULL, 'P'},
     {"filter-class", required_argument, NULL, 'C'},
+    {"filter-project", required_argument, NULL, 'p'},
 // filter status
     {"split-user-groups", no_argument, NULL, 'S'},
     {"split-user-projects", no_argument, NULL, 'J'},
@@ -180,7 +181,7 @@ static struct option option_tab[] = {
 
 };
 
-#define SHORT_OPT_STRING    "aiDe:u:g:d:s:rU:P:C:Rf:cql:hVFSJo:O:"
+#define SHORT_OPT_STRING    "aiDe:u:g:d:s:rU:P:C:Rf:cql:hVFSJo:O:p:"
 
 static const char *cmd_help = _B "Usage:" B_ " %s [options]\n";
 
@@ -249,6 +250,9 @@ static const char *filter_help =
     "    " _B "-C" B_ " " _U "class_expr" U_ ", "
            _B "--filter-class" B_ " " _U "class_expr" U_ "\n"
     "        Only report entries in the matching fileclasses.\n"
+    "    " _B "-p" B_ " " _U "projid" U_ ", "
+           _B "--filter-project" B_ " " _U "projid" U_ "\n"
+    "        Only report entries with the given project_id.\n"
     "    " _B "--count-min" B_ " " _U "cnt" U_ "\n"
     "        Display only topuser/userinfo with at least " _U "cnt" U_ " entries\n";
 
@@ -373,6 +377,7 @@ static lmgr_t lmgr;
 /* global filter variables */
 char path_filter[RBH_PATH_MAX] = "";
 char class_filter[1024] = "";
+int  projid = -1;
 unsigned int count_min = 0;
 
 /**
@@ -1180,6 +1185,23 @@ static int append_class_filter(lmgr_filter_t *filter, bool *initialized)
     return lmgr_simple_filter_add(filter, ATTR_INDEX_fileclass, LIKE, fv, 0);
 }
 
+/**
+ * add filter on project id
+ */
+static int append_project_filter(lmgr_filter_t *filter, bool *initialized)
+{
+    filter_value_t fv;
+
+    if ((initialized != NULL) && !(*initialized)) {
+        lmgr_simple_filter_init(filter);
+        *initialized = true;
+    }
+
+    fv.value.val_uint = projid;
+
+    return lmgr_simple_filter_add(filter, ATTR_INDEX_projid, EQUAL, fv, 0);
+}
+
 
 /*
  * Append global filters on path, class...
@@ -1206,6 +1228,15 @@ static int mk_global_filters(lmgr_filter_t *filter, bool do_display,
             printf("filter class: %s\n", class_format(class_filter));
 
         rc = append_class_filter(filter, initialized);
+        if (rc)
+            return rc;
+    }
+
+   if (projid != -1) {
+        if (do_display)
+            printf("filter projid: %u\n", projid);
+
+        rc = append_project_filter(filter, initialized);
         if (rc)
             return rc;
     }
@@ -2675,6 +2706,15 @@ int main(int argc, char **argv)
                         "WARNING: --filter-class conflicts with --class-info parameter. ignored.\n");
             else
                 rh_strncpy(class_filter, optarg, 1024);
+            break;
+
+        case 'p':
+            if (!optarg) {
+                fprintf(stderr,
+                        "Missing mandatory argument <class> for --filter-project\n");
+                exit(1);
+            }
+            projid = atoi(optarg);
             break;
 
         case OPT_CLASS_INFO:
