@@ -113,6 +113,10 @@ Display the report only for objects in the given \fIpath\fP.
 Only report entries in the matching fileclasses.
 .TP
 .B
+\fB-p\fP \fIproject_id\fP, \fB--filter-project\fP \fIproject_id\fP
+Only report entries with the given project id (Lustre only).
+.TP
+.B
 \fB--count-min\fP \fIcnt\fP
 Display only topuser/userinfo with at least \fIcnt\fP entries
 .SH ACCOUNTING REPORT OPTIONS
@@ -146,6 +150,11 @@ Reverse sort order
 \fB-S\fP, \fB--split-user-groups\fP
 Display the report by user AND group
 .TP
+.B
+\fB-J\fP, \fB--split-user-projects\fP
+Split users report per project id (Lustre only)
+.TP
+
 .B
 \fB-F\fP, \fB--force-no-acct\fP
 Generate the report without using accounting table (slower)
