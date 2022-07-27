@@ -5234,6 +5234,380 @@ function test_ost_order
 
 }
 
+# check output of rbh-find -printf "%y %p\t%RP\n"
+# arg1: log file
+# arg2: path
+# arg3: expected projid
+function check_projid
+{
+    local log="$1"
+    local path="$2"
+    local projid="$3"
+
+    grep "\s$path\s" $log | grep -qe "\s$projid$" || error "$path should have projid=$projid"
+}
+
+function projectid_test_find
+{
+    config_file=$1
+    policy_str="$2"
+
+    if [ -n "$POSIX_MODE" ]; then
+        echo "No project id support for POSIX mode"
+        set_skipped
+        return 1
+    fi
+
+    clean_logs
+
+    $LFS project -p 0 -d $RH_ROOT
+    $LFS project -C -r $RH_ROOT
+
+    # create the test tree:
+    #    3 P /mnt/lustre/B
+    #    2 - /mnt/lustre/A
+    #    3 P /mnt/lustre/B/2
+    #    3 P /mnt/lustre/B/1
+    #    3 P /mnt/lustre/B/3
+    #    0 - /mnt/lustre/A/2
+    #    0 - /mnt/lustre/A/1
+    #    0 - /mnt/lustre/A/3
+
+    mkdir $RH_ROOT/A
+    mkdir $RH_ROOT/B
+    lfs project -p 1 -d $RH_ROOT/.
+    lfs project -p 2 -r $RH_ROOT/A
+    touch $RH_ROOT/A/{1..3}
+    lfs project -p 3 -rs $RH_ROOT/B
+    touch $RH_ROOT/B/{1..3}
+
+    [ "$DEBUG" = "1" ] && lfs project -r "$RH_ROOT"
+
+    # scan
+    $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error "running initial scan"
+    check_db_error rh_chglogs.log
+
+    # test find (no filtering)
+    $FIND -f $RBH_CFG_DIR/$config_file -printf "%y %p\t%RP\n" | sort > tmp1
+    $FIND -f $RBH_CFG_DIR/$config_file -printf "%y %p\t%RP\n" -nobulk | sort > tmp2
+    [ "$DEBUG" = "1" ] && cat tmp1 && echo "---"
+    diff tmp1 tmp2 || error "output with nobulk should not differ"
+    check_projid tmp1 /mnt/lustre     1
+    check_projid tmp1 /mnt/lustre/A   2
+    check_projid tmp1 /mnt/lustre/A/1 0
+    check_projid tmp1 /mnt/lustre/A/2 0
+    check_projid tmp1 /mnt/lustre/A/3 0
+    check_projid tmp1 /mnt/lustre/B   3
+    check_projid tmp1 /mnt/lustre/B/1 3
+    check_projid tmp1 /mnt/lustre/B/2 3
+    check_projid tmp1 /mnt/lustre/B/3 3
+
+    # test find (with filtering)
+    $FIND -f $RBH_CFG_DIR/$config_file -printf "%y %p\t%RP\n" -projid 1 | sort > tmp1
+    $FIND -f $RBH_CFG_DIR/$config_file -printf "%y %p\t%RP\n" -projid 1 -nobulk | sort > tmp2
+    [ "$DEBUG" = "1" ] && cat tmp1 && echo "---"
+    diff tmp1 tmp2 || error "output with nobulk should not differ"
+    nb1=$(cat tmp1 | wc -l )
+    (($nb1 == 1)) || error "1 element expected matching -projid 1"
+
+    $FIND -f $RBH_CFG_DIR/$config_file -printf "%y %p\t%RP\n" -projid 3 | sort > tmp1
+    $FIND -f $RBH_CFG_DIR/$config_file -printf "%y %p\t%RP\n" -projid 3 -nobulk | sort > tmp2
+    [ "$DEBUG" = "1" ] && cat tmp1 && echo "---"
+    diff tmp1 tmp2 || error "output with nobulk should not differ"
+    nb3=$(cat tmp1 | wc -l )
+    (($nb3 == 4)) || error "4 elements expected matching -projid 3"
+
+    # test find (filtering with no display)
+    $FIND -f $RBH_CFG_DIR/$config_file -projid 2 -ls > tmp1
+    [ "$DEBUG" = "1" ] && cat tmp1 && echo "---"
+    nb2=$(cat tmp1 | wc -l )
+    (($nb2 == 1)) || error "1 element expected matching -projid 2"
+
+    # clean files
+    rm -f tmp1 tmp2
+}
+
+function projectid_test_report
+{
+    config_file=$1
+    policy_str="$2"
+
+    if [ -n "$POSIX_MODE" ]; then
+        echo "No project id support for POSIX mode"
+        set_skipped
+        return 1
+    fi
+
+    clean_logs
+
+if [[ $RBH_NUM_UIDGID = "yes" ]]; then
+    testuser_str=$(getent passwd testuser | cut -d: -f3)
+    testgroup_str=$(getent group testgroup | cut -d: -f3)
+    root_str=0
+else
+    testuser_str=testuser
+    testgroup_str=testgroup
+    root_str=root
+fi
+
+    # create the test tree
+    #    1 P /mnt/lustre/A	0:0
+    #    1 P /mnt/lustre/A/1	0:tg
+    #    1 P /mnt/lustre/A/2	tu:0
+    #    1 P /mnt/lustre/A/3	tu:tg
+    #    2 P /mnt/lustre/B	0:tg
+    #    2 P /mnt/lustre/B/1	tu:0
+    #    2 P /mnt/lustre/B/2	tu:tg
+    #    2 P /mnt/lustre/B/3	0:0
+
+    $LFS project -p 0 -d $RH_ROOT
+    $LFS project -C -r $RH_ROOT
+
+    mkdir $RH_ROOT/A
+    mkdir $RH_ROOT/B
+    lfs project -p 1 -rs $RH_ROOT/A
+    touch $RH_ROOT/A/{1..3}
+    lfs project -p 2 -rs $RH_ROOT/B
+    touch $RH_ROOT/B/{1..3}
+
+    chown root:root 	 $RH_ROOT/A
+    chown root:testgroup $RH_ROOT/A/1
+    chown testuser:root  $RH_ROOT/A/2
+    chown testuser:testgroup  $RH_ROOT/A/3
+    chown root:testgroup $RH_ROOT/B
+    chown testuser:root  $RH_ROOT/B/1
+    chown testuser:testgroup  $RH_ROOT/B/2
+    chown root:root 	 $RH_ROOT/B/3
+
+    [ "$DEBUG" = "1" ] && lfs project -r "$RH_ROOT"
+
+    # scan
+    $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error "running initial scan"
+    check_db_error rh_chglogs.log
+
+    # check report with filter
+    $REPORT -f $RBH_CFG_DIR/$config_file -q --dump --filter-project 1 | awk '{print $NF}' > tmp1
+    [ "$DEBUG" = "1" ] && cat tmp1 && echo "---"
+    nbA=$(grep "$RH_ROOT/A" tmp1 | wc -l)
+    nbB=$(grep "$RH_ROOT/B" tmp1 | wc -l)
+    (($nbA == 4)) || error "Invalid number of entries in $RH_ROOT/A matching projid 1: $nbA"
+    (($nbB == 0)) || error "Invalid number of entries in $RH_ROOT/B matching projid 1: $nbB"
+
+    $REPORT -f $RBH_CFG_DIR/$config_file -q --dump --filter-project 2 | awk '{print $NF}' > tmp1
+    [ "$DEBUG" = "1" ] && cat tmp1 && echo "---"
+    nbA=$(grep "$RH_ROOT/A" tmp1 | wc -l)
+    nbB=$(grep "$RH_ROOT/B" tmp1 | wc -l)
+    (($nbA == 0)) || error "Invalid number of entries in $RH_ROOT/A matching projid 2: $nbA"
+    (($nbB == 4)) || error "Invalid number of entries in $RH_ROOT/B matching projid 2: $nbB"
+
+    # checking report split
+    # 1) no split, just filter
+    $REPORT -f $RBH_CFG_DIR/$config_file -q --csv -u root --filter-project 2 > tmp1
+    [ "$DEBUG" = "1" ] && cat tmp1 && echo "---"
+    # -> B and B/3 = 1 dir, 1 file
+    find_valueInCSVreport tmp1 dir  1 3 || error "invalid count for dir"
+    find_valueInCSVreport tmp1 file 1 3 || error "invalid count for file"
+
+    # 2) split per projid
+    $REPORT -f $RBH_CFG_DIR/$config_file --csv -q -u root -J > tmp1
+    # -> p=1: A A/1 ; p=2 B B/3
+    [ "$DEBUG" = "1" ] && cat tmp1 && echo "---"
+    nb=$(grep "1,\s*dir," tmp1 | cut -d ',' -f 4 | tr -d ' ')
+    (($nb == 1)) || error "invalid count for dir of project 1"
+    nb=$(grep "1,\s*file" tmp1 | cut -d ',' -f 4 | tr -d ' ')
+    (($nb == 1)) || error "invalid count for file of project 1"
+    nb=$(grep "2,\s*dir," tmp1 | cut -d ',' -f 4 | tr -d ' ')
+    (($nb == 1)) || error "invalid count for dir of project 2"
+    nb=$(grep "2,\s*file," tmp1 | cut -d ',' -f 4 | tr -d ' ')
+    (($nb == 1)) || error "invalid count for file of project 2"
+
+    # 2) split per group+projid
+    #    1 P /mnt/lustre/A	0:0
+    #    1 P /mnt/lustre/A/1	0:tg
+    #    2 P /mnt/lustre/B	0:tg
+    #    2 P /mnt/lustre/B/3	0:0
+    #
+    # => 1 testgroup in each project (p1: 1 file, p2: 1 dir)
+    # => 1 root group in each project (p1: 1 dir, p2: 1 file)
+#      user,      group,     projid,     type,      count,...
+#      root,       root,          1,      dir,          1,...
+#      root,       root,          2,     file,          1,...
+#      root,  testgroup,          1,     file,          1,...
+#      root,  testgroup,          2,      dir,          1,...
+
+
+    $REPORT -f $RBH_CFG_DIR/$config_file --csv -q -u root -SJ > tmp1
+    [ "$DEBUG" = "1" ] && cat tmp1 && echo "---"
+    nb=$(grep "root,\s*1,\s*dir," tmp1 | cut -d ',' -f 5 | tr -d ' ')
+    (($nb == 1)) || error "invalid count for dir of project 1 and group root: $nb"
+    nb=$(grep "root,\s*1,\s*file" tmp1 | cut -d ',' -f 5 | tr -d ' ')
+    [[ -z "$nb" ]] || error "invalid count for file of project 1 and group root"
+    nb=$(grep "root,\s*2,\s*dir," tmp1 | cut -d ',' -f 5 | tr -d ' ')
+    [[ -z "$nb" ]] || error "invalid count for dir of project 2 and group root"
+    nb=$(grep "root,\s*2,\s*file" tmp1 | cut -d ',' -f 5 | tr -d ' ')
+    (($nb == 1)) || error "invalid count for file of project 2 and group root"
+
+    nb=$(grep "testgroup,\s*1,\s*dir," tmp1 | cut -d ',' -f 5 | tr -d ' ')
+    [[ -z "$nb" ]] || error "invalid count for dir of project 1 and group testgroup"
+    nb=$(grep "testgroup,\s*1,\s*file" tmp1 | cut -d ',' -f 5 | tr -d ' ')
+    (($nb == 1)) || error "invalid count for file of project 1 and group testgroup"
+    nb=$(grep "testgroup,\s*2,\s*dir," tmp1 | cut -d ',' -f 5 | tr -d ' ')
+    (($nb == 1)) || error "invalid count for dir of project 2 and group testgroup"
+    nb=$(grep "testgroup,\s*2,\s*file" tmp1 | cut -d ',' -f 5 | tr -d ' ')
+    [[ -z "$nb" ]] || error "invalid count for file of project 2 and group testgroup"
+
+    rm -f tmp1
+}
+
+function projectid_test_chglog
+{
+    config_file=$1
+    policy_str="$2"
+
+    if [ -n "$POSIX_MODE" ]; then
+        echo "No project id support for POSIX mode"
+        set_skipped
+        return 1
+    fi
+
+    clean_logs
+
+    # create the test tree:
+    $LFS project -p 0 -d $RH_ROOT
+    $LFS project -C -r $RH_ROOT
+
+    mkdir $RH_ROOT/A
+    touch $RH_ROOT/A/{1..3}
+    mkdir $RH_ROOT/B
+    touch $RH_ROOT/B/{1..3}
+
+    [ "$DEBUG" = "1" ] && lfs project -r "$RH_ROOT"
+
+    # scan
+    $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error "running initial scan"
+    check_db_error rh_chglogs.log
+
+    $LFS changelog_clear lustre-MDT0000 cl1 0
+
+    # initial check
+    nb=$($REPORT -f $RBH_CFG_DIR/$config_file -q --dump --filter-project=0 | wc -l) # <= all in here
+    (( $nb == 8 )) || error "8 entries expected with projid=0"
+    nb=$($REPORT -f $RBH_CFG_DIR/$config_file -q --dump --filter-project=1 | wc -l) # none expected
+    (( $nb == 0 )) || error "no entry expected with projid=1"
+
+    # modify project of A
+    $LFS project -p 1 -d $RH_ROOT/A
+    [ "$DEBUG" = "1" ] && $LFS changelog lustre-MDT0000
+
+    # read the changelog
+    $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "reading changelog"
+    check_db_error rh_chglogs.log
+
+    # now they should be 1 dir in project 1
+    $REPORT -f $RBH_CFG_DIR/$config_file -q -i --filter-project=1 > tmp1
+    find_valueInCSVreport tmp1 dir  1 2 || error "invalid count for dir"
+
+    # modify project B recursively
+    $LFS project -p 2 -rs $RH_ROOT/B
+    [ "$DEBUG" = "1" ] && $LFS changelog lustre-MDT0000
+
+    # read the changelog
+    $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "reading changelog"
+    check_db_error rh_chglogs.log
+
+    # now they should be 1 dir and 3 files in project 2
+    $REPORT -f $RBH_CFG_DIR/$config_file -q -i --filter-project=2 > tmp1
+    find_valueInCSVreport tmp1 dir  1 2 || error "invalid count for dir"
+    find_valueInCSVreport tmp1 file 3 2 || error "invalid count for file"
+
+    # create new file in A: no change expected
+    touch $RH_ROOT/A/new
+    $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "reading changelog"
+    check_db_error rh_chglogs.log
+    nb=$($REPORT -f $RBH_CFG_DIR/$config_file -q -i --filter-project=1 | grep file)
+    [ -z "$nb" ] || error "No file expected in project 1"
+
+    # create new file and dir in B: new object expected
+    mkdir $RH_ROOT/B/new1
+    touch $RH_ROOT/B/new1/new2
+    touch $RH_ROOT/B/new2
+    $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "reading changelog"
+    check_db_error rh_chglogs.log
+    # now they should be 2 dir and 5 files in project 2
+    $REPORT -f $RBH_CFG_DIR/$config_file -q -i --filter-project=2 > tmp1
+    find_valueInCSVreport tmp1 dir  2 2 || error "invalid count for dir"
+    find_valueInCSVreport tmp1 file 5 2 || error "invalid count for file"
+
+    rm -f tmp1
+}
+
+function projectid_test_run
+{
+    config_file=$1
+    policy_str="$2"
+
+    if [ -n "$POSIX_MODE" ]; then
+        echo "No project id support for POSIX mode"
+        set_skipped
+        return 1
+    fi
+
+    clean_logs
+
+    # initialize root projectid to 0
+    $LFS project -p 0 -d $RH_ROOT
+    $LFS project -C -r $RH_ROOT
+
+    # create 6 files
+    for i in {1..6}; do
+        dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=1 >/dev/null 2>/dev/null || error "writing file.$i"
+    done
+
+    $LFS project -p 1 $RH_ROOT/file.1
+    $LFS project -p 2 $RH_ROOT/file.2
+    $LFS project -p 2 $RH_ROOT/file.3
+    $LFS project -p 3 $RH_ROOT/file.4
+    $LFS project -p 3 $RH_ROOT/file.5
+    $LFS project -p 3 $RH_ROOT/file.6
+
+    # initial scan
+    $RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -L rh_chglogs.log  --once || error ""
+
+    # flush data for HSM flavors
+    if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
+        echo "Archiving files"
+        $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "archiving files"
+
+        if (( $is_lhsm != 0 )); then
+            echo "Waiting for end of data migration..."
+            wait_done 60
+
+            # archive is asynchronous: read changelog to get the archive status
+            $RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L rh_chglogs.log  --once || error ""
+        fi
+    fi
+
+    # md_update for purge must be > previous md updates
+    sleep 1
+
+    [ "$DEBUG" = "1" ] && $FIND -f $RBH_CFG_DIR/$config_file -type f -printf "%y %p\t%RP\n" | sort
+
+    :>rh_purge.log
+    $RH -f $RBH_CFG_DIR/$config_file --run=purge -I --target=projid:1 --once -l DEBUG -L rh_purge.log || error "purging files"
+    nb=$(grep "$REL_STR" rh_purge.log | wc -l)
+    (($nb == 1)) || error "Unexpected number of purged files for projid 1"
+
+    :>rh_purge.log
+    $RH -f $RBH_CFG_DIR/$config_file --run=purge -I --target=projid:2 --once -l DEBUG -L rh_purge.log || error "purging files"
+    nb=$(grep "$REL_STR" rh_purge.log | wc -l)
+    (($nb == 2)) || error "Unexpected number of purged files for projid 2"
+
+    :>rh_purge.log
+    $RH -f $RBH_CFG_DIR/$config_file --run=purge -I --target=projid:3 --once -l DEBUG -L rh_purge.log || error "purging files"
+    nb=$(grep "$REL_STR" rh_purge.log | wc -l)
+    (($nb == 3)) || error "Unexpected number of purged files for projid 3"
+}
+
 
 function test_trigger_check
 {
@@ -12364,12 +12738,11 @@ function find_valueInCSVreport
     # countValue = associated value to typeValue in the extracted line
     # colSearch =  column index to find the countValue (each column is separated by ',')
 
-
     # get input parameters
-    logFile=$1
-    typeValue=$2
-    countValue=$3
-    colSearch=$4
+    logFile="$1"
+    typeValue="$2"
+    countValue="$3"
+    colSearch="$4"
     #echo '-------------------------------------'
     #more $logFile
     #echo "colSearch=$colSearch"
@@ -13551,6 +13924,11 @@ run_test 302	test_trigger_check test_trig3.conf 60 110 "triggers check only" 40 
 run_test 303    test_periodic_trigger test_trig4.conf 5 "periodic trigger"
 run_test 304    test_ost_order test_trig2.conf "OST purge order"
 
+### projectid related tests
+run_test 350    projectid_test_find info_collect.conf   "Lustre project id and rbh-find"
+run_test 351    projectid_test_report info_collect.conf "Lustre project id and rbh-report"
+run_test 352    projectid_test_chglog info_collect.conf "Lustre project id update with changelogs"
+run_test 353    projectid_test_run test_trig3.conf      "Lustre project id targetted policy run"
 
 #### reporting ####
 run_test 400	test_rh_report common.conf 3 1 "reporting tool"
