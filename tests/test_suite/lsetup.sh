@@ -1,7 +1,18 @@
 #!/bin/bash
 
+function project_quota_supported()
+{
+	if [ ! -f ./test-framework.sh ]; then
+		echo "test-framework.sh not found"
+		exit 1
+	fi
+	grep "ENABLE_PROJECT_QUOTAS" ./test-framework.sh
+}
+
 export OSTSIZE=400000
 export OSTCOUNT=4
+export ENABLE_QUOTA=true
+export ENABLE_PROJECT_QUOTAS=true
 LUSTRE_SRC_DIR=${LUSTRE_SRC_DIR:-/usr/lib64}
 
 if [[ "$1" == "mount" || -z "$1" ]]; then
@@ -24,8 +35,33 @@ if [[ "$1" == "mount" || -z "$1" ]]; then
 		umount /mnt/lustre
 	fi
 
+	export QUOTA_USERS=$(head -n 3 /etc/passwd | cut -d ':' -f 1 | \
+		grep -v root | xargs)
+
 	echo "Mounting lustre..."
 	./llmount.sh
+	if ! project_quota_supported; then
+		lctl conf_param lustre.quota.ost=ugp ||
+			echo "Could not enable project quota"
+		lctl conf_param lustre.quota.mdt=ugp ||
+			echo "Could not enable project quota"
+
+		echo "Dismounting to apply project quota"
+		./llmountcleanup.sh
+		for t in /tmp/lustre-mdt1 /tmp/lustre-ost*; do
+			tune2fs -O project,quota $t
+			tune2fs -Q prjquota,usrquota,grpquota "$t"
+
+			dumpe2fs $t | grep quota
+		done
+
+		echo "Re-mounting lustre..."
+		NOFORMAT=1 ./llmount.sh
+		lctl conf_param lustre.quota.ost=ugp ||
+			echo "Could not enable project quota"
+		lctl conf_param lustre.quota.mdt=ugp ||
+			echo "Could not enable project quota"
+	fi
 
 	mount | grep /mnt/lustre
     exit $?
