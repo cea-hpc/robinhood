@@ -1146,7 +1146,8 @@ function test_purge_lru
     # md_update for purge must be > previous md updates
     sleep 1
 
-    $RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT --once -l DEBUG  -L rh_purge.log || error "purging files"
+    $RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT --no-limit --once -l DEBUG \
+        -L rh_purge.log || error "purging files"
 
     # if sorted: order should be 5 6 1 2 3 4
     exp_rank=(3 4 5 6 1 2)
@@ -1907,7 +1908,10 @@ function test_custom_purge
     fi
 
     echo "Applying purge policy ($policy_str)..."
-    $RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT -l FULL -L rh_purge.log --once || error "purging files"
+    # NB: Lustre reports less space used as expected so the purge trigger
+    # target is not high enough to purge all file => use the no-limit option
+    $RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT --no-limit -l FULL \
+        -L rh_purge.log --once || error "purging files"
     check_db_error rh_purge.log
 
     nb_purge=`grep "$REL_STR" rh_purge.log | wc -l`
