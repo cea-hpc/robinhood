@@ -83,18 +83,12 @@ typedef struct trigger_item_t {
     ull_t               max_action_vol;
 
     trigger_value_type_t hw_type;
+    /* volume, percent, or count */
     threshold_u         hw_u;
 
-#define hw_volume       hw_u.volume
-#define hw_percent      hw_u.percent
-#define hw_count        hw_u.count
-
     trigger_value_type_t lw_type;
+    /* volume, percent, or count */
     threshold_u         lw_u;
-
-#define lw_volume       lw_u.volume
-#define lw_percent      lw_u.percent
-#define lw_count        lw_u.count
 
     /* min time to wait between 2 trigger applications */
     time_t              post_trigger_wait;

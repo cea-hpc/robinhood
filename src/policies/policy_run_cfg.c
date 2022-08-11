@@ -1089,82 +1089,82 @@ static void update_triggers(trigger_item_t *trigger_tgt,
 
         switch (trigger_new[i].hw_type) {
         case PCT_THRESHOLD:
-            if (trigger_new[i].hw_percent != trigger_tgt[i].hw_percent) {
+            if (trigger_new[i].hw_u.percent != trigger_tgt[i].hw_u.percent) {
                 DisplayLog(LVL_EVENT, TAG,
                            "High threshold updated for trigger %s: "
-                           "%.2f%%->%.2f%%", tname, trigger_tgt[i].hw_percent,
-                           trigger_new[i].hw_percent);
-                trigger_tgt[i].hw_percent = trigger_new[i].hw_percent;
+                           "%.2f%%->%.2f%%", tname, trigger_tgt[i].hw_u.percent,
+                           trigger_new[i].hw_u.percent);
+                trigger_tgt[i].hw_u.percent = trigger_new[i].hw_u.percent;
             }
             break;
 
         case VOL_THRESHOLD:
-            if (trigger_new[i].hw_volume != trigger_tgt[i].hw_volume) {
+            if (trigger_new[i].hw_u.volume != trigger_tgt[i].hw_u.volume) {
                 DisplayLog(LVL_EVENT, TAG,
                            "High threshold updated for trigger %s: %llu bytes->%llu bytes",
-                           tname, trigger_tgt[i].hw_volume,
-                           trigger_new[i].hw_volume);
-                trigger_tgt[i].hw_volume = trigger_new[i].hw_volume;
+                           tname, trigger_tgt[i].hw_u.volume,
+                           trigger_new[i].hw_u.volume);
+                trigger_tgt[i].hw_u.volume = trigger_new[i].hw_u.volume;
             }
             break;
 
         case COUNT_THRESHOLD:
-            if (trigger_new[i].hw_count != trigger_tgt[i].hw_count) {
+            if (trigger_new[i].hw_u.count != trigger_tgt[i].hw_u.count) {
                 DisplayLog(LVL_EVENT, TAG,
                            "High threshold updated for trigger %s: %llu entries ->%llu entries",
-                           tname, trigger_tgt[i].hw_count,
-                           trigger_new[i].hw_count);
-                trigger_tgt[i].hw_count = trigger_new[i].hw_count;
+                           tname, trigger_tgt[i].hw_u.count,
+                           trigger_new[i].hw_u.count);
+                trigger_tgt[i].hw_u.count = trigger_new[i].hw_u.count;
             }
             break;
         case CNTPCT_THRESHOLD:
-            if (trigger_new[i].hw_percent != trigger_tgt[i].hw_percent) {
+            if (trigger_new[i].hw_u.percent != trigger_tgt[i].hw_u.percent) {
                 DisplayLog(LVL_EVENT, TAG,
                            "High threshold updated for trigger %s: "
-                           "%.2f%%->%.2f%%", tname, trigger_tgt[i].hw_percent,
-                           trigger_new[i].hw_percent);
-                trigger_tgt[i].hw_percent = trigger_new[i].hw_percent;
+                           "%.2f%%->%.2f%%", tname, trigger_tgt[i].hw_u.percent,
+                           trigger_new[i].hw_u.percent);
+                trigger_tgt[i].hw_u.percent = trigger_new[i].hw_u.percent;
             }
             break;
         }
 
         switch (trigger_new[i].lw_type) {
         case PCT_THRESHOLD:
-            if (trigger_new[i].lw_percent != trigger_tgt[i].lw_percent) {
+            if (trigger_new[i].lw_u.percent != trigger_tgt[i].lw_u.percent) {
                 DisplayLog(LVL_EVENT, TAG,
                            "Low threshold updated for trigger %s: %.2f%%->%.2f%%",
-                           tname, trigger_tgt[i].lw_percent,
-                           trigger_new[i].lw_percent);
-                trigger_tgt[i].lw_percent = trigger_new[i].lw_percent;
+                           tname, trigger_tgt[i].lw_u.percent,
+                           trigger_new[i].lw_u.percent);
+                trigger_tgt[i].lw_u.percent = trigger_new[i].lw_u.percent;
             }
             break;
 
         case VOL_THRESHOLD:
-            if (trigger_new[i].lw_volume != trigger_tgt[i].lw_volume) {
+            if (trigger_new[i].lw_u.volume != trigger_tgt[i].lw_u.volume) {
                 DisplayLog(LVL_EVENT, TAG,
                            "Low threshold updated for trigger %s: %llu bytes->%llu bytes",
-                           tname, trigger_tgt[i].lw_volume,
-                           trigger_new[i].lw_volume);
-                trigger_tgt[i].lw_volume = trigger_new[i].lw_volume;
+                           tname, trigger_tgt[i].lw_u.volume,
+                           trigger_new[i].lw_u.volume);
+                trigger_tgt[i].lw_u.volume = trigger_new[i].lw_u.volume;
             }
             break;
 
         case COUNT_THRESHOLD:
-            if (trigger_new[i].lw_count != trigger_tgt[i].lw_count) {
+            if (trigger_new[i].lw_u.count != trigger_tgt[i].lw_u.count) {
                 DisplayLog(LVL_EVENT, TAG,
                            "Low threshold updated for trigger %s: %llu entries->%llu entries",
-                           tname, trigger_tgt[i].lw_count,
-                           trigger_new[i].lw_count);
-                trigger_tgt[i].lw_count = trigger_new[i].lw_count;
+                           tname, trigger_tgt[i].lw_u.count,
+                           trigger_new[i].lw_u.count);
+                trigger_tgt[i].lw_u.count = trigger_new[i].lw_u.count;
             }
             break;
         case CNTPCT_THRESHOLD:
-            if (trigger_new[i].lw_percent != trigger_tgt[i].lw_percent) {
+            if (trigger_new[i].lw_u.percent != trigger_tgt[i].lw_u.percent) {
                 DisplayLog(LVL_EVENT, TAG,
                            "Low threshold updated for trigger %s: %.2f%%->%.2f%%",
-                           tname, trigger_tgt[i].lw_percent,
-                           trigger_new[i].lw_percent);
-                trigger_tgt[i].lw_percent = trigger_new[i].lw_percent;
+                           tname, trigger_tgt[i].lw_u.percent,
+                           trigger_new[i].lw_u.percent);
+                trigger_tgt[i].lw_u.percent = trigger_new[i].lw_u.percent;
             }
             break;
         }
