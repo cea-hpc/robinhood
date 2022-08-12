@@ -9707,7 +9707,7 @@ function test_rbh_find_printf
 
     if (( $is_lhsm != 0 )); then
         echo "3-Archiving the files"
-        $LFS hsm_archive $srcfile || error "executing lfs hsm_archive"
+        $LFS hsm_archive --archive 1 $srcfile || error "executing lfs hsm_archive"
 
         wait_hsm_state $srcfile 0x00000009
 
