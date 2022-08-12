@@ -54,6 +54,7 @@
 #define OPT_DUMP_STATUS 259
 #define OPT_CLASS_INFO  260
 #define OPT_STATUS_INFO 261
+#define OPT_PROJECT_INFO 262
 
 #define SET_NEXT_MAINT    300
 #define CLEAR_NEXT_MAINT  301
@@ -120,6 +121,9 @@ static struct option option_tab[] = {
 
     {"statusinfo", required_argument, NULL, OPT_STATUS_INFO},
     {"status-info", required_argument, NULL, OPT_STATUS_INFO},
+
+    {"projectinfo", optional_argument, NULL, OPT_PROJECT_INFO},
+    {"project-info", optional_argument, NULL, OPT_PROJECT_INFO},
 
     {"topdirs", optional_argument, NULL, 'd'},
     {"top-dirs", optional_argument, NULL, 'd'},
@@ -200,12 +204,15 @@ static const char *stats_help =
     "    " _B "--entry-info" B_ " " _U "path" U_ "|" _U "id" U_ ", "
            _B "-e" B_ " " _U "path" U_ "|" _U "id" U_ "\n"
     "        Display all information about the given entry.\n"
-    "    " _B "--user-info" B_ "[=" _U "username" U_ "], "
-           _B "-u" B_ " " _U "username" U_ "\n"
+    "    " _B "--user-info" B_ "[=" _U "username" U_ "], " _B "-u" B_ " " _U "username" U_ "\n"
     "        Display user statistics. Use optional parameter " _U "username" U_
-            " for retrieving stats about a single user.\n" "    " _B
-    "--group-info" B_ "[=" _U "groupname" U_ "], " _B "-g" B_ " " _U "groupname" U_ "\n" "        Display group statistics. Use optional parameter " _U
+            " for retrieving stats about a single user.\n"
+    "    " _B "--group-info" B_ "[=" _U "groupname" U_ "], " _B "-g" B_ " " _U "groupname" U_ "\n"
+    "        Display group statistics. Use optional parameter " _U
     "groupname" U_ " for retrieving stats about a single group.\n"
+    "    " _B "--project-info" B_ "[=" _U "projid" U_ "]\n"
+    "        Display project statistics. Use optional parameter " _U "projid" U_
+            " for retrieving stats about a single project.\n"
     "    " _B "--top-dirs" B_ "[=" _U "cnt" U_ "], " _B "-d" B_ " " _U "cnt" U_ "\n"
     "        Display largest directories. Optional argument indicates the number of directories to be returned (default: 20).\n"
     "    " _B "--top-size" B_ "[=" _U "cnt" U_ "], " _B "-s" B_ " " _U "cnt" U_ "\n"
@@ -2353,10 +2360,10 @@ static void report_deferred_rm(int flags)
     }
 }
 
-static void report_class_info(int flags)
+static void report_groupby(int attr_index, int flags)
 {
-#define CLASSINFO_FIELDS 7
-    db_value_t result[CLASSINFO_FIELDS];
+#define GROUPBY_FIELDS 7
+    db_value_t result[GROUPBY_FIELDS];
 
     struct lmgr_report_t *it;
     lmgr_filter_t filter;
@@ -2370,13 +2377,13 @@ static void report_class_info(int flags)
     total_size = total_count = total_used = 0;
 
     /* To be retrieved for each group:
-     * - class names and status
+     * - attribute value
      * - NB entries
      * - SUM(blocks)
      * - MIN/MAX/AVG file size
      */
-    report_field_descr_t class_info[CLASSINFO_FIELDS] = {
-        {ATTR_INDEX_fileclass, REPORT_GROUP_BY, SORT_ASC, false, 0, FV_NULL},
+    report_field_descr_t info[GROUPBY_FIELDS] = {
+        {attr_index, REPORT_GROUP_BY, SORT_ASC, false, 0, FV_NULL},
         {ATTR_INDEX_COUNT, REPORT_COUNT, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_size, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
         {ATTR_INDEX_blocks, REPORT_SUM, SORT_NONE, false, 0, FV_NULL},
@@ -2391,8 +2398,8 @@ static void report_class_info(int flags)
         return;
     }
 
-    result_count = CLASSINFO_FIELDS;
-    it = ListMgr_Report(&lmgr, class_info, CLASSINFO_FIELDS,
+    result_count = GROUPBY_FIELDS;
+    it = ListMgr_Report(&lmgr, info, GROUPBY_FIELDS,
                         SPROF(flags) ? &size_profile : NULL,
                         is_filter ? &filter : NULL, NULL);
 
@@ -2402,15 +2409,14 @@ static void report_class_info(int flags)
         return;
     }
 
-    /* a single class column (release), can print as is */
     header = !NOHEADER(flags);
 
-    result_count = CLASSINFO_FIELDS;
+    result_count = GROUPBY_FIELDS;
     while ((rc =
             ListMgr_GetNextReportItem(it, result, &result_count,
                                       SPROF(flags) ? &prof : NULL))
            == DB_SUCCESS) {
-        display_report(class_info, result_count, result, result_count,
+        display_report(info, result_count, result, result_count,
                        SPROF(flags) ? &size_profile : NULL,
                        SPROF(flags) ? &prof : NULL, CSV(flags), header, 0);
         header = false; /* display header once */
@@ -2418,7 +2424,7 @@ static void report_class_info(int flags)
         total_count += result[1].value_u.val_biguint;
         total_size += result[2].value_u.val_biguint;
         total_used += result[3].value_u.val_biguint * DEV_BSIZE;
-        result_count = CLASSINFO_FIELDS;
+        result_count = GROUPBY_FIELDS;
     }
 
     ListMgr_CloseReport(it);
@@ -2640,7 +2646,9 @@ int main(int argc, char **argv)
     bool group_info = false;
     char group_name[256] = "";
 
-    bool class_info = false;
+    bool project_info = false; /* use projid */
+
+    bool class_info = false; /* use class filter */
 
     int topdirs = 0;
     int topsize = 0;
@@ -2718,7 +2726,6 @@ int main(int argc, char **argv)
             break;
 
         case OPT_CLASS_INFO:
-
             if (class_info)
                 fprintf(stderr,
                         "WARNING: --class-info parameter already specified on command line.\n");
@@ -2729,6 +2736,20 @@ int main(int argc, char **argv)
                     fprintf(stderr,
                             "WARNING: --class-info conflicts with --filter-class parameter. overriding filter.\n");
                 rh_strncpy(class_filter, optarg, 1024);
+            }
+            break;
+
+        case OPT_PROJECT_INFO:
+            if (project_info)
+                fprintf(stderr,
+                        "WARNING: --project-info parameter already specified on command line.\n");
+
+            project_info = true;
+            if (optarg) {
+                if (projid != 0)
+                    fprintf(stderr,
+                            "WARNING: --project-info conflicts with --filter-project parameter. overriding filter.\n");
+                projid = atoi(optarg);
             }
             break;
 
@@ -2988,7 +3009,7 @@ int main(int argc, char **argv)
 
     if (!activity && !fs_info && !user_info && !group_info
         && !topsize && !topuser && !dump_all && !dump_user
-        && !dump_group && !class_info && !entry_info
+        && !dump_group && !class_info && !entry_info && !project_info
         && (status_name == NULL) && (status_info_name == NULL)
         && !topdirs && !deferred_rm && !old_dirs && !old_files
 #ifdef _LUSTRE
@@ -3077,7 +3098,10 @@ int main(int argc, char **argv)
                               flags | OPT_FLAG_GROUP);
 
     if (class_info)
-        report_class_info(flags);
+        report_groupby(ATTR_INDEX_fileclass, flags);
+
+    if (project_info)
+        report_groupby(ATTR_INDEX_projid, flags);
 
     if (topdirs)
         report_topdirs(topdirs, flags);

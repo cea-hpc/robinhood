@@ -5367,8 +5367,10 @@ fi
     mkdir $RH_ROOT/B
     lfs project -p 1 -rs $RH_ROOT/A
     touch $RH_ROOT/A/{1..3}
+    dd if=/dev/zero of=$RH_ROOT/A/1 bs=1M count=1
     lfs project -p 2 -rs $RH_ROOT/B
     touch $RH_ROOT/B/{1..3}
+    dd if=/dev/zero of=$RH_ROOT/B/1 bs=1M count=2
 
     chown root:root 	 $RH_ROOT/A
     chown root:testgroup $RH_ROOT/A/1
@@ -5455,6 +5457,15 @@ fi
     (($nb == 1)) || error "invalid count for dir of project 2 and group testgroup"
     nb=$(grep "testgroup,\s*2,\s*file" tmp1 | cut -d ',' -f 5 | tr -d ' ')
     [[ -z "$nb" ]] || error "invalid count for file of project 2 and group testgroup"
+
+    # group by projid
+    $REPORT -f $RBH_CFG_DIR/$config_file --csv -q --project-info > tmp1
+    [ "$DEBUG" = "1" ] && cat tmp1 && echo "---"
+    # proj1=1M, proj2=2M
+    nb=$(grep "^\s*1,\s*" tmp1 | cut -d ',' -f 3 | tr -d ' ')
+    (( $nb > 1000000 && $nb < 1200000 )) || error "1 MB expected in proj 1: got $nb"
+    nb=$(grep "^\s*2,\s*" tmp1 | cut -d ',' -f 3 | tr -d ' ')
+    (( $nb > 2000000 && $nb < 2200000 )) || error "2 MB expected in proj 2: got $nb"
 
     rm -f tmp1
 }
