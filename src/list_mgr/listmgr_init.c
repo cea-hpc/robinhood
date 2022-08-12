@@ -137,6 +137,7 @@ static void append_field(db_conn_t *pconn, GString *str, bool is_first,
 
 static db_type_u default_uid = { .val_str = ACCT_DEFAULT_OWNER };
 static db_type_u default_gid = { .val_str = ACCT_DEFAULT_GROUP };
+static db_type_u default_projid = { ACCT_DEFAULT_PROJID };
 static db_type_u default_type = { .val_str = "file" };
 static db_type_u default_status = { .val_str = "" };
 static db_type_u default_zero = { 0 };
@@ -186,6 +187,8 @@ static const db_type_u *default_field_value(int attr_index)
         return &default_uid;
     case ATTR_INDEX_gid:
         return &default_gid;
+    case ATTR_INDEX_projid:
+        return &default_projid;
     default:
         if (is_status_field(attr_index)) {
             return &default_status;

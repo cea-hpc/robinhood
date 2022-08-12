@@ -271,7 +271,8 @@ static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
                 = cltime2sec(logrec->cr_time);
 
             /* force updating attributes */
-            p_op->fs_attr_need.std |= POSIX_ATTR_MASK | ATTR_MASK_stripe_info;
+            p_op->fs_attr_need.std |= POSIX_ATTR_MASK | ATTR_MASK_stripe_info
+                                      | ATTR_MASK_projid;
             /* get status for all policies with a matching scope */
             add_matching_scopes_mask(&p_op->entry_id, &p_op->fs_attrs, true,
                                      &p_op->fs_attr_need.status);
@@ -330,6 +331,11 @@ static int EntryProc_FillFromLogRec(struct entry_proc_op_t *p_op,
     else if (logrec->cr_type == CL_LAYOUT) {
         attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_info);
         attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_stripe_items);
+    }
+#endif
+#ifdef _LUSTRE
+    else if (logrec->cr_type == CL_SETATTR) {
+        attr_mask_set_index(&p_op->fs_attr_need, ATTR_INDEX_projid);
     }
 #endif
 
@@ -530,7 +536,7 @@ static int EntryProc_ProcessLogRec(struct entry_proc_op_t *p_op)
              */
             tmp.std = (POSIX_ATTR_MASK | ATTR_MASK_name | ATTR_MASK_parent_id
                        | ATTR_MASK_stripe_info | ATTR_MASK_stripe_items
-                       | ATTR_MASK_link);
+                       | ATTR_MASK_link | ATTR_MASK_projid);
             tmp = attr_mask_and_not(&tmp, &p_op->fs_attrs.attr_mask);
             p_op->fs_attr_need = attr_mask_or(&p_op->fs_attr_need, &tmp);
 
@@ -558,6 +564,15 @@ static int EntryProc_ProcessLogRec(struct entry_proc_op_t *p_op)
                 ((p_op->fs_attrs.attr_mask.std & POSIX_ATTR_MASK) !=
                  POSIX_ATTR_MASK))
                 p_op->fs_attr_need.std |= POSIX_ATTR_MASK;
+
+            /* get projid if missing (file and dir only) */
+            if ((db_missing.std & ATTR_MASK_projid)
+                && !ATTR_MASK_TEST(&p_op->fs_attrs, projid)
+                && (!ATTR_FSorDB_TEST(p_op, type)
+                    || (!strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_FILE)
+                         && !strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_DIR)))) {
+                p_op->fs_attr_need.std |= ATTR_MASK_projid;
+            }
 
             /* get stripe info if missing (file only) */
             if ((db_missing.std & ATTR_MASK_stripe_info)
@@ -1288,11 +1303,18 @@ int EntryProc_get_info_fs(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
 
     DisplayLog(LVL_FULL, ENTRYPROC_TAG,
                DFID ": Getattr=%u, Getpath=%u, Readlink=%u"
-               ", Getstatus(%s), Getstripe=%u",
+               ", Getstatus(%s), Getstripe=%u"
+#ifdef _LUSTRE
+               ", Getprojid=%u",
+#endif
                PFID(&p_op->entry_id), NEED_GETATTR(p_op) ? 1 : 0,
                NEED_GETPATH(p_op) ? 1 : 0, NEED_READLINK(p_op) ? 1 : 0,
                name_status_mask(p_op->fs_attr_need.status, tmp_buf,
-                                sizeof(tmp_buf)), NEED_GETSTRIPE(p_op) ? 1 : 0);
+                                sizeof(tmp_buf)), NEED_GETSTRIPE(p_op) ? 1 : 0,
+#ifdef _LUSTRE
+                                NEED_GETPROJID(p_op) ? 1 : 0
+#endif
+);
 
     /* don't retrieve info which is already fresh */
     p_op->fs_attr_need =
@@ -1378,6 +1400,25 @@ int EntryProc_get_info_fs(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
             ATTR_MASK_SET(&p_op->fs_attrs, stripe_items);
         }
     }   /* get_stripe needed */
+
+    /* projid: currently, only file and dir supported */
+    if (global_config.lustre_projid && NEED_GETPROJID(p_op)
+        && ATTR_FSorDB_TEST(p_op, type)
+        && (!strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_FILE)
+            || !strcmp(ATTR_FSorDB(p_op, type), STR_TYPE_DIR))) {
+        /* file or dir, get project id */
+        rc = lustre_project_get_id(path);
+        if (rc < 0)  {
+            DisplayLog(LVL_MAJOR, ENTRYPROC_TAG,
+                       "Failed to get lustre projid for %s (%s): error %d",
+                       path, ATTR_FSorDB(p_op, type), rc);
+        } else {
+            DisplayLog(LVL_FULL, ENTRYPROC_TAG, DFID ": projid=%u",
+                       PFID(&p_op->entry_id), rc);
+            ATTR_MASK_SET(&p_op->fs_attrs, projid);
+            ATTR(&p_op->fs_attrs, projid) = rc;
+        }
+    }
 #endif
 
     if (NEED_ANYSTATUS(p_op)) {

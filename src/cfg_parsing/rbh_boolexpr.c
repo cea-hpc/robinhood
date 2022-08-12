@@ -145,6 +145,10 @@ static struct criteria_descr_t {
     [CRITERIA_TYPE] = {"type", ATTR_MASK_type, PT_TYPE, 0, 0},
     [CRITERIA_OWNER] = {"owner", ATTR_MASK_uid, PT_STRING, PFLG_NOT_EMPTY, 0},
     [CRITERIA_GROUP] = {"group", ATTR_MASK_gid, PT_STRING, PFLG_NOT_EMPTY, 0},
+#ifdef _LUSTRE
+    [CRITERIA_PROJID] = {"projid", ATTR_MASK_projid, PT_INT,
+                         PFLG_POSITIVE | PFLG_COMPARABLE, 0},
+#endif
     [CRITERIA_SIZE] = {"size", ATTR_MASK_size, PT_SIZE,
                        PFLG_POSITIVE | PFLG_COMPARABLE, 0},
     [CRITERIA_DEPTH] = {"depth", ATTR_MASK_depth, PT_INT,

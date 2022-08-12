@@ -1438,6 +1438,21 @@ static int set_target_filter(const policy_info_t *pol,
                                                    name) ? LIKE : EQUAL,
                                       fval, 0);
 
+#ifdef _LUSTRE
+    case TGT_PROJID:    /* apply policies to the specified projid */
+        DisplayLog(LVL_MAJOR, tag(pol),
+                   "Starting policy run on '%s' project files",
+                   p_param->optarg_u.name);
+
+        attr_mask->std |= ATTR_MASK_projid;
+
+        /* retrieve files for this projid */
+        if (set_projid_val(p_param->optarg_u.name, &fval.value))
+            return EINVAL;
+        return lmgr_simple_filter_add(filter, ATTR_INDEX_projid, EQUAL,
+                                      fval, 0);
+#endif
+
     case TGT_CLASS:    /* apply policies to the specified fileclass */
         DisplayLog(LVL_MAJOR, tag(pol),
                    "Starting policy run on fileclass '%s'",

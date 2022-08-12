@@ -998,6 +998,24 @@ static int process_one_entry(thread_scan_info_t *p_info,
                 ATTR_MASK_SET(&op->fs_attrs, stripe_items);
             }
         }
+
+        if (global_config.lustre_projid && S_ISREG(inode.st_mode)) {
+            rc = lustre_project_get_id(entry_path);
+            if (rc < 0)  {
+                DisplayLog(LVL_MAJOR, FSSCAN_TAG,
+                           "Failed to get lustre projid for %s: error %d",
+                           entry_path, rc);
+            } else {
+                DisplayLog(LVL_FULL, FSSCAN_TAG, DFID ": projid=%u for %s",
+                           PFID(&op->entry_id), rc, entry_path);
+                ATTR_MASK_SET(&op->fs_attrs, projid);
+                ATTR(&op->fs_attrs, projid) = rc;
+            }
+        } else {
+            DisplayLog(LVL_FULL, FSSCAN_TAG, DFID
+                       ": not a file or directory, no projid support",
+                       PFID(&op->entry_id));
+        }
 #endif
 
 #ifndef _BENCH_SCAN
@@ -1392,6 +1410,21 @@ static int process_one_task(robinhood_task_t *p_task,
                            !(is_lustre_fs && global_config.direct_mds_stat));
 #else
             stat2rbh_attrs(&p_task->dir_md, &op->fs_attrs, true);
+#endif
+#ifdef _LUSTRE
+            if (global_config.lustre_projid) {
+                rc = lustre_project_get_id(p_task->path);
+                if (rc < 0)  {
+                    DisplayLog(LVL_MAJOR, FSSCAN_TAG,
+                               "Failed to get lustre projid for dir %s: error %d",
+                               p_task->path, rc);
+                } else {
+                    DisplayLog(LVL_FULL, FSSCAN_TAG, DFID ": projid=%u for %s",
+                               PFID(&op->entry_id), rc, p_task->path);
+                    ATTR_MASK_SET(&op->fs_attrs, projid);
+                    ATTR(&op->fs_attrs, projid) = rc;
+                }
+            }
 #endif
 #endif
 
