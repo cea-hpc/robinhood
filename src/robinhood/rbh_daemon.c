@@ -41,6 +41,27 @@
 #include <fcntl.h>  /* for open flags */
 #include <signal.h>
 
+#ifdef _PANFS
+#include "../list_mgr/database.h"
+#include "global_config.h"
+#include "panfs_config.h"
+#include "rbh_misc.h"
+#include <sys/types.h>
+#include <sys/xattr.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <syscall.h>
+#include <fcntl.h>
+#include <string.h>
+#include <time.h>
+#include <pwd.h>
+#include <limits.h>
+#include <stdint.h>
+#include <glib.h>
+#include <stdbool.h> 
+#include <linux/limits.h>
+#endif
+
 #ifdef _LUSTRE
 #include "lustre_extended_types.h"
 #endif
@@ -190,7 +211,11 @@ static struct option option_tab[] = {
     {NULL, 0, NULL, 0}
 };
 
-#define SHORT_OPT_STRING     "SrCt:IOdf:T:DL:l:hVp:F"
+#ifdef _PANFS
+    #define SHORT_OPT_STRING     "SrCt:IOdf:T:DL:l:hVp:FU:"
+#else
+    #define SHORT_OPT_STRING     "SrCt:IOdf:T:DL:l:hVp:F:"
+#endif
 #define SHORT_OPT_DEPRECATED "PMRi"
 
 #define MAX_OPT_LEN 1024
@@ -216,6 +241,10 @@ typedef struct rbh_options {
 
     int            mdtidx;
     enum lmgr_init_flags db_flags;
+#ifdef _PANFS
+    char           firstSnapshot[MAX_OPT_LEN];
+    bool           Pan_FTW;
+#endif
 } rbh_options;
 
 #define TGT_NOT_SET   -1.0
@@ -355,6 +384,12 @@ static const char *misc_help =
     "    " _B "-p" B_ " " _U "pidfile" U_ ", " _B "--pid-file=" B_ _U "pidfile" U_ "\n"
     "         Pid file (used for service management).\n";
 
+#ifdef _PANFS
+static const char *panfs_help =
+    _B "Panasas options:" B_ "\n"
+    "    " _B "-U" B_ " " _U "Snapshot_Name" U_", " _B "--snap-name=" B_ _U "snapshot" U_ "\n"
+    "        If this is the first run you should pass the name of first snapshot\n";
+#endif
 static inline void display_help(const char *bin_name)
 {
     printf(cmd_help, bin_name);
@@ -366,6 +401,9 @@ static inline void display_help(const char *bin_name)
     printf("%s\n", behavior_help);
     printf("%s\n", config_help);
     printf("%s\n", log_help);
+#ifdef _PANFS
+    printf("%s\n", panfs_help);
+#endif
     printf("%s", misc_help);
 }
 
@@ -1096,6 +1134,12 @@ static int rh_read_parameters(const char *bin, int argc, char **argv,
             opt->pid_file = true;
             rh_strncpy(opt->pid_filepath, optarg, MAX_OPT_LEN);
             break;
+#ifdef _PANFS
+        case 'U':
+            rh_strncpy(opt->firstSnapshot, optarg, sizeof(opt->firstSnapshot));
+            fprintf(stderr,"firstsnapshot= '%s'.\n",optarg);
+            break;
+#endif
         case 'h':
             display_help(bin);
             return -1;
@@ -1556,10 +1600,639 @@ static int parse_policy_runs(run_item_t **runs, unsigned int *count,
 
     return 0;
 }
+#ifdef _PANFS
+/**
+ * Update Functions for Panasas File System
+ *
+ */
+int cntInsEnt=0,cntDelEnt=0,cntInsSym=0,cntDelSym=0;
+GString *delEnt= NULL,*delNames=NULL,*delSym=NULL;
+GString *insEnt= NULL,*insNames=NULL,*insSym=NULL,*panSnap=NULL;
+lmgr_t lmgr_test;
+bool sp=false;
+#define MAXDEL 1000
+#define MAXINS 3000
+
+
 
 /**
- * Main daemon routine
- */
+ * Function for generating MySQL delete commands for removing the deleted files from DB.
+ * The number of deletion in each command can be altered by changing MAXDEL.
+ * If the deletion string is equal to NULL, it will create a delete statement("Delete from ..."), and then append the needed attributes to the statement.
+ * If the number of attributes in our command is equal to MAXDEL, it will execute this command on the DB and after that it will free the delete statement.
+*/
+static void DeleteMySQL(struct stat inode,char *Name,ino_t PID,bool isSym)
+{   
+    if(cntDelEnt==0 && isSym){
+        delSym=g_string_new("DELETE FROM ANNEX_INFO WHERE (id) IN (");
+        g_string_append_printf(delSym,"('%lX:%lX')", get_fskey(),inode.st_ino);
+        cntDelSym++;
+    }
+    else if(cntDelEnt!=MAXDEL && cntDelSym && isSym){
+        g_string_append_printf(delSym,",('%lX:%lX')", get_fskey(),inode.st_ino);
+        cntDelSym++;
+    }
+    else if(cntDelEnt!=MAXDEL &&  isSym){
+        delSym=g_string_new("DELETE FROM ANNEX_INFO WHERE (id) IN (");
+        g_string_append_printf(delSym,"('%lX:%lX')", get_fskey(),inode.st_ino);
+        cntDelSym++;
+    }
+	
+    if(cntDelEnt==0){
+        delEnt=g_string_new("DELETE FROM ENTRIES WHERE (id) IN (");
+        delNames=g_string_new("DELETE FROM NAMES WHERE (pkn) IN (");
+        g_string_append_printf(delEnt, "('%lX:%lX')", get_fskey(),inode.st_ino);
+        g_string_append_printf(delNames,"(sha1(\"%lX:%lX/%s\"))", get_fskey(),PID,Name);
+        cntDelEnt++;
+    }
+    else if(cntDelEnt!=MAXDEL){
+        g_string_append_printf(delEnt, ",('%lX:%lX')", get_fskey(),inode.st_ino);
+        g_string_append_printf(delNames,",(sha1(\"%lX:%lX/%s\"))", get_fskey(),PID,Name);
+        cntDelEnt++;
+    }
+    else{
+        g_string_append_printf(delEnt, ",('%lX:%lX'));\n", get_fskey(),inode.st_ino);
+        g_string_append_printf(delNames,",(sha1(\"%lX:%lX/%s\")));\n", get_fskey(),PID,Name);
+        db_exec_sql(&lmgr_test.conn, delEnt->str, NULL);
+        db_exec_sql(&lmgr_test.conn, delNames->str, NULL);
+        cntDelEnt=0;
+        if(isSym && cntDelSym){
+            g_string_append_printf(delSym,",('%lX:%lX'));\n", get_fskey(),inode.st_ino);
+            db_exec_sql(&lmgr_test.conn, delSym->str, NULL);
+            cntDelSym=0;
+            g_string_free(delSym, TRUE);
+        }
+        else if(isSym){
+            delSym=g_string_new("DELETE FROM ANNEX_INFO WHERE (id) IN (");
+            g_string_append_printf(delSym,"('%lX:%lX'));\n", get_fskey(),inode.st_ino);
+            db_exec_sql(&lmgr_test.conn, delSym->str, NULL);
+            g_string_free(delSym, TRUE);
+        }
+        else if(cntDelSym){
+            g_string_append_printf(delSym,");\n");
+            db_exec_sql(&lmgr_test.conn, delSym->str, NULL);
+            cntDelSym=0;
+            g_string_free(delSym, TRUE);
+        }
+        g_string_free(delEnt, TRUE);
+        g_string_free(delNames, TRUE);	
+    }
+}
+
+/**
+ * Function for generating MySQL insert commands for newly added symbolic links files.
+ * If we want to insert the attributes  of a symbolic link file, we need to update ENTRIES, NAMES, and ANNEX_INFO.
+ * The number of insertion in each command can be altered by changing MAXINS.
+ * If the insertion string is equal to NULL, it will create a insert statement for each table("insert into ..."), and then append the needed attributes to the statement.
+ * If the number of attributes in our command is equal to MAXINS, it will execute this command on the DB and after that it will free the insert statement.
+*/
+
+static void InsertMySQLSymlink(struct stat inode,char *Name,ino_t PID,char *sympath)
+{
+    char *updateEntries="ON DUPLICATE KEY UPDATE id=VALUES(id),uid=VALUES(uid),gid=VALUES(gid),size=VALUES(size),blocks=VALUES(blocks),creation_time=VALUES(creation_time),last_access=VALUES(last_access),last_mod=VALUES(last_mod),last_mdchange=VALUES(last_mdchange),type=VALUES(type),mode=VALUES(mode),nlink=VALUES(nlink),md_update=VALUES(md_update),invalid=VALUES(invalid),fileclass=VALUES(fileclass),class_update=VALUES(fileclass);";
+    char uid[RBH_LOGIN_MAX],gid[RBH_LOGIN_MAX];
+    uid2str(inode.st_uid,uid);
+    gid2str(inode.st_gid,gid);
+    
+    if(cntInsEnt==0){
+        insEnt=g_string_new("INSERT IGNORE INTO ENTRIES(id,uid,gid,size,blocks,creation_time,last_access,last_mod,last_mdchange,type,mode,nlink,md_update,invalid) VALUES");
+        insNames=g_string_new("INSERT INTO NAMES(id,parent_id,name,path_update,pkn) VALUES");
+        insSym=g_string_new("INSERT IGNORE INTO ANNEX_INFO(id,link) VALUES");
+        g_string_append_printf(insEnt, "('%lX:%lX','%s','%s',%lld,%lld,%d,%d,%d,%d,", get_fskey(),inode.st_ino,uid, gid,(long long) inode.st_size,(long long) inode.st_blocks,
+        (int)inode.st_ctime,(int)inode.st_atime,(int)inode.st_mtime,(int)inode.st_ctime);
+
+        switch (inode.st_mode & S_IFMT) {
+            case S_IFBLK:  
+                g_string_append_printf(insEnt,"'blk',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));	     
+                break;
+            case S_IFCHR:  
+                g_string_append_printf(insEnt,"'chr',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));   	     
+                break;
+            case S_IFDIR:  
+                g_string_append_printf(insEnt,"'dir',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));     	     
+                break;
+            case S_IFIFO:  
+                g_string_append_printf(insEnt,"'fifo',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));     	     
+                break;
+            case S_IFLNK:  
+                g_string_append_printf(insEnt,"'symlink',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));
+                break;
+            case S_IFREG:  
+                g_string_append_printf(insEnt,"'file',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));	     
+                break;
+            case S_IFSOCK: 
+                g_string_append_printf(insEnt,"'sock',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));    	     
+                break;
+            default:           	     
+                break;
+        }
+
+        g_string_append_printf(insNames,"('%lX:%lX','%lX:%lX',\"%s\",%d,sha1(\"%lX:%lX/%s\"))", get_fskey(),inode.st_ino, get_fskey(),PID,Name,(int)inode.st_mtime, get_fskey(),PID,Name);
+        g_string_append_printf(insSym,"('%lX:%lX',\"%s\")", get_fskey(),inode.st_ino,sympath);
+        cntInsEnt++;
+        cntInsSym++;
+    }
+    else if(cntInsEnt!=MAXINS){
+        g_string_append_printf(insEnt, ",('%lX:%lX','%s','%s',%lld,%lld,%d,%d,%d,%d,", get_fskey(),inode.st_ino,uid, gid,(long long) inode.st_size,(long long) inode.st_blocks,
+        (int)inode.st_ctime,(int)inode.st_atime,(int)inode.st_mtime,(int)inode.st_ctime);
+
+        switch (inode.st_mode & S_IFMT) {
+            case S_IFBLK:  
+                g_string_append_printf(insEnt,"'blk',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));	     
+                break;
+            case S_IFCHR:  
+                g_string_append_printf(insEnt,"'chr',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));   	     
+                break;
+            case S_IFDIR:  
+                g_string_append_printf(insEnt,"'dir',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));     	     
+                break;
+            case S_IFIFO:  
+                g_string_append_printf(insEnt,"'fifo',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));     	     
+                break;
+            case S_IFLNK:  
+                g_string_append_printf(insEnt,"'symlink',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));
+                break;
+            case S_IFREG:  
+                g_string_append_printf(insEnt,"'file',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));	     
+                break;
+            case S_IFSOCK: 
+                g_string_append_printf(insEnt,"'sock',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));    	     
+                break;
+            default:        	     
+                break;
+        }
+
+        if(cntInsSym==0){
+            insSym=g_string_new("INSERT IGNORE INTO ANNEX_INFO(id,link) VALUES");
+            g_string_append_printf(insSym,"('%lX:%lX',\"%s\")", get_fskey(),inode.st_ino,sympath);
+        }
+        else
+            g_string_append_printf(insSym,",('%lX:%lX',\"%s\")", get_fskey(),inode.st_ino,sympath);
+
+        g_string_append_printf(insNames,",('%lX:%lX','%lX:%lX',\"%s\",%d,sha1(\"%lX:%lX/%s\"))", get_fskey(),inode.st_ino, get_fskey(),PID,Name,(int)inode.st_mtime, get_fskey(),PID,Name);
+        cntInsEnt++;
+        cntInsSym++;
+    }
+    else{
+
+        g_string_append_printf(insEnt, ",('%lX:%lX','%s','%s',%lld,%lld,%d,%d,%d,%d,", get_fskey(),inode.st_ino,uid, gid,(long long) inode.st_size,(long long) inode.st_blocks,
+        (int)inode.st_ctime,(int)inode.st_atime,(int)inode.st_mtime,(int)inode.st_ctime);
+
+        switch (inode.st_mode & S_IFMT) {
+            case S_IFBLK:  
+                g_string_append_printf(insEnt,"'blk',%d,%ld,%ld,0) %s;\n",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL),updateEntries);	     
+                break;
+            case S_IFCHR:  
+                g_string_append_printf(insEnt,"'chr',%d,%ld,%ld,0) %s;\n",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL),updateEntries);   	     
+                break;
+            case S_IFDIR:  
+                g_string_append_printf(insEnt,"'dir',%d,%ld,%ld,0) %s;\n",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL),updateEntries);     	     
+                break;
+            case S_IFIFO:  
+                g_string_append_printf(insEnt,"'fifo',%d,%ld,%ld,0) %s;\n",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL),updateEntries);     	     
+                break;
+            case S_IFLNK:  
+                g_string_append_printf(insEnt,"'symlink',%d,%ld,%ld,0) %s;\n",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL),updateEntries);
+                break;
+            case S_IFREG:  
+                g_string_append_printf(insEnt,"'file',%d,%ld,%ld,0) %s;\n",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL),updateEntries);	     
+                break;
+            case S_IFSOCK: 
+                g_string_append_printf(insEnt,"'sock',%d,%ld,%ld,0) %s;\n",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL),updateEntries);    	     
+                break;
+            default:           	     
+                break;
+        }
+
+        if(cntInsSym==0){
+            insSym=g_string_new("INSERT IGNORE INTO ANNEX_INFO(id,link) VALUES");
+            g_string_append_printf(insSym,"('%lX:%lX',\"%s\");\n", get_fskey(),inode.st_ino,sympath);
+        }
+        else
+            g_string_append_printf(insSym,",('%lX:%lX',\"%s\");\n", get_fskey(),inode.st_ino,sympath);
+        g_string_append_printf(insNames,",('%lX:%lX','%lX:%lX',\"%s\",%d,sha1(\"%lX:%lX/%s\")) ON DUPLICATE KEY UPDATE id=VALUES(id),parent_id=VALUES(parent_id),name=VALUES(name),path_update=VALUES(path_update);\n", 
+                                get_fskey(),inode.st_ino, get_fskey(),PID,Name,(int)inode.st_mtime, get_fskey(),PID,Name);
+		
+        cntInsEnt=0;
+        cntInsSym=0;
+        db_exec_sql(&lmgr_test.conn, insEnt->str, NULL);
+        db_exec_sql(&lmgr_test.conn, insNames->str, NULL);
+        db_exec_sql(&lmgr_test.conn, insSym->str, NULL);
+        g_string_free(insEnt, TRUE);
+        g_string_free(insNames, TRUE);
+        g_string_free(insSym, TRUE);
+    }
+}
+
+
+/**
+ * Function for generating MySQL insert commands for newly added files that are not symlink.
+ * If we want to insert the attributes  of a file that is not a symbolic link, we need to update ENTRIES, NAMES.
+ * The number of insertion in each command can be altered by changing MAXINS.
+ * If the insertion string is equal to NULL, it will create a insert statement for each table("insert into ..."), and then append the needed attributes to the statement.
+ * If the number of attributes in our command is equal to MAXINS, it will execute this command on the DB and after that it will free the insert statement.
+ * For executing the Insert commands, first, we checks whether a String is null or not.
+*/
+static void InsertMySQLReqular(struct stat inode,char *Name,ino_t PID)
+{
+    char *updateEntries="ON DUPLICATE KEY UPDATE id=VALUES(id),uid=VALUES(uid),gid=VALUES(gid),size=VALUES(size),blocks=VALUES(blocks),creation_time=VALUES(creation_time),last_access=VALUES(last_access),last_mod=VALUES(last_mod),last_mdchange=VALUES(last_mdchange),type=VALUES(type),mode=VALUES(mode),nlink=VALUES(nlink),md_update=VALUES(md_update),invalid=VALUES(invalid),fileclass=VALUES(fileclass),class_update=VALUES(fileclass);";
+    char uid[RBH_LOGIN_MAX],gid[RBH_LOGIN_MAX];
+    uid2str(inode.st_uid,uid);
+    gid2str(inode.st_gid,gid);
+    if(cntInsEnt==0){
+        insEnt=g_string_new("INSERT IGNORE INTO ENTRIES(id,uid,gid,size,blocks,creation_time,last_access,last_mod,last_mdchange,type,mode,nlink,md_update,invalid) VALUES");
+        insNames=g_string_new("INSERT INTO NAMES(id,parent_id,name,path_update,pkn) VALUES");
+		
+        g_string_append_printf(insEnt, "('%lX:%lX','%s','%s',%lld,%lld,%d,%d,%d,%d,", get_fskey(),inode.st_ino,uid, gid,(long long) inode.st_size,(long long) inode.st_blocks,
+                                (int)inode.st_ctime,(int)inode.st_atime,(int)inode.st_mtime,(int)inode.st_ctime);
+
+        switch (inode.st_mode & S_IFMT) {
+            case S_IFBLK:  
+                g_string_append_printf(insEnt,"'blk',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));	     
+                break;
+            case S_IFCHR:  
+                g_string_append_printf(insEnt,"'chr',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));   	     
+                break;
+            case S_IFDIR:  
+                g_string_append_printf(insEnt,"'dir',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));     	     
+                break;
+            case S_IFIFO:  
+                g_string_append_printf(insEnt,"'fifo',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));     	     
+                break;
+            case S_IFLNK:  
+                g_string_append_printf(insEnt,"'symlink',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));
+                break;
+            case S_IFREG:  
+                g_string_append_printf(insEnt,"'file',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));	     
+                break;
+            case S_IFSOCK: 
+                g_string_append_printf(insEnt,"'sock',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));    	     
+                break;
+            default:        	     
+            break;
+        }
+        g_string_append_printf(insNames,"('%lX:%lX','%lX:%lX',\"%s\",%d,sha1(\"%lX:%lX/%s\"))", get_fskey(),inode.st_ino, get_fskey(),PID,Name,(int)inode.st_mtime, get_fskey(),PID,Name);
+        cntInsEnt++;
+    }
+    else if(cntInsEnt!=MAXINS){
+
+        g_string_append_printf(insEnt, ",('%lX:%lX','%s','%s',%lld,%lld,%d,%d,%d,%d,", get_fskey(),inode.st_ino,uid, gid,(long long) inode.st_size,(long long) inode.st_blocks,
+                                (int)inode.st_ctime,(int)inode.st_atime,(int)inode.st_mtime,(int)inode.st_ctime);
+
+        switch (inode.st_mode & S_IFMT) {
+            case S_IFBLK:  
+                g_string_append_printf(insEnt,"'blk',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));	     
+                break;
+            case S_IFCHR:  
+                g_string_append_printf(insEnt,"'chr',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));   	     
+                break;
+            case S_IFDIR:  
+                g_string_append_printf(insEnt,"'dir',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));     	     
+                break;
+            case S_IFIFO:  
+                g_string_append_printf(insEnt,"'fifo',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));     	     
+                break;
+            case S_IFLNK:  
+                g_string_append_printf(insEnt,"'symlink',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));
+                break;
+            case S_IFREG:  
+                g_string_append_printf(insEnt,"'file',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));	     
+                break;
+            case S_IFSOCK: 
+                g_string_append_printf(insEnt,"'sock',%d,%ld,%ld,0)",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL));    	     
+                break;
+            default:         	     
+                break;
+        }
+        g_string_append_printf(insNames,",('%lX:%lX','%lX:%lX',\"%s\",%d,sha1(\"%lX:%lX/%s\"))", get_fskey(),inode.st_ino, get_fskey(),PID,Name,(int)inode.st_mtime, get_fskey(),PID,Name);
+        cntInsEnt++;
+    }
+    else{
+        g_string_append_printf(insEnt, ",('%lX:%lX','%s','%s',%lld,%lld,%d,%d,%d,%d,", get_fskey(),inode.st_ino,uid, gid,(long long) inode.st_size,(long long) inode.st_blocks,
+                                (int)inode.st_ctime,(int)inode.st_atime,(int)inode.st_mtime,(int)inode.st_ctime);
+
+        switch (inode.st_mode & S_IFMT) {
+            case S_IFBLK:  
+                g_string_append_printf(insEnt,"'blk',%d,%ld,%ld,0) %s;\n",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL),updateEntries);	     
+                break;
+            case S_IFCHR:  
+                g_string_append_printf(insEnt,"'chr',%d,%ld,%ld,0) %s;\n",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL),updateEntries);   	     
+                break;
+            case S_IFDIR:  
+                g_string_append_printf(insEnt,"'dir',%d,%ld,%ld,0) %s;\n",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL),updateEntries);     	     
+                break;
+            case S_IFIFO:  
+                g_string_append_printf(insEnt,"'fifo',%d,%ld,%ld,0) %s;\n",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL),updateEntries);     	     
+                break;
+            case S_IFLNK:  
+                g_string_append_printf(insEnt,"'symlink',%d,%ld,%ld,0) %s;\n",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL),updateEntries);
+                break;
+            case S_IFREG:  
+                g_string_append_printf(insEnt,"'file',%d,%ld,%ld,0) %s;\n",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL),updateEntries);	     
+                break;
+            case S_IFSOCK: 
+                g_string_append_printf(insEnt,"'sock',%d,%ld,%ld,0) %s;\n",inode.st_mode & 07777,(long) inode.st_nlink,time(NULL),updateEntries);    	     
+                break;
+            default:          	     
+                break;
+        }
+
+        g_string_append_printf(insNames,",('%lX:%lX','%lX:%lX',\"%s\",%d,sha1(\"%lX:%lX/%s\")) ON DUPLICATE KEY UPDATE id=VALUES(id),parent_id=VALUES(parent_id),name=VALUES(name),path_update=VALUES(path_update);\n", 
+                                get_fskey(),PID, get_fskey(),PID,Name,(int)inode.st_mtime, get_fskey(),PID,Name);
+        if(cntInsSym){	
+            g_string_append_printf(insSym,";\n");
+            db_exec_sql(&lmgr_test.conn, insEnt->str, NULL);
+            db_exec_sql(&lmgr_test.conn, insNames->str, NULL);
+            db_exec_sql(&lmgr_test.conn, insSym->str, NULL);
+            g_string_free(insSym, TRUE);
+        }
+        else{
+            db_exec_sql(&lmgr_test.conn, insEnt->str, NULL);
+            db_exec_sql(&lmgr_test.conn, insNames->str, NULL);
+        }
+        cntInsEnt=0;
+        cntInsSym=0;
+
+        g_string_free(insEnt, TRUE);
+        g_string_free(insNames, TRUE);		
+    }
+}
+
+/**
+ * Function for getting relative path to a symlink file.
+ * It will use readlink function and if there is an error in one of the function, it will generate the error.
+*/
+static char * symlinkPath(char * path, off_t  st_size)
+{	
+    ssize_t nbytes, bufsiz;
+    bufsiz = st_size + 1;
+    if (st_size == 0)
+        bufsiz = 4096;
+
+    char *buf = malloc(bufsiz);
+    if (buf == NULL) {
+        DisplayLog(LVL_MAJOR, "PansasSymlinkError","Fatal Error. Out of space.");
+        exit(1);
+    }
+    nbytes = readlink(path, buf, bufsiz);
+    if (nbytes == -1) {
+        DisplayLog(LVL_MAJOR, "PansasSymlinkError","Fatal Error. Readlink is not working.");
+        exit(1);
+    }
+    else{
+        buf[nbytes]='\0';
+    }
+    if (nbytes == bufsiz)
+        DisplayLog(LVL_MAJOR, "PansasSymlinkError","Fatal Error. Returned buffer may have been truncated\n");
+        exit(1);
+
+    return buf;
+}
+
+/**
+ * Main function for updating the DB.
+ * This function gets the needed information for updating the DB, and then using InsertMySQLReqular, InsertMySQLSymlink, and DeleteMySQL, it will update the DB.
+ * pan_snap_delta produces 8 different results. For updating the DB, we only need to check five of them.
+ * In this function, first it will open the file and then based on the type of file it will choose whether to insert to DB or delete from it.
+ * Then using stat and lgetxattr, we will get the needed attributes. If the file is symbolic link, we also need to know where our file is pointing to.
+ * We will get it using symlinkPath,  and then using insert and delete functions we will update the DB. 
+*/
+
+static void PanUp(char *snap1Path,char *snap2Path)
+{	
+    FILE * fp;
+    int index=-1,i,j;
+    // Variables for showing the type of a command
+    int delete,sym;
+    // Variables for generating the correct path.
+    char * line = NULL,*modifiedLine=NULL,*defLine=NULL;
+    ssize_t read;
+    // Size of diferent variables
+    size_t fullpathsz=0,linesz=0,len = 0;
+    // Variables for stat result and parent ID.
+    struct stat inode;
+    ino_t     PID;
+    // Temp variables for getting the information from getxattr.
+    ssize_t objPidSize, objIdSize;
+    char *objPid, *objId;
+    char *key,*keyPar;
+    //Temp variables
+    GString *specialCase=NULL;
+    char *symPath,*Name;
+    int count=0;
+    char fullpath[PATH_MAX];
+    GString *fileOpen=NULL;
+    
+    for (i=1;i<=5;i++){
+        switch (i) {
+            case 1:  	     
+                delete=1;
+                fileOpen=g_string_new("");
+                g_string_append_printf(fileOpen,"%s/out.delete_file",panfs_config.snap_delta_results_path);
+                fp = fopen(fileOpen->str, "r");
+                g_string_free(fileOpen, TRUE);
+                break;
+            case 2: 	     
+                delete=1;
+                fileOpen=g_string_new("");
+                g_string_append_printf(fileOpen,"%s/out.move_stage_file",panfs_config.snap_delta_results_path);
+                fp = fopen(fileOpen->str, "r");
+                g_string_free(fileOpen, TRUE);
+                break;
+            case 3:    	     
+                delete=1;	
+                fileOpen=g_string_new("");
+                g_string_append_printf(fileOpen,"%s/out.delete_or_move_stage_dir",panfs_config.snap_delta_results_path);
+                fp = fopen(fileOpen->str, "r");         
+                g_string_free(fileOpen, TRUE);
+                break;
+            case 4:  	     
+                delete=0;
+                fileOpen=g_string_new("");
+                g_string_append_printf(fileOpen,"%s/out.sync",panfs_config.snap_delta_results_path);
+                fp = fopen(fileOpen->str, "r");	
+                g_string_free(fileOpen, TRUE);			     
+            break;
+            case 5:     	     
+                delete=0;
+                fileOpen=g_string_new("");
+                g_string_append_printf(fileOpen,"%s/out.link_file",panfs_config.snap_delta_results_path);
+                fp = fopen(fileOpen->str, "r");
+                g_string_free(fileOpen, TRUE);
+                break;
+        }
+        if (fp == NULL){
+            fprintf(stderr, "Error Opening %d",i);
+            exit(EXIT_FAILURE);	
+        }
+        while ((read = getline(&line, &len, fp)) != -1) {
+            sp=false;
+            line[strlen(line)-1]='\0';
+            if(i==2 || i==3 || i==4 || i==5)
+                for(j = 0; j <= strlen(line); j++){
+                    if(line[j] == 30) {
+                        modifiedLine=line+j+1;
+                        break;	
+                    }
+                }
+            else
+                modifiedLine=line;
+
+            char *pch = strstr(modifiedLine, "\\\\");
+            if (pch){
+                defLine=modifiedLine;
+                specialCase=g_string_new(modifiedLine);
+                pch = strstr(specialCase->str, "\\\\");
+                while(pch){
+                    g_string_erase(specialCase,(int)(pch-specialCase->str),1);
+                    pch = strstr(specialCase->str, "\\\\");
+                }
+                modifiedLine=specialCase->str;
+                sp=true;
+            }
+                
+            if (strcmp(modifiedLine,"")==0){
+                count++;
+                continue;
+            }
+            linesz=strlen(modifiedLine);
+			
+            if (i<=3){
+                fullpathsz=strlen(snap1Path)+linesz+1;
+                strcpy(fullpath,snap1Path);
+            }
+            else{
+                fullpathsz=strlen(snap2Path)+linesz+1;
+                strcpy(fullpath,snap2Path);
+            }
+            strcat(fullpath,"/");
+            strcat(fullpath,modifiedLine);
+		    
+            fullpath[fullpathsz]='\0';
+            
+            for(j = 0; j <= strlen(fullpath); j++){
+                if (fullpath[j] == '/'){
+                    index = j;	
+                }
+            }
+			
+            objIdSize = lgetxattr(fullpath, "system.panfs.obj_id", NULL, 0);
+            lstat(fullpath,&inode);
+            fullpath[index]='\0';
+            objPidSize = lgetxattr(fullpath, "system.panfs.obj_id", NULL, 0);
+		  	
+            if (objIdSize > 0 && objPidSize > 0  ) {
+
+                objId = malloc(objIdSize + 1);
+                objPid = malloc(objPidSize + 1);
+                if(objId==NULL){
+				    fprintf(stderr, "Error Malloc ID");
+				    exit(1);
+                }
+                if(objPid==NULL){
+                    fprintf(stderr, "Error Malloc PID");
+                    exit(1);
+                }	
+			   
+                objPidSize = lgetxattr(fullpath, "system.panfs.obj_id", objPid, objPidSize);
+                fullpath[index]='/';
+                objIdSize = lgetxattr(fullpath, "system.panfs.obj_id", objId, objIdSize);
+			    
+                if (objPidSize == -1 || objIdSize==-1){
+                    fprintf(stderr, "Error getting ID");
+                    exit(1);
+                }
+                else {
+                    objPid[objPidSize] = 0;
+                    objId[objIdSize] = 0;
+                    key=strchr(objId, 'U')+1;
+                    keyPar=strchr(objPid, 'U')+1;
+                }
+                inode.st_ino=strtoull(key,&key,16);
+                PID=strtoull(keyPar,&keyPar,16);
+			    
+                if(sp)
+                    Name=strrchr(defLine,'/')+1;
+                else
+                    Name=strrchr(fullpath,'/')+1;
+			    
+                free(objId);
+                free(objPid);
+            }
+		
+            else {
+                fprintf(stderr, "Error getting size of ID or PID");
+                exit(1);
+            }
+			
+		
+            switch (inode.st_mode & S_IFMT) {
+                case S_IFBLK:  
+                    sym=0;				     break;
+                case S_IFCHR:  
+                    sym=0;				     break;
+                case S_IFDIR:  
+                    sym=0;				     break;
+                case S_IFIFO:  
+                    sym=0;				     break;
+                case S_IFLNK: 
+                    symPath=symlinkPath(fullpath,inode.st_size);
+                    sym=1;                   break;
+                case S_IFREG:  
+                    sym=0;				     break;
+                case S_IFSOCK: 
+                    sym=0;				     break;
+                default:       
+                    sym=0;				     break;
+            }
+            if(delete)
+                DeleteMySQL(inode,Name,PID,sym);
+            else if(sym)
+                InsertMySQLSymlink(inode,Name,PID,symPath);
+            else
+                InsertMySQLReqular(inode,Name,PID);
+        }
+		
+        if(i==3 && cntDelEnt){
+            g_string_append_printf(delEnt, ");\n");
+            g_string_append_printf(delNames,");\n");
+            db_exec_sql(&lmgr_test.conn, delEnt->str, NULL);
+            db_exec_sql(&lmgr_test.conn, delNames->str, NULL);
+            cntDelEnt=0;
+            g_string_free(delEnt, TRUE);
+            g_string_free(delNames, TRUE);
+
+            if(cntDelSym){
+                g_string_append_printf(delSym,");\n");
+                db_exec_sql(&lmgr_test.conn, delSym->str, NULL);
+                cntDelSym=0;
+                g_string_free(delSym, TRUE);
+            }
+        }
+        else if(i==5 && cntInsEnt){
+            g_string_append_printf(insEnt, " ON DUPLICATE KEY UPDATE id=VALUES(id),uid=VALUES(uid),gid=VALUES(gid),size=VALUES(size),blocks=VALUES(blocks),creation_time=VALUES(creation_time),last_access=VALUES(last_access),last_mod=VALUES(last_mod),last_mdchange=VALUES(last_mdchange),type=VALUES(type),mode=VALUES(mode),nlink=VALUES(nlink),md_update=VALUES(md_update),invalid=VALUES(invalid),fileclass=VALUES(fileclass),class_update=VALUES(fileclass);\n");
+            g_string_append_printf(insNames," ON DUPLICATE KEY UPDATE id=VALUES(id),parent_id=VALUES(parent_id),name=VALUES(name),path_update=VALUES(path_update);\n");
+            db_exec_sql(&lmgr_test.conn, insEnt->str, NULL);
+            db_exec_sql(&lmgr_test.conn, insNames->str, NULL);
+            
+            cntInsEnt=0;
+            g_string_free(insEnt, TRUE);
+            g_string_free(insNames, TRUE);
+            
+            if(cntInsSym){
+                g_string_append_printf(insSym,";\n");
+                db_exec_sql(&lmgr_test.conn, insSym->str, NULL);
+                cntInsSym=0;
+                g_string_free(insSym, TRUE);
+            }
+        }
+    }
+    fclose(fp);
+    if (line)
+        free(line);
+}
+
+#endif
 int main(int argc, char **argv)
 {
     int rc;
@@ -1625,6 +2298,84 @@ int main(int argc, char **argv)
                 options.config_file, err_msg);
         exit(1);
     }
+
+#ifdef _PANFS       
+    char firstSnap[1024],secondSnap[1024],snapDone[1024];
+    char *firstSnapName, *secondSnapName,*pos;
+    char fs_path_pan[RBH_PATH_MAX];
+    GString *lastSnap= NULL,*dirCom= NULL,*dirRm= NULL,*srtDelFile=NULL,*srtMvFile=NULL,*srtDelDir=NULL,*srtSync=NULL,*srtLink=NULL;       
+    dirCom=g_string_new("mkdir -p ");
+    g_string_append_printf(dirCom,"%s",panfs_config.snap_delta_results_path);
+                    
+    srtDelFile=g_string_new("sort -t $'\031' -k 1,1 ");
+    g_string_append_printf(srtDelFile,"%s/res.delete_file -o %s/out.delete_file",panfs_config.snap_delta_results_path,panfs_config.snap_delta_results_path);
+        
+    srtMvFile=g_string_new("sort -t $'\031' -k 2,2 ");
+    g_string_append_printf(srtMvFile,"%s/res.move_stage_file -o %s/out.move_stage_file",panfs_config.snap_delta_results_path,panfs_config.snap_delta_results_path);
+
+    srtDelDir=g_string_new("sort -t $'\031' -k 1,1nr ");
+    g_string_append_printf(srtDelDir,"%s/res.delete_or_move_stage_dir -o %s/out.delete_or_move_stage_dir",panfs_config.snap_delta_results_path,panfs_config.snap_delta_results_path);
+
+    srtSync=g_string_new("sort -t $'\031' -k 1,1nr -k 2,2 ");
+    g_string_append_printf(srtSync,"%s/res.sync -o %s/out.sync",panfs_config.snap_delta_results_path,panfs_config.snap_delta_results_path);
+    
+    srtLink=g_string_new("sort -t $'\031' -k 1,1nr -k 2,2 ");
+    g_string_append_printf(srtLink,"%s/res.link_file -o %s/out.link_file",panfs_config.snap_delta_results_path,panfs_config.snap_delta_results_path);
+
+    dirRm=g_string_new("rm -rf ");
+    g_string_append_printf(dirRm,"%s/*",panfs_config.snap_delta_results_path);
+
+    rc = ListMgr_InitAccess(&lmgr_test);
+    if (rc) {
+        DisplayLog(LVL_CRIT, "Initialization","Failed");
+        exit(1);
+    }
+
+    rc = ListMgr_GetVar(&lmgr_test,SNAPSHOT_PATH , firstSnap, sizeof(firstSnap));
+    rc = ListMgr_GetVar(&lmgr_test,SNAPSHOT_DONE , snapDone, sizeof(snapDone));
+    lastSnap=g_string_new("ls -d ");
+    g_string_append_printf(lastSnap,"%s%s* | tail -n 1",global_config.fs_path,"/.snapshot/");
+    strcpy(fs_path_pan,global_config.fs_path);
+        
+    if(strcmp(snapDone,"done")==0 && strcmp(options.firstSnapshot, "")==0){
+            
+        FILE *resFile=popen(lastSnap->str,"r");
+        fgets(secondSnap, sizeof(secondSnap), resFile);
+            
+        if ((pos=strchr(secondSnap, '\n')) != NULL)
+            *pos = '\0';
+        DisplayLog(LVL_CRIT,"Panasas File System","Full Tree Walk is not needed");
+            
+        firstSnapName=strrchr(firstSnap,'/')+1;
+        secondSnapName=strrchr(secondSnap,'/')+1;
+        panSnap=g_string_new("");
+        g_string_append_printf(panSnap,"%s --volume=%s --result_format=1 --result=%s/res --older_snap=%s --newer_snap=%s", 
+                                panfs_config.snap_delta_path, panfs_config.volume, panfs_config.snap_delta_results_path, firstSnapName, secondSnapName);    
+        pclose(resFile);            
+        options.Pan_FTW=0;
+    }
+    else if(strcmp(snapDone,"done")==0 && strcmp(options.firstSnapshot, "")){
+        DisplayLog(LVL_CRIT, MAIN_TAG,"ERROR: the base Snapshot is already available in database");
+        exit(1);
+    }        
+    else if(strcmp(snapDone,"")==0 && strcmp(options.firstSnapshot, "")==0){
+        DisplayLog(LVL_CRIT, MAIN_TAG,"ERROR: Please provide a snapshot name for the first run");
+        exit(1);
+    }
+    else if(strcmp(snapDone,"")==0 && strcmp(options.firstSnapshot, "")){
+        strcat(global_config.fs_path,"/.snapshot/");
+        strcat(global_config.fs_path,options.firstSnapshot);
+        DisplayLog(LVL_CRIT,"Panasas File System","Full Tree Walk is needed");
+        options.Pan_FTW=1;
+    }
+    else if(strcmp(snapDone,"undone")==0){
+        DisplayLog(LVL_CRIT, MAIN_TAG,"ERROR: Previous run was not completed correctly. Please drop the database and run first run again");
+        exit(1);
+
+    }
+    ListMgr_CloseAccess(&lmgr_test); 
+
+#endif
 
     if (options.test_syntax) {
         printf("Configuration file '%s' has been read successfully\n",
@@ -1761,12 +2512,53 @@ int main(int argc, char **argv)
                        "EntryProcessor successfully initialized");
     }
 
+#ifdef _PANFS    
+    rc = ListMgr_InitAccess(&lmgr_test);
+    if (rc) {
+        DisplayLog(LVL_CRIT, "Initialization","Failed");
+        exit(1);
+    }
+    rc = ListMgr_SetVar(&lmgr_test,SNAPSHOT_DONE , "undone");
+    rc = ListMgr_SetVar(&lmgr_test,FS_PATH_VAR, fs_path_pan);
+    ListMgr_CloseAccess(&lmgr_test);
+#endif
+
     /* Note: in 'one-shot' mode, we must take care of performing action in
      * the correct order:
      * first scan, then process changelogs, then migrate, then purge, etc.
      */
 
     if (!terminate_sig && action_mask & ACTION_MASK_SCAN) {
+#ifdef _PANFS
+        if(options.Pan_FTW==0){
+            if(strcmp(firstSnap,secondSnap)<0 ){
+                rc = ListMgr_InitAccess(&lmgr_test);
+                if (rc) {
+                    DisplayLog(LVL_CRIT, "Initialization","Failed");
+                    exit(1);
+                }
+                DisplayLog(LVL_CRIT, "PanasasUpdate","Newer snapshot is found. Newer snapshot= %s\n",secondSnap);
+
+                system(dirCom->str);
+                system(dirRm->str);
+                system(panSnap->str);
+                system(srtDelFile->str);
+                system(srtMvFile->str);
+                system(srtDelDir->str);
+                system(srtSync->str);
+                system(srtLink->str);
+                PanUp(firstSnap,secondSnap);
+                ListMgr_CloseAccess(&lmgr_test);
+                g_string_free(panSnap, TRUE);
+                
+                goto PAN;
+            }
+            else{
+                DisplayLog(LVL_CRIT, "PanasasUpdate","Newer snapshot is not available.\n");
+                goto PAN;
+            }
+        }
+#endif
 
         /* Start FS scan */
         if (options.partial_scan)
@@ -1790,6 +2582,10 @@ int main(int argc, char **argv)
         else
             running_mask |= MODULE_MASK_FS_SCAN | MODULE_MASK_ENTRY_PROCESSOR;
 
+#ifdef _PANFS
+        FSScan_Wait();
+        DisplayLog(LVL_MAJOR, MAIN_TAG, "FS Scan finished");
+#else
         if (options.flags & RUNFLG_ONCE) {
             FSScan_Wait();
             DisplayLog(LVL_MAJOR, MAIN_TAG, "FS Scan finished");
@@ -1798,7 +2594,13 @@ int main(int argc, char **argv)
             if (terminate_sig)
                 pthread_mutex_lock(&shutdown_mtx);
         }
+#endif
     }
+
+#ifdef _PANFS
+PAN:
+#endif
+
 #ifdef HAVE_CHANGELOGS
     if (!terminate_sig && action_mask & ACTION_MASK_HANDLE_EVENTS) {
 
@@ -1836,6 +2638,26 @@ int main(int argc, char **argv)
         && (action_mask & (ACTION_MASK_SCAN | ACTION_MASK_HANDLE_EVENTS))) {
         /* Pipeline must be flushed */
         EntryProcessor_Terminate(true);
+
+#ifdef _PANFS
+        rc = ListMgr_InitAccess(&lmgr_test);
+        if (rc) {
+            DisplayLog(LVL_CRIT, "Initialization","Failed");
+            exit(1);
+        }
+        if(options.Pan_FTW==0 && strcmp(firstSnap,secondSnap)<0){
+            rc = ListMgr_SetVar(&lmgr_test,SNAPSHOT_DONE , "done");
+            rc = ListMgr_SetVar(&lmgr_test,SNAPSHOT_PATH , secondSnap);
+        }
+        else if(options.Pan_FTW==0 && strcmp(firstSnap,secondSnap)>=0){
+            rc = ListMgr_SetVar(&lmgr_test,SNAPSHOT_DONE , "done");
+        }
+        else{
+            rc = ListMgr_SetVar(&lmgr_test,SNAPSHOT_DONE , "done");
+            rc = ListMgr_SetVar(&lmgr_test,SNAPSHOT_PATH , global_config.fs_path);
+        }
+        ListMgr_CloseAccess(&lmgr_test);
+#endif
 
 #ifdef HAVE_CHANGELOGS
         if (action_mask & ACTION_MASK_HANDLE_EVENTS) {
@@ -1894,7 +2716,96 @@ int main(int argc, char **argv)
         if (!(options.flags & RUNFLG_ONCE) && (policy_run_mask != 0))
             running_mask |= MODULE_MASK_POLICY_RUN;
     }
+#ifdef _PANFS
+    if (!(options.flags & RUNFLG_ONCE)) {
+        rc = ListMgr_InitAccess(&lmgr_test);
+        if (rc) {
+            DisplayLog(LVL_CRIT, "Initialization","Failed");
+            exit(1);
+        }
+        
+        if(options.Pan_FTW==0 && strcmp(firstSnap,secondSnap)<0){
+            rc = ListMgr_SetVar(&lmgr_test,SNAPSHOT_DONE , "done");
+            rc = ListMgr_SetVar(&lmgr_test,SNAPSHOT_PATH , secondSnap);
+        }
+        else if(options.Pan_FTW==0 && strcmp(firstSnap,secondSnap)>=0){
+            rc = ListMgr_SetVar(&lmgr_test,SNAPSHOT_DONE , "done");
+        }
+        else{
+            rc = ListMgr_SetVar(&lmgr_test,SNAPSHOT_DONE , "done");
+            rc = ListMgr_SetVar(&lmgr_test,SNAPSHOT_PATH , global_config.fs_path);
+        }
+        EntryProcessor_Terminate(true);
+        FlushLogs();
 
+        while (!terminate_sig) {
+            rh_sleep(panfs_config.update_interval > 0 ? panfs_config.update_interval : 1);
+            rc = ListMgr_GetVar(&lmgr_test,SNAPSHOT_PATH , firstSnap, sizeof(firstSnap));
+            rc = ListMgr_GetVar(&lmgr_test,SNAPSHOT_DONE , snapDone, sizeof(snapDone));
+
+            if(strcmp(snapDone,"done")==0){
+                FILE *resFile=popen(lastSnap->str,"r");
+                fgets(secondSnap, sizeof(secondSnap), resFile);
+                if ((pos=strchr(secondSnap, '\n')) != NULL)
+                    *pos = '\0';
+
+                firstSnapName=strrchr(firstSnap,'/')+1;
+                secondSnapName=strrchr(secondSnap,'/')+1;
+                
+                if(strcmp(firstSnap,secondSnap)<0){
+                    rc = ListMgr_SetVar(&lmgr_test,SNAPSHOT_DONE , "undone");
+                    panSnap=g_string_new("");
+                    g_string_append_printf(panSnap,"%s --volume=%s --result_format=1 --result=%s/res --older_snap=%s --newer_snap=%s", 
+                                           panfs_config.snap_delta_path, panfs_config.volume, panfs_config.snap_delta_results_path, firstSnapName, secondSnapName);
+                    system(dirCom->str);
+                    system(dirRm->str);
+                    system(panSnap->str);
+                    system(srtDelFile->str);
+                    system(srtMvFile->str);
+                    system(srtDelDir->str);
+                    system(srtSync->str);
+                    system(srtLink->str);
+                    PanUp(firstSnap,secondSnap);
+                    fprintf(stderr, "New snapshot is found. Snapshot=%s\n",secondSnap);
+                    rc = ListMgr_SetVar(&lmgr_test,SNAPSHOT_PATH , secondSnap);
+                    rc = ListMgr_SetVar(&lmgr_test,SNAPSHOT_DONE , "done");
+                    g_string_free(panSnap, TRUE);
+                    
+                }
+                else{
+                    rc = ListMgr_SetVar(&lmgr_test,SNAPSHOT_DONE , "done");
+                    fprintf(stderr, "New snapshot is not found. Going to sleep!\n");
+                    }
+                pclose(resFile);            
+            }
+            else{
+                DisplayLog(LVL_CRIT, MAIN_TAG,"ERROR: Previous run was not completed correctly. Please drop the database and run first run again");
+                exit(1);
+            }
+        }
+        g_string_free(lastSnap, TRUE);
+        g_string_free(dirCom, TRUE);
+        g_string_free(dirRm, TRUE);
+        g_string_free(srtDelFile, TRUE);
+        g_string_free(srtMvFile, TRUE);
+        g_string_free(srtDelDir, TRUE);
+        g_string_free(srtSync, TRUE);
+        g_string_free(srtLink, TRUE);
+        ListMgr_CloseAccess(&lmgr_test);
+        exit(0);
+    }
+    else{
+        g_string_free(dirCom, TRUE);
+        g_string_free(dirRm, TRUE);
+        g_string_free(srtDelFile, TRUE);
+        g_string_free(srtMvFile, TRUE);
+        g_string_free(srtDelDir, TRUE);
+        g_string_free(srtSync, TRUE);
+        g_string_free(srtLink, TRUE);
+        DisplayLog(LVL_MAJOR, MAIN_TAG, "All tasks done! Exiting.");
+        exit(0);
+   }
+#endif
     if (!(options.flags & RUNFLG_ONCE)) {
         char tmpstr[1024];
 

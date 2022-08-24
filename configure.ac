@@ -113,6 +113,7 @@ CFLAGS="$CFLAGS $GLIB2_CFLAGS $GTHREAD2_CFLAGS"
 LDFLAGS="$LDFLAGS $GLIB2_LIBS $GTHREAD2_LIBS"
 
 # debug flags
+
 AX_ENABLE_FLAG([debug-db], [enables debug traces for database operations], [-D_DEBUG_DB])
 AX_ENABLE_FLAG([debug-parsing], [enables debug traces for configuration file parsing], [-D_DEBUG_PARSING])
 AM_CONDITIONAL(DEBUG_PARSING, test "x$enable_debug_parsing" == "xyes" )
@@ -147,6 +148,7 @@ build_lustre="OFF"
 build_backup="OFF"
 build_lhsm="OFF"
 build_shook="OFF"
+build_panfs="OFF"
 
 AC_ARG_ENABLE([lustre], AS_HELP_STRING([--disable-lustre],
               [Disable all lustre specific features]),
@@ -154,9 +156,22 @@ AC_ARG_ENABLE([lustre], AS_HELP_STRING([--disable-lustre],
 AC_ARG_ENABLE([shook], AS_HELP_STRING([--disable-shook],
               [Disable build of shook specific modules]),
               [support_shook="$enableval"],[support_shook="yes"])
+AC_ARG_ENABLE([panfs], AS_HELP_STRING([--enable-panfs],
+              [enable PanFS-specific features]),
+              [support_panfs="yes"],[support_panfs="no"])
 
 # default input option is --scan
 INPUT_OPT="--scan"
+
+# Panasas File System
+if test "x$support_panfs" = "xyes" ; then
+    AC_DEFINE(_PANFS, 1, [panfs is available])
+    AM_CONDITIONAL( PANFS, test "x$support_panfs" = "xyes" )
+    AC_SUBST(PANFS)
+    build_panfs="ON"
+else
+    AM_CONDITIONAL(PANFS, test 0 = 1 )
+fi
 
 # shook requires Lustre + FID support + shook library
 # hsm_lite requires Lustre + FID support
@@ -493,6 +508,7 @@ AC_SUBST(ac_configure_args)
 AC_OUTPUT
 
 AC_MSG_NOTICE([Summary:])
+AC_MSG_NOTICE([PanFS      support is $build_panfs])
 AC_MSG_NOTICE([Lustre     support is $build_lustre])
 AC_MSG_NOTICE([Backup     support is $build_backup])
 AC_MSG_NOTICE([Lustre/HSM support is $build_lhsm])
