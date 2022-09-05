@@ -1,4 +1,28 @@
-Summary of changes in minor versions 3.1.x:
+Summary of changes in versions 3.x:
+
+3.2:
+- Add features for Lustre's project quota:
+	- Retrieve project id when scanning and reading changelogs
+	- Add report: rbh-report --project-info
+	- New filtering options in rbh-report: --filter-project
+	- New option --split-user-projects to split user's usage per project
+	- Display project-info with 'rbh-find --printf %RP'
+	- Filter project with 'rbh-find -projid num'
+	- New 'projid' trigger target on command line
+- Implement policy sort order by size, e.g. lru_sort_attr = size;
+- Implement asc/desc modifiers for sort order, e.g. lru_sort_attr = size(desc);
+- Implement policy trigger thresholds as percentage of available inodes:
+    high/low_threshold_cntpct = xx%;
+- policy optimization: no DB update when pre_sched_match and post_sched_match
+  are set to "none or "cache_only".
+- Fix errors "Out of range value for size columns" due to DB triggers
+- Make top-user --by-count take all entry types into account
+- Adaptations for Lustre 2.15
+- Adaptations for RHEL9.4 OS family
+
+3.1.7:
+- Fix pool_usage triggers.
+- Fix partial application of policies when run on multiple OSTs.
 
 3.1.6:
 - fix build on Lustre 2.12.4
