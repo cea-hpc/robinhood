@@ -2153,7 +2153,7 @@ static int create_table_softrm(db_conn_t *pconn, bool *affects_trig)
 #define VERSION_VAR_TRIG    "VersionTriggerSet"
 
 #define FUNCTIONSET_VERSION    "1.6"
-#define TRIGGERSET_VERSION     "1.5"
+#define TRIGGERSET_VERSION     "1.6"
 
 static int check_functions_version(db_conn_t *conn)
 {
@@ -2478,12 +2478,12 @@ static int create_trig_acct_update(db_conn_t *pconn, bool *affects_trig)
         if (is_acct_field(i)) {
             if (!is_first_field)
                 g_string_append_printf(request,
-                                       ",%s=%s+CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED)",
+                                       ",%s=CAST(%s as SIGNED)+CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED)",
                                        field_name(i), field_name(i),
                                        field_name(i), field_name(i));
             else {
                 g_string_append_printf(request,
-                                       "%s=%s+CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED)",
+                                       "%s=CAST(%s as SIGNED)+CAST(NEW.%s as SIGNED)-CAST(OLD.%s as SIGNED)",
                                        field_name(i), field_name(i),
                                        field_name(i), field_name(i));
                 is_first_field = false;
