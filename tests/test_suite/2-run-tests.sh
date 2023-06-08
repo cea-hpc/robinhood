@@ -3580,6 +3580,25 @@ function periodic_class_match_purge
     (( $nb_updt == 1 )) && (( $nb_whitelist == 2 )) && echo "OK: all fileclasses updated"
 }
 
+function wait_for_size_update()
+{
+    local file=$1
+    local expected_size=$2
+    local size=$($FIND "$file" -f $RBH_CFG_DIR/$config_file -printf "%s\n")
+    local count=0
+
+    while [[ $size != $expected_size ]]; do
+        [ "$DEBUG" = "1" ] &&
+            $FIND "$file" -f $RBH_CFG_DIR/$config_file -ls
+
+        sleep .5
+        size=$($FIND "$file" -f $RBH_CFG_DIR/$config_file -printf "%s\n")
+        if ((count++ == 30)); then
+            break
+        fi
+    done
+}
+
 function test_size_updt
 {
 	config_file=$1
@@ -3598,37 +3617,22 @@ function test_size_updt
 	fi
 
     # create a log reader
-	$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L $LOG --detach || error "starting chglog reader"
+	$RH -f $RBH_CFG_DIR/$config_file --readlog -l DEBUG -L $LOG --detach ||
+        error "starting chglog reader"
     sleep 1
 
     # create a small file and write it (20 bytes, incl \n)
     echo "qqslmdkqslmdkqlmsdk" > $RH_ROOT/file
-    sleep 1
-
-    [ "$DEBUG" = "1" ] && $FIND $RH_ROOT/file -f $RBH_CFG_DIR/$config_file -ls
-    size=$($FIND $RH_ROOT/file -f $RBH_CFG_DIR/$config_file -ls | awk '{print $(NF-3)}')
-    if [ -z "$size" ]; then
-       echo "db not yet updated, waiting changelog processing delay ($cl_delay sec)..."
-       sleep $cl_delay
-       size=$($FIND $RH_ROOT/file -f $RBH_CFG_DIR/$config_file -ls | awk '{print $(NF-3)}')
-    fi
-
+    wait_for_size_update $RH_ROOT/file 20
+    size=$($FIND $RH_ROOT/file -f $RBH_CFG_DIR/$config_file -printf "%s\n")
     if (( $size != 20 )); then
         error "unexpected size value: $size != 20 (is Lustre version < 2.3?)"
     fi
 
     # now appending the file (+20 bytes, incl \n)
     echo "qqslmdkqslmdkqlmsdk" >> $RH_ROOT/file
-    sleep 1
-
-    [ "$DEBUG" = "1" ] && $FIND $RH_ROOT/file -f $RBH_CFG_DIR/$config_file -ls
-    size=$($FIND $RH_ROOT/file -f $RBH_CFG_DIR/$config_file -ls | awk '{print $(NF-3)}')
-    if [ -z "$size" ]; then
-       echo "db not yet updated, waiting one more second..."
-       sleep 1
-       size=$($FIND $RH_ROOT/file -f $RBH_CFG_DIR/$config_file -ls | awk '{print $(NF-3)}')
-    fi
-
+    wait_for_size_update $RH_ROOT/file 40
+    size=$($FIND $RH_ROOT/file -f $RBH_CFG_DIR/$config_file -printf "%s\n")
     if (( $size != 40 )); then
         error "unexpected size value: $size != 40"
     fi
