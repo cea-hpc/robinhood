@@ -854,7 +854,9 @@ int Get_pool_usage(const char *poolname, struct statfs *pool_statfs)
 #ifdef IOC_MDC_GETFILEINFO_OLD
 #   define IOC_MDC_GETFILEINFO_V1   IOC_MDC_GETFILEINFO_OLD
 #else
+#ifndef IOC_MDC_GETFILEINFO_V1
 #   define IOC_MDC_GETFILEINFO_V1   IOC_MDC_GETFILEINFO
+#endif
 #endif
 
 
