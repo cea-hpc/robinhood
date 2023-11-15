@@ -923,7 +923,7 @@ int lustre_mds_stat(const char *fullpath, int parentfd, struct stat *inode)
 
     default:
         DisplayLog(LVL_CRIT, TAG_MDSSTAT,
-                   "Error: %s: IOC_MDC_GETFILEINFO failed for %s: rc=%d, errno=%d",
+                   "Error: %s: IOC_MDC_GETFILEINFO_V1 failed for %s: rc=%d, errno=%d",
                    __func__, fullpath, rc, errno);
     }
     return rc;
@@ -987,7 +987,7 @@ int lustre_mds_stat_by_fid(const entry_id_t *p_id, struct stat *inode)
             return -ENOENT;
         } else {
             DisplayLog(LVL_CRIT, TAG_MDSSTAT,
-                       "Error: %s: IOC_MDC_GETFILEINFO failed for %s",
+                       "Error: %s: IOC_MDC_GETFILEINFO_V1 failed for %s",
                        __func__, filename);
             return -errno;
         }
