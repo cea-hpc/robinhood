@@ -5064,18 +5064,28 @@ function test_ost_trigger
 	$LFS setstripe -c 2 -i 0 $LFS_SS_SZ_OPT 1m $RH_ROOT || echo "error setting stripe_count=2"
 
 	#create test tree of archived files (2M each=1MB/ost) until we reach high threshold
-	((count=$mb_h_threshold - $empty_vol + 1))
-	for i in `seq $empty_vol $mb_h_threshold`; do
-		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=2  >/dev/null 2>/dev/null || error "writing $RH_ROOT/file.$i"
+    vol=$empty_vol
+    i=0
+    while (( vol < mb_h_threshold )); do
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=2 >/dev/null 2>&1 ||
+            error "writing $RH_ROOT/file.$i"
 
 		if (( $is_lhsm != 0 )); then
 			flush_data
 			$LFS hsm_archive $RH_ROOT/file.$i
 		fi
+        vol=$($LFS df $RH_ROOT | grep OST0000 | awk '{print $3}')
+        vol=$(( vol / 1024 ))
+        i=$(( i + 1 ))
 	done
+	count=$i
 	if (( $is_lhsm != 0 )); then
 		wait_done 60 || error "Copy timeout"
 	fi
+    # There seems to be an inconsistency in the value returned by lfs df that is
+    # used to compute the purge size that makes this test fail.
+    # clean_caches seems to improve the situation and the test seems stable.
+    clean_caches
 
 	if (( $is_hsmlite != 0 )); then
 		$RH -f $RBH_CFG_DIR/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
@@ -5091,14 +5101,14 @@ function test_ost_trigger
 
     # sometimes there are orphan objects on some OSTs which may make the
     # OST0001 a little more filled with data, and make the test fail.
-    # get the fillest OST:
+    # get the fullest OST:
     idx=$(lfs df "$RH_ROOT" | grep OST00 | sort -k 3nr | head -n 1 | cut -d ':' -f 2 | tr -d ']')
     [ "$DEBUG" = "1" ] && lfs df "$RH_ROOT" | grep OST00
     [ "$DEBUG" = "1" ] && echo "=> MAX OST is OST#$idx"
     # 0 or 1 expected
     [[ $idx == "0" ]] || [[ $idx == "1" ]] || error "fullest OST should be 0 or 1 (actual: $idx)"
 
-	full_vol=`$LFS df  $RH_ROOT | grep OST000$idx | awk '{print $3}'`
+	full_vol=`$LFS df $RH_ROOT | grep OST000$idx | awk '{print $3}'`
 	full_vol=$(($full_vol/1024))
 	delta=$(($full_vol-$empty_vol))
 	echo "OST#$idx usage increased of $delta MB (total usage = $full_vol MB)"
