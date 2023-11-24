@@ -1081,9 +1081,9 @@ static int std_recover(lmgr_t *lmgr, entry_id_t *p_id, attr_set_t *p_oldattr)
                 char relpath[RBH_PATH_MAX];
                 char *curr = output;
 
-                if (relative_path
-                    (ATTR(&new_attrs, fullpath), global_config.fs_path,
-                     relpath) == 0) {
+                if (relative_path(ATTR(&new_attrs, fullpath),
+                                  global_config.fs_path,
+                                  relpath) == 0) {
 
                     /* write as a single line to avoid mixing them */
                     curr += sprintf(curr, "%s ", relpath);

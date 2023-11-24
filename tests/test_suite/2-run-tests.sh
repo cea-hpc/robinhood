@@ -6067,13 +6067,19 @@ function partial_paths
     fi
 
     # check what rm does (+undelete)
-	if (( $no_log==0 )); then
-	   $LFS changelog_clear lustre-MDT0000 cl1 0
+    if (( $no_log==0 )); then
+        # This test was introduced by: 00c3cfd4263679df54bfffbc875419de503e8dcf
+        # It seems to be related to the backup module. This test fails for the
+        # LUSTRE_HSM flavor. rbh-undelete will fail if we remove the changelogs
+        # here because the parent is has been deleted from the DB.
+        if (( $is_hsmlite )); then
+            $LFS changelog_clear lustre-MDT0000 cl1 0
+        fi
 
         rm -f $RH_ROOT/dir1/dir2/file3
         readlog_chk $config_file
 
-	    if (( $is_lhsm + $is_hsmlite > 0 )); then
+        if (( $is_lhsm + $is_hsmlite > 0 )); then
             $REPORT -f $RBH_CFG_DIR/$config_file -Rcq > report.log
             [ "$DEBUG" = "1" ] && cat report.log
             nb=$(cat report.log | grep file3 | wc -l)
@@ -6087,7 +6093,7 @@ function partial_paths
             find $RH_ROOT -name "file3" -ls | tee report.log
             (( $(wc -l report.log | awk '{print $1}') == 1 )) || error "file3 not restored"
         fi
-	fi
+    fi
 
     rm -f report.log
 }
