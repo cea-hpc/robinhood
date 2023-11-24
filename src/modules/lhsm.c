@@ -609,15 +609,11 @@ static int lhsm_cl_cb(struct sm_instance *smi, const CL_REC_TYPE *logrec,
                 if (cfg_has_uuid(&config))
                     set_uuid_info(smi, id, refreshed_attrs);
 
-                /* if dirty flag is set in the changelog record,
-                 * the entry is dirty, else, it is up to date. */
-                set_lhsm_status(smi, refreshed_attrs,
-                                (hsm_get_cl_flags(logrec->cr_flags) &
-                                 CLF_HSM_DIRTY) ? STATUS_MODIFIED :
-                                STATUS_SYNCHRO);
-                *getit = false;
+                /* We need to fetch the hsm state on archive. The archive ID is
+                 * not present in the changelog record.
+                 */
+                *getit = true;
             } else {    /* archive failed */
-
                 /* Entry is probably still dirty. If dirty flag is not set,
                  * we need to ask the actual status */
                 if (hsm_get_cl_flags(logrec->cr_flags) & CLF_HSM_DIRTY) {
