@@ -1870,18 +1870,21 @@ function test_custom_purge
     if (( $is_lhsm != 0 )); then
         # Archive files to be able to release them afterward
         flush_data
-        $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "flushing data to backend"
+        $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log ||
+            error "flushing data to backend"
     	grep "run summary" rh_migr.log
 
         echo "Waiting for end of data migration..."
         wait_done 120 || error "Migration timeout"
         echo "update db content..."
-        $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_chglogs.log || error "reading chglog"
+        $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L rh_chglogs.log ||
+            error "reading chglog"
 
     elif (( $shook != 0 )); then
 	# need archive before release
         echo "Archiving data..."
-        $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log || error "flushing data to backend"
+        $RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG -L rh_migr.log ||
+            error "flushing data to backend"
     	grep "run summary" rh_migr.log
     fi
 
@@ -1889,7 +1892,8 @@ function test_custom_purge
     sleep $sleep_time
 
     if [ -z "$POSIX_MODE" ]; then
-        fsname=$(df $RH_ROOT/. | xargs | awk '{print $(NF-5)}' | awk -F '/' '{print $(NF)}')
+        fsname=$(df $RH_ROOT/. | xargs | awk '{print $(NF-5)}' |
+                 awk -F '/' '{print $(NF)}')
     else
         fsname=$(df $RH_ROOT/. | xargs | awk '{print $(NF-5)}')
     fi
@@ -1900,7 +1904,9 @@ function test_custom_purge
             fids[$i]=$(get_id "$RH_ROOT/file.$i")
         done
         i=11
-        for f in  "$RH_ROOT/foo1 \`pkill -9 $CMD\`" "$RH_ROOT/foo2 ; exit 1" "$RH_ROOT/foo3' ';' 'exit' '1'" ; do
+        for f in  "$RH_ROOT/foo1 \`pkill -9 $CMD\`" \
+                  "$RH_ROOT/foo2 ; exit 1" \
+                  "$RH_ROOT/foo3' ';' 'exit' '1'" ; do
             fids[$i]=$(get_id "$f")
             ((i=$i+1))
         done
