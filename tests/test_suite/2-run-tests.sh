@@ -11673,9 +11673,11 @@ function trigger_purge_QUOTA_EXCEEDED
     while [ $elem -lt $limit ]
     do
         # write 2M to fulfill 2 stripes
-        dd if=/dev/zero of=$RH_ROOT/file.$indice bs=2M count=1 conv=sync >/dev/null 2>/dev/null
-        if (( $? != 0 )); then
-            echo "WARNING: failed to write $RH_ROOT/file.$indice"
+        dd if=/dev/zero of=$RH_ROOT/file.$indice bs=2M count=1 conv=sync
+        rc=$?
+        if (( $rc != 0 )); then
+            lfs df -h
+            echo "WARNING: failed to write $RH_ROOT/file.$indice $rc"
             # give it a chance to end the loop
             ((limit=$limit-1))
         else
@@ -11686,10 +11688,12 @@ function trigger_purge_QUOTA_EXCEEDED
         elem=$(fs_usage)
         ((indice++))
     done
+    lfs df -h
 
     echo "2-Reading changelogs and Applying purge trigger policy..."
 	$RH -f $RBH_CFG_DIR/$config_file --scan --check-thresholds=purge -l DEBUG -L rh_purge.log --once
 
+    cat rh_purge.log >> $TMPERR_FILE
     countMigrLog=`grep "High threshold reached on Filesystem" rh_purge.log | wc -l`
     if (($countMigrLog == 0)); then
         error "********** TEST FAILED **********"
@@ -11736,6 +11740,7 @@ function trigger_purge_OST_QUOTA_EXCEEDED
 	$RH -f $RBH_CFG_DIR/$config_file --scan --check-thresholds=purge -l DEBUG \
         -L rh_purge.log --once 2>/dev/null
 
+    cat rh_purge.log >> $TMPERR_FILE
     countMigrLog=`grep "High threshold reached on OST #0" rh_purge.log | wc -l`
     if (($countMigrLog == 0)); then
         error "********** TEST FAILED **********"
