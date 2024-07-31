@@ -158,6 +158,10 @@ static GRegex		*fd_regex;
 static GRegex		*fid_regex;
 static GRegex		*ctdata_regex;
 
+static inline pid_t lhsmtool_gettid(void)
+{
+    return syscall(SYS_gettid);
+}
 
 static inline double ct_now(void)
 {
@@ -167,20 +171,15 @@ static inline double ct_now(void)
 	return tv.tv_sec + 0.000001 * tv.tv_usec;
 }
 
-static inline pid_t gettid(void)
-{
-	return syscall(SYS_gettid);
-}
-
 #define LOG_ERROR(_rc, _format, ...)					\
 	llapi_error(LLAPI_MSG_ERROR, _rc,				\
 		    "%f %s[%d]: "_format,				\
-		    ct_now(), cmd_name, gettid(), ## __VA_ARGS__)
+		    ct_now(), cmd_name, lhsmtool_gettid(), ## __VA_ARGS__)
 
 #define LOG_DEBUG(_format, ...)						\
 	llapi_error(LLAPI_MSG_DEBUG | LLAPI_MSG_NO_ERRNO, 0,		\
 		    "%f %s[%d]: "_format,				\
-		    ct_now(), cmd_name, gettid(), ## __VA_ARGS__)
+		    ct_now(), cmd_name, lhsmtool_gettid(), ## __VA_ARGS__)
 
 static void usage(const char *name, int rc)
 {

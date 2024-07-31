@@ -852,9 +852,11 @@ int Get_pool_usage(const char *poolname, struct statfs *pool_statfs)
  * Use the old (compatible) ioctl() instead.
  */
 #ifdef IOC_MDC_GETFILEINFO_OLD
-#   define IOC_MDC_GETFILEINFO_V1   IOC_MDC_GETFILEINFO_OLD
+    #define IOC_MDC_GETFILEINFO_V1   IOC_MDC_GETFILEINFO_OLD
 #else
-#   define IOC_MDC_GETFILEINFO_V1   IOC_MDC_GETFILEINFO
+    #ifndef IOC_MDC_GETFILEINFO_V1
+        #define IOC_MDC_GETFILEINFO_V1   IOC_MDC_GETFILEINFO
+    #endif
 #endif
 
 
@@ -871,6 +873,7 @@ int lustre_mds_stat(const char *fullpath, int parentfd, struct stat *inode)
     char buffer[MAXNAMLEN + 1];
     /* always use lov_user_mds_data_v1, as we want a struct stat as output. */
     struct lov_user_mds_data_v1 *lmd = (struct lov_user_mds_data_v1 *)buffer;
+    char *ioctl_name = "IOC_MDC_GETFILEINFO";
     const char *filename;
     int rc;
 
@@ -914,9 +917,12 @@ int lustre_mds_stat(const char *fullpath, int parentfd, struct stat *inode)
         break;
 
     default:
+#ifdef IOC_MDC_GETFILEINFO_OLD
+        ioctl_name = "IOC_MDC_GETFILEINFO_OLD";
+#endif
         DisplayLog(LVL_CRIT, TAG_MDSSTAT,
-                   "Error: %s: IOC_MDC_GETFILEINFO failed for %s: rc=%d, errno=%d",
-                   __func__, fullpath, rc, errno);
+                   "Error: %s: %s failed for %s: rc=%d, errno=%d",
+                   __func__, ioctl_name, fullpath, rc, errno);
     }
     return rc;
 }
@@ -937,6 +943,7 @@ int lustre_mds_stat_by_fid(const entry_id_t *p_id, struct stat *inode)
     char buffer[RBH_PATH_MAX];
     /* always use lov_user_mds_data_v1, as we want a struct stat as output. */
     struct lov_user_mds_data_v1 *lmd = (struct lov_user_mds_data_v1 *)buffer;
+    char *ioctl_name = "IOC_MDC_GETFILEINFO";
     int rc;
 
     /* ensure fid directory is opened */
@@ -978,9 +985,12 @@ int lustre_mds_stat_by_fid(const entry_id_t *p_id, struct stat *inode)
                        __func__, filename);
             return -ENOENT;
         } else {
+#ifdef IOC_MDC_GETFILEINFO_OLD
+            ioctl_name = "IOC_MDC_GETFILEINFO_OLD";
+#endif
             DisplayLog(LVL_CRIT, TAG_MDSSTAT,
-                       "Error: %s: IOC_MDC_GETFILEINFO failed for %s",
-                       __func__, filename);
+                       "Error: %s: %s failed for %s",
+                       __func__, ioctl_name, filename);
             return -errno;
         }
     }

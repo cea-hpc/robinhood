@@ -14,6 +14,9 @@ include("../config.php");
 include("../common.php");
 include("../plugin.php");
 
+// Firefox doesn't know what to do with a php file in <script> tag without a content-type header set.
+header('Content-Type: application/javascript');
+
 foreach($CHARTJS as $conf => $val)
 {
         echo "$conf=$val;\n";

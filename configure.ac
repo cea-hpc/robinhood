@@ -128,6 +128,11 @@ AX_ENABLE_FLAG([gprof], [test only: add gprof info to the binaries], [-g -pg])
 AX_ENABLE_FLAG([gcov], [test only: add gcov info to the binaries], [--coverage])
 AX_VALGRIND_CHECK
 
+#
+# Check for php-json
+#
+AX_PHPJSON_CHECK
+
 # behavior flags
 AX_DISABLE_FLAG([atfunc], [Don't use 'at' functions for scanning], [-D_NO_AT_FUNC])
 

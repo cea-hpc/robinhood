@@ -115,7 +115,7 @@ bool db_is_retryable(int db_err)
 /* create client connection */
 int db_connect(db_conn_t *conn)
 {
-    my_bool reconnect = 1;
+    int reconnect = 1;
     unsigned int retry = 0;
 
     /* Connect to database */
