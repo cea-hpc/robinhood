@@ -1553,7 +1553,7 @@ static int wrap_file_copy(sm_instance_t *smi,
     action_params_t tmp_params = { 0 };
 
     /* build tmp copy path */
-    asprintf(&tmp, "%s.%s", bkpath, COPY_EXT);
+    if (asprintf(&tmp, "%s.%s", bkpath, COPY_EXT)){};
     if (!tmp)
         return -ENOMEM;
 
