@@ -24,6 +24,9 @@ Build requirements: glib2-devel, libattr-devel, mysql-devel or mariadb-devel,
 mailx, bison, flex.
 For lustre support: lustre or lustre-client
 
+For Ubuntu(tested on 20.04): 
+apt install libjemalloc-dev libglib2.0-dev mysql-server libmysqlclient-dev bison
+
 Unzip and untar the source distribution:
 ```
 tar zxvf robinhood-3.x.x.tar.gz
