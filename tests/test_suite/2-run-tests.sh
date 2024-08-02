@@ -1551,7 +1551,7 @@ function test_lhsm_remove
 
     clean_logs
 
-    local default_archive=$(lctl get_param mdt.lustre-MDT0000.hsm.default_archive_id)
+    local default_archive=$(lctl get_param -n mdt.lustre-MDT0000.hsm.default_archive_id)
 
     # create nb_archive + 3 more files to test:
     # - hsm_archive with no option
