@@ -3127,6 +3127,11 @@ function update_test
         sleep 1
         pkill $PROC
         sleep 1
+
+        # make sure all remaining records are read
+        $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L $LOG \
+            2>/dev/null || error ""
+
         t=$(( `date "+%s"` - $init ))
 
         nb_getattr=`grep getattr=1 $LOG | wc -l`
@@ -3179,6 +3184,10 @@ function update_test
         sleep 1
         pkill $PROC
         sleep 1
+
+        # make sure all remaining records are read
+        $RH -f $RBH_CFG_DIR/$config_file --readlog --once -l DEBUG -L $LOG \
+            2>/dev/null || error ""
 
         nb_getpath=`grep getpath=1 $LOG | wc -l`
         echo "nb path update: $nb_getpath"
