@@ -39,6 +39,15 @@
 #include <ctype.h>
 #include <string.h>
 
+#ifdef _PANFS
+#include <sys/utsname.h>
+#include <linux/types.h>
+#include <linux/unistd.h>
+#include <sys/time.h>   /* for gettimeofday */
+#include <syscall.h>
+#include <sys/xattr.h>
+#endif
+
 #ifndef HAVE_GETMNTENT_R
 #include "mntent_compat.h"
 #else
@@ -2174,11 +2183,42 @@ int path2id(const char *path, entry_id_t *id, const struct stat *st)
                        path, strerror(-rc));
             return rc;
         }
+#ifdef _PANFS
         st = &stn;
+        ssize_t vallentmp;
+        char *valtmp;
+        char *key;              
+        vallentmp = lgetxattr(path, "system.panfs.obj_id", NULL, 0);
+        if (vallentmp == -1){
+            DisplayLog(LVL_CRIT, "StatGetxattrErr","Fatal Error. lgetxattr doesn't return any size for path %s. Error number = %d.\n",path,errno);
+            exit(1);
+        }
+        else if (vallentmp > 0) {
+            valtmp = malloc(vallentmp + 1);
+            if(valtmp!=NULL){
+                vallentmp = lgetxattr(path, "system.panfs.obj_id", valtmp, vallentmp);
+                valtmp[vallentmp] = 0;
+                key=strchr(valtmp, 'U')+1;
+                free(valtmp);
+                id->inode =strtoull(key,&key,16);
+                id->fs_key = get_fskey();
+            }
+            else{
+                DisplayLog(LVL_CRIT, "StatGetxattrErr","Fatal Error. Out of space.\n");   
+                exit(1);
+            }
+        }
+        else if (vallentmp == 0){
+            DisplayLog(LVL_MAJOR, "StatgetxattrErr","Fatal Error. No value for size of lgetxattr.");	
+            exit(1);
+      	}
+#endif
     }
-    /* build id from dev/inode */
-    id->inode = st->st_ino;
-    id->fs_key = get_fskey();
+    else{
+        /* build id from dev/inode */
+        id->inode = st->st_ino;
+        id->fs_key = get_fskey();
+    }
 #endif
     return 0;
 }

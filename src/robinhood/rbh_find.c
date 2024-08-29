@@ -21,6 +21,9 @@
 #include "config.h"
 #endif
 
+#ifdef _PANFS
+#include "panfs_config.h"
+#endif
 #include "list_mgr.h"
 #include "cmd_helpers.h"
 #include "rbh_cfg.h"
