@@ -367,6 +367,28 @@ function wait_hsm_state {
     done
 }
 
+function wait_low_usage
+{
+    local target=$1
+    local timeout=30
+    local i=0
+
+    while (( $i < $timeout )); do
+        u=$(fs_usage)
+
+        if (( $u > $target )); then
+            echo "filesystem is still ${u}% full. waiting for df update..."
+            clean_caches
+            sleep 1
+        else
+            return 0
+        fi
+        ((i++))
+    done
+    echo "Timeout $timeout reached without reaching usage target $target"
+    return 1
+}
+
 function clean_fs
 {
 	if (( $is_lhsm != 0 )); then
@@ -10804,6 +10826,9 @@ function cleanup
     else
             clean_fs
     fi
+
+    # Wait usage < 20%
+    wait_low_usage 20
 }
 
 function run_test
@@ -11770,19 +11795,6 @@ function trigger_purge_USER_GROUP_QUOTA_EXCEEDED
 	usage=$2
 
 	clean_logs
-
-        # force df update
-        while (( 1 )); do
-                elem=$(fs_usage)
-
-                if (( $elem > 20 )); then
-                        echo "filesystem is still ${elem}% full. waiting for df update..."
-        		clean_caches
-                        sleep 1
-                else
-                        break
-                fi
-        done
 
 	echo "1-Create Files ..."
 	limit=80
