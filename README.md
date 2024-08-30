@@ -21,8 +21,9 @@ It is advised to build RobinHood on your target system, to ensure the best
 compatibility with your Lustre and MySQL versions.
 
 Build requirements: glib2-devel, libattr-devel, mysql-devel or mariadb-devel,
-mailx, bison, flex.
-For lustre support: lustre or lustre-client
+mailx, bison, flex, jemalloc, jemalloc-devel.
+For lustre support: lustre or lustre-client, lustre-devel (Lustre >= 2.15)
+For running RobinHood's CI: lustre-tests (Lustre >= 2.15)
 
 Unzip and untar the source distribution:
 ```
