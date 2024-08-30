@@ -327,9 +327,11 @@ void init_attrset_masks(const lmgr_config_t *lmgr_config)
     /* Always set them, even if accounting is disabled. */
     acct_pk_attr_set.std |= ATTR_MASK_uid;
     acct_pk_attr_set.std |= ATTR_MASK_gid;
+#ifdef _LUSTRE
     /* in case lustre_projid is enabled, allow instant stats per projid */
     if (global_config.lustre_projid)
         acct_pk_attr_set.std |= ATTR_MASK_projid;
+#endif
     acct_pk_attr_set.std |= ATTR_MASK_type;
     acct_pk_attr_set.status |= all_status_mask();
 
