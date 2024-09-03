@@ -86,7 +86,7 @@ if [[ $PURPOSE = "LUSTRE_HSM" ]]; then
 		echo "Already running"
 	else
 		mkdir -p $BKROOT
-		$COPYTOOL --hsm_root=$BKROOT --no-shadow --daemon /mnt/lustre2 &
+		$COPYTOOL --hsm_root=$BKROOT --no-shadow --daemon /mnt/lustre2 2>/dev/null &
 	fi
 fi
 
@@ -95,6 +95,7 @@ lctl set_param llite.lustre-*.statahead_max=0
 
 # lazy statfs make 'df' tests fail
 lctl set_param llite.lustre-*.lazystatfs=0
+lctl set_param llite.lustre-*.statfs_max_age=0
 
 # create testuser
 getent passwd testuser || useradd testuser || exit 1

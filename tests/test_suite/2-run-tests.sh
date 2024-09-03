@@ -191,18 +191,22 @@ function clean_caches
 
 function wait_stable_df
 {
-    sync
-    clean_caches
+       sync
+       clean_caches
 
-    $LFS df $RH_ROOT > /tmp/lfsdf.1
-    while (( 1 )); do
-        # df is updated about every 2sec
-        sleep 2
-        $LFS df $RH_ROOT > /tmp/lfsdf.2
-        diff /tmp/lfsdf.1 /tmp/lfsdf.2 > /dev/null && break
-        echo "waiting for df update..."
-        mv -f /tmp/lfsdf.2 /tmp/lfsdf.1
-    done
+       $LFS df $RH_ROOT > /tmp/lfsdf.1
+       df $RH_ROOT > /tmp/df.1
+       while (( 1 )); do
+               # check df & lfs df evolution after some time
+               sleep 5
+               $LFS df $RH_ROOT > /tmp/lfsdf.2
+               df $RH_ROOT > /tmp/df.2
+               diff /tmp/lfsdf.1 /tmp/lfsdf.2 > /dev/null && \
+                    diff /tmp/df.1 /tmp/df.2 > /dev/null && break
+               echo "waiting for df update..."
+               mv -f /tmp/lfsdf.2 /tmp/lfsdf.1
+               mv -f /tmp/df.2 /tmp/df.1
+       done
 }
 
 # Prints all, or part of Lustre's version
@@ -367,7 +371,57 @@ function wait_hsm_state {
     done
 }
 
+# wait filesystem usage percentage returned by 'df' to be under a given value
 function wait_low_usage
+{
+    local target=$1
+    local timeout=30
+    local i=0
+
+    while (( $i < $timeout )); do
+        clean_caches
+        u=$(fs_usage)
+
+        if (( $u > $target )); then
+            echo "filesystem is still ${u}% full. waiting for df update..."
+            sleep 1
+        else
+            return 0
+        fi
+        ((i++))
+    done
+    echo "Timeout $timeout reached without reaching usage target $target"
+    return 1
+}
+
+# wait a specific OST to be under a given usage percentage
+function wait_low_OST_usage
+{
+    local ost=$1
+    local target=$2
+    local timeout=30
+    local i=0
+
+    while (( $i < $timeout )); do
+        clean_caches
+
+	    u=$($LFS df $RH_ROOT | grep ${ost}_ | awk '{print $5}' | tr -d '%')
+        if (( $u > $target )); then
+            echo "OST ${ost} is still ${u}% full. waiting for lfs df update..."
+            sleep 1
+        else
+            return 0
+        fi
+        ((i++))
+    done
+    echo "Timeout $timeout reached without reaching usage target $target for
+$ost"
+    return 1
+}
+
+
+# wait filsystem usage percentage returned by 'df' to be above a given value
+function wait_high_usage
 {
     local target=$1
     local timeout=30
@@ -376,8 +430,8 @@ function wait_low_usage
     while (( $i < $timeout )); do
         u=$(fs_usage)
 
-        if (( $u > $target )); then
-            echo "filesystem is still ${u}% full. waiting for df update..."
+        if (( $u < $target )); then
+            echo "filesystem is ${u}% full, still under ${target}%. waiting for df update..."
             clean_caches
             sleep 1
         else
@@ -388,6 +442,42 @@ function wait_low_usage
     echo "Timeout $timeout reached without reaching usage target $target"
     return 1
 }
+
+# Wait filesystem inode usage returned by 'df' and 'lfs df' to be above a given
+# value.
+# The function checks both df and lfs df in the case of lustre.
+function wait_high_inodes
+{
+    local target=$1
+    local timeout=30
+    local i=0
+
+    while (( $i < $timeout )); do
+        u=$(inode_usage)
+
+        if (( $u < $target )); then
+            echo "inode usage is ${u}, still under ${target}. waiting for df update..."
+            clean_caches
+            sleep 1
+        elif [ -z "$POSIX_MODE" ]; then
+            # for lustre, also check lfs df -i
+            lu=$(lfs df -i $RH_ROOT | grep "$RH_ROOT" | tail -n 1 | awk '{print $3}')
+            if (( $lu < $target )); then
+                echo "Lustre inode usage $lu still under ${target}. Waiting for lfs df update..."
+                clean_caches
+                sleep 1
+            else
+                return 0
+            fi
+        else
+            return 0
+        fi
+        ((i++))
+    done
+    echo "Timeout $timeout reached without reaching usage target $target"
+    return 1
+}
+
 
 function clean_fs
 {
@@ -5003,6 +5093,7 @@ function test_cnt_trigger
 	policy_str="$4"
 
 	clean_logs
+    wait_stable_df
 
 	if (( $is_hsmlite != 0 )); then
         # this mode may create an extra inode in filesystem: initial scan
@@ -5013,7 +5104,7 @@ function test_cnt_trigger
     fi
 
 	# initial inode count
-	empty_count=`df -i $RH_ROOT/ | grep "$RH_ROOT" | xargs | awk '{print $(NF-3)}'`
+	empty_count=$(inode_usage)
     export high_cnt=$(($file_count + $empty_count))
     export low_cnt=$(($high_cnt - $expected_purge_count))
 
@@ -5033,8 +5124,9 @@ function test_cnt_trigger
 		wait_done 60 || error "Copy timeout"
 	fi
 
-	# wait for df sync
-	sync; sleep 1
+	# wait for df to reflect all created files
+    wait_high_inodes $high_cnt
+    wait_stable_df
 
 	if (( $is_hsmlite != 0 )); then
         # scan and sync
@@ -5047,6 +5139,8 @@ function test_cnt_trigger
             -L rh_chglogs.log 2>/dev/null || error "executing $CMD --scan"
 		check_db_error rh_chglogs.log
     fi
+
+    df -i $RH_ROOT
 
 	# apply purge trigger
 	$RH -f $RBH_CFG_DIR/$config_file --run=purge --once -l FULL -L rh_purge.log
@@ -5068,7 +5162,6 @@ function test_cntpct_trigger
     policy_str="$4"
 
     clean_logs
-    wait_stable_df
 
     total_count=`df -i $RH_ROOT/ | grep "$RH_ROOT" | xargs |
             awk '{print $(NF-4)}'`
@@ -5085,14 +5178,15 @@ function test_cntpct_trigger
         touch $RH_ROOT/file.$i || error "creating $RH_ROOT/file.$i"
     done
 
-    wait_stable_df
+    # wait df to report at least the number of created files
+    wait_high_inodes $((2*$one_pct))
 
     # new pct should be at least +1
     new_pct=`df -i $RH_ROOT/ | grep "$RH_ROOT" | xargs | awk '{print $(NF-1)}' |
             sed -e 's/%//'`
 
     (($new_pct > $init_pct)) ||
-        error "New inode pourcentage $new_pct should be > $init_pct"
+        error "New inode percentage $new_pct should be > $init_pct"
 
     # export high/low threshold count to config file
     export high_pct="$init_pct%"
@@ -5136,7 +5230,6 @@ function test_cntpct_ost_trigger
     fi
 
     wait_stable_df
-
     total_count_ost=`lfs df -i $RH_ROOT/ | grep "OST:" | head -n 1 | xargs |
             awk '{print $(NF-4)}'`
     init_pct=`lfs df -i $RH_ROOT/ | grep "OST:" | head -n 1 | xargs |
@@ -5147,6 +5240,7 @@ function test_cntpct_ost_trigger
 
     ost_count=$(lfs df -i $RH_ROOT/ | grep "OST:" | wc -l)
 
+    created=0
     for i in $(seq 1 $ost_count); do
       ost=$(($i -1))
       echo "Creating additional $(($i*$one_pct)) files on OST$ost"
@@ -5156,10 +5250,13 @@ function test_cntpct_ost_trigger
       for i in `seq 1 $(($i*$one_pct))`; do
           lfs setstripe -c 1 -i $ost $RH_ROOT/file.$ost.$i ||
           error "creating $RH_ROOT/file.$i"
+          ((created++))
       done
     done
 
-    wait_stable_df
+    # wait df to report at least the number of newly created files
+    echo "Waiting for df to report $created inodes..."
+    wait_high_inodes $created
 
     for i in $(seq 1 $ost_count); do
         ost=$(($i -1))
@@ -5233,16 +5330,14 @@ function test_ost_trigger
         return 1
     fi
 
-	clean_logs
-
-    # reset df values
-    wait_stable_df
+    clean_logs
+    wait_low_OST_usage "OST0000" 10
 
 	empty_vol=`$LFS df $RH_ROOT | grep OST0000 | awk '{print $3}'`
 	empty_vol=$(($empty_vol/1024))
 
     if (($empty_vol >= $mb_h_threshold)); then
-        error "OST IS ALREADY OVER HIGH THRESHOLD (cannot run test)"
+        error "OST0000 IS ALREADY OVER HIGH THRESHOLD $empty_vol vs. $mb_h_threshold : cannot run test"
         return 1
     fi
 
@@ -5269,38 +5364,26 @@ function test_ost_trigger
 	if (( $is_lhsm != 0 )); then
 		wait_done 60 || error "Copy timeout"
 	fi
-    # There seems to be an inconsistency in the value returned by lfs df that is
-    # used to compute the purge size that makes this test fail.
-    # clean_caches seems to improve the situation and the test seems stable.
-    clean_caches
+    # df and lfs df have a latency
+    # wait the filesystem to report at least the number of created files
+    wait_high_inodes $count
 
 	if (( $is_hsmlite != 0 )); then
 		$RH -f $RBH_CFG_DIR/$config_file --scan $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing $CMD --sync"
     fi
-
-	# wait for df sync
-    wait_stable_df
 
 	if (( $is_lhsm != 0 )); then
 		arch_count=`$LFS hsm_state $RH_ROOT/file.* | grep "exists archived" | wc -l`
 		(( $arch_count == $count )) || error "File count $count != archived count $arch_count"
 	fi
 
-    # sometimes there are orphan objects on some OSTs which may make the
-    # OST0001 a little more filled with data, and make the test fail.
-    # get the fullest OST:
-    idx=$(lfs df "$RH_ROOT" | grep OST00 | sort -k 3nr | head -n 1 | cut -d ':' -f 2 | tr -d ']')
-    [ "$DEBUG" = "1" ] && lfs df "$RH_ROOT" | grep OST00
-    [ "$DEBUG" = "1" ] && echo "=> MAX OST is OST#$idx"
-    # 0 or 1 expected
-    [[ $idx == "0" ]] || [[ $idx == "1" ]] || error "fullest OST should be 0 or 1 (actual: $idx)"
-
-	full_vol=`$LFS df $RH_ROOT | grep OST000$idx | awk '{print $3}'`
+    wait_stable_df
+   	full_vol=$($LFS df $RH_ROOT | grep OST0000 | awk '{print $3}')
 	full_vol=$(($full_vol/1024))
 	delta=$(($full_vol-$empty_vol))
-	echo "OST#$idx usage increased of $delta MB (total usage = $full_vol MB)"
+	echo "OST#0 usage increased of $delta MB (total usage = $full_vol MB)"
 	((need_purge=$full_vol-$mb_l_threshold))
-	echo "Need to purge $need_purge MB on OST#$idx"
+	echo "Need to purge $need_purge MB on OST#0"
 
 	# scan
 	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_chglogs.log
@@ -5316,13 +5399,15 @@ function test_ost_trigger
 
     # Retrieve the size purged
     # "2015/02/18 12:09:03 [5536/4] purge | Policy run summary: time=01s; target=OST#0; 42 successful actions (42.00/sec); volume: 84.00 MB (84.00 MB/sec); 0 entries skipped; 0 errors."
-    purged_total=`grep summary rh_purge.log | grep "OST#$idx;" | awk '{print $(NF-8)}' | sed -e "s/\.[0-9]\+//g"`
+    purged_total=`grep summary rh_purge.log | grep "OST#0;" | awk '{print $(NF-8)}' | sed -e "s/\.[0-9]\+//g"`
 
     [ "$DEBUG" = "1" ] && echo "total_purged=$purged_total"
 
 	# checks
-    (( $purged_total > $need_purge )) || error ": invalid amount of data purged ($purged_total <= $need_purge)"
-    (( $purged_total <= 2*($need_purge + 1) )) || error ": invalid amount of data purged ($purged_total < 2*($need_purge + 1)"
+    (( $purged_total > $need_purge )) ||
+        error ": invalid amount of data purged ($purged_total <= $need_purge)"
+    (( $purged_total <= 2*($need_purge + 1) )) ||
+        error ": invalid amount of data purged ($purged_total > 2*($need_purge + 1)"
 
     # Check that RH knows all OST are now below the high threshold.
     grep "Top OSTs are all under high threshold" rh_purge.log || error "An OST is still above high threshold"
@@ -5332,16 +5417,14 @@ function test_ost_trigger
 
 	full_vol1=`$LFS df $RH_ROOT | grep OST0001 | awk '{print $3}'`
 	full_vol1=$(($full_vol1/1024))
-    # 1-idx => 0 or 1
-    altidx=$((1-$idx))
-	purge_ost1=`grep summary rh_purge.log | grep "OST#$altidx" | wc -l`
+	purge_ost1=`grep summary rh_purge.log | grep "OST#1" | wc -l`
 
 	if (($full_vol1 > $mb_h_threshold )); then
-		error ": OST#$altidx is not expected to exceed high threshold!"
+		error ": OST#1 is not expected to exceed high threshold!"
 	elif (($purge_ost1 != 0)); then
-		error ": no purge expected on OST#$altidx"
+		error ": no purge expected on OST#1"
 	else
-		echo "OK: no purge on OST#$altidx (usage=$full_vol1 MB)"
+		echo "OK: no purge on OST#1 (usage=$full_vol1 MB)"
 	fi
 
 	# restore default striping
@@ -5820,7 +5903,6 @@ function test_trigger_check
     target_user_count=$9
 
     clean_logs
-
     wait_stable_df
 
     if (( $is_hsmlite != 0 )); then
@@ -5875,7 +5957,8 @@ function test_trigger_check
         wait_done 60 || error "Copy timeout"
     fi
 
-    # wait for df sync
+    # wait at least for created files to be reported by df
+    wait_high_inodes $file_count
     wait_stable_df
 
     if (( $is_hsmlite != 0 )); then
@@ -10983,8 +11066,7 @@ function cleanup
             clean_fs
     fi
 
-    # Wait usage < 20%
-    wait_low_usage 20
+    wait_low_usage 10
 }
 
 function run_test
@@ -11836,6 +11918,11 @@ function fs_usage
     df -P "$RH_ROOT" | tail -n 1 | awk '{ print $(NF-1) }' | tr -d '%'
 }
 
+function inode_usage
+{
+	df -i $RH_ROOT/ | grep "$RH_ROOT" | xargs | awk '{print $(NF-3)}'
+}
+
 ###########################################################
 ############### Purge Trigger Functions ###################
 ###########################################################
@@ -11867,6 +11954,7 @@ function trigger_purge_QUOTA_EXCEEDED
         rc=$?
         if (( $rc != 0 )); then
             lfs df -h
+            df -h
             echo "WARNING: failed to write $RH_ROOT/file.$indice $rc"
             # give it a chance to end the loop
             ((limit=$limit-1))
@@ -11879,6 +11967,10 @@ function trigger_purge_QUOTA_EXCEEDED
         ((indice++))
     done
     lfs df -h
+    df -h
+
+    # wait df update
+    wait_high_usage 75
 
     echo "2-Reading changelogs and Applying purge trigger policy..."
 	$RH -f $RBH_CFG_DIR/$config_file --scan --check-thresholds=purge -l DEBUG -L rh_purge.log --once
