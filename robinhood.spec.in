@@ -344,7 +344,7 @@ fi
 %if %{defined suse_version}
 %service_del_postun robinhood.service robinhood@.service
 %else
-%systemd_postun
+%systemd_postun robinhood.service robinhood@.service
 %endif
 %endif
 
