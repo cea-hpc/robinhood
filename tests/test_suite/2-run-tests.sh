@@ -5987,9 +5987,11 @@ function test_trigger_check
     [ -n "$count_trig" ] || count_trig=0
 
     vol_fs_trig=`grep " blocks (x512) must be processed on Filesystem" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
+    [ -n "$vol_fs_trig" ] || vol_fs_trig=0
     ((vol_fs_trig_mb=$vol_fs_trig/2048)) # /2048 == *512/1024/1024
 
     vol_user_trig=`grep " blocks (x512) must be processed for user" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
+    [ -n "$vol_user_trig_mb" ] || vol_user_trig_mb=0
     ((vol_user_trig_mb=$vol_user_trig/2048)) # /2048 == *512/1024/1024
 
     cnt_user_trig=`grep " files to be processed for user" rh_purge.log | cut -d '|' -f 2 | awk '{print $1}'`
