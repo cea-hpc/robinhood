@@ -815,6 +815,9 @@ static int polrun_read_config(config_file_t config, const char *policy_name,
             conf->lru_sort_order = rc;
         }
     }
+    /* if sort attr = NONE, set sort_type = NONE */
+    if (conf->lru_sort_attr == LRU_ATTR_NONE)
+        conf->lru_sort_order = SORT_NONE;
 
     /* 'action' overrides 'default_action' from 'define_policy' */
     rc = GetStringParam(param_block, block_name, "action",
