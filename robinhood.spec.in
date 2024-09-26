@@ -348,8 +348,6 @@ fi
 %if %{with_systemd}
 %if %{defined suse_version}
 %service_del_postun robinhood.service robinhood@.service
-%else
-%systemd_postun
 %endif
 %endif
 
