@@ -120,7 +120,7 @@ Conflicts: robinhood-posix
 Provides: robinhood = %{version}-%{release}
 Obsoletes: robinhood-tmpfs < 3.0, robinhood-tmpfs-lustre < 3.0
 Obsoletes: robinhood-backup < 3.0, robinhood-lhsm < 3.0
-Requires: mailx
+Requires: /usr/bin/mailx
 %if %{with jemalloc}
 Requires: jemalloc
 %endif
@@ -141,7 +141,7 @@ Group: Applications/System
 Conflicts: robinhood-lustre
 Provides: robinhood = %{version}-%{release}
 Obsoletes: robinhood-tmpfs < 3.0, robinhood-tmpfs-posix < 3.0
-Requires: mailx
+Requires: /usr/bin/mailx
 %if %{with jemalloc}
 Requires: jemalloc
 %endif

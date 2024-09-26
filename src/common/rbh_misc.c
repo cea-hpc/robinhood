@@ -305,7 +305,7 @@ int SendMail(const char *recipient, const char *subject, const char *message)
     char *buffer;
     FILE *file;
 
-    if (asprintf(&buffer, "mailx -s \"%s\" %s", subject, recipient) == -1) {
+    if (asprintf(&buffer, "s-nail -s \"%s\" %s", subject, recipient) == -1) {
         DisplayLog(LVL_CRIT, "SENDMAIL",
                    "Could not allocate title buffer for \"%s\"", subject);
         return -1;
