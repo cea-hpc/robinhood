@@ -28,8 +28,6 @@
 /* avoid linking with all robinhood libs */
 log_config_t log_config = { .debug_level = LVL_DEBUG };
 global_config_t global_config = { .fs_path = "somefspath" };
-unsigned int sm_inst_count;
-unsigned int sm_attr_count;
 
 void DisplayLogFn(log_level debug_level, const char *tag, const char *format, ...)
 {
