@@ -33,6 +33,7 @@
 #include "policy_rules.h"
 #include "policy_run.h"
 #include "status_manager.h"
+#include "panfs_config.h"
 
 char config_file[RBH_PATH_MAX] = "";
 
@@ -43,6 +44,9 @@ struct mod_cfgs {
     {&global_cfg_hdlr,     MODULE_MASK_ALWAYS},
     {&log_cfg_hdlr,        MODULE_MASK_ALWAYS},
     {&updt_params_hdlr,    MODULE_MASK_ALWAYS},
+#ifdef _PANFS
+    {&panfs_cfg_hdlr,      MODULE_MASK_ALWAYS},
+#endif
     {&lmgr_cfg_hdlr,       MODULE_MASK_ALWAYS},
     {&entry_proc_cfg_hdlr, MODULE_MASK_ENTRY_PROCESSOR},
     {&fs_scan_cfg_hdlr,    MODULE_MASK_FS_SCAN},
@@ -144,7 +148,7 @@ static int rbh_cfg_read_set(int module_mask, char *file_path, char *err_msg_out,
             /* just free the top level handler */
             free(cfg);
     }
-
+   
  config_free:
     /* free config file resources */
     rh_config_Free(syntax_tree);

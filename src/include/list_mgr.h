@@ -1074,6 +1074,10 @@ void ListMgr_CloseProfile(struct lmgr_profile_t *p_iter);
 
 // Scan statistics
 #define LAST_SCAN_START_TIME  "LastScanStartTime"
+#ifdef _PANFS
+#define SNAPSHOT_PATH  "SnapPath"
+#define SNAPSHOT_DONE  "SnapDone"
+#endif
 #define LAST_SCAN_END_TIME    "LastScanEndTime"
 #define LAST_SCAN_PROCESSING_END_TIME "LastScanProcessingEndTime"
 #define LAST_SCAN_STATUS      "LastScanStatus"
