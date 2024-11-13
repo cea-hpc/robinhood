@@ -2193,7 +2193,7 @@ static void report_topuser(unsigned int count, int flags)
     unsigned int rank = 1;
     lmgr_filter_t filter;
     filter_value_t fv;
-    bool is_filter = false;
+    bool is_filter_init = false;
     profile_u prof;
 
 #define TOPUSERCOUNT 7
@@ -2230,6 +2230,24 @@ static void report_topuser(unsigned int count, int flags)
         user_info[6].sort_flag = REVERSE(flags) ? SORT_ASC : SORT_DESC;
     }
 
+    if (!SORT_BY_COUNT(flags)) {
+        /* Because we consider that only relevant files should be displayed
+         * for size-based reports (i.e. not links or directories)
+         * we apply a filter to only select files.
+         * Note that this behaviour can be confusing, regarding how we want to
+         * sort, the filecount will be different.*/
+        lmgr_simple_filter_init(&filter);
+
+        fv.value.val_str = STR_TYPE_FILE;
+        lmgr_simple_filter_add(&filter, ATTR_INDEX_type, EQUAL, fv, 0);
+        is_filter_init = true;
+    }
+
+    if (mk_global_filters(&filter, !NOHEADER(flags), &is_filter_init) != 0) {
+        DisplayLog(LVL_CRIT, REPORT_TAG, "ERROR: Failed to build filter");
+        return;
+    }
+
     if (count_min) {
         user_info[3].filter = true;
         user_info[3].filter_compar = MORETHAN;
@@ -2242,21 +2260,10 @@ static void report_topuser(unsigned int count, int flags)
     opt.allow_no_attr = 0;
     opt.force_no_acct = FORCE_NO_ACCT(flags);
 
-    /* select only files */
-    lmgr_simple_filter_init(&filter);
-
-    fv.value.val_str = STR_TYPE_FILE;
-    lmgr_simple_filter_add(&filter, ATTR_INDEX_type, EQUAL, fv, 0);
-    is_filter = true;
-
-    if (mk_global_filters(&filter, !NOHEADER(flags), &is_filter) != 0) {
-        DisplayLog(LVL_CRIT, REPORT_TAG, "ERROR: Failed to build filter");
-        return;
-    }
-
-    /* is a filter specified? */
     it = ListMgr_Report(&lmgr, user_info, TOPUSERCOUNT,
-                        SPROF(flags) ? &size_profile : NULL, &filter, &opt);
+                        SPROF(flags) ? &size_profile : NULL,
+                        is_filter_init ? &filter : NULL,
+                        &opt);
     if (it == NULL) {
         DisplayLog(LVL_CRIT, REPORT_TAG,
                    "ERROR: Could not retrieve top space consumers from database.");
