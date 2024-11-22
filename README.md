@@ -1,3 +1,21 @@
+## ![robinhood logo](http://robinhood.sourceforge.net/images/logo_rh.gif) Robinhood Policy Engine
+                                                                                 
+Robinhood Policy Engine is a versatile tool to manage contents of large file systems. It maintains a replicate of filesystem medatada in a database that can be queried at will. It makes it possible to schedule mass action on filesystem entries by defining attribute-based policies, provides fast 'find' and 'du' enhanced clones, gives to administrators an overall view of filesystem contents through its web UI and command line tools.
+It supports any POSIX filesystem and implements advanced features for  [Lustre](https://www.lustre.org) filesystems (list/purge files per OST or pool, read MDT changelogs...)
+                                                                                 
+Originally developped for HPC, it has been designed to perform all its tasks in parallel, so it is particularly adapted for running on large filesystems with millions of entries and petabytes of data. But of course, you can take benefits of all its features for managing smaller filesystems.
+                                                                                 
+Robinhood is distributed under the [CeCILL-C](http://www.cecill.info/licences/Licence_CeCILL-C_V1-en.html) license, which is a French transposition of the [GNU LGPL](http://www.gnu.org/licenses/lgpl.html) and is fully LGPL-compatible.
+                                                                                 
+### Main features                                                                
+* Policy Engine: schedule actions on filesystem entries according to admin-defined criteria, based on entry attributes.
+* User/group usage accounting, including file size profiling.                    
+* Fast 'du' and 'find' clones.                                                   
+* Customizable alerts on filesystem entries.                                     
+* Aware of Lustre OSTs, pools and projects.                                      
+                                                                                 
+For more information, refer to the [online documentation](https://github.com/cea-hpc/robinhood/wiki).
+
 I - License
 ===========
 
@@ -108,8 +126,7 @@ This database can run on a different node from Robinhood daemon.
 
 * Install MySQL server on the machine (mysql-server and mysql packages).
 * Start the DB engine:
-    * RHEL6: service mysqld start
-    * RHEL7: systemctl start mariadb
+    * systemctl start mariadb
 * Run the configuration helper script as root on the database host to create
 the database:
 ```
@@ -160,8 +177,7 @@ robinhood --scan --once
 
 VIII - Start the daemon
 =======================
-* [el6 and el7] Configure common daemon options in **/etc/sysconfig/robinhood**
-* [el7] Configure per-filesystem daemon options in **/etc/sysconfig/robinhood.\<fsname\>**
+* Configure per-filesystem daemon options in **/etc/sysconfig/robinhood.\<fsname\>**
 
 Example: to read lustre changelogs and run all policies:
 ```
@@ -175,6 +191,5 @@ RBH_OPT="--scan --run=all"
 
 Start the daemon:
 ```
-[el6] service robinhood start
-[el7] systemctl start robinhood@*fsname*
+systemctl start robinhood@*fsname*
 ```
