@@ -531,7 +531,7 @@ static int ct_hsm_io_cmd(const enum hsm_copytool_action hsma, GMainLoop *loop,
 			 const struct hsm_action_item *hai, const long hal_flags)
 {
 	struct cmd_cb_args	 *cb_args;
-	GError			 *err;
+	GError			 *err = NULL;
 	GPid			  pid;
 	GSource			 *timer_gsrc;
 	GSource			 *term_gsrc;
