@@ -466,9 +466,8 @@ static int build_cmd(const char *name, int begin_idx, int end_idx, void *udata)
             GString *gs = g_string_new("");
 
             ListMgr_PrintAttrPtr(gs, def->db_type, pval, "");
-            val = gs->str;
             free_val = true;
-            g_string_free(gs, FALSE);
+            val = g_string_free(gs, FALSE);
         } else if (rc == -ENODATA) {
             /* parameter exists but is not set.
              * No previous value was found, use empty string instead.
@@ -545,8 +544,7 @@ char *subst_params(const char *str_in,
         g_string_append(args.out_str, str_in + args.last_idx);
 
     /* don't release the string itself (freed by the caller) */
-    ret = args.out_str->str;
-    g_string_free(args.out_str, FALSE);
+    ret = g_string_free(args.out_str, FALSE);
 
     DisplayLog(LVL_FULL, PARAMS_TAG, "'%s'->'%s' in %s", str_in, ret,
                str_descr);
@@ -621,8 +619,7 @@ char *concat_cmd(char **cmd)
         g_string_append(built_command, cmd[i]);
     }
 
-    out_str = built_command->str;
-    g_string_free(built_command, FALSE);
+    out_str = g_string_free(built_command, FALSE);
 
     return out_str;
 }
