@@ -3,7 +3,7 @@ ACLOCAL_AMFLAGS = -I autotools/m4
 check-valgrind:
 	make -C src/tests check-valgrind
 
-SUBDIRS=src scripts tests web_gui man
+SUBDIRS=src scripts tests web_gui man doc
 
 rpm_dir=`pwd`/rpms
 
@@ -94,8 +94,6 @@ EXTRA_DIST= robinhood.spec robinhood.spec.in \
 	doc/admin_guides \
 	doc/install_webgui.txt \
 	ChangeLog \
-	$(srcdir)/doc/templates/includes/*.inc \
-	$(srcdir)/doc/templates/*.conf \
 	$(srcdir)/man/*.1
 
 

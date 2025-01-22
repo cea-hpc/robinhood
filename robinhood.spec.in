@@ -232,11 +232,7 @@ make %{?_smp_mflags}
 rm -rf $RPM_BUILD_ROOT
 mkdir -p $RPM_BUILD_ROOT
 make install DESTDIR=$RPM_BUILD_ROOT
-mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates
-mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes
 
-install -m 644 doc/templates/includes/*.inc $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/includes/
-install -m 644 doc/templates/*.conf $RPM_BUILD_ROOT/%{_sysconfdir}/robinhood.d/templates/
 
 mkdir $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig
 install -m 644 scripts/sysconfig_robinhood $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/robinhood
