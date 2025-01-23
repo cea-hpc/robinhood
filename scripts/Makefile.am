@@ -16,6 +16,10 @@ EXTRA_DIST= robinhood.init			\
     cmd2man.sh make_mans.sh fix_man_options.sh  \
     ld.so.robinhood.conf.in rbh_cksum.sh.in
 
+
+ldconfdir=$(sysconfdir)/ld.so.conf.d
+ldconf_DATA=ld.so.robinhood.conf
+
 dist_sbin_SCRIPTS=rbh_cksum.sh
 
 if COMMON_RPMS
