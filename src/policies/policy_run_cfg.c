@@ -464,6 +464,7 @@ static int parse_trigger_block(config_item_t config_blk, const char *block_name,
         "high_threshold_pct", "low_threshold_pct",
         "high_threshold_vol", "low_threshold_vol",
         "high_threshold_cnt", "low_threshold_cnt",
+        "high_threshold_cntpct", "low_threshold_cntpct",
         "alert_high", "alert_low", "post_trigger_wait",
         "action_params", "max_action_count", "max_action_volume",
         NULL
