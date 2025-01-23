@@ -51,7 +51,7 @@ function db_check
     if [ -x /etc/init.d/mysql ]; then
         service=mysql
     fi
-    rpm -q mariadb > /dev/null && service=mariadb
+    mysql --version | grep -q MariaDB && service=mariadb
     running=0
     echo "Checking service $service..."
     if [ -x /usr/bin/systemctl ]; then
