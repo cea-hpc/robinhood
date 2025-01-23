@@ -157,7 +157,6 @@ Policy engine for POSIX filesystems.
 %package adm
 Summary: admin/config helper for Robinhood PolicyEngine
 Group: Applications/System
-Release: @RELEASE@
 
 %description adm
 This RPM provides an admin/config helper for Robinhood PolicyEngine (command rbh-config).
@@ -166,12 +165,11 @@ This RPM provides an admin/config helper for Robinhood PolicyEngine (command rbh
 %package webgui
 Summary: Web interface to vizualize filesystems stats
 Group: Applications/System
-Release: @RELEASE@
+Requires: php, php-pdo
 %if 0%{?rhel} <= 7
-Requires: php, php-pdo, php-mysql
-%endif
-%if 0%{?rhel} >= 7
-Requires: php, php-pdo, php-mysqlnd
+Requires: php-mysql
+%else
+Requires: php-mysqlnd
 %endif
 
 %description webgui
@@ -194,7 +192,6 @@ Group: Applications/System
 Requires: robinhood robinhood-adm bc strace
 # mariadb or mysql
 Requires: /usr/bin/mysql
-Release: @RELEASE@
 
 %description tests
 Lustre and Posix tests for Robinhood.
@@ -463,6 +460,9 @@ rm -rf $RPM_BUILD_ROOT
 %endif
 
 %changelog
+
+* Wed Nov 20 2024 Thomas Leibovici <thomas.leibovici@cea.fr> 3.2.0-2
+- Fix packaging error for WebUI on EL7
 
 * Wed Nov 20 2024 Thomas Leibovici <thomas.leibovici@cea.fr> 3.2.0-1
 - Robinhood 3.2.0
