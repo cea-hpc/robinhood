@@ -14,6 +14,8 @@ include("../config.php");
 include("../common.php");
 include("../plugin.php");
 
+header('Content-Type: application/javascript');
+
 foreach($CHARTJS as $conf => $val)
 {
         echo "$conf=$val;\n";
