@@ -1,6 +1,11 @@
 [Unit]
 Description=Robinhood server
 #only works if config file is unique
+After=local-fs.target remote-fs.target
+Requires=local-fs.target
+#to speedup the starting, remove the above two lines,
+#  then uncomment and modify the following 'RequiresMountsFor' directive
+#RequiresMountsFor=/path/to/scan
 
 [Service]
 Type=simple
@@ -9,3 +14,6 @@ EnvironmentFile=-@CONFDIR@/sysconfig/robinhood
 LimitNOFILE=8096
 ExecStart=@SBINDIR@/robinhood $RBH_OPT
 ExecReload=/bin/kill -HUP $MAINPID
+
+[Install]
+WantedBy=multi-user.target
