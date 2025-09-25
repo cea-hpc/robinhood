@@ -1775,6 +1775,15 @@ static void report_usergroup_info(char *name, int flags)
                                 REVERSE(flags) ? SORT_DESC : SORT_ASC);
         field_count++;
         head++;
+
+        /* group report + split, add user after group */
+        if (ISGROUP(flags) && ISSPLITUSERGROUP(flags)) {
+            set_report_rec_nofilter(&user_info[field_count], ATTR_INDEX_uid,
+                                    REPORT_GROUP_BY,
+                                    REVERSE(flags) ? SORT_DESC : SORT_ASC);
+            field_count++;
+            head++;
+        }
     }
     /* split by project if requested */
     if (ISSPLITUSERPROJ(flags)) {
