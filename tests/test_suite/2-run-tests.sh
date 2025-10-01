@@ -12844,6 +12844,15 @@ function test_report_generation_1
     [ "$DEBUG" = "1" ] && cat report.out
 	find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validating Group statistics (--group)"
 
+    # launch another scan ..........................
+    echo -e "\n 6b-Group statistics of testgroup per user..."
+    $REPORT -f $RBH_CFG_DIR/$config_file -g testgroup --csv -S > report.out || error "performing Group by-user statistics (-g -S)"
+    typeValues="testgroup.*root.*file;testgroup.*testuser.*dir;testgroup.*testuser.*file;testgroup.*testuser.*symlink"
+    countValues="2;6;1;2"
+    colSearch=4
+    [ "$DEBUG" = "1" ] && cat report.out
+    find_allValuesinCSVreport $logFile $typeValues $countValues $colSearch || error "validation Group by-user statistics (-g -S)"
+
 	# launch another scan ..........................
 	echo -e "\n 7-Four largest files of Filesystem..."
 	$REPORT -f $RBH_CFG_DIR/$config_file --top-size=4 --csv > report.out || error "performing Largest files list (--top-size)"
