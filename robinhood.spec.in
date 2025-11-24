@@ -454,6 +454,10 @@ rm -rf $RPM_BUILD_ROOT
 
 %changelog
 
+* Mon Nov 24 2025 Sebastien Gougeaud <sebastien.gougeaud@cea.fr> 3.2.0-3
+- Fix report issue when using `-S` with group report
+- Make also install configuration and template files
+
 * Wed Nov 20 2024 Thomas Leibovici <thomas.leibovici@cea.fr> 3.2.0-2
 - Fix packaging error for WebUI on EL7
 
