@@ -3859,6 +3859,7 @@ function test_action_params
     id2=$(get_id $RH_ROOT/file.2)
     id3=$(get_id $RH_ROOT/file.3)
     id4=$(get_id $RH_ROOT/file.4)
+    idroot=$(get_id $RH_ROOT)
 
 	$RH -f $RBH_CFG_DIR/$config_file --scan --once -l DEBUG -L rh_scan.log || error "scan error"
     check_db_error rh_scan.log
@@ -3975,8 +3976,9 @@ function test_action_params
     #   'arg = 3' from rule
     # action: echo '{fid}' '{rule}' '{arg}'  >> /tmp/purge.log
     check_action_param rh_purge.log $id2 arg 3
+    check_action_param rh_purge.log $id2 grouping "$idroot"
     check_rule_and_class rh_purge.log $RH_ROOT/file.2 "purge2" "class2"
-    check_action_patterns rh_purge.log $id2 "echo" "$id2" "purge2" "3"
+    check_action_patterns rh_purge.log $id2 "echo" "$id2" "purge2" "$idroot" "3"
     # FIXME grep the line in /tmp/purge.log
 
     # file.3 (class3, rule purge3)

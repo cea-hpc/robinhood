@@ -233,8 +233,16 @@ static char *get_fid_str(const entry_id_t *id, const attr_set_t *attrs,
         return NULL;
     }
 
-    if (asprintf(&fid_str, DFID_NOBRACE, PFID(id)) < 0)
-        return NULL;
+    if (attr_index == -1) {
+        if (asprintf(&fid_str, DFID_NOBRACE, PFID(id)) < 0)
+            return NULL;
+    } else {
+        if (asprintf(&fid_str,
+                     DFID_NOBRACE,
+                     PFID((entry_id_t *)&attrs->attr_values +
+                         field_infos[attr_index].offset)) < 0)
+            return NULL;
+    }
 
     *free_str = true;
     return fid_str;
@@ -271,6 +279,7 @@ static const struct param_descr std_params[] = {
     {"path", ATTR_INDEX_fullpath, get_str_attr},
     {"fullpath", ATTR_INDEX_fullpath, get_str_attr},
     {"fid", -1, get_fid_str},
+    {"parent_fid", ATTR_INDEX_parent_id, get_fid_str},
     {"ost_pool", ATTR_INDEX_stripe_info, get_str_attr},
 
     /* global params */
