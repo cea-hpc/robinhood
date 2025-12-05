@@ -1,5 +1,5 @@
 
-configdir = $(sysconfdir)/robinhood.d
+configdir = @CONFDIR@/robinhood.d
 templatesdir = $(configdir)/templates
 includesdir = $(configdir)/includes
 

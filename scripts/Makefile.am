@@ -17,8 +17,11 @@ EXTRA_DIST= robinhood.init			\
     ld.so.robinhood.conf.in rbh_cksum.sh.in
 
 
-ldconfdir=$(sysconfdir)/ld.so.conf.d
-ldconf_DATA=ld.so.robinhood.conf
+ldconfdir=@CONFDIR@/ld.so.conf.d
+ldconf_DATA=robinhood.conf
+
+robinhood.conf: ld.so.robinhood.conf
+	mv ld.so.robinhood.conf robinhood.conf
 
 dist_sbin_SCRIPTS=rbh_cksum.sh
 
