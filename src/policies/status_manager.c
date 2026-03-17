@@ -554,6 +554,14 @@ proc_action_e match_all_softrm_filters(const entry_id_t *id,
     return pa;
 }
 
+bool softrm_filter_for_mass_rm(const entry_id_t *id, const attr_set_t *attrs,
+                               void *arg __attribute__((unused)))
+{
+    proc_action_e pa = match_all_softrm_filters(id, attrs);
+
+    return (pa == PROC_ACT_SOFTRM_IF_EXISTS || pa == PROC_ACT_SOFTRM_ALWAYS);
+}
+
 /** set status and attribute masks of status manager instances,
  * once they are all loaded */
 void smi_update_masks(void)
