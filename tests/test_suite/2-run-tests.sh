@@ -4623,6 +4623,62 @@ function test_basic_sm
     return 0
 }
 
+function test_raw_result_count
+{
+    local config_file=$1
+    local nb_files=12
+    local policy_pid
+    local victim_id
+    local i
+
+    clean_logs
+
+    echo "1-Creating test files with distinct old mtimes..."
+    for i in $(seq "$nb_files"); do
+        touch -d "$((nb_files - i + 2)) hours ago" \
+            "$RH_ROOT/raw-count.$i" ||
+            error "creating raw-count.$i"
+    done
+
+    echo "2-Scanning"
+    $RH -f "$RBH_CFG_DIR/$config_file" --scan --once -l VERB \
+        -L rh_scan.log || error "scan error"
+    check_db_error rh_scan.log
+
+    victim_id=$(mysql -N -B "$RH_DB" \
+        -e "SELECT id FROM NAMES WHERE name='raw-count.5'") ||
+        error "looking up test victim"
+    [[ -n "$victim_id" ]] || error "test victim not found"
+
+    # Keep scan md_update values older than the policy start boundary.
+    sleep 1
+
+    echo "3-Running policy and deleting an unconsumed selected row"
+    $RH -f "$RBH_CFG_DIR/$config_file" --run=raw_count_touch --once \
+        -l FULL -L rh_migr.log &
+    policy_pid=$!
+
+    for i in $(seq 100); do
+        grep -q "Executing policy action" rh_migr.log && break
+        sleep 0.1
+    done
+    grep -q "Executing policy action" rh_migr.log ||
+        error "policy action did not start"
+
+    mysql "$RH_DB" -e "DELETE FROM ENTRIES WHERE id='$victim_id'" ||
+        error "deleting selected test entry"
+
+    wait "$policy_pid" || error "policy run error"
+    check_db_error rh_migr.log
+
+    local actions
+    actions=$(grep -c "Executing policy action" rh_migr.log)
+    ((actions == nb_files - 1)) ||
+        error "$((nb_files - 1)) actions expected, got $actions"
+
+    return 0
+}
+
 function test_modeguard_sm_dir
 {
     local config_file=$1
@@ -14176,6 +14232,8 @@ run_test 232c  test_sched_limits test_sched1.conf trigger "check trigger vs. max
 run_test 232d  test_sched_limits test_sched1.conf param "check policy parameter vs. max_per_run scheduler"
 run_test 232e  test_sched_limits test_sched1.conf cmd "check cmd line vs. max_per_run scheduler"
 run_test 233   test_basic_sm     test_basic.conf  "Test basic status manager"
+run_test 233a  test_raw_result_count test_raw_result_count.conf \
+    "Use selected row count when deciding policy end of list"
 run_test 234   test_modeguard_sm_dir test_modeguard_dir.conf "Test modeguard status manager with directories"
 run_test 235   test_modeguard_sm_file test_modeguard_file.conf "Test modeguard status manager with files"
 run_test 236a  test_prepost_sched test_prepost_sched.conf none none \

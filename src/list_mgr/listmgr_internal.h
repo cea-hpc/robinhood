@@ -92,6 +92,7 @@ typedef struct lmgr_iterator_t {
     lmgr_iter_opt_t  opt;
     result_handle_t  select_result;
     unsigned int     opt_is_set:1;
+    unsigned int     result_count;
 } lmgr_iterator_t;
 
 #ifdef _LUSTRE

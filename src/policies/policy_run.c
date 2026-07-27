@@ -1543,6 +1543,14 @@ static inline int iter_next(struct policy_iter *it, entry_id_t *p_id,
     return DB_INVALID_ARG;
 }
 
+static inline unsigned int iter_result_count(struct policy_iter *it)
+{
+    if (it->it_type != IT_LIST)
+        return 0;
+
+    return ListMgr_GetIteratorResultCount(it->it.std_iter);
+}
+
 static inline void iter_close(struct policy_iter *it)
 {
     switch (it->it_type) {
@@ -1653,15 +1661,20 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
             st = pol->aborted ? PASS_ABORTED : PASS_EOL;
             break;
         } else if (rc == DB_END_OF_LIST) {
+            unsigned int selected_count = *db_current_list_count;
+
+            if (it->it_type == IT_LIST)
+                selected_count = iter_result_count(it);
+
             *db_total_list_count += *db_current_list_count;
 
             if (/* no entries returned => END OF LIST */
-                (*db_current_list_count == 0)
+                (selected_count == 0)
                 /* if limit = inifinite => END OF LIST */
                 || (req_opt->list_count_max == 0)
                 /* if returned count < limit => END OF LIST */
                 || ((req_opt->list_count_max > 0) &&
-                    (*db_current_list_count < req_opt->list_count_max))) {
+                    (selected_count < req_opt->list_count_max))) {
                 DisplayLog(LVL_FULL, tag(pol), "End of list "
                            "(%u entries returned)", *db_total_list_count);
                 st = PASS_EOL;

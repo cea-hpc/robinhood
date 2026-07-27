@@ -339,6 +339,7 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
     /* allocate a new iterator */
     it = (lmgr_iterator_t *) MemAlloc(sizeof(lmgr_iterator_t));
     it->p_mgr = p_mgr;
+    it->result_count = 0;
     if (p_opt) {
         it->opt = *p_opt;
         it->opt_is_set = 1;
@@ -350,6 +351,8 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
     rc = db_exec_sql(&p_mgr->conn, req->str, &it->select_result);
     if (rc)
         goto free_it;
+    it->result_count =
+        db_result_nb_records(&p_mgr->conn, &it->select_result);
 
     if (filter_dir != NULL)
         g_string_free(filter_dir, TRUE);
@@ -435,6 +438,12 @@ int ListMgr_GetNext(struct lmgr_iterator_t *p_iter, entry_id_t *p_id,
 
     return rc;
 
+}
+
+unsigned int
+ListMgr_GetIteratorResultCount(const struct lmgr_iterator_t *p_iter)
+{
+    return p_iter == NULL ? 0 : p_iter->result_count;
 }
 
 void ListMgr_CloseIterator(struct lmgr_iterator_t *p_iter)

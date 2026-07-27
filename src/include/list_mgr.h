@@ -879,6 +879,10 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
 int ListMgr_GetNext(struct lmgr_iterator_t *p_iter,
                     entry_id_t *p_id, attr_set_t *p_info);
 
+/** Return the number of rows selected by the iterator query. */
+unsigned int
+ListMgr_GetIteratorResultCount(const struct lmgr_iterator_t *p_iter);
+
 /**
  * Release iterator resources.
  */
