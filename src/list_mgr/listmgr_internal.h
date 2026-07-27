@@ -92,7 +92,10 @@ typedef struct lmgr_iterator_t {
     lmgr_iter_opt_t  opt;
     result_handle_t  select_result;
     unsigned int     opt_is_set:1;
+    unsigned int     last_id_is_set:1;
+    unsigned int     uses_pk_cursor:1;
     unsigned int     result_count;
+    entry_id_t       last_id;
 } lmgr_iterator_t;
 
 #ifdef _LUSTRE

@@ -4623,6 +4623,51 @@ function test_basic_sm
     return 0
 }
 
+function test_primary_key_cursor
+{
+    local config_file=$1
+    local nb_files=7
+
+    clean_logs
+
+    echo "1-Creating test files..."
+    for i in $(seq $nb_files); do
+        touch "$RH_ROOT/file.$i" || error "creating file.$i"
+    done
+
+    echo "2-Scanning"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l VERB -L rh_scan.log ||
+        error "scan error"
+    check_db_error rh_scan.log
+
+    # Keep scan md_update values older than the policy start boundary.
+    sleep 1
+
+    echo "3-Running policy with a 2-entry DB request limit"
+    $RH -f $RBH_CFG_DIR/$config_file --run=cursor_touch --once \
+        -l FULL -L rh_migr.log || error "policy run error"
+    check_db_error rh_migr.log
+
+    local actions
+    actions=$(grep -c "Executing policy action" rh_migr.log)
+    (($actions == $nb_files)) ||
+        error "$nb_files actions expected, got $actions"
+
+    local candidate_queries
+    candidate_queries=$(
+        grep -c "SELECT ENTRIES.id AS id FROM ENTRIES.*ORDER BY ENTRIES.id ASC LIMIT 2" \
+            rh_migr.log
+    )
+    ((candidate_queries == 4)) ||
+        error "4 primary-key-ordered candidate queries expected, got $candidate_queries"
+
+    grep "SELECT ENTRIES.id AS id FROM ENTRIES.*ENTRIES.id>'[^']*'.*ORDER BY ENTRIES.id ASC LIMIT 2" \
+        rh_migr.log >/dev/null ||
+        error "no continued candidate query with an exclusive id cursor"
+
+    return 0
+}
+
 function test_raw_result_count
 {
     local config_file=$1
@@ -4675,6 +4720,42 @@ function test_raw_result_count
     actions=$(grep -c "Executing policy action" rh_migr.log)
     ((actions == nb_files - 1)) ||
         error "$((nb_files - 1)) actions expected, got $actions"
+
+    return 0
+}
+
+function test_primary_key_cursor_fallback
+{
+    local config_file=$1
+    local nb_files=7
+
+    clean_logs
+
+    echo "1-Creating test files..."
+    for i in $(seq $nb_files); do
+        touch "$RH_ROOT/file.$i" || error "creating file.$i"
+    done
+
+    echo "2-Scanning"
+    $RH -f $RBH_CFG_DIR/$config_file --scan --once -l VERB -L rh_scan.log ||
+        error "scan error"
+    check_db_error rh_scan.log
+
+    # Keep scan md_update values older than the policy start boundary.
+    sleep 1
+
+    echo "3-Running policy with an ineligible joined query"
+    $RH -f $RBH_CFG_DIR/$config_file --run=cursor_touch --once \
+        -l FULL -L rh_migr.log || error "policy run error"
+    check_db_error rh_migr.log
+
+    local actions
+    actions=$(grep -c "Executing policy action" rh_migr.log)
+    (($actions == $nb_files)) ||
+        error "$nb_files actions expected, got $actions"
+
+    grep -q "ORDER BY ENTRIES.id ASC" rh_migr.log &&
+        error "primary-key cursor unexpectedly used for a joined query"
 
     return 0
 }
@@ -14234,6 +14315,10 @@ run_test 232e  test_sched_limits test_sched1.conf cmd "check cmd line vs. max_pe
 run_test 233   test_basic_sm     test_basic.conf  "Test basic status manager"
 run_test 233a  test_raw_result_count test_raw_result_count.conf \
     "Use selected row count when deciding policy end of list"
+run_test 233b  test_primary_key_cursor test_pk_cursor.conf \
+    "Automatically resume eligible split queries using the primary key"
+run_test 233c  test_primary_key_cursor_fallback test_pk_cursor_fallback.conf \
+    "Keep legacy batching for joined unsorted queries"
 run_test 234   test_modeguard_sm_dir test_modeguard_dir.conf "Test modeguard status manager with directories"
 run_test 235   test_modeguard_sm_file test_modeguard_file.conf "Test modeguard status manager with files"
 run_test 236a  test_prepost_sched test_prepost_sched.conf none none \

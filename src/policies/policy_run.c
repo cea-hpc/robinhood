@@ -1543,6 +1543,14 @@ static inline int iter_next(struct policy_iter *it, entry_id_t *p_id,
     return DB_INVALID_ARG;
 }
 
+static inline int iter_cursor(struct policy_iter *it, entry_id_t *p_id)
+{
+    if (it->it_type != IT_LIST)
+        return DB_NOT_SUPPORTED;
+
+    return ListMgr_GetIteratorCursor(it->it.std_iter, p_id);
+}
+
 static inline unsigned int iter_result_count(struct policy_iter *it)
 {
     if (it->it_type != IT_LIST)
@@ -1613,7 +1621,7 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
                                         const policy_param_t *p_param,
                                         lmgr_t *lmgr,
                                         struct policy_iter *it,
-                                        const lmgr_iter_opt_t *req_opt,
+                                        lmgr_iter_opt_t *req_opt,
                                         const lmgr_sort_type_t *sort_type,
                                         lmgr_filter_t *filter,
                                         attr_mask_t attr_mask,
@@ -1662,9 +1670,36 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
             break;
         } else if (rc == DB_END_OF_LIST) {
             unsigned int selected_count = *db_current_list_count;
+            entry_id_t cursor_id;
+            bool cursor_is_set = false;
 
             if (it->it_type == IT_LIST)
                 selected_count = iter_result_count(it);
+
+            rc = iter_cursor(it, &cursor_id);
+            switch (rc) {
+            case DB_SUCCESS:
+                cursor_is_set = true;
+                break;
+            case DB_NOT_SUPPORTED:
+                /* This iterator uses the legacy continuation path. */
+                break;
+            case DB_NOT_EXISTS:
+                if (selected_count == 0)
+                    break;
+                DisplayLog(LVL_CRIT, tag(pol), "Could not retrieve "
+                           "primary-key cursor after %u selected entries",
+                           selected_count);
+                return PASS_ERROR;
+            case DB_INVALID_ARG:
+                DisplayLog(LVL_CRIT, tag(pol), "Invalid argument while "
+                           "retrieving primary-key cursor");
+                return PASS_ERROR;
+            default:
+                DisplayLog(LVL_CRIT, tag(pol), "Unexpected error %d while "
+                           "retrieving primary-key cursor", rc);
+                return PASS_ERROR;
+            }
 
             *db_total_list_count += *db_current_list_count;
 
@@ -1701,6 +1736,10 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
                              status_tab_after, false);
 
             /* perform a new request with next entries */
+
+            req_opt->cursor_is_set = cursor_is_set;
+            if (cursor_is_set)
+                req_opt->cursor_id = cursor_id;
 
             /* /!\ if there is already a filter on <sort_attr> or md_update
              * only replace it, do not add a new filter.
@@ -1742,10 +1781,18 @@ static pass_status_e fill_workers_queue(policy_info_t *pol,
                            sort_char, *last_sort_time,
                            pol->progress.policy_start);
             } else {
-                DisplayLog(LVL_DEBUG, tag(pol),
-                           "Performing new request with a limit of %u entries"
-                           " and md_update < %ld ", req_opt->list_count_max,
-                           pol->progress.policy_start);
+                if (cursor_is_set)
+                    DisplayLog(LVL_DEBUG, tag(pol),
+                               "Performing new request with a limit of %u "
+                               "entries, id > " DFID " and md_update < %ld ",
+                               req_opt->list_count_max, PFID(&cursor_id),
+                               pol->progress.policy_start);
+                else
+                    DisplayLog(LVL_DEBUG, tag(pol),
+                               "Performing new request with a limit of %u "
+                               "entries and md_update < %ld ",
+                               req_opt->list_count_max,
+                               pol->progress.policy_start);
             }
 
             *db_current_list_count = 0;

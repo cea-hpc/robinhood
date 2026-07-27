@@ -240,10 +240,12 @@ typedef struct lmgr_iter_opt_t {
     unsigned int force_no_acct:1;   /* don't use acct table for reports */
     unsigned int allow_no_attr:1;   /* allow returning entries if no attr is
                                        available */
+    unsigned int cursor_is_set:1;   /* cursor_id contains a resume boundary */
+    entry_id_t cursor_id;           /* exclusive primary-key resume boundary */
 } lmgr_iter_opt_t;
 
 #define LMGR_ITER_OPT_INIT {.list_count_max = 0, .force_no_acct = 0, \
-                            .allow_no_attr = 0}
+                            .allow_no_attr = 0, .cursor_is_set = 0}
 
 typedef struct attr_mask {
     uint32_t std;     /**< standard attribute mask */
@@ -878,6 +880,17 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
  */
 int ListMgr_GetNext(struct lmgr_iterator_t *p_iter,
                     entry_id_t *p_id, attr_set_t *p_info);
+
+/**
+ * Return the primary-key continuation cursor used by an iterator.
+ *
+ * This is only available when the iterator automatically selected primary-key
+ * continuation. Unlike the id returned by ListMgr_GetNext(), the cursor also
+ * advances for selected entries that disappear before their attributes can be
+ * retrieved.
+ */
+int ListMgr_GetIteratorCursor(const struct lmgr_iterator_t *p_iter,
+                              entry_id_t *p_id);
 
 /** Return the number of rows selected by the iterator query. */
 unsigned int

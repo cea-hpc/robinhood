@@ -211,6 +211,9 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
     struct field_count fcnt = { 0 };
     bool distinct = false;
     table_enum query_tab = T_NONE;
+    bool has_where = false;
+    bool pk_cursor_eligible = false;
+    bool uses_pk_cursor = false;
 
     GString *from = NULL;
     GString *where = NULL;
@@ -232,6 +235,8 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
         rc = select_all_request(p_mgr, req, sort_table, sort_dirattr, distinct);
         if (rc)
             goto free_str;
+        query_tab = T_MAIN;
+        pk_cursor_eligible = true;
     } else {    /* analyse filter contents */
 
         unsigned int nbft;
@@ -255,6 +260,8 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
                                     distinct);
             if (rc)
                 goto free_str;
+            query_tab = T_MAIN;
+            pk_cursor_eligible = true;
         } else {
             /* build the FROM clause */
             from = g_string_new(NULL);
@@ -284,6 +291,9 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
 
             g_string_append_printf(req, " FROM %s WHERE %s", from->str,
                                    where->str);
+            has_where = true;
+            pk_cursor_eligible = nbft == 1 && query_tab == T_MAIN
+                && filter_dir_type == FILTERDIR_NONE && !distinct;
         }
     }
 
@@ -309,7 +319,10 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
     }
 #endif
 
-    /* sort order */
+    /*
+     * Keep configured sorting unchanged. Otherwise, split eligible unsorted
+     * requests on the primary key and leave other query shapes unchanged.
+     */
     if (do_sort(sort_table, sort_dirattr)) {
         /* special cases: stripe info stands for pool_name,
          * stripe items for ost_idx */
@@ -330,6 +343,18 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
             g_string_append(req, "ASC");
         else
             g_string_append(req, "DESC");
+    } else if (pk_cursor_eligible && p_opt
+               && p_opt->list_count_max > 0) {
+        DEF_PK(cursor_pk);
+
+        uses_pk_cursor = true;
+        if (p_opt->cursor_is_set) {
+            entry_id2pk(&p_opt->cursor_id, PTR_PK(cursor_pk));
+            g_string_append_printf(req, "%s" MAIN_TABLE ".id>" DPK,
+                                   has_where ? " AND " : " WHERE ", cursor_pk);
+        }
+
+        g_string_append(req, " ORDER BY " MAIN_TABLE ".id ASC");
     }
 
     /* iterator opt */
@@ -339,6 +364,8 @@ struct lmgr_iterator_t *ListMgr_Iterator(lmgr_t *p_mgr,
     /* allocate a new iterator */
     it = (lmgr_iterator_t *) MemAlloc(sizeof(lmgr_iterator_t));
     it->p_mgr = p_mgr;
+    it->last_id_is_set = 0;
+    it->uses_pk_cursor = uses_pk_cursor;
     it->result_count = 0;
     if (p_opt) {
         it->opt = *p_opt;
@@ -407,6 +434,10 @@ int ListMgr_GetNext(struct lmgr_iterator_t *p_iter, entry_id_t *p_id,
             entry_disappeared = true;
         else if (rc)
             return rc;
+        else {
+            p_iter->last_id = *p_id;
+            p_iter->last_id_is_set = 1;
+        }
 
         rc = listmgr_get_by_pk(p_iter->p_mgr, pk, p_info);
 
@@ -438,6 +469,20 @@ int ListMgr_GetNext(struct lmgr_iterator_t *p_iter, entry_id_t *p_id,
 
     return rc;
 
+}
+
+int ListMgr_GetIteratorCursor(const struct lmgr_iterator_t *p_iter,
+                              entry_id_t *p_id)
+{
+    if (p_iter == NULL || p_id == NULL)
+        return DB_INVALID_ARG;
+    if (!p_iter->uses_pk_cursor)
+        return DB_NOT_SUPPORTED;
+    if (!p_iter->last_id_is_set)
+        return DB_NOT_EXISTS;
+
+    *p_id = p_iter->last_id;
+    return DB_SUCCESS;
 }
 
 unsigned int
