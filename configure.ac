@@ -472,6 +472,16 @@ AM_CONDITIONAL(MNTENTCOMPAT, test "$getmntent_r" = "no" )
 AC_CHECK_FUNC([fallocate],[fallocate=yes],[fallocate=no])
 test "$fallocate" = "yes" && AC_DEFINE(HAVE_FALLOCATE, 1, [File preallocation available])
 
+# Check for posix_spawn_file_actions_addclosefrom_np (glibc >= 2.34).
+# When available, external commands are spawned with posix_spawn() instead of
+# g_spawn (fork+exec): fork of a large multi-threaded daemon serializes all
+# worker threads on the malloc arena locks for the fork duration, capping
+# policy action throughput. On older glibc (e.g. el7, 2.17), posix_spawn with
+# file actions falls back to fork() internally anyway, so we keep the g_spawn
+# code path there.
+AC_CHECK_FUNC([posix_spawn_file_actions_addclosefrom_np],[spawn_closefrom=yes],[spawn_closefrom=no])
+test "$spawn_closefrom" = "yes" && AC_DEFINE(HAVE_POSIX_SPAWN_ADDCLOSEFROM, 1, [posix_spawn file action addclosefrom available])
+
 AS_AC_EXPAND(CONFDIR, $sysconfdir)
 if test $prefix = NONE && test "$CONFDIR" = "/usr/etc"  ; then
     CONFDIR="/etc"

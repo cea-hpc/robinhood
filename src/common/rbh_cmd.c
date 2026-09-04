@@ -24,6 +24,12 @@
 
 #include <assert.h>
 #include <unistd.h>
+#ifdef HAVE_POSIX_SPAWN_ADDCLOSEFROM
+#include <spawn.h>
+#include <errno.h>
+
+extern char **environ;
+#endif
 
 #define TAG "ExecCmd"
 
@@ -227,6 +233,85 @@ static int g_io_add_watch_tothread(GIOChannel *channel,
     return id;
 }
 
+#ifdef HAVE_POSIX_SPAWN_ADDCLOSEFROM
+/**
+ * Create a child process with its stdout/stderr connected to pipes, using
+ * posix_spawn() rather than the fork()+exec() that g_spawn_async_with_pipes()
+ * performs internally.
+ *
+ * Rationale: glibc fork() runs the pthread_atfork handlers, which take every
+ * malloc arena lock, and it clones the caller's page tables. In a policy
+ * daemon with a large resident heap and dozens of worker threads, each
+ * per-entry fork therefore stalls every thread that touches malloc for the
+ * duration of the fork, capping aggregate action throughput near 1/fork_time
+ * *per process*, independent of nb_threads. posix_spawn() uses
+ * clone(CLONE_VM | CLONE_VFORK) and runs no atfork handlers, so the worker
+ * threads keep running while the child is created.
+ *
+ * Semantics kept compatible with the previous g_spawn call:
+ *   - PATH search (posix_spawnp, ~ G_SPAWN_SEARCH_PATH);
+ *   - no fds >= 3 inherited by the child (addclosefrom_np, glibc >= 2.34),
+ *     matching g_spawn's default fd-closing behaviour;
+ *   - the caller reaps the child (~ G_SPAWN_DO_NOT_REAP_CHILD): still done by
+ *     the GLib child watch below.
+ *
+ * Returns 0 on success, sets *pid, and (when want_pipes) sets the p_out and
+ * p_err outputs to the read ends of the child's stdout and stderr pipes.
+ * Returns -errno on failure.
+ */
+static int spawn_with_pipes(char **argv, bool want_pipes,
+                            GPid *pid, int *p_out, int *p_err)
+{
+    posix_spawn_file_actions_t fa;
+    int   out_pipe[2] = { -1, -1 };
+    int   err_pipe[2] = { -1, -1 };
+    pid_t child;
+    int   rc;
+
+    rc = posix_spawn_file_actions_init(&fa);
+    if (rc)
+        return -rc;
+
+    if (want_pipes) {
+        if (pipe(out_pipe) < 0 || pipe(err_pipe) < 0) {
+            rc = errno;
+            goto out;
+        }
+        /* in the child, wire the pipe write ends onto stdout/stderr */
+        posix_spawn_file_actions_adddup2(&fa, out_pipe[1], STDOUT_FILENO);
+        posix_spawn_file_actions_adddup2(&fa, err_pipe[1], STDERR_FILENO);
+    }
+
+    /* close every inherited fd >= 3 in the child (including the spare pipe
+     * fds just dup'd onto 1/2). Matches g_spawn's default; needs glibc 2.34+ */
+    posix_spawn_file_actions_addclosefrom_np(&fa, STDERR_FILENO + 1);
+
+    rc = posix_spawnp(&child, argv[0], &fa, NULL, argv, environ);
+
+out:
+    posix_spawn_file_actions_destroy(&fa);
+
+    if (rc) {
+        if (out_pipe[0] >= 0) close(out_pipe[0]);
+        if (out_pipe[1] >= 0) close(out_pipe[1]);
+        if (err_pipe[0] >= 0) close(err_pipe[0]);
+        if (err_pipe[1] >= 0) close(err_pipe[1]);
+        return -rc;
+    }
+
+    if (want_pipes) {
+        /* parent keeps the read ends, closes the write ends */
+        close(out_pipe[1]);
+        close(err_pipe[1]);
+        *p_out = out_pipe[0];
+        *p_err = err_pipe[0];
+    }
+
+    *pid = child;
+    return 0;
+}
+#endif /* HAVE_POSIX_SPAWN_ADDCLOSEFROM */
+
 /**
  * Execute synchronously an external command, read its output and invoke
  * a user-provided filter function on every line of it.
@@ -234,18 +319,20 @@ static int g_io_add_watch_tothread(GIOChannel *channel,
 int execute_shell_command(char **cmd, parse_cb_t cb_func, void *cb_arg)
 {
     struct exec_ctx     ctx = { 0 };
-    GPid                pid;
+    GPid                pid = -1;
     GError             *err_desc = NULL;
-    GSpawnFlags         flags = G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD;
     GIOChannel         *out_chan = NULL;
     GIOChannel         *err_chan = NULL;
     struct io_chan_arg  out_args;
     struct io_chan_arg  err_args;
     char               *log_cmd;
-    int                 p_stdout;
-    int                 p_stderr;
-    bool                success;
+    int                 p_stdout = -1;
+    int                 p_stderr = -1;
     int                 rc = 0;
+#ifndef HAVE_POSIX_SPAWN_ADDCLOSEFROM
+    GSpawnFlags         flags = G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD;
+    bool                success;
+#endif
 
     ctx.gctx = g_main_context_new();
     g_main_context_push_thread_default(ctx.gctx);
@@ -255,6 +342,16 @@ int execute_shell_command(char **cmd, parse_cb_t cb_func, void *cb_arg)
 
     DisplayLog(LVL_DEBUG, TAG, "Spawning external command \"%s\"", cmd[0]);
 
+#ifdef HAVE_POSIX_SPAWN_ADDCLOSEFROM
+    rc = spawn_with_pipes(cmd, cb_func != NULL, &pid, &p_stdout, &p_stderr);
+    if (rc) {
+        log_cmd = concat_cmd(cmd);
+        DisplayLog(LVL_MAJOR, TAG, "Failed to execute \"%s\": %s",
+                   log_cmd, strerror(-rc));
+        free(log_cmd);
+        goto out_free;
+    }
+#else
     success = g_spawn_async_with_pipes(NULL,    /* Working dir */
                                        cmd, /* Parameters */
                                        NULL,    /* Environment */
@@ -274,6 +371,7 @@ int execute_shell_command(char **cmd, parse_cb_t cb_func, void *cb_arg)
         free(log_cmd);
         goto out_free;
     }
+#endif
 
     /* register a watcher in the loop, thus increase refcount of our exec_ctx */
     ctx_incref(&ctx);
