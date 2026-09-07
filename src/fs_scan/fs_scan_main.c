@@ -39,6 +39,14 @@ static void *scan_starter(void *arg)
 
     DisplayLog(LVL_VERB, FSSCAN_TAG, "Launching FS Scan starter thread");
 
+#ifdef _PANFS
+    rc = Robinhood_CheckScanDeadlines();
+    if (rc)
+        DisplayLog(LVL_CRIT, FSSCAN_TAG, "Error %d checking FS Scan status",
+                  rc);
+    pthread_exit(NULL);
+    return NULL;
+#else
     if (fsscan_flags & RUNFLG_ONCE) {
         rc = Robinhood_CheckScanDeadlines();
         if (rc)
@@ -59,6 +67,7 @@ static void *scan_starter(void *arg)
         rh_sleep(fs_scan_config.spooler_check_interval);
     }
 
+#endif
     return NULL;
 }
 
