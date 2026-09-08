@@ -5488,7 +5488,7 @@ function test_ost_trigger
     vol=$empty_vol
     i=0
     while (( vol < mb_h_threshold )); do
-		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=2 >/dev/null 2>&1 ||
+		dd if=/dev/zero of=$RH_ROOT/file.$i bs=1M count=1 >/dev/null 2>&1 ||
             error "writing $RH_ROOT/file.$i"
 
 		if (( $is_lhsm != 0 )); then
