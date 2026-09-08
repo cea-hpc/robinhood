@@ -9230,8 +9230,8 @@ function test_logs
             sync; sleep 2
 			tail -n +"$init_msg_idx" /var/log/messages | grep $CMD > /tmp/extract_all
 
-			egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-Z0-9_ ]* \|' > /tmp/extract_log
-			egrep -v 'ALERT|: [A-Za-Z0-9_ ]* \|' /tmp/extract_all > /tmp/extract_report
+			egrep -v 'ALERT' /tmp/extract_all | grep  ': [A-Za-z0-9_ ]* \|' > /tmp/extract_log
+			egrep -v 'ALERT|: [A-Za-z0-9_ ]* \|' /tmp/extract_all > /tmp/extract_report
 			grep 'ALERT' /tmp/extract_all > /tmp/extract_alert
 
             if [ "$DEBUG" = "1" ]; then
