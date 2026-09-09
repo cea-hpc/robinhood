@@ -5495,6 +5495,7 @@ function test_ost_trigger
 			flush_data
 			$LFS hsm_archive $RH_ROOT/file.$i
 		fi
+        clean_caches
         vol=$($LFS df $RH_ROOT | grep OST0000 | awk '{print $3}')
         vol=$(( vol / 1024 ))
         i=$(( i + 1 ))
