@@ -1839,10 +1839,10 @@ function mass_softrm
 	cat fsinfo.1
 	$REPORT -f $RBH_CFG_DIR/$config_file --deferred-rm --csv -q > deferred.1
 	(( `wc -l fsinfo.1 | awk '{print $1}'` == 1 )) || error "a single file status is expected after data migration"
-	status=`cat fsinfo.1 | cut -d "," -f 2 | tr -d ' '`
+	status=`cat fsinfo.1 | cut -d "," -f 1 | tr -d ' '`
 	nb=`cat fsinfo.1 | grep synchro | cut -d "," -f 3 | tr -d ' '`
 	[[ -n $nb ]] || nb=0
-	[[ "$status"=="synchro" ]] || error "status expected after data migration: synchro, got $status"
+	[[ "$status" == "synchro" ]] || error "status expected after data migration: synchro, got $status"
 	(( $nb == $entries )) || error "$entries entries expected, got $nb"
 	(( `wc -l deferred.1 | awk '{print $1}'`==0 )) || error "no deferred rm expected after first scan"
 	rm -f fsinfo.1 deferred.1
@@ -1866,9 +1866,9 @@ function mass_softrm
 	$REPORT -f $RBH_CFG_DIR/$config_file --deferred-rm --csv -q > deferred.2
 	# 100 files were in the removed directory
 	(( `wc -l fsinfo.2 | awk '{print $1}'` == 1 )) || error "a single file status is expected after data migration"
-	status=`cat fsinfo.2 | cut -d "," -f 2 | tr -d ' '`
+	status=`cat fsinfo.2 | cut -d "," -f 1 | tr -d ' '`
 	nb=`cat fsinfo.2 | grep synchro | cut -d "," -f 3 | tr -d ' '`
-	[[ "$status"=="synchro" ]] || error "status expected after data migration: synchro, got $status"
+	[[ "$status" == "synchro" ]] || error "status expected after data migration: synchro, got $status"
 	(( $nb == $entries - 100 )) || error $(($entries - 100)) " entries expected, got $nb"
 	nb=`wc -l deferred.2 | awk '{print $1}'`
 	((expect=100 + $nbsubdirs + 1))
@@ -1924,7 +1924,7 @@ function purge_test
 		echo "2bis-Archiving files"
 		$RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing migration policy"
 		arch_count=`grep "$ARCH_STR" rh_migr.log | wc -l`
-		(( $arch_count == 11 )) || error "$11 archive commands expected"
+		(( $arch_count == 11 )) || error "11 archive commands expected"
 	fi
 
 	echo "3-Applying purge policy ($policy_str)..."
@@ -2429,7 +2429,7 @@ function test_maint_mode
 			arch_done=1
 			now=`date +%s`
 			# delay_min must be elapsed
-			(( $now >= $t0 + $delay_min )) || error "file migrated before dealy min"
+			(( $now >= $t0 + $delay_min )) || error "file migrated before delay min"
 			# migr_policy_delay must not been reached
 			(( $now < $t0 + $migr_policy_delay )) || error "file already reached policy delay"
 		fi
@@ -5401,7 +5401,7 @@ function test_cntpct_ost_trigger
         ost=$(($i -1))
 
         # new pct should be at least +1*ost_rank
-        new_pct=`lfs df -i $RH_ROOT/ | grep "OST:$ost" | head -n 1 | xargs |
+        new_pct=`lfs df -i $RH_ROOT/ | grep "OST:$ost]" | head -n 1 | xargs |
             awk '{print $(NF-1)}' | sed -e 's/%//'`
 
         (($new_pct > $init_pct+$ost)) ||
@@ -12146,7 +12146,7 @@ function trigger_purge_OST_QUOTA_EXCEEDED
     wait_stable_df
 
 	echo "1-Fullfilling OST#0 up to 80%..."
-	elem=`$LFS df $RH_ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
+	elem=`$LFS df $RH_ROOT | grep "OST:0]" | awk '{ print $5 }' | sed 's/%//'`
 	limit=80
 	indice=1
     while [ $elem -lt $limit ]
@@ -12155,7 +12155,8 @@ function trigger_purge_OST_QUOTA_EXCEEDED
         dd if=/dev/zero of=$RH_ROOT/file.$indice bs=10M count=1 \
             conv=sync >/dev/null 2>/dev/null
         unset elem
-	    elem=`$LFS df $RH_ROOT | grep "OST:0" | awk '{ print $5 }' | sed 's/%//'`
+        clean_caches
+	    elem=`$LFS df $RH_ROOT | grep "OST:0]" | awk '{ print $5 }' | sed 's/%//'`
         [ "$DEBUG" = "1" ] && echo "used: $elem, target: $limit"
         ((indice++))
     done
