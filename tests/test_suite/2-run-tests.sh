@@ -2041,7 +2041,7 @@ function test_custom_purge
 
     # checking that the custom command was called for each file
     for  i in `seq 1 10`; do
-        line=$(grep "action: cmd" rh_purge.log | grep 'rm_script' | grep $RH_ROOT/file.$i)
+        line=$(grep "action: cmd" rh_purge.log | grep 'rm_script' | grep "$RH_ROOT/file.$i)")
         if [ -z "$line" ]; then
             error "No action found on $RH_ROOT/file.$i"
             continue
