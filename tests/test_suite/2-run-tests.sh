@@ -14098,7 +14098,7 @@ function TEST_OTHER_PARAMETERS_5
 
     # create files to fullfill the FS
     echo "Create files"
-    elem=`$LFS df $RH_ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+    elem=$(fs_usage)
     limit=50
     indice=1
     while (( $elem < $limit ))
@@ -14110,7 +14110,8 @@ function TEST_OTHER_PARAMETERS_5
             ((limit=$limit-1))
         fi
         unset elem
-        elem=`$LFS df $RH_ROOT | grep "filesystem summary" | awk '{ print $6 }' | sed 's/%//'`
+        clean_caches
+        elem=$(fs_usage)
         ((indice++))
     done
 
