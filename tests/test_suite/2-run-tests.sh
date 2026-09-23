@@ -371,6 +371,38 @@ function wait_hsm_state {
     done
 }
 
+# Wait for a process started detached with -p <pidfile> to exit.
+# 'wait' only works on children of this shell, and a daemonized process
+# (double-fork) is not one, so poll for its termination instead.
+# The pid file is written by the daemon after its parent exits, so wait
+# for it to appear first. Callers must remove it before starting the
+# daemon, else a stale file would make the poll return immediately.
+function wait_pidfile
+{
+    local pidfile=$1
+    local timeout=${2:-60}
+    local deadline=$(( $(date +%s) + timeout ))
+    local pid
+
+    while [ ! -s "$pidfile" ] && (( $(date +%s) < deadline )); do
+        sleep 0.1
+    done
+    if [ ! -s "$pidfile" ]; then
+        echo "WARNING: no pid file '$pidfile' after ${timeout}s"
+        return 1
+    fi
+
+    pid=$(cat "$pidfile")
+    while kill -0 "$pid" 2>/dev/null && (( $(date +%s) < deadline )); do
+        sleep 0.5
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+        echo "WARNING: process $pid still running after ${timeout}s"
+        return 1
+    fi
+    return 0
+}
+
 # wait filesystem usage percentage returned by 'df' to be under a given value
 function wait_low_usage
 {
@@ -9056,6 +9088,10 @@ function test_logs
 
 	sleep_time=430 # log rotation time (300) + scan interval (100) + scan duration (30)
 
+	# daemon(3) chdir's to "/" when detaching: the pid file path must be
+	# absolute, else the daemon writes it at the filesystem root
+	pidfile=/tmp/rbh_test_logs.pid
+
 	clean_logs
 	rm -f /tmp/test_log.1 /tmp/test_report.1 /tmp/test_alert.1 /tmp/extract_all /tmp/extract_log /tmp/extract_report /tmp/extract_alert
 
@@ -9103,11 +9139,10 @@ function test_logs
 	if (( $stdio )); then
 		$RH -f $RBH_CFG_DIR/$config_file --scan $extra_action --run=alert -I -l DEBUG --once >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error "scan error $(cat /tmp/rbh.stderr)"
 	else
-        # detach and wait, else it will log to stderr by default
-		$RH -f $RBH_CFG_DIR/$config_file --scan --run=alert -I -l DEBUG --once -d -p pidfile|| error "scan error"
-        sleep 2
-        [ -f pidfile ] && wait $(cat pidfile)
-        ps -edf | grep $RH | grep -v grep
+		# detach and wait, else it will log to stderr by default
+		rm -f $pidfile
+		$RH -f $RBH_CFG_DIR/$config_file --scan --run=alert -I -l DEBUG --once -d -p $pidfile || error "scan error"
+		wait_pidfile $pidfile 60
 	fi
 
 	if (( $files )); then
@@ -9218,10 +9253,9 @@ function test_logs
 		if (( $stdio )); then
 			$RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT -l DEBUG --once --dry-run >/tmp/rbh.stdout 2>/tmp/rbh.stderr || error "run failed"
 		else
-			$RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT -l DEBUG --once --dry-run -d -p pidfile || error "run failed"
-            sleep 2
-            [ -f pidfile ] && wait $(cat pidfile)
-            ps -edf | grep $RH | grep -v grep
+			rm -f $pidfile
+			$RH -f $RBH_CFG_DIR/$config_file $PURGE_OPT -l DEBUG --once --dry-run -d -p $pidfile || error "run failed"
+			wait_pidfile $pidfile 60
         fi
 
 		# extract new syslog messages
@@ -9282,8 +9316,10 @@ function test_logs
 		return 1
 	fi
 
+	rm -f $pidfile
+
 	# start a FS scanner with FS_Scan period = 100
-	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -d -p pidfile
+	$RH -f $RBH_CFG_DIR/$config_file --scan -l DEBUG -d -p $pidfile
 
 	# rotate the logs
 	for l in /tmp/test_log.1 /tmp/test_report.1 /tmp/test_alert.1; do
@@ -9320,8 +9356,8 @@ function test_logs
 		cat /tmp/test_report.1
         fi
 
-	[ -f pidfile ] && kill -9 $(cat pidfile)
-	rm -f /tmp/test_log.1 /tmp/test_report.1 /tmp/test_alert.1 pidfile
+	[ -f $pidfile ] && kill -9 $(cat $pidfile)
+	rm -f /tmp/test_log.1 /tmp/test_report.1 /tmp/test_alert.1 $pidfile
 	rm -f /tmp/test_log.1.old /tmp/test_report.1.old /tmp/test_alert.1.old
 }
 
