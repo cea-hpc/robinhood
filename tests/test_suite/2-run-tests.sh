@@ -12364,6 +12364,9 @@ function test_purge
     if (( ($is_hsmlite != 0) || ($is_lhsm != 0) )); then
 		echo "Archiving files"
 		$RH -f $RBH_CFG_DIR/$config_file $SYNC_OPT -l DEBUG  -L rh_migr.log || error "executing Archiving files"
+		# HSM copies are asynchronous: wait for them to complete, else the
+		# purge only sees the entries whose archive is already finished
+		(( $is_lhsm > 0 )) && wait_done 60
 	fi
 
 	if(($sleep_time != 0)); then
