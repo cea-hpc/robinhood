@@ -815,7 +815,7 @@ static void create_pid_file(const char *pid_file)
         ssize_t iolen;
 
         snprintf(pid_str, 128, "%lu\n", (unsigned long)getpid());
-        iolen = write(fd, pid_str, strlen(pid_str) + 1);
+        iolen = write(fd, pid_str, strlen(pid_str));
 
         if (iolen == -1) {
             DisplayLog(LVL_CRIT, MAIN_TAG, "ERROR writing pid file %s: %s",
