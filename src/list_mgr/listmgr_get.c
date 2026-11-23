@@ -232,10 +232,12 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
     int             main_count  = 0,
                     annex_count = 0,
                     name_count  = 0;
-    attr_mask_t     gen = gen_fields(p_info->attr_mask);
+    attr_mask_t     gen;
 
     if (p_info == NULL)
         return 0;
+
+    gen = gen_fields(p_info->attr_mask);
 
     /* init entry info */
     memset(&p_info->attr_values, 0, sizeof(entry_info_t));
@@ -310,7 +312,7 @@ int listmgr_get_by_pk( lmgr_t * p_mgr, PK_ARG_T pk, attr_set_t * p_info )
     {
         int shift = 0;
 
-        g_string_append_printf(req, "%s WHERE %s.id="DPK, from->str,
+        g_string_append_printf(req, "%s WHERE %s.id="DPK" LIMIT 1", from->str,
                                first_table, pk);
 
         rc = db_exec_sql(&p_mgr->conn, req->str, &result);
