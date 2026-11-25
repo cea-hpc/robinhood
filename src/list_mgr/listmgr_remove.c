@@ -477,6 +477,8 @@ static int create_tmp_table_rm(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
  */
 static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
                                      bool soft_rm, time_t rm_time, rm_cb_func_t cb_func,
+                                     softrm_filter_cb_t softrm_filter,
+                                     void *filter_arg,
                                      unsigned int *rm_count)
 {
     struct field_count counts = {0};
@@ -636,6 +638,7 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
         if (soft_rm)
         {
             attr_set_t old_attrs = ATTR_SET_INIT;
+            bool do_softrm = true;
 
             old_attrs.attr_mask = mask_no_rmtime;
 
@@ -644,11 +647,15 @@ static int listmgr_mass_remove_no_tx(lmgr_t *p_mgr, const lmgr_filter_t *p_filte
             if (rc)
                 goto free_res;
 
-            ATTR_MASK_SET(&old_attrs, rm_time);
-            ATTR(&old_attrs, rm_time) = rm_time;
+            if (softrm_filter)
+                do_softrm = softrm_filter(&id, &old_attrs, filter_arg);
 
-            /* insert into softrm table */
-            rc = listmgr_softrm_single(p_mgr, &id, &old_attrs);
+            if (do_softrm) {
+                ATTR_MASK_SET(&old_attrs, rm_time);
+                ATTR(&old_attrs, rm_time) = rm_time;
+
+                rc = listmgr_softrm_single(p_mgr, &id, &old_attrs);
+            }
             ListMgr_FreeAttrs(&old_attrs);
             if (rc)
                 goto free_res;
@@ -705,7 +712,10 @@ free_str:
 
 /** handles a mass_remove transaction */
 static int listmgr_mass_remove(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
-                               bool soft_rm, time_t rm_time, rm_cb_func_t cb_func)
+                               bool soft_rm, time_t rm_time,
+                               rm_cb_func_t cb_func,
+                               softrm_filter_cb_t softrm_filter,
+                               void *filter_arg)
 {
     int             rc;
     unsigned int    rmcount = 0;
@@ -718,7 +728,9 @@ retry:
     else if (rc)
         return rc;
 
-    rc = listmgr_mass_remove_no_tx(p_mgr, p_filter, soft_rm, rm_time, cb_func, &rmcount);
+    rc = listmgr_mass_remove_no_tx(p_mgr, p_filter, soft_rm, rm_time,
+                                   cb_func, softrm_filter, filter_arg,
+                                   &rmcount);
 
     if (lmgr_delayed_retry(p_mgr, rc))
         goto retry;
@@ -743,14 +755,17 @@ int ListMgr_MassRemove(lmgr_t * p_mgr, const lmgr_filter_t * p_filter,
                         rm_cb_func_t cb_func)
 {
     /* not a soft rm */
-    return listmgr_mass_remove(p_mgr, p_filter, false, 0, cb_func);
+    return listmgr_mass_remove(p_mgr, p_filter, false, 0, cb_func, NULL, NULL);
 }
 
 int ListMgr_MassSoftRemove(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
-                           time_t rm_time, rm_cb_func_t cb_func)
+                           time_t rm_time, rm_cb_func_t cb_func,
+                           softrm_filter_cb_t softrm_filter,
+                           void *filter_arg)
 {
     /* soft rm */
-    return listmgr_mass_remove(p_mgr, p_filter, true, rm_time, cb_func);
+    return listmgr_mass_remove(p_mgr, p_filter, true, rm_time, cb_func,
+                               softrm_filter, filter_arg);
 }
 
 /**

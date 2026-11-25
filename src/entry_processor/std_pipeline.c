@@ -1927,8 +1927,8 @@ int EntryProc_rm_old_entries(struct entry_proc_op_t *p_op, lmgr_t *lmgr)
 
         /* remove entries listed in previous scans */
         if (has_deletion_policy())
-            /* @TODO fix for dirs */
-            rc = ListMgr_MassSoftRemove(lmgr, &filter, time(NULL), cb);
+            rc = ListMgr_MassSoftRemove(lmgr, &filter, time(NULL), cb,
+                                        softrm_filter_for_mass_rm, NULL);
         else
             rc = ListMgr_MassRemove(lmgr, &filter, cb);
 

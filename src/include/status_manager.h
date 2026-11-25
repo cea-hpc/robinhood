@@ -335,6 +335,15 @@ int run_all_cl_cb(const CL_REC_TYPE *logrec,
 proc_action_e match_all_softrm_filters(const entry_id_t *id,
                                        const attr_set_t *attrs);
 
+/**
+ * Wrapper suitable as a softrm_filter_cb_t for ListMgr_MassSoftRemove.
+ * Returns true for entries that should be soft-removed (based on all
+ * status manager softrm filters), false for entries that should only
+ * be hard-removed from the DB.
+ */
+bool softrm_filter_for_mass_rm(const entry_id_t *id, const attr_set_t *attrs,
+                               void *arg);
+
 /** return a mask with n bits 1 starting from offset.
  * e.g. bit_range(5,3) = 011100000
  */

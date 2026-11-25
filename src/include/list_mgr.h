@@ -698,6 +698,17 @@ int ListMgr_MassUpdate(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
 typedef void (*rm_cb_func_t) (const entry_id_t *);
 
 /**
+ * Per-entry filter callback for MassSoftRemove.
+ * Called for each candidate entry when MassSoftRemove has a nonempty query
+ * filter. Bypassed when the query filter is NULL or empty.
+ * \return true if the entry should be inserted into SOFTRM,
+ *         false if it should only be hard-removed from the DB.
+ */
+typedef bool (*softrm_filter_cb_t)(const entry_id_t *id,
+                                   const attr_set_t *attrs,
+                                   void *arg);
+
+/**
  * Removes a name from the database. Remove the entry if last is true.
  */
 int ListMgr_Remove(lmgr_t *p_mgr, const entry_id_t *p_id,
@@ -732,9 +743,19 @@ int ListMgr_SoftRemove(lmgr_t *p_mgr, const entry_id_t *p_id,
 
 /**
  * Soft remove a set of entries according to a filter.
+ * \param softrm_filter  Optional per-entry filter callback. If non-NULL and
+ *                        p_filter is nonempty, it is called for each candidate
+ *                        entry; entries for which it returns false are
+ *                        hard-removed instead of soft-removed.
+ *                        If softrm_filter is NULL, all matching entries are
+ *                        soft-removed. If p_filter is NULL or empty, the bulk
+ *                        soft-removal path is used and softrm_filter is ignored.
+ * \param filter_arg     Opaque argument forwarded to softrm_filter.
  */
 int ListMgr_MassSoftRemove(lmgr_t *p_mgr, const lmgr_filter_t *p_filter,
-                           time_t rm_time, rm_cb_func_t);
+                           time_t rm_time, rm_cb_func_t,
+                           softrm_filter_cb_t softrm_filter,
+                           void *filter_arg);
 
 /**
  * Definitely remove an entry from the delayed removal table.

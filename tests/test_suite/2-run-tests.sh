@@ -1903,7 +1903,12 @@ function mass_softrm
 	[[ "$status" == "synchro" ]] || error "status expected after data migration: synchro, got $status"
 	(( $nb == $entries - 100 )) || error $(($entries - 100)) " entries expected, got $nb"
 	nb=`wc -l deferred.2 | awk '{print $1}'`
-	((expect=100 + $nbsubdirs + 1))
+	if (( $is_lhsm != 0 )); then
+		# LHSM only queues files for backend removal.
+		expect=100
+	else
+		((expect=100 + $nbsubdirs + 1))
+	fi
 	(( $nb == $expect )) || error "$expect deferred rm expected after first scan, got $nb"
 	rm -f fsinfo.2 deferred.2
 
